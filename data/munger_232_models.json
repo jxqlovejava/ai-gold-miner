@@ -1,0 +1,2094 @@
+{
+  "source": "mungermodels.com",
+  "total": 232,
+  "models": [
+    {
+      "slug": "inconsistency-avoidance-tendency",
+      "name_cn": "避免不一致性倾向",
+      "name_en": "Inconsistency-Avoidance Tendency",
+      "description": "大脑天生抗拒改变已有结论、习惯和承诺，会无意识地过滤与既有认知不一致的信息。芒格将其比喻为卵子锁定精子后关闭通道的机制。",
+      "url": "https://mungermodels.com/models/inconsistency-avoidance-tendency",
+      "discipline": "心理学",
+      "discipline_slug": "psych"
+    },
+    {
+      "slug": "social-proof-tendency",
+      "name_cn": "社会认同倾向",
+      "name_en": "Social-Proof Tendency",
+      "description": "人类天生根据周围人的行为来决定自己的行动，尤其在困惑和压力下更甚。这种从众本能在现代社会中会引发信息级联、泡沫与恐慌。",
+      "url": "https://mungermodels.com/models/social-proof-tendency",
+      "discipline": "心理学",
+      "discipline_slug": "psych"
+    },
+    {
+      "slug": "lollapalooza-tendency",
+      "name_cn": "Lollapalooza倾向",
+      "name_en": "Lollapalooza Tendency",
+      "description": "当多种心理倾向同时作用于同一方向时，它们不是简单相加而是相互放大，产生核爆式的极端后果。芒格认为这是学术心理学最大的盲区。",
+      "url": "https://mungermodels.com/models/lollapalooza-tendency",
+      "discipline": "心理学",
+      "discipline_slug": "psych"
+    },
+    {
+      "slug": "reward-and-punishment-superresponse-tendency",
+      "name_cn": "奖励和惩罚超级反应倾向",
+      "name_en": "Reward and Punishment Superresponse Tendency",
+      "description": "激励机制不仅改变行为，更会在无意识中扭曲认知本身。芒格将其列为25个心理倾向之首，并坦言自己一辈子都低估了激励的力量。",
+      "url": "https://mungermodels.com/models/reward-and-punishment-superresponse-tendency",
+      "discipline": "心理学",
+      "discipline_slug": "psych"
+    },
+    {
+      "slug": "excessive-self-regard-tendency",
+      "name_cn": "自视过高的倾向",
+      "name_en": "Excessive Self-Regard Tendency",
+      "description": "人类天生高估自己的能力、品质和所拥有事物的价值，且这种高估是无意识的、持续运行的。禀赋效应和托尔斯泰效应是其延伸。",
+      "url": "https://mungermodels.com/models/excessive-self-regard-tendency",
+      "discipline": "心理学",
+      "discipline_slug": "psych"
+    },
+    {
+      "slug": "deprival-superreaction-tendency",
+      "name_cn": "被剥夺超级反应倾向",
+      "name_en": "Deprival-Superreaction Tendency",
+      "description": "人类对失去已有事物的痛苦反应强度远超获得同等事物时的快乐，这种损失厌恶驱动大量非理性行为，是芒格眼中破坏力最大的心理倾向之一。",
+      "url": "https://mungermodels.com/models/deprival-superreaction-tendency",
+      "discipline": "心理学",
+      "discipline_slug": "psych"
+    },
+    {
+      "slug": "influence-from-mere-association-tendency",
+      "name_cn": "受简单联想影响的倾向",
+      "name_en": "Influence-from-Mere-Association Tendency",
+      "description": "大脑会自动在同时出现的事物之间建立因果或评价性联系，即使不存在真实因果关系。波斯信使综合症和品牌联想都源于这一古老的条件反射机制。",
+      "url": "https://mungermodels.com/models/influence-from-mere-association-tendency",
+      "discipline": "心理学",
+      "discipline_slug": "psych"
+    },
+    {
+      "slug": "authority-misinfluence-tendency",
+      "name_cn": "权威错误影响倾向",
+      "name_en": "Authority-Misinfluence Tendency",
+      "description": "人类对权威的服从反应强大到可以压倒道德判断和独立思考。米尔格拉姆实验证明，65%的普通人在权威指令下会施加致命电击。",
+      "url": "https://mungermodels.com/models/authority-misinfluence-tendency",
+      "discipline": "心理学",
+      "discipline_slug": "psych"
+    },
+    {
+      "slug": "sunk-cost-fallacy",
+      "name_cn": "沉没成本谬误",
+      "name_en": "Sunk Cost Fallacy",
+      "description": "已经发生且不可收回的成本影响了对未来行动的决策，导致人们继续投入资源到本应放弃的方向。协和飞机是这一谬误最经典的历史案例。",
+      "url": "https://mungermodels.com/models/sunk-cost-fallacy",
+      "discipline": "心理学",
+      "discipline_slug": "psych"
+    },
+    {
+      "slug": "availability-misweighing-tendency",
+      "name_cn": "错误衡量易得性倾向",
+      "name_en": "Availability-Misweighing Tendency",
+      "description": "大脑在判断概率和重要性时过度依赖容易想到的信息——越生动、越近期、越情绪化的信息权重越高。9·11后弃飞开车的人反而因车祸多死了1595人。",
+      "url": "https://mungermodels.com/models/availability-misweighing-tendency",
+      "discipline": "心理学",
+      "discipline_slug": "psych"
+    },
+    {
+      "slug": "reciprocation-tendency",
+      "name_cn": "回馈倾向",
+      "name_en": "Reciprocation Tendency",
+      "description": "人类有自动以相似方式回报他人行为的强烈倾向——善意回报善意，恶意回报恶意，且回报强度往往超过初始行为。一瓶可乐就能撬动五倍购买。",
+      "url": "https://mungermodels.com/models/reciprocation-tendency",
+      "discipline": "心理学",
+      "discipline_slug": "psych"
+    },
+    {
+      "slug": "contrast-misreaction-tendency",
+      "name_cn": "对比错误反应倾向",
+      "name_en": "Contrast-Misreaction Tendency",
+      "description": "人类感知系统以对比而非绝对值评估事物，导致参照物被操控时判断系统性偏离。渐进变化时对比机制完全失灵，形成温水煮青蛙效应。",
+      "url": "https://mungermodels.com/models/contrast-misreaction-tendency",
+      "discipline": "心理学",
+      "discipline_slug": "psych"
+    },
+    {
+      "slug": "survivorship-bias",
+      "name_cn": "幸存者偏差",
+      "name_en": "Survivorship Bias",
+      "description": "由于只观察到通过筛选存活下来的样本而忽略被淘汰者，人们对整体情况做出系统性的过度乐观判断。芒格说：去墓地看看。",
+      "url": "https://mungermodels.com/models/survivorship-bias",
+      "discipline": "心理学",
+      "discipline_slug": "psych"
+    },
+    {
+      "slug": "doubt-avoidance-tendency",
+      "name_cn": "避免怀疑倾向",
+      "name_en": "Doubt-Avoidance Tendency",
+      "description": "大脑天生倾向于尽快消除怀疑、锁定结论，而非在不确定中等待。困惑和压力越大，这种倾向越强——恰恰在最需要深思的时刻最不能容忍怀疑。",
+      "url": "https://mungermodels.com/models/doubt-avoidance-tendency",
+      "discipline": "心理学",
+      "discipline_slug": "psych"
+    },
+    {
+      "slug": "simple-pain-avoiding-psychological-denial",
+      "name_cn": "避免痛苦的心理否认",
+      "name_en": "Simple, Pain-Avoiding Psychological Denial",
+      "description": "当现实造成的心理痛苦超过承受阈值时，大脑会自动扭曲对现实的感知使其变得可忍受。这种否认不是选择，而是无意识的自动保护机制。",
+      "url": "https://mungermodels.com/models/simple-pain-avoiding-psychological-denial",
+      "discipline": "心理学",
+      "discipline_slug": "psych"
+    },
+    {
+      "slug": "overoptimism-tendency",
+      "name_cn": "过度乐观倾向",
+      "name_en": "Overoptimism Tendency",
+      "description": "人类天生倾向于高估积极结果的概率、低估消极结果的概率，这种神经层面的乐观滤镜导致规划谬误和系统性的风险低估。",
+      "url": "https://mungermodels.com/models/overoptimism-tendency",
+      "discipline": "心理学",
+      "discipline_slug": "psych"
+    },
+    {
+      "slug": "curiosity-tendency",
+      "name_cn": "好奇心倾向",
+      "name_en": "Curiosity Tendency",
+      "description": "好奇心是芒格25个心理倾向中极少数站在你这边的力量。它驱动信息获取、打破学科边界、抵消确认偏误，是对抗所有认知惰性的燃料。",
+      "url": "https://mungermodels.com/models/curiosity-tendency",
+      "discipline": "心理学",
+      "discipline_slug": "psych"
+    },
+    {
+      "slug": "envy-jealousy-tendency",
+      "name_cn": "艳羡与妒忌倾向",
+      "name_en": "Envy/Jealousy Tendency",
+      "description": "嫉妒是所有情绪中最不愿被承认、因此最难防御的一种。它以相对比较为触发器，在意识地下室运作，驱动破坏性决策。巴菲特说驱动世界的不是贪婪而是妒忌。",
+      "url": "https://mungermodels.com/models/envy-jealousy-tendency",
+      "discipline": "心理学",
+      "discipline_slug": "psych"
+    },
+    {
+      "slug": "liking-loving-tendency",
+      "name_cn": "喜欢与热爱倾向",
+      "name_en": "Liking/Loving Tendency",
+      "description": "当人喜欢或热爱某人、某事物或某想法时，大脑自动启动认知扭曲程序，系统性地过滤负面信息、放大正面信息。爱上一只股票就会失去客观判断力。",
+      "url": "https://mungermodels.com/models/liking-loving-tendency",
+      "discipline": "心理学",
+      "discipline_slug": "psych"
+    },
+    {
+      "slug": "narrative-fallacy",
+      "name_cn": "叙事谬误",
+      "name_en": "Narrative Fallacy",
+      "description": "人类大脑天生将随机的、多因素的事件编织成简洁连贯的因果故事并深信不疑。这种叙事本能让人在事后解释中看到虚假的因果关系和可预测性。",
+      "url": "https://mungermodels.com/models/narrative-fallacy",
+      "discipline": "心理学",
+      "discipline_slug": "psych"
+    },
+    {
+      "slug": "disliking-hating-tendency",
+      "name_cn": "讨厌与憎恨倾向",
+      "name_en": "Disliking/Hating Tendency",
+      "description": "当人讨厌某人或某事时，大脑会自动忽略其优点、放大负面信息，并为维持仇恨而扭曲事实。这种认知扭曲能让投资者错过十倍股。",
+      "url": "https://mungermodels.com/models/disliking-hating-tendency",
+      "discipline": "心理学",
+      "discipline_slug": "psych"
+    },
+    {
+      "slug": "stress-influence-tendency",
+      "name_cn": "压力影响倾向",
+      "name_en": "Stress-Influence Tendency",
+      "description": "轻度压力可改善表现，但极端压力会摧毁后天建立的认知结构，让大脑回退到原始反应模式。巴甫洛夫的洪水实验揭示了压力对条件反射的毁灭性重置。",
+      "url": "https://mungermodels.com/models/stress-influence-tendency",
+      "discipline": "心理学",
+      "discipline_slug": "psych"
+    },
+    {
+      "slug": "anchoring-bias",
+      "name_cn": "锚定偏差",
+      "name_en": "Anchoring Bias",
+      "description": "人们在做判断时过度依赖最先获得的信息（锚点），导致后续估计系统性偏离真实值。芒格将其视为最常见的决策陷阱之一。",
+      "url": "https://mungermodels.com/models/anchoring-bias",
+      "discipline": "心理学",
+      "discipline_slug": "psych"
+    },
+    {
+      "slug": "mental-accounting",
+      "name_cn": "心理账户",
+      "name_en": "Mental Accounting",
+      "description": "人们在心理上将金钱划分为不同'账户'，对不同来源和用途的钱执行不同的决策规则，违反了经济学中金钱可替代性的基本原则。",
+      "url": "https://mungermodels.com/models/mental-accounting",
+      "discipline": "心理学",
+      "discipline_slug": "psych"
+    },
+    {
+      "slug": "reason-respecting-tendency",
+      "name_cn": "重视理由倾向",
+      "name_en": "Reason-Respecting Tendency",
+      "description": "人类天生倾向于接受附带理由的请求，即使理由毫无意义。兰格的复印机实验证明，'因为'二字本身就能触发服从，这既是文明基础也是可被利用的漏洞。",
+      "url": "https://mungermodels.com/models/reason-respecting-tendency",
+      "discipline": "心理学",
+      "discipline_slug": "psych"
+    },
+    {
+      "slug": "use-it-or-lose-it-tendency",
+      "name_cn": "不用就忘倾向",
+      "name_en": "Use-It-or-Lose-It Tendency",
+      "description": "所有技能若不被定期使用都会退化，这不是心理弱点而是大脑资源管理系统的正常运作。突触修剪机制会主动回收不再使用的神经连接。",
+      "url": "https://mungermodels.com/models/use-it-or-lose-it-tendency",
+      "discipline": "心理学",
+      "discipline_slug": "psych"
+    },
+    {
+      "slug": "drug-misinfluence-tendency",
+      "name_cn": "化学物质错误影响倾向",
+      "name_en": "Drug-Misinfluence Tendency",
+      "description": "酒精、毒品等化学物质能直接劫持大脑奖赏系统，摧毁理性判断力，制造出压倒一切的依赖。芒格视其为最能摧毁人生的心理倾向之一。",
+      "url": "https://mungermodels.com/models/drug-misinfluence-tendency",
+      "discipline": "心理学",
+      "discipline_slug": "psych"
+    },
+    {
+      "slug": "herding-behavior",
+      "name_cn": "羊群行为",
+      "name_en": "Herding Behavior",
+      "description": "个体在不确定性中放弃独立判断、模仿群体行为，即使与自身分析矛盾。在金融市场中，这种本能成为泡沫和崩盘的系统性放大器。",
+      "url": "https://mungermodels.com/models/herding-behavior",
+      "discipline": "心理学",
+      "discipline_slug": "psych"
+    },
+    {
+      "slug": "kantian-fairness-tendency",
+      "name_cn": "康德式公平倾向",
+      "name_en": "Kantian Fairness Tendency",
+      "description": "人类天生期待公平的规则，并愿意为惩罚不公平行为承受远超理性计算的代价。这种刻在神经回路中的公平直觉深刻影响商业交易和组织管理。",
+      "url": "https://mungermodels.com/models/kantian-fairness-tendency",
+      "discipline": "心理学",
+      "discipline_slug": "psych"
+    },
+    {
+      "slug": "senescence-misinfluence-tendency",
+      "name_cn": "衰老错误影响倾向",
+      "name_en": "Senescence-Misinfluence Tendency",
+      "description": "衰老带来的认知衰退虽不可避免，但持续的智力活动可显著延缓。芒格与巴菲特的终身学习实践证明，用进废退是对抗认知衰老的最有效策略。",
+      "url": "https://mungermodels.com/models/senescence-misinfluence-tendency",
+      "discipline": "心理学",
+      "discipline_slug": "psych"
+    },
+    {
+      "slug": "twaddle-tendency",
+      "name_cn": "废话倾向",
+      "name_en": "Twaddle Tendency",
+      "description": "人类在没有有价值信息可传递时仍会产出大量言语，如同蜜蜂在无法描述方位时跳出杂乱无意义的舞蹈。废话会驱逐有价值的信息并制造虚假成就感。",
+      "url": "https://mungermodels.com/models/twaddle-tendency",
+      "discipline": "心理学",
+      "discipline_slug": "psych"
+    },
+    {
+      "slug": "inversion",
+      "name_cn": "逆向思维",
+      "name_en": "Inversion",
+      "description": "芒格从数学家雅各比和达尔文身上提炼的核心方法论：在急着弄清楚如何成功之前，先搞清楚什么会导致失败，然后系统性地避免。反过来想，总是反过来想。",
+      "url": "https://mungermodels.com/models/inversion",
+      "discipline": "元认知与思维方法论",
+      "discipline_slug": "meta"
+    },
+    {
+      "slug": "checklist-method",
+      "name_cn": "检查清单方法",
+      "name_en": "Checklist Method",
+      "description": "B-17轰炸机因飞行员遗漏一个操作步骤而坠毁，一份飞行检查清单拯救了整个机型。芒格主张将思维技能编排成清单，用系统性方法对抗人类遗漏的必然性。",
+      "url": "https://mungermodels.com/models/checklist-method",
+      "discipline": "元认知与思维方法论",
+      "discipline_slug": "meta"
+    },
+    {
+      "slug": "avoiding-ideology",
+      "name_cn": "避免意识形态偏见",
+      "name_en": "Avoiding Ideology",
+      "description": "意识形态用一套理论回答所有问题，当现实与理论冲突时选择修正现实而非理论。芒格警告：深受意识形态影响无异于将大脑禁锢在不幸的模式中。",
+      "url": "https://mungermodels.com/models/avoiding-ideology",
+      "discipline": "元认知与思维方法论",
+      "discipline_slug": "meta"
+    },
+    {
+      "slug": "multidisciplinary-approach",
+      "name_cn": "跨学科思维",
+      "name_en": "Multidisciplinary Approach",
+      "description": "现实世界不分学科，解决重要问题所需的工具几乎从不在你最熟悉的抽屉里。芒格主张从各学科提取约一百个核心模型，编织成多元思维格栅。",
+      "url": "https://mungermodels.com/models/multidisciplinary-approach",
+      "discipline": "元认知与思维方法论",
+      "discipline_slug": "meta"
+    },
+    {
+      "slug": "man-with-a-hammer-syndrome",
+      "name_cn": "铁锤人倾向",
+      "name_en": "Man-with-a-Hammer Syndrome",
+      "description": "在手里拿着铁锤的人看来，每个问题都像钉子。过度依赖单一工具或思维框架会不自觉地将所有问题重新定义为该工具能解决的形状。",
+      "url": "https://mungermodels.com/models/man-with-a-hammer-syndrome",
+      "discipline": "元认知与思维方法论",
+      "discipline_slug": "meta"
+    },
+    {
+      "slug": "second-order-thinking",
+      "name_cn": "二阶效应",
+      "name_en": "Second-Order Thinking",
+      "description": "一阶思维只看直接后果，二阶思维追问后果的后果。美国禁酒令消灭了合法酒业却催生了有组织犯罪帝国——旨在解决问题的政策在二阶层面制造了更大的灾难。",
+      "url": "https://mungermodels.com/models/second-order-thinking",
+      "discipline": "元认知与思维方法论",
+      "discipline_slug": "meta"
+    },
+    {
+      "slug": "avoiding-stupidity-over-seeking-brilliance",
+      "name_cn": "避蠢优于求智",
+      "name_en": "Avoiding Stupidity over Seeking Brilliance",
+      "description": "大多数人的失败不是因为做了太少正确的事，而是做了太多愚蠢的事。投资中亏损50%需要100%涨幅才能回本，减少错误比增加正确更能提升总体结果。",
+      "url": "https://mungermodels.com/models/avoiding-stupidity-over-seeking-brilliance",
+      "discipline": "元认知与思维方法论",
+      "discipline_slug": "meta"
+    },
+    {
+      "slug": "latticework-of-mental-models",
+      "name_cn": "多元思维模型框架",
+      "name_en": "Latticework of Mental Models",
+      "description": "芒格思维体系的第一原则：在头脑中建立由多学科核心模型编织而成的格栅结构，用这个格栅过滤现实。只用一个模型看问题注定只能看到一个切面。",
+      "url": "https://mungermodels.com/models/latticework-of-mental-models",
+      "discipline": "元认知与思维方法论",
+      "discipline_slug": "meta"
+    },
+    {
+      "slug": "falsification",
+      "name_cn": "否证思维",
+      "name_en": "Falsification",
+      "description": "再多白天鹅也不能证明所有天鹅都是白色的，但一只黑天鹅就够了。否证性证据的信息价值远大于确认性证据，芒格要求对最钟爱的观点最严格地审视。",
+      "url": "https://mungermodels.com/models/falsification",
+      "discipline": "元认知与思维方法论",
+      "discipline_slug": "meta"
+    },
+    {
+      "slug": "circle-of-competence-metacognitive-level",
+      "name_cn": "能力圈（元认知层面）",
+      "name_en": "Circle of Competence - Metacognitive Level",
+      "description": "",
+      "url": "https://mungermodels.com/models/circle-of-competence-metacognitive-level",
+      "discipline": "元认知与思维方法论",
+      "discipline_slug": "meta"
+    },
+    {
+      "slug": "two-track-analysis",
+      "name_cn": "双轨分析",
+      "name_en": "Two-Track Analysis",
+      "description": "对任何问题必须同时从理性分析和心理分析两条轨道思考。第一轨看客观因素，第二轨看潜意识心理力量。可口可乐的成功是双轨合力的经典案例。",
+      "url": "https://mungermodels.com/models/two-track-analysis",
+      "discipline": "元认知与思维方法论",
+      "discipline_slug": "meta"
+    },
+    {
+      "slug": "occams-razor",
+      "name_cn": "奥卡姆剃刀",
+      "name_en": "Occam's Razor",
+      "description": "在解释同一现象的多个假说中应优先选择假设最少的那个。如无必要勿增实体——这条七百年前的原则指引彭齐亚斯和威尔逊发现了宇宙微波背景辐射。",
+      "url": "https://mungermodels.com/models/occams-razor",
+      "discipline": "元认知与思维方法论",
+      "discipline_slug": "meta"
+    },
+    {
+      "slug": "darwinian-objectivity",
+      "name_cn": "达尔文式客观态度",
+      "name_en": "Darwinian Objectivity",
+      "description": "达尔文养成铁律：遇到与理论矛盾的事实必须立即记录，因为大脑会自动遗忘不利证据。芒格从中提取出一种对自身思维过程的深刻不信任和系统性自我纠偏方法。",
+      "url": "https://mungermodels.com/models/darwinian-objectivity",
+      "discipline": "元认知与思维方法论",
+      "discipline_slug": "meta"
+    },
+    {
+      "slug": "falsifiability-criterion",
+      "name_cn": "可证伪性标准",
+      "name_en": "Falsifiability Criterion",
+      "description": "波普尔提出的划界标准：理论的价值不在于能解释多少东西，而在于排除了多少东西。一个与任何可能观察结果都兼容的理论实际上什么都没说。",
+      "url": "https://mungermodels.com/models/falsifiability-criterion",
+      "discipline": "元认知与思维方法论",
+      "discipline_slug": "meta"
+    },
+    {
+      "slug": "first-principles-thinking",
+      "name_cn": "第一性原理思维",
+      "name_en": "First Principles Thinking",
+      "description": "把复杂问题简化到最基本的事实层面，然后从那里重新推理，而非依赖类比和惯例。马斯克用此方法将火箭成本降低了98%的行业溢价。",
+      "url": "https://mungermodels.com/models/first-principles-thinking",
+      "discipline": "元认知与思维方法论",
+      "discipline_slug": "meta"
+    },
+    {
+      "slug": "premortems",
+      "name_cn": "极端情景模拟",
+      "name_en": "Premortems",
+      "description": "在项目启动前预设'已经失败'，然后逆推失败原因，可以释放被共识压力抑制的风险洞察。芒格的逆向思维本质上就是贯穿终生的事前验尸。",
+      "url": "https://mungermodels.com/models/premortems",
+      "discipline": "元认知与思维方法论",
+      "discipline_slug": "meta"
+    },
+    {
+      "slug": "thought-experiments",
+      "name_cn": "思想实验",
+      "name_en": "Thought Experiments",
+      "description": "在大脑中创造精确的假想场景并严格追踪其逻辑后果，不需要实际实验就能揭示认知盲区。爱因斯坦追赶光束的思想实验催生了相对论。",
+      "url": "https://mungermodels.com/models/thought-experiments",
+      "discipline": "元认知与思维方法论",
+      "discipline_slug": "meta"
+    },
+    {
+      "slug": "map-is-not-the-territory",
+      "name_cn": "地图不是疆域",
+      "name_en": "Map is Not the Territory",
+      "description": "任何对现实的表示——模型、理论、财务报表——都必然是简化，而简化意味着遗漏。2008年金融危机证明，盯着精致的风险模型走路可能一脚踏入深渊。",
+      "url": "https://mungermodels.com/models/map-is-not-the-territory",
+      "discipline": "元认知与思维方法论",
+      "discipline_slug": "meta"
+    },
+    {
+      "slug": "confidence-calibration",
+      "name_cn": "置信度校准",
+      "name_en": "Confidence Calibration",
+      "description": "校准良好的人知道自己有多确定——主观信心与客观概率高度吻合。天气预报员通过持续的预测-反馈循环实现了精准校准，而政治评论员越自信准确率越低。",
+      "url": "https://mungermodels.com/models/confidence-calibration",
+      "discipline": "元认知与思维方法论",
+      "discipline_slug": "meta"
+    },
+    {
+      "slug": "physics-envy",
+      "name_cn": "物理学妒忌",
+      "name_en": "Physics Envy",
+      "description": "把适用于物理世界的精确方法论不加修正地移植到人类社会系统中，是一种致命的类比错误。LTCM用物理学般的数学模型交易，却遭遇了'不可能'的崩溃。",
+      "url": "https://mungermodels.com/models/physics-envy",
+      "discipline": "元认知与思维方法论",
+      "discipline_slug": "meta"
+    },
+    {
+      "slug": "feynman-technique",
+      "name_cn": "费曼技巧",
+      "name_en": "Feynman Technique",
+      "description": "能否用简单语言解释一件事，是检验是否真正理解它的唯一可靠方法。费曼技巧通过'以教代学'暴露被动识别与主动生成之间的认知鸿沟。",
+      "url": "https://mungermodels.com/models/feynman-technique",
+      "discipline": "元认知与思维方法论",
+      "discipline_slug": "meta"
+    },
+    {
+      "slug": "pluralistic-ignorance",
+      "name_cn": "多数无知与从众谬误",
+      "name_en": "Pluralistic Ignorance",
+      "description": "每个人私下都不相信某件事，但以为其他人相信，于是都假装相信——群体的公开行为可以与每个个体的真实想法完全相反。皇帝新衣效应无处不在。",
+      "url": "https://mungermodels.com/models/pluralistic-ignorance",
+      "discipline": "元认知与思维方法论",
+      "discipline_slug": "meta"
+    },
+    {
+      "slug": "hanlons-razor",
+      "name_cn": "汉隆剃刀",
+      "name_en": "Hanlon's Razor",
+      "description": "永远不要把能用愚蠢充分解释的事归咎于恶意。从概率角度看，犯错是人类默认状态，而蓄意的恶意需要动机、能力和机会的精确配合。",
+      "url": "https://mungermodels.com/models/hanlons-razor",
+      "discipline": "元认知与思维方法论",
+      "discipline_slug": "meta"
+    },
+    {
+      "slug": "five-ws-principle",
+      "name_cn": "五何原则",
+      "name_en": "Five W's Principle",
+      "description": "传达任何信息必须说明何人因何故在何时何地做了何事。这条卡尔·布劳恩的铁律对模糊性零容忍，因为模糊的语言几乎总是模糊思维的症状。",
+      "url": "https://mungermodels.com/models/five-ws-principle",
+      "discipline": "元认知与思维方法论",
+      "discipline_slug": "meta"
+    },
+    {
+      "slug": "repeat-what-works",
+      "name_cn": "重复有效的行为",
+      "name_en": "Repeat What Works",
+      "description": "自然界最古老的优化算法：有效的行为被保留和重复，无效的被淘汰。芒格认为其力量和危险都被严重低估——过度重复会导致路径依赖和创新停滞。",
+      "url": "https://mungermodels.com/models/repeat-what-works",
+      "discipline": "元认知与思维方法论",
+      "discipline_slug": "meta"
+    },
+    {
+      "slug": "incentives-economic-view",
+      "name_cn": "激励机制",
+      "name_en": "Incentives - Economic View",
+      "description": "当无法改变人性时该如何设计制度来利用人性——芒格将心理学的激励洞见与经济学的机制设计焊接在一起，形成了对激励问题的完整理解。",
+      "url": "https://mungermodels.com/models/incentives-economic-view",
+      "discipline": "微观经济学",
+      "discipline_slug": "econ"
+    },
+    {
+      "slug": "economies-of-scale",
+      "name_cn": "规模优势",
+      "name_en": "Economies of Scale",
+      "description": "从油罐的几何学到广告的分摊效应，规模优势解释了为什么大多数行业最终整合为少数巨头，以及为什么赢家通吃是经济学的内在逻辑。",
+      "url": "https://mungermodels.com/models/economies-of-scale",
+      "discipline": "微观经济学",
+      "discipline_slug": "econ"
+    },
+    {
+      "slug": "competitive-destruction",
+      "name_cn": "竞争性毁灭",
+      "name_en": "Competitive Destruction",
+      "description": "新技术不是在现有框架内竞争，而是直接摧毁旧框架——芒格用马鞭工厂的故事警示投资者：你的企业可能被一种你今天还看不到的力量彻底消灭。",
+      "url": "https://mungermodels.com/models/competitive-destruction",
+      "discipline": "微观经济学",
+      "discipline_slug": "econ"
+    },
+    {
+      "slug": "opportunity-cost",
+      "name_cn": "机会成本",
+      "name_en": "Opportunity Cost",
+      "description": "每个选择的真实代价不是花了多少钱，而是放弃的最佳替代方案的价值——芒格用这个隐形过滤器拒绝了99%的投资机会。",
+      "url": "https://mungermodels.com/models/opportunity-cost",
+      "discipline": "微观经济学",
+      "discipline_slug": "econ"
+    },
+    {
+      "slug": "moral-hazard",
+      "name_cn": "道德风险",
+      "name_en": "Moral Hazard",
+      "description": "当行为者不承担自己行为的全部后果时其行为会系统性偏离最优——2008年金融危机的根源不是人性贪婪，而是收益私有化损失社会化的制度设计。",
+      "url": "https://mungermodels.com/models/moral-hazard",
+      "discipline": "微观经济学",
+      "discipline_slug": "econ"
+    },
+    {
+      "slug": "agency-costs",
+      "name_cn": "代理成本",
+      "name_en": "Agency Costs",
+      "description": "当替你做决策的人与你的利益不完全一致时你总会为这种不一致付出代价——从理发师到基金经理，代理成本无处不在且极其隐蔽。",
+      "url": "https://mungermodels.com/models/agency-costs",
+      "discipline": "微观经济学",
+      "discipline_slug": "econ"
+    },
+    {
+      "slug": "monopoly-oligopoly",
+      "name_cn": "垄断与寡头",
+      "name_en": "Monopoly & Oligopoly",
+      "description": "决定企业长期盈利能力的首先不是管理层多聪明，而是它所处的市场结构——芒格投资的核心是寻找接近垄断地位的企业。",
+      "url": "https://mungermodels.com/models/monopoly-oligopoly",
+      "discipline": "微观经济学",
+      "discipline_slug": "econ"
+    },
+    {
+      "slug": "price-elasticity",
+      "name_cn": "价格弹性与定价权",
+      "name_en": "Price Elasticity",
+      "description": "需求对价格变化的敏感程度决定了企业能否涨价而不失去客户——芒格认为定价权是评估企业质量最重要的单一指标。",
+      "url": "https://mungermodels.com/models/price-elasticity",
+      "discipline": "微观经济学",
+      "discipline_slug": "econ"
+    },
+    {
+      "slug": "patents-trademarks-franchises",
+      "name_cn": "专利权、商标权与特许经营权",
+      "name_en": "Patents, Trademarks & Franchises",
+      "description": "专利提供有限期垄断，商标可无限期自我强化，经济特许经营权赋予持久定价权——理解这三种无形资产是芒格从捡烟蒂转向买伟大企业的关键转折。",
+      "url": "https://mungermodels.com/models/patents-trademarks-franchises",
+      "discipline": "微观经济学",
+      "discipline_slug": "econ"
+    },
+    {
+      "slug": "externalities",
+      "name_cn": "外部性",
+      "name_en": "Externalities",
+      "description": "市场价格只反映买卖双方的成本收益，却遗漏了溢出到第三方的影响——理解外部性是理解政府为什么干预市场以及何时应该干预的钥匙。",
+      "url": "https://mungermodels.com/models/externalities",
+      "discipline": "微观经济学",
+      "discipline_slug": "econ"
+    },
+    {
+      "slug": "supply-and-demand",
+      "name_cn": "供给与需求",
+      "name_en": "Supply and Demand",
+      "description": "供给与需求是理解价格行为的起点，面对任何价格变动首先要问是供给变了还是需求变了——这个简单框架能帮你避免在极端价格面前做出愚蠢决策。",
+      "url": "https://mungermodels.com/models/supply-and-demand",
+      "discipline": "微观经济学",
+      "discipline_slug": "econ"
+    },
+    {
+      "slug": "asymmetric-information",
+      "name_cn": "信息不对称",
+      "name_en": "Asymmetric Information",
+      "description": "卖家比买家更了解商品真实状况，这种信息差导致柠檬市场效应和市场失灵——芒格一生的投资策略核心就是永远站在信息优势的一方。",
+      "url": "https://mungermodels.com/models/asymmetric-information",
+      "discipline": "微观经济学",
+      "discipline_slug": "econ"
+    },
+    {
+      "slug": "adverse-selection",
+      "name_cn": "逆向选择",
+      "name_en": "Adverse Selection",
+      "description": "当交易一方无法区分对方的质量时，高质量参与者退出市场而低质量参与者涌入，导致市场品质螺旋下降——这是保险、二手车和人才市场的共同困境。",
+      "url": "https://mungermodels.com/models/adverse-selection",
+      "discipline": "微观经济学",
+      "discipline_slug": "econ"
+    },
+    {
+      "slug": "sunk-cost-economic-perspective",
+      "name_cn": "沉没成本（经济视角）",
+      "name_en": "Sunk Cost - Economic Perspective",
+      "description": "已经发生且不可回收的成本不应影响未来决策——协和飞机耗资120亿美元的惨痛教训证明，这可能是最简单也最难执行的经济学原则。",
+      "url": "https://mungermodels.com/models/sunk-cost-economic-perspective",
+      "discipline": "微观经济学",
+      "discipline_slug": "econ"
+    },
+    {
+      "slug": "marginal-cost-marginal-revenue",
+      "name_cn": "边际成本与边际收益",
+      "name_en": "Marginal Cost & Marginal Revenue",
+      "description": "只要边际收益大于边际成本就继续生产——这个最强大的经济决策工具同时也是最危险的陷阱，柯达正是死于每一次都正确的边际分析。",
+      "url": "https://mungermodels.com/models/marginal-cost-marginal-revenue",
+      "discipline": "微观经济学",
+      "discipline_slug": "econ"
+    },
+    {
+      "slug": "marginal-utility",
+      "name_cn": "边际效用",
+      "name_en": "Marginal Utility",
+      "description": "每多消费一单位商品带来的额外满足感递减，这条神经科学证实的规律解释了钻石与水的悖论，也揭示了定价和消费行为的深层逻辑。",
+      "url": "https://mungermodels.com/models/marginal-utility",
+      "discipline": "微观经济学",
+      "discipline_slug": "econ"
+    },
+    {
+      "slug": "surfing-model",
+      "name_cn": "冲浪模型",
+      "name_en": "Surfing Model",
+      "description": "在技术变革的大浪形成之初就踏上冲浪板，乘着指数级增长的正反馈循环获得巨大优势——比尔·盖茨和微软就是冲浪模型的经典范本。",
+      "url": "https://mungermodels.com/models/surfing-model",
+      "discipline": "微观经济学",
+      "discipline_slug": "econ"
+    },
+    {
+      "slug": "price-discrimination",
+      "name_cn": "价格歧视",
+      "name_en": "Price Discrimination",
+      "description": "对不同类型消费者收取不同价格，企业同时实现了利润最大化和让更多人买得起——这是现代商业中最普遍也最被误解的定价策略。",
+      "url": "https://mungermodels.com/models/price-discrimination",
+      "discipline": "微观经济学",
+      "discipline_slug": "econ"
+    },
+    {
+      "slug": "rent-seeking",
+      "name_cn": "寻租行为",
+      "name_en": "Rent-Seeking",
+      "description": "当社会中最聪明的大脑被引导去影响规则而非改善产品时，资源从创造价值转向争夺现有价值，整个文明的根基正在被侵蚀。",
+      "url": "https://mungermodels.com/models/rent-seeking",
+      "discipline": "微观经济学",
+      "discipline_slug": "econ"
+    },
+    {
+      "slug": "comparative-advantage",
+      "name_cn": "比较优势",
+      "name_en": "Comparative Advantage",
+      "description": "即使一方在所有领域都更强，双方通过各自专注于相对优势最大的领域并交换仍能互利——这是经济学中既真实又最不显而易见的洞见。",
+      "url": "https://mungermodels.com/models/comparative-advantage",
+      "discipline": "微观经济学",
+      "discipline_slug": "econ"
+    },
+    {
+      "slug": "transaction-costs",
+      "name_cn": "交易成本",
+      "name_en": "Transaction Costs",
+      "description": "科斯发现市场和企业是两种替代的经济组织方式，它们的边界由交易成本决定——理解交易成本就能预判哪些行业会被技术变革颠覆。",
+      "url": "https://mungermodels.com/models/transaction-costs",
+      "discipline": "微观经济学",
+      "discipline_slug": "econ"
+    },
+    {
+      "slug": "prisoners-dilemma",
+      "name_cn": "囚徒困境",
+      "name_en": "Prisoner's Dilemma",
+      "description": "每个参与者做出对自己最有利的选择，最终集体结果却对所有人最差——航空业价格战到军备竞赛都遵循这一令人沮丧的博弈结构。",
+      "url": "https://mungermodels.com/models/prisoners-dilemma",
+      "discipline": "微观经济学",
+      "discipline_slug": "econ"
+    },
+    {
+      "slug": "search-costs",
+      "name_cn": "搜寻成本",
+      "name_en": "Search Costs",
+      "description": "获取信息本身需要付出代价，当继续搜寻的边际收益低于搜寻成本时理性选择就是停止——这解释了价格差异、品牌溢价和中介存在的经济逻辑。",
+      "url": "https://mungermodels.com/models/search-costs",
+      "discipline": "微观经济学",
+      "discipline_slug": "econ"
+    },
+    {
+      "slug": "modern-darwinian-synthesis",
+      "name_cn": "进化论",
+      "name_en": "Modern Darwinian Synthesis",
+      "description": "现代达尔文综合进化论是芒格最重要的思维模型之一——随机变异、自然选择和遗传三个齿轮驱动的淘汰机制，是理解竞争和商业本质的基石。",
+      "url": "https://mungermodels.com/models/modern-darwinian-synthesis",
+      "discipline": "生物学与进化论",
+      "discipline_slug": "bio"
+    },
+    {
+      "slug": "ecosystem-thinking",
+      "name_cn": "生态系统思维",
+      "name_en": "Ecosystem Thinking",
+      "description": "生态系统思维将市场经济视为一个由共生、竞争和协同进化构成的生态系统，帮助你看到企业在竞争格局中的隐藏位置和相互依存关系。",
+      "url": "https://mungermodels.com/models/ecosystem-thinking",
+      "discipline": "生物学与进化论",
+      "discipline_slug": "bio"
+    },
+    {
+      "slug": "natural-selection-survival-of-the-fittest",
+      "name_cn": "自然选择与适者生存",
+      "name_en": "Natural Selection & Survival of the Fittest",
+      "description": "自然选择中的适者不是最强者而是最适合当前环境者，没有绝对的适者只有相对于特定环境的适配，这一洞见深刻改变了对竞争和成功的理解。",
+      "url": "https://mungermodels.com/models/natural-selection-survival-of-the-fittest",
+      "discipline": "生物学与进化论",
+      "discipline_slug": "bio"
+    },
+    {
+      "slug": "extinction-irreversibility",
+      "name_cn": "灭绝与不可逆性",
+      "name_en": "Extinction & Irreversibility",
+      "description": "灭绝与不可逆性警示我们某些错误只需犯一次就足以致命——如同给一串数字乘以零，无论之前多辉煌结果都是零，避免归零是一切策略的前提。",
+      "url": "https://mungermodels.com/models/extinction-irreversibility",
+      "discipline": "生物学与进化论",
+      "discipline_slug": "bio"
+    },
+    {
+      "slug": "red-queen-effect",
+      "name_cn": "红皇后效应",
+      "name_en": "Red Queen Effect",
+      "description": "红皇后效应揭示了竞争环境中必须不断进化才能维持现有地位的残酷现实——物种存在时间越久并不意味着越安全，停止奔跑就是开始落后。",
+      "url": "https://mungermodels.com/models/red-queen-effect",
+      "discipline": "生物学与进化论",
+      "discipline_slug": "bio"
+    },
+    {
+      "slug": "adaptation",
+      "name_cn": "适应性",
+      "name_en": "Adaptation",
+      "description": "适应性是生物在环境变化中生存的核心能力，诺基亚与苹果的对比揭示了企业适应性的关键——不是预测变化，而是拥有重新定义自我的能力。",
+      "url": "https://mungermodels.com/models/adaptation",
+      "discipline": "生物学与进化论",
+      "discipline_slug": "bio"
+    },
+    {
+      "slug": "niche-differentiation",
+      "name_cn": "利基分化",
+      "name_en": "Niche Differentiation",
+      "description": "利基分化通过占据独特的生态位来避免直接竞争，达尔文雀的十三种喙型揭示了商业铁律——与其争夺同一张桌子不如找到属于自己的饭碗。",
+      "url": "https://mungermodels.com/models/niche-differentiation",
+      "discipline": "生物学与进化论",
+      "discipline_slug": "bio"
+    },
+    {
+      "slug": "complex-adaptive-systems",
+      "name_cn": "复杂适应系统",
+      "name_en": "Complex Adaptive Systems",
+      "description": "复杂适应系统由大量个体遵循简单规则、相互影响而产生无法预见的整体行为，从交通系统到经济体，理解涌现和自组织是把握复杂世界的关键。",
+      "url": "https://mungermodels.com/models/complex-adaptive-systems",
+      "discipline": "生物学与进化论",
+      "discipline_slug": "bio"
+    },
+    {
+      "slug": "evolutionary-arms-race",
+      "name_cn": "进化军备竞赛",
+      "name_en": "Evolutionary Arms Race",
+      "description": "进化军备竞赛描述了竞争双方不断升级各自能力但相对关系不变的螺旋，毒蛇与地松鼠的万年对抗揭示了商业竞争中无休止升级的底层逻辑。",
+      "url": "https://mungermodels.com/models/evolutionary-arms-race",
+      "discipline": "生物学与进化论",
+      "discipline_slug": "bio"
+    },
+    {
+      "slug": "co-evolution",
+      "name_cn": "协同进化",
+      "name_en": "Co-evolution",
+      "description": "协同进化揭示了物种间相互施加选择压力、彼此塑造演化轨迹的耦合关系——花的颜色和蜜蜂的口器都是被对方的存在雕刻出来的。",
+      "url": "https://mungermodels.com/models/co-evolution",
+      "discipline": "生物学与进化论",
+      "discipline_slug": "bio"
+    },
+    {
+      "slug": "parasitism-mutualism",
+      "name_cn": "寄生与共生",
+      "name_en": "Parasitism & Mutualism",
+      "description": "寄生与共生是两种截然不同的关系模式——互利共生让双方都更强大、关系更持久，而寄生关系终将耗尽宿主，芒格以Costco为典范阐释商业中的共生智慧。",
+      "url": "https://mungermodels.com/models/parasitism-mutualism",
+      "discipline": "生物学与进化论",
+      "discipline_slug": "bio"
+    },
+    {
+      "slug": "signaling-theory",
+      "name_cn": "信号理论",
+      "name_en": "Signaling Theory",
+      "description": "信号理论揭示了信息不对称环境中可信信号的核心机制——正因为代价巨大才无法伪造，从孔雀尾巴到名校学历，昂贵性本身就是防伪机制。",
+      "url": "https://mungermodels.com/models/signaling-theory",
+      "discipline": "生物学与进化论",
+      "discipline_slug": "bio"
+    },
+    {
+      "slug": "immune-system-antifragility",
+      "name_cn": "免疫系统与抗脆弱性",
+      "name_en": "Immune System & Antifragility",
+      "description": "免疫系统是抗脆弱性的生物学原型——有些系统不只能承受伤害，而是需要伤害才能变强，疫苗的原理正是通过可控的小伤害换取对大威胁的免疫。",
+      "url": "https://mungermodels.com/models/immune-system-antifragility",
+      "discipline": "生物学与进化论",
+      "discipline_slug": "bio"
+    },
+    {
+      "slug": "exponential-growth",
+      "name_cn": "指数增长与种群动力学",
+      "name_en": "Exponential Growth",
+      "description": "指数增长与种群动力学揭示了J曲线和S曲线的本质——培养皿在第59分钟才半满，理解指数增长的反直觉特性是识别机会与危机的关键。",
+      "url": "https://mungermodels.com/models/exponential-growth",
+      "discipline": "生物学与进化论",
+      "discipline_slug": "bio"
+    },
+    {
+      "slug": "bottleneck-effect-founder-effect",
+      "name_cn": "瓶颈效应与创始人效应",
+      "name_en": "Bottleneck Effect & Founder Effect",
+      "description": "瓶颈效应与创始人效应揭示了种群经历急剧缩小后基因多样性被永久刻印的规律，多巴火山事件解释了为何全人类的基因差异远小于一群黑猩猩。",
+      "url": "https://mungermodels.com/models/bottleneck-effect-founder-effect",
+      "discipline": "生物学与进化论",
+      "discipline_slug": "bio"
+    },
+    {
+      "slug": "biological-redundancy",
+      "name_cn": "生物冗余设计",
+      "name_en": "Biological Redundancy",
+      "description": "生物冗余设计是三十亿年进化对不确定性的终极回应——你有两个肾不是浪费而是生存智慧，安全边际的本质就是为未知风险留出余量。",
+      "url": "https://mungermodels.com/models/biological-redundancy",
+      "discipline": "生物学与进化论",
+      "discipline_slug": "bio"
+    },
+    {
+      "slug": "punctuated-equilibrium",
+      "name_cn": "间断均衡",
+      "name_en": "Punctuated Equilibrium",
+      "description": "间断均衡颠覆了进化渐进主义的传统图景——化石记录显示物种在长期稳定后突然剧变，进化不是平滑斜坡而是被短暂跃升打断的长长阶梯。",
+      "url": "https://mungermodels.com/models/punctuated-equilibrium",
+      "discipline": "生物学与进化论",
+      "discipline_slug": "bio"
+    },
+    {
+      "slug": "convergent-evolution",
+      "name_cn": "趋同进化",
+      "name_en": "Convergent Evolution",
+      "description": "趋同进化表明不同起点在相似环境压力下会演化出相似的解决方案——眼睛独立进化了40多次，因为物理定律约束下的最优解往往趋于一致。",
+      "url": "https://mungermodels.com/models/convergent-evolution",
+      "discipline": "生物学与进化论",
+      "discipline_slug": "bio"
+    },
+    {
+      "slug": "adaptive-radiation",
+      "name_cn": "适应性辐射",
+      "name_en": "Adaptive Radiation",
+      "description": "适应性辐射是单一祖先物种在新环境中快速分化为多种形态以占据不同生态位的进化过程，商业世界中同样的模式可在几年内上演。",
+      "url": "https://mungermodels.com/models/adaptive-radiation",
+      "discipline": "生物学与进化论",
+      "discipline_slug": "bio"
+    },
+    {
+      "slug": "epigenetics",
+      "name_cn": "表观遗传学",
+      "name_en": "Epigenetics",
+      "description": "表观遗传学揭示了不改变DNA序列本身、环境也能改变基因表达方式且这种改变可以遗传的深刻事实，荷兰饥荒的跨代效应是其经典案例。",
+      "url": "https://mungermodels.com/models/epigenetics",
+      "discipline": "生物学与进化论",
+      "discipline_slug": "bio"
+    },
+    {
+      "slug": "compound-interest",
+      "name_cn": "复利效应",
+      "name_en": "Compound Interest",
+      "description": "复利是利滚利的指数增长力量，前期平淡后期爆发，芒格视其为地球上最重要的模型之一，它不仅适用于金融，更是知识积累和人生成长的底层规律。",
+      "url": "https://mungermodels.com/models/compound-interest",
+      "discipline": "数学与统计学",
+      "discipline_slug": "math"
+    },
+    {
+      "slug": "probabilistic-thinking-expected-value",
+      "name_cn": "概率思维与期望值",
+      "name_en": "Probabilistic Thinking & Expected Value",
+      "description": "概率思维与期望值计算是芒格视为生存必备的决策工具，它将思考从二元的会不会发生升级为概率加权的期望值分析，是理性决策的及格线。",
+      "url": "https://mungermodels.com/models/probabilistic-thinking-expected-value",
+      "discipline": "数学与统计学",
+      "discipline_slug": "math"
+    },
+    {
+      "slug": "bayes-theorem",
+      "name_cn": "贝叶斯定理",
+      "name_en": "Bayes' Theorem",
+      "description": "贝叶斯定理揭示了新证据必须在先验概率背景下解读的核心逻辑，它从根本上改变你处理信息、更新判断和避免基础比率忽视的方式。",
+      "url": "https://mungermodels.com/models/bayes-theorem",
+      "discipline": "数学与统计学",
+      "discipline_slug": "math"
+    },
+    {
+      "slug": "regression-to-the-mean",
+      "name_cn": "回归均值",
+      "name_en": "Regression to the Mean",
+      "description": "回归均值是一个纯粹的统计事实：任何包含随机成分的极端结果都倾向于向长期平均值靠拢，理解这一点能避免对短期异常表现的过度反应。",
+      "url": "https://mungermodels.com/models/regression-to-the-mean",
+      "discipline": "数学与统计学",
+      "discipline_slug": "math"
+    },
+    {
+      "slug": "basic-arithmetic-order-of-magnitude-estimation",
+      "name_cn": "基本算术与数量级估算",
+      "name_en": "Basic Arithmetic & Order-of-Magnitude Estimation",
+      "description": "基本算术与费米估算是芒格视为最被低估的思维工具——不是计算能力而是计算习惯，一支铅笔和餐巾纸就能在三分钟内揭穿大多数商业骗局。",
+      "url": "https://mungermodels.com/models/basic-arithmetic-order-of-magnitude-estimation",
+      "discipline": "数学与统计学",
+      "discipline_slug": "math"
+    },
+    {
+      "slug": "conditional-probability-base-rates",
+      "name_cn": "条件概率与基础比率",
+      "name_en": "Conditional Probability & Base Rates",
+      "description": "条件概率与基础比率揭示了人类判断中最常见的错误——忽视先验概率而被表面证据误导，出租车问题经典地展示了为何直觉与正确答案相差甚远。",
+      "url": "https://mungermodels.com/models/conditional-probability-base-rates",
+      "discipline": "数学与统计学",
+      "discipline_slug": "math"
+    },
+    {
+      "slug": "law-of-large-numbers",
+      "name_cn": "大数定律",
+      "name_en": "Law of Large Numbers",
+      "description": "大数定律揭示了样本越大真实规律越清晰的统计本质，解释了为何短期表现无法区分运气与能力，以及赌场和投资中如何利用长期确定性。",
+      "url": "https://mungermodels.com/models/law-of-large-numbers",
+      "discipline": "数学与统计学",
+      "discipline_slug": "math"
+    },
+    {
+      "slug": "multiplicative-systems",
+      "name_cn": "乘法系统思维",
+      "name_en": "Multiplicative Systems",
+      "description": "乘法系统思维揭示了串联系统的残酷算术——当成功要求每个环节都成功时，总成功率是各环节概率的乘积，衰减速度远超直觉预期。",
+      "url": "https://mungermodels.com/models/multiplicative-systems",
+      "discipline": "数学与统计学",
+      "discipline_slug": "math"
+    },
+    {
+      "slug": "decision-tree-theory",
+      "name_cn": "决策树理论",
+      "name_en": "Decision Tree Theory",
+      "description": "决策树理论通过将复杂决策拆解为概率节点和选择节点，强迫你思考后果的后果，在不确定性中找到期望值最优的路径。",
+      "url": "https://mungermodels.com/models/decision-tree-theory",
+      "discipline": "数学与统计学",
+      "discipline_slug": "math"
+    },
+    {
+      "slug": "asymmetry-convexity",
+      "name_cn": "不对称性与凸性",
+      "name_en": "Asymmetry & Convexity",
+      "description": "不对称性与凸性是芒格投资哲学的几何学基础——系统性地构建下行有限、上行开放的收益结构，让波动成为盟友而非敌人。",
+      "url": "https://mungermodels.com/models/asymmetry-convexity",
+      "discipline": "数学与统计学",
+      "discipline_slug": "math"
+    },
+    {
+      "slug": "power-laws",
+      "name_cn": "幂律分布",
+      "name_en": "Power Laws",
+      "description": "幂律分布揭示了极少数事件贡献绝大部分影响的不均匀世界——从风投回报到地震能量，理解帕累托法则背后的数学结构是正确配置资源的关键。",
+      "url": "https://mungermodels.com/models/power-laws",
+      "discipline": "数学与统计学",
+      "discipline_slug": "math"
+    },
+    {
+      "slug": "permutations-and-combinations",
+      "name_cn": "排列组合原理",
+      "name_en": "Permutations and Combinations",
+      "description": "排列组合原理揭示了多环节串联系统的概率衰减效应——当一个计划需要多个独立环节全部成功时，整体成功率远低于任何单一环节的成功率。",
+      "url": "https://mungermodels.com/models/permutations-and-combinations",
+      "discipline": "数学与统计学",
+      "discipline_slug": "math"
+    },
+    {
+      "slug": "normal-non-normal-distributions",
+      "name_cn": "正态与非正态分布",
+      "name_en": "Normal & Non-Normal Distributions",
+      "description": "正态分布与肥尾分布的本质区别决定了极端事件的发生概率，LTCM的崩溃警示我们不能用钟形曲线的假设来建模真实世界的风险。",
+      "url": "https://mungermodels.com/models/normal-non-normal-distributions",
+      "discipline": "数学与统计学",
+      "discipline_slug": "math"
+    },
+    {
+      "slug": "sample-size-statistical-significance",
+      "name_cn": "样本量与统计显著性",
+      "name_en": "Sample Size & Statistical Significance",
+      "description": "样本量是区分信号与噪声的分辨率，人类天生倾向于从小样本中过度推断规律，理解统计显著性能避免将运气误认为能力。",
+      "url": "https://mungermodels.com/models/sample-size-statistical-significance",
+      "discipline": "数学与统计学",
+      "discipline_slug": "math"
+    },
+    {
+      "slug": "basic-game-theory",
+      "name_cn": "博弈论基础",
+      "name_en": "Basic Game Theory",
+      "description": "博弈论研究理性决策者之间的策略互动，从囚徒困境到纳什均衡，揭示了竞争结构如何决定参与者的最优策略和商业生态的长期演化。",
+      "url": "https://mungermodels.com/models/basic-game-theory",
+      "discipline": "数学与统计学",
+      "discipline_slug": "math"
+    },
+    {
+      "slug": "limits-of-extrapolation-nonlinearity",
+      "name_cn": "趋势外推的局限",
+      "name_en": "Limits of Extrapolation & Nonlinearity",
+      "description": "人类大脑天生用直线思考，但现实世界充满指数增长、S曲线和突变等非线性现象，将过去趋势简单延伸到未来是代价最高昂的认知陷阱。",
+      "url": "https://mungermodels.com/models/limits-of-extrapolation-nonlinearity",
+      "discipline": "数学与统计学",
+      "discipline_slug": "math"
+    },
+    {
+      "slug": "correlation-is-not-causation",
+      "name_cn": "相关不等于因果",
+      "name_en": "Correlation is not Causation",
+      "description": "两个变量的统计相关性不能证明因果关系，可能是反向因果、共同原因或纯巧合，理解这四种可能性是正确解读数据和避免决策错误的起点。",
+      "url": "https://mungermodels.com/models/correlation-is-not-causation",
+      "discipline": "数学与统计学",
+      "discipline_slug": "math"
+    },
+    {
+      "slug": "marginal-analysis",
+      "name_cn": "边际分析",
+      "name_en": "Marginal Analysis",
+      "description": "边际分析的核心是关注下一个单位的增量变化而非总量，这种导数思维解决了水与钻石悖论，也是正确评估商业决策和资源配置的基本功。",
+      "url": "https://mungermodels.com/models/marginal-analysis",
+      "discipline": "数学与统计学",
+      "discipline_slug": "math"
+    },
+    {
+      "slug": "arithmetic-expected-value",
+      "name_cn": "算术期望值",
+      "name_en": "Arithmetic Expected Value",
+      "description": "",
+      "url": "https://mungermodels.com/models/arithmetic-expected-value",
+      "discipline": "数学与统计学",
+      "discipline_slug": "math"
+    },
+    {
+      "slug": "network-theory",
+      "name_cn": "网络理论",
+      "name_en": "Network Theory",
+      "description": "网络理论研究节点之间的连接模式如何决定系统行为，从六度分隔到无标度网络，揭示了信息传播、系统韧性和商业竞争格局的隐藏结构。",
+      "url": "https://mungermodels.com/models/network-theory",
+      "discipline": "数学与统计学",
+      "discipline_slug": "math"
+    },
+    {
+      "slug": "moat",
+      "name_cn": "护城河（Moat）",
+      "name_en": "Moat",
+      "description": "芒格说服巴菲特以三倍净资产溢价收购See's Candies，由此开启了从捡烟蒂到买伟大企业的投资哲学转变——护城河是企业持久竞争优势的终极隐喻。",
+      "url": "https://mungermodels.com/models/moat",
+      "discipline": "管理学与商业",
+      "discipline_slug": "mgmt"
+    },
+    {
+      "slug": "network-effects",
+      "name_cn": "网络效应",
+      "name_en": "Network Effects",
+      "description": "网络的价值随用户数呈超线性增长，一旦形成其韧性远超想象——巴菲特在美国运通丑闻中重仓买入正是因为理解了网络效应的结构性稳定。",
+      "url": "https://mungermodels.com/models/network-effects",
+      "discipline": "管理学与商业",
+      "discipline_slug": "mgmt"
+    },
+    {
+      "slug": "switching-costs",
+      "name_cn": "转换成本",
+      "name_en": "Switching Costs",
+      "description": "客户想换但没换往往比不想换是更强的护城河信号——真正强大的转换成本不是合同锁定，而是学习成本、关系成本和心理成本的叠加。",
+      "url": "https://mungermodels.com/models/switching-costs",
+      "discipline": "管理学与商业",
+      "discipline_slug": "mgmt"
+    },
+    {
+      "slug": "brand-power",
+      "name_cn": "品牌认同",
+      "name_en": "Brand Power",
+      "description": "可口可乐的物理成分不值几分钱但公司价值数千亿——品牌价值不在瓶子里而在消费者脑子里，建立在多种心理学效应的叠加与互相强化之上。",
+      "url": "https://mungermodels.com/models/brand-power",
+      "discipline": "管理学与商业",
+      "discipline_slug": "mgmt"
+    },
+    {
+      "slug": "incentive-structure-design",
+      "name_cn": "激励结构设计",
+      "name_en": "Incentive Structure Design",
+      "description": "给我看激励机制我就能预测结果——芒格相信理解一个组织内部的激励结构就能以相当高的准确率预测其行为，无论使命宣言写了什么。",
+      "url": "https://mungermodels.com/models/incentive-structure-design",
+      "discipline": "管理学与商业",
+      "discipline_slug": "mgmt"
+    },
+    {
+      "slug": "circle-of-competence-management-level",
+      "name_cn": "能力圈（管理层面）",
+      "name_en": "Circle of Competence - Management Level",
+      "description": "",
+      "url": "https://mungermodels.com/models/circle-of-competence-management-level",
+      "discipline": "管理学与商业",
+      "discipline_slug": "mgmt"
+    },
+    {
+      "slug": "flywheel-effect",
+      "name_cn": "飞轮效应",
+      "name_en": "Flywheel Effect",
+      "description": "贝索斯在餐巾纸上画的循环图成为商业史上最著名的战略草图——飞轮的力量在于每一圈的努力都不会白费，而是存储为下一圈的动能。",
+      "url": "https://mungermodels.com/models/flywheel-effect",
+      "discipline": "管理学与商业",
+      "discipline_slug": "mgmt"
+    },
+    {
+      "slug": "simplicity-in-business",
+      "name_cn": "简单化在商业中的应用",
+      "name_en": "Simplicity in Business",
+      "description": "Costco用3700个SKU击败了12万个SKU的沃尔玛——复杂性的危害是指数级的组合爆炸，刻意做减法的企业往往更强大。",
+      "url": "https://mungermodels.com/models/simplicity-in-business",
+      "discipline": "管理学与商业",
+      "discipline_slug": "mgmt"
+    },
+    {
+      "slug": "corporate-culture-as-asset",
+      "name_cn": "企业文化作为资产",
+      "name_en": "Corporate Culture as Asset",
+      "description": "大多数管理成本的本质是不信任成本——正确的文化用共享价值观替代外部控制系统，是最难复制、最持久也最被低估的竞争优势。",
+      "url": "https://mungermodels.com/models/corporate-culture-as-asset",
+      "discipline": "管理学与商业",
+      "discipline_slug": "mgmt"
+    },
+    {
+      "slug": "principal-agent-solutions",
+      "name_cn": "委托代理问题的管理解法",
+      "name_en": "Principal-Agent Solutions",
+      "description": "大多数代理问题不是品格问题而是制度设计问题——芒格用股权激励、文化约束和信息透明三种手段实践了数十年的代理问题解决实验。",
+      "url": "https://mungermodels.com/models/principal-agent-solutions",
+      "discipline": "管理学与商业",
+      "discipline_slug": "mgmt"
+    },
+    {
+      "slug": "disruptive-innovation",
+      "name_cn": "破坏性创新",
+      "name_en": "Disruptive Innovation",
+      "description": "在位者在每一步都做出正确决策却通向毁灭——颠覆者从被嘲笑的低端市场起步，沿经验曲线向上攀爬，这就是创新者的窘境。",
+      "url": "https://mungermodels.com/models/disruptive-innovation",
+      "discipline": "管理学与商业",
+      "discipline_slug": "mgmt"
+    },
+    {
+      "slug": "concentration-less-is-more",
+      "name_cn": "集中持仓",
+      "name_en": "Concentration / Less is More",
+      "description": "好主意太少了，当你发现一个就必须大下注——芒格认为对于真正理解自己在做什么的投资者，分散投资不是降低风险而是降低回报。",
+      "url": "https://mungermodels.com/models/concentration-less-is-more",
+      "discipline": "管理学与商业",
+      "discipline_slug": "mgmt"
+    },
+    {
+      "slug": "technology-help-vs-destroy",
+      "name_cn": "技术对企业的利弊",
+      "name_en": "Technology: Help vs. Destroy",
+      "description": "更好的织布机并没有让织布商更有钱——当技术进步被竞争对手同步复制时，效率提升全部以降价形式转移给了消费者而非转化为利润。",
+      "url": "https://mungermodels.com/models/technology-help-vs-destroy",
+      "discipline": "管理学与商业",
+      "discipline_slug": "mgmt"
+    },
+    {
+      "slug": "intellectual-property-moats",
+      "name_cn": "知识产权与护城河",
+      "name_en": "Intellectual Property & Moats",
+      "description": "苹果向市值远小于自己的高通认输并支付47亿美元和解金——知识产权构建的法律护城河能让小公司对抗巨头，其壁垒高度取决于专利组合的战略布局。",
+      "url": "https://mungermodels.com/models/intellectual-property-moats",
+      "discipline": "管理学与商业",
+      "discipline_slug": "mgmt"
+    },
+    {
+      "slug": "seamless-web-of-deserved-trust",
+      "name_cn": "值得信赖的无缝网络",
+      "name_en": "Seamless Web of Deserved Trust",
+      "description": "伯克希尔总部30个人管理39万名员工——芒格和巴菲特用信任网络替代了层级控制，证明值得信赖的人之间的相互承诺是最高效的管理方式。",
+      "url": "https://mungermodels.com/models/seamless-web-of-deserved-trust",
+      "discipline": "管理学与商业",
+      "discipline_slug": "mgmt"
+    },
+    {
+      "slug": "scale-effects-management-perspective",
+      "name_cn": "规模效应管理视角",
+      "name_en": "Scale Effects - Management Perspective",
+      "description": "从采购优势到品牌规模效应，芒格在南加州大学演讲中系统拆解了规模如何在管理维度上从盟友变成敌人的六种机制。",
+      "url": "https://mungermodels.com/models/scale-effects-management-perspective",
+      "discipline": "管理学与商业",
+      "discipline_slug": "mgmt"
+    },
+    {
+      "slug": "theory-of-constraints",
+      "name_cn": "瓶颈理论",
+      "name_en": "Theory of Constraints",
+      "description": "整支队伍的行进速度永远等于最慢那个人的速度——高德拉特的约束理论揭示了系统优化的反直觉真相：改善非瓶颈环节对整体毫无帮助。",
+      "url": "https://mungermodels.com/models/theory-of-constraints",
+      "discipline": "管理学与商业",
+      "discipline_slug": "mgmt"
+    },
+    {
+      "slug": "lindy-effect",
+      "name_cn": "林迪效应",
+      "name_en": "Lindy Effect",
+      "description": "对于不易腐烂的事物，预期剩余寿命与已存在时间成正比——时间是最严苛的筛选器，存活本身就是最有价值的信息。",
+      "url": "https://mungermodels.com/models/lindy-effect",
+      "discipline": "管理学与商业",
+      "discipline_slug": "mgmt"
+    },
+    {
+      "slug": "regulation-as-moat",
+      "name_cn": "监管作为护城河",
+      "name_en": "Regulation as Moat",
+      "description": "对在位者来说监管不是负担而是城墙——合规成本的不对称性、牌照稀缺性和制度惯性使监管护城河往往比市场竞争形成的护城河更持久。",
+      "url": "https://mungermodels.com/models/regulation-as-moat",
+      "discipline": "管理学与商业",
+      "discipline_slug": "mgmt"
+    },
+    {
+      "slug": "feedback-loops",
+      "name_cn": "反馈环",
+      "name_en": "Feedback Loops",
+      "description": "反馈环分为正反馈（自我放大）和负反馈（自我修正）两种，2008年金融危机揭示了正反馈环如何让可控的局部问题在几个月内演变为系统性灾难。",
+      "url": "https://mungermodels.com/models/feedback-loops",
+      "discipline": "物理学与化学",
+      "discipline_slug": "physics"
+    },
+    {
+      "slug": "critical-mass",
+      "name_cn": "临界质量",
+      "name_en": "Critical Mass",
+      "description": "临界质量是系统从量变到质变的那道看不见的线——跨过它一切都变了，从核反应堆到社交网络，理解引爆点机制是把握突变性变革的关键。",
+      "url": "https://mungermodels.com/models/critical-mass",
+      "discipline": "物理学与化学",
+      "discipline_slug": "physics"
+    },
+    {
+      "slug": "reversibility-irreversibility",
+      "name_cn": "可逆性与不可逆性",
+      "name_en": "Reversibility & Irreversibility",
+      "description": "可逆与不可逆决策的区分是芒格投资哲学的基石——单向门决策必须深思熟虑，双向门决策应快速行动，你一生中真正关键的是没搞砸的不可逆决策。",
+      "url": "https://mungermodels.com/models/reversibility-irreversibility",
+      "discipline": "物理学与化学",
+      "discipline_slug": "physics"
+    },
+    {
+      "slug": "autocatalysis",
+      "name_cn": "自我催化模型",
+      "name_en": "Autocatalysis",
+      "description": "自我催化模型描述了产物本身加速反应进程的化学机制，芒格最爱的Costco正是商业自催化的典范——低价吸引会员、规模压低成本、更低价格吸引更多会员。",
+      "url": "https://mungermodels.com/models/autocatalysis",
+      "discipline": "物理学与化学",
+      "discipline_slug": "physics"
+    },
+    {
+      "slug": "entropy",
+      "name_cn": "熵",
+      "name_en": "Entropy",
+      "description": "熵即热力学第二定律揭示了宇宙从有序走向无序的基本趋势——花园无人照料必然荒废，维持秩序需要持续投入能量，这是理解组织衰败的底层物理定律。",
+      "url": "https://mungermodels.com/models/entropy",
+      "discipline": "物理学与化学",
+      "discipline_slug": "physics"
+    },
+    {
+      "slug": "phase-transitions",
+      "name_cn": "相变与临界现象",
+      "name_en": "Phase Transitions",
+      "description": "相变揭示了系统在临界点发生突然、不连续跳跃的本质——从99度到100度只多了一度但水变成了蒸汽，商业和社会中的剧变同样遵循这种非渐进逻辑。",
+      "url": "https://mungermodels.com/models/phase-transitions",
+      "discipline": "物理学与化学",
+      "discipline_slug": "physics"
+    },
+    {
+      "slug": "nonlinear-consequences",
+      "name_cn": "非线性后果",
+      "name_en": "Nonlinear Consequences",
+      "description": "非线性后果揭示了输入与输出之间的非比例关系——泰坦尼克号速度仅增50%但制动距离增125%，人类直觉的线性假设在非线性世界中会导致灾难性误判。",
+      "url": "https://mungermodels.com/models/nonlinear-consequences",
+      "discipline": "物理学与化学",
+      "discipline_slug": "physics"
+    },
+    {
+      "slug": "catalysts",
+      "name_cn": "催化剂",
+      "name_en": "Catalysts",
+      "description": "催化剂不创造新的可能性，而是把理论上可行但实际上不会发生的变化变成现在就发生——哈伯法合成氨养活了四十亿人，展示了加速既有反应的巨大力量。",
+      "url": "https://mungermodels.com/models/catalysts",
+      "discipline": "物理学与化学",
+      "discipline_slug": "physics"
+    },
+    {
+      "slug": "superposition-and-emergence",
+      "name_cn": "叠加原理与涌现",
+      "name_en": "Superposition and Emergence",
+      "description": "叠加原理描述独立输入的线性相加，涌现则揭示整体大于部分之和的非线性现象——芒格的lollapalooza效应正是多种心理倾向涌现出极端后果的典型。",
+      "url": "https://mungermodels.com/models/superposition-and-emergence",
+      "discipline": "物理学与化学",
+      "discipline_slug": "physics"
+    },
+    {
+      "slug": "momentum",
+      "name_cn": "动量与惯性",
+      "name_en": "Momentum",
+      "description": "动量与惯性解释了运动中的物体倾向于保持运动的物理定律，柯达明知数码技术却无法转身的案例展示了组织惯性如何将优势变成致命枷锁。",
+      "url": "https://mungermodels.com/models/momentum",
+      "discipline": "物理学与化学",
+      "discipline_slug": "physics"
+    },
+    {
+      "slug": "resonance",
+      "name_cn": "共振",
+      "name_en": "Resonance",
+      "description": "共振揭示了当外力频率与系统固有频率吻合时能量会被极度放大的物理机制——74名士兵齐步走就能摧毁一座铁桥，关键不在力量大小而在频率匹配。",
+      "url": "https://mungermodels.com/models/resonance",
+      "discipline": "物理学与化学",
+      "discipline_slug": "physics"
+    },
+    {
+      "slug": "conservation-of-energy",
+      "name_cn": "能量守恒",
+      "name_en": "Conservation of Energy",
+      "description": "能量守恒定律的商业表达就是没有免费午餐——从庞氏骗局到高收益理财产品，所有声称无中生有创造价值的方案都违反了宇宙最基本的物理定律。",
+      "url": "https://mungermodels.com/models/conservation-of-energy",
+      "discipline": "物理学与化学",
+      "discipline_slug": "physics"
+    },
+    {
+      "slug": "action-reaction",
+      "name_cn": "作用力与反作用力",
+      "name_en": "Action & Reaction",
+      "description": "牛顿第三定律在社会系统中的体现——每个政策干预都会引发等大反向的反作用力，美国禁酒令催生有组织犯罪是忽视二阶效应的经典教训。",
+      "url": "https://mungermodels.com/models/action-reaction",
+      "discipline": "物理学与化学",
+      "discipline_slug": "physics"
+    },
+    {
+      "slug": "half-life",
+      "name_cn": "半衰期",
+      "name_en": "Half-Life",
+      "description": "半衰期揭示了事物按固定比例指数衰减的规律——从药物浓度到知识过时，不同事物的持久性差异巨大，聪明人应把资源投入半衰期最长的事物。",
+      "url": "https://mungermodels.com/models/half-life",
+      "discipline": "物理学与化学",
+      "discipline_slug": "physics"
+    },
+    {
+      "slug": "equilibrium-and-far-from-equilibrium",
+      "name_cn": "均衡与远离均衡态",
+      "name_en": "Equilibrium and Far-from-Equilibrium",
+      "description": "均衡是死亡、远离均衡是生命——生命体通过持续摄入低熵能量维持有序结构，普利高津的耗散结构理论揭示了企业和经济体维持活力的深层逻辑。",
+      "url": "https://mungermodels.com/models/equilibrium-and-far-from-equilibrium",
+      "discipline": "物理学与化学",
+      "discipline_slug": "physics"
+    },
+    {
+      "slug": "viscosity-friction",
+      "name_cn": "粘滞性与摩擦力",
+      "name_en": "Viscosity & Friction",
+      "description": "粘滞性与摩擦力是流体和固体中抵抗运动的隐性力量，它们在商业中对应着制度惰性、转换成本和交易摩擦，决定了变革的实际难度远超理论预期。",
+      "url": "https://mungermodels.com/models/viscosity-friction",
+      "discipline": "物理学与化学",
+      "discipline_slug": "physics"
+    },
+    {
+      "slug": "principle-of-least-energy",
+      "name_cn": "最小能量原理",
+      "name_en": "Principle of Least Energy",
+      "description": "最小能量原理揭示了自然界从光的路径到河流走向都倾向于选择消耗最少能量的路径，理解这一宇宙基本倾向有助于预测系统行为和设计高效策略。",
+      "url": "https://mungermodels.com/models/principle-of-least-energy",
+      "discipline": "物理学与化学",
+      "discipline_slug": "physics"
+    },
+    {
+      "slug": "tipping-moment",
+      "name_cn": "倾覆力矩",
+      "name_en": "Tipping Moment",
+      "description": "倾覆力矩描述了系统重心越过支撑点后从可挽救变为不可挽救的精确瞬间，雷曼兄弟的倒塌揭示了企业和组织中同样存在这个不可逆转折点。",
+      "url": "https://mungermodels.com/models/tipping-moment",
+      "discipline": "物理学与化学",
+      "discipline_slug": "physics"
+    },
+    {
+      "slug": "redundancy",
+      "name_cn": "冗余备份系统",
+      "name_en": "Redundancy",
+      "description": "155条命挂在冗余系统上——在后果不可逆的领域，冗余不是浪费而是你能买到的最便宜的保险，其成本持续可见但价值偶发不可见。",
+      "url": "https://mungermodels.com/models/redundancy",
+      "discipline": "工程学",
+      "discipline_slug": "eng"
+    },
+    {
+      "slug": "breakpoints",
+      "name_cn": "断裂点",
+      "name_en": "Breakpoints",
+      "description": "塔科马海峡大桥在不算猛烈的风中摇晃一小时后瞬间断裂——系统的退化是渐进甚至不可见的，但崩溃是突然的、剧烈的、不可逆的。",
+      "url": "https://mungermodels.com/models/breakpoints",
+      "discipline": "工程学",
+      "discipline_slug": "eng"
+    },
+    {
+      "slug": "engineering-margin-of-safety",
+      "name_cn": "安全边际（工程源头）",
+      "name_en": "Engineering Margin of Safety",
+      "description": "泰河铁路桥用75条人命教会工程界一个教训：你必须假设自己的计算是错的，然后让结构在你错了的情况下依然安全——这是安全边际的血写起源。",
+      "url": "https://mungermodels.com/models/engineering-margin-of-safety",
+      "discipline": "工程学",
+      "discipline_slug": "eng"
+    },
+    {
+      "slug": "systems-thinking",
+      "name_cn": "系统思维",
+      "name_en": "Systems Thinking",
+      "description": "通用汽车砸数十亿建最先进工厂却质量更差，丰田用旧厂房同批工人生产出最高质量汽车——系统的行为由组件间的交互决定而非组件本身。",
+      "url": "https://mungermodels.com/models/systems-thinking",
+      "discipline": "工程学",
+      "discipline_slug": "eng"
+    },
+    {
+      "slug": "automation-checklists",
+      "name_cn": "自动化与检查清单",
+      "name_en": "Automation & Checklists",
+      "description": "一张能夹在手掌中的检查清单挽救了波音B-17轰炸机项目——当任务复杂性超过人类认知可靠处理能力时，用系统化流程替代对记忆的依赖。",
+      "url": "https://mungermodels.com/models/automation-checklists",
+      "discipline": "工程学",
+      "discipline_slug": "eng"
+    },
+    {
+      "slug": "path-dependence-lock-in",
+      "name_cn": "路径依赖与锁定",
+      "name_en": "Path Dependence & Lock-in",
+      "description": "QWERTY键盘为降低1870年代机械故障而设计却统治至今——早期偶然选择通过正反馈循环和互补资产锁定被放大为不可逆的技术标准。",
+      "url": "https://mungermodels.com/models/path-dependence-lock-in",
+      "discipline": "工程学",
+      "discipline_slug": "eng"
+    },
+    {
+      "slug": "scaling-effects-diseconomies-in-engineering",
+      "name_cn": "规模效应与反效应",
+      "name_en": "Scaling Effects & Diseconomies in Engineering",
+      "description": "伽利略发现蚂蚁不能等比放大到大象尺寸——平方立方定律决定了放大和缩小从来不是简单的等比例变化，规模改变时系统特性以不同速率变化。",
+      "url": "https://mungermodels.com/models/scaling-effects-diseconomies-in-engineering",
+      "discipline": "工程学",
+      "discipline_slug": "eng"
+    },
+    {
+      "slug": "tight-coupling-loose-coupling",
+      "name_cn": "紧耦合与松耦合",
+      "name_en": "Tight Coupling & Loose Coupling",
+      "description": "同样的地震海啸下福岛核电站堆芯熔毁而120公里外的女川核电站安然无恙——差别不在运气而在系统的耦合度，紧耦合系统留给人类干预的时间几乎为零。",
+      "url": "https://mungermodels.com/models/tight-coupling-loose-coupling",
+      "discipline": "工程学",
+      "discipline_slug": "eng"
+    },
+    {
+      "slug": "quality-control",
+      "name_cn": "质量控制",
+      "name_en": "Quality Control",
+      "description": "德明用八个晚上的课程改变了日本制造业的命运——20个环节各95%合格率最终只有36%的产品合格，质量必须在过程中控制而非终端检验。",
+      "url": "https://mungermodels.com/models/quality-control",
+      "discipline": "工程学",
+      "discipline_slug": "eng"
+    },
+    {
+      "slug": "single-point-of-failure",
+      "name_cn": "单点故障",
+      "name_en": "Single Point of Failure",
+      "description": "一条错误命令瘫痪半个互联网——当整个系统的存亡取决于一个不可替代的环节时，那个环节的任何闪失都会转化为系统级灾难。",
+      "url": "https://mungermodels.com/models/single-point-of-failure",
+      "discipline": "工程学",
+      "discipline_slug": "eng"
+    },
+    {
+      "slug": "failure-mode-analysis",
+      "name_cn": "故障模式分析",
+      "name_en": "Failure Mode Analysis",
+      "description": "挑战者号航天飞机因一个已知的O型环故障被忽视而爆炸——系统性地在事前回答什么可能出错以及出错后会怎样，是工程学最重要的预防性思维工具。",
+      "url": "https://mungermodels.com/models/failure-mode-analysis",
+      "discipline": "工程学",
+      "discipline_slug": "eng"
+    },
+    {
+      "slug": "fault-tolerance",
+      "name_cn": "容错设计与优雅降级",
+      "name_en": "Fault Tolerance",
+      "description": "Netflix每天故意在生产环境中杀死服务器却无用户感知异常——好的系统不追求永不出错，而是确保出错时功能逐步减少但核心仍然运转。",
+      "url": "https://mungermodels.com/models/fault-tolerance",
+      "discipline": "工程学",
+      "discipline_slug": "eng"
+    },
+    {
+      "slug": "normal-accidents",
+      "name_cn": "正常事故",
+      "name_en": "Normal Accidents",
+      "description": "三里岛核事故不是因为某人犯了愚蠢错误，而是系统太复杂太紧耦合——对于复杂且紧耦合的系统，灾难性事故不是异常而是统计必然。",
+      "url": "https://mungermodels.com/models/normal-accidents",
+      "discipline": "工程学",
+      "discipline_slug": "eng"
+    },
+    {
+      "slug": "trade-off-analysis",
+      "name_cn": "权衡分析",
+      "name_en": "Trade-off Analysis",
+      "description": "SpaceX在可回收与一次性火箭之间的抉择——承认取舍的必然性而不是幻想存在无代价的完美方案，是成熟决策者与天真思考者的根本分界线。",
+      "url": "https://mungermodels.com/models/trade-off-analysis",
+      "discipline": "工程学",
+      "discipline_slug": "eng"
+    },
+    {
+      "slug": "antifragile-design",
+      "name_cn": "反脆弱设计",
+      "name_en": "Antifragile Design",
+      "description": "2008年金融危机中伯克希尔不仅没受伤反而在挑选猎物——反脆弱不是坚韧地承受冲击保持不变，而是一种从冲击中获益变得更强的结构性设计。",
+      "url": "https://mungermodels.com/models/antifragile-design",
+      "discipline": "工程学",
+      "discipline_slug": "eng"
+    },
+    {
+      "slug": "iteration-prototyping",
+      "name_cn": "迭代与原型",
+      "name_en": "Iteration & Prototyping",
+      "description": "SpaceX四次发射三次失败后改写了航天经济学，而NASA的SLS十一年230亿美元才完成一次发射——迭代开发承认你无法在动手前完全理解问题。",
+      "url": "https://mungermodels.com/models/iteration-prototyping",
+      "discipline": "工程学",
+      "discipline_slug": "eng"
+    },
+    {
+      "slug": "design-for-maintainability",
+      "name_cn": "可维护性设计",
+      "name_en": "Design for Maintainability",
+      "description": "F-104战斗机和平时期坠毁比战斗中被击落还多，根源是维护性设计的灾难——系统的长期价值不取决于最佳状态下能做什么，而取决于维护修复的难度。",
+      "url": "https://mungermodels.com/models/design-for-maintainability",
+      "discipline": "工程学",
+      "discipline_slug": "eng"
+    },
+    {
+      "slug": "incentive-structure-agency-problem",
+      "name_cn": "激励结构与代理问题",
+      "name_en": "Incentive Structure & Agency Problem",
+      "description": "当代理人的利益与委托人不一致时，激励错位会驱使聪明人做出损害他人利益的事。芒格认为理解激励结构是理解人类行为的第一把钥匙。",
+      "url": "https://mungermodels.com/models/incentive-structure-agency-problem",
+      "discipline": "法学与政治学",
+      "discipline_slug": "law"
+    },
+    {
+      "slug": "adversarial-system",
+      "name_cn": "对抗制与辩证过程",
+      "name_en": "Adversarial System",
+      "description": "对抗制让双方各自尽力论证己方立场，通过激烈的思想碰撞逼近真相。芒格将这一法律方法转化为投资决策中的双轨分析，主动寻找反面证据。",
+      "url": "https://mungermodels.com/models/adversarial-system",
+      "discipline": "法学与政治学",
+      "discipline_slug": "law"
+    },
+    {
+      "slug": "fiduciary-duty",
+      "name_cn": "信托责任",
+      "name_en": "Fiduciary Duty",
+      "description": "信托责任要求受托人将他人利益置于自身利益之上，是法律体系中最高等级的义务标准。芒格和巴菲特以身作则，将其视为商业道德的基石。",
+      "url": "https://mungermodels.com/models/fiduciary-duty",
+      "discipline": "法学与政治学",
+      "discipline_slug": "law"
+    },
+    {
+      "slug": "tragedy-of-the-commons",
+      "name_cn": "公地悲剧",
+      "name_en": "Tragedy of the Commons",
+      "description": "当资源归集体所有而收益归个人时，每个理性个体的最优选择会导致集体灾难。制度设计的核心挑战是通过规则将个体激励与集体利益对齐。",
+      "url": "https://mungermodels.com/models/tragedy-of-the-commons",
+      "discipline": "法学与政治学",
+      "discipline_slug": "law"
+    },
+    {
+      "slug": "regulatory-capture",
+      "name_cn": "监管俘获",
+      "name_en": "Regulatory Capture",
+      "description": "监管俘获指本应保护公众利益的监管机构反被被监管行业所控制，波音737 MAX空难等案例揭示了这一制度失灵的致命后果。",
+      "url": "https://mungermodels.com/models/regulatory-capture",
+      "discipline": "法学与政治学",
+      "discipline_slug": "law"
+    },
+    {
+      "slug": "separation-of-powers",
+      "name_cn": "权力分立与制衡",
+      "name_en": "Separation of Powers",
+      "description": "权力分立与制衡基于对人性弱点的深刻不信任，通过将权力分散到相互制约的机构中，防止任何个人或集团垄断决策，是制度设计的基石。",
+      "url": "https://mungermodels.com/models/separation-of-powers",
+      "discipline": "法学与政治学",
+      "discipline_slug": "law"
+    },
+    {
+      "slug": "burden-of-proof",
+      "name_cn": "举证责任与证据标准",
+      "name_en": "Burden of Proof",
+      "description": "举证责任决定谁必须提供证据，证据标准决定证据须达到何种程度。同一事实在不同标准下可得出截然不同的结论，深刻影响决策质量。",
+      "url": "https://mungermodels.com/models/burden-of-proof",
+      "discipline": "法学与政治学",
+      "discipline_slug": "law"
+    },
+    {
+      "slug": "intellectual-property-law",
+      "name_cn": "知识产权法",
+      "name_en": "Intellectual Property Law",
+      "description": "知识产权法通过专利、商标和版权制度，在激励创新与促进知识传播之间寻求平衡，是理解企业护城河和竞争优势的关键法律框架。",
+      "url": "https://mungermodels.com/models/intellectual-property-law",
+      "discipline": "法学与政治学",
+      "discipline_slug": "law"
+    },
+    {
+      "slug": "moral-hazard-legal-view",
+      "name_cn": "道德风险法学视角",
+      "name_en": "Moral Hazard - Legal View",
+      "description": "当法律制度（如有限责任、保险、政府救助）将风险后果从决策者身上转移走时，决策者会倾向于承担更大风险，这就是道德风险的制度根源。",
+      "url": "https://mungermodels.com/models/moral-hazard-legal-view",
+      "discipline": "法学与政治学",
+      "discipline_slug": "law"
+    },
+    {
+      "slug": "rent-seeking-legal-view",
+      "name_cn": "寻租行为法学视角",
+      "name_en": "Rent-Seeking - Legal View",
+      "description": "寻租行为是利用法律和制度漏洞获取不劳而获的利益，而非通过创造价值获利。芒格尖锐批判这种将聪明才智用在错误地方的社会现象。",
+      "url": "https://mungermodels.com/models/rent-seeking-legal-view",
+      "discipline": "法学与政治学",
+      "discipline_slug": "law"
+    },
+    {
+      "slug": "negligence-vs-strict-liability",
+      "name_cn": "过失与严格责任",
+      "name_en": "Negligence vs. Strict Liability",
+      "description": "过失责任要求证明被告未尽合理注意义务，严格责任则不论是否有过错均须担责。两种归责模式深刻影响企业的风险管理和产品安全决策。",
+      "url": "https://mungermodels.com/models/negligence-vs-strict-liability",
+      "discipline": "法学与政治学",
+      "discipline_slug": "law"
+    },
+    {
+      "slug": "basics-of-contract-law",
+      "name_cn": "合同法基本原则",
+      "name_en": "Basics of Contract Law",
+      "description": "合同法将非正式的承诺转化为可执行的法律义务，其核心原则——合意、对价、善意履行——构成一切商业交易的底层基础设施。",
+      "url": "https://mungermodels.com/models/basics-of-contract-law",
+      "discipline": "法学与政治学",
+      "discipline_slug": "law"
+    },
+    {
+      "slug": "precedent",
+      "name_cn": "先例原则",
+      "name_en": "Precedent",
+      "description": "先例原则要求法官遵循此前已确立的判决，以确保法律的可预测性和一致性。这一原则在商业和投资决策中同样提供了稳定性与路径依赖的双刃剑效应。",
+      "url": "https://mungermodels.com/models/precedent",
+      "discipline": "法学与政治学",
+      "discipline_slug": "law"
+    },
+    {
+      "slug": "intellectual-humility",
+      "name_cn": "认知谦逊",
+      "name_en": "Intellectual Humility",
+      "description": "承认自己的无知是智慧的开端。芒格将苏格拉底式无知转化为投资竞争优势：知道自己不知道什么，比以为自己什么都知道更有力量。",
+      "url": "https://mungermodels.com/models/intellectual-humility",
+      "discipline": "历史学与哲学",
+      "discipline_slug": "history"
+    },
+    {
+      "slug": "lessons-of-history",
+      "name_cn": "以史为鉴",
+      "name_en": "Lessons of History",
+      "description": "历史不会简单重复，但人性的剧本从未改写。通过大量阅读历史，将个人经验的有限样本扩展到几千年，识别穿越时间的不变模式。",
+      "url": "https://mungermodels.com/models/lessons-of-history",
+      "discipline": "历史学与哲学",
+      "discipline_slug": "history"
+    },
+    {
+      "slug": "stoicism",
+      "name_cn": "斯多葛主义",
+      "name_en": "Stoicism",
+      "description": "斯多葛主义的核心是控制的二分法：区分你能控制的和不能控制的，把全部精力集中在前者上。芒格将此内化为投资和人生的理性操作系统。",
+      "url": "https://mungermodels.com/models/stoicism",
+      "discipline": "历史学与哲学",
+      "discipline_slug": "history"
+    },
+    {
+      "slug": "empiricism",
+      "name_cn": "经验主义",
+      "name_en": "Empiricism",
+      "description": "经验主义主张知识源于可观察的证据而非纯粹推理，芒格将这一哲学传统转化为投资决策的操作系统：永远从事实出发，警惕精确的错误。",
+      "url": "https://mungermodels.com/models/empiricism",
+      "discipline": "历史学与哲学",
+      "discipline_slug": "history"
+    },
+    {
+      "slug": "franklins-self-improvement-system",
+      "name_cn": "富兰克林的自我修炼",
+      "name_en": "Franklin's Self-Improvement System",
+      "description": "富兰克林用十三条美德清单和数据追踪系统，将品格发展从模糊的道德愿望变成精确的自我迭代工程，深刻启发了芒格的终身自我修炼哲学。",
+      "url": "https://mungermodels.com/models/franklins-self-improvement-system",
+      "discipline": "历史学与哲学",
+      "discipline_slug": "history"
+    },
+    {
+      "slug": "pragmatism",
+      "name_cn": "实用主义",
+      "name_en": "Pragmatism",
+      "description": "实用主义检验观念的方式不是看理论是否优美，而是看它在实践中造成什么具体差异。芒格是这一美国哲学传统最忠实的践行者之一。",
+      "url": "https://mungermodels.com/models/pragmatism",
+      "discipline": "历史学与哲学",
+      "discipline_slug": "history"
+    },
+    {
+      "slug": "socratic-method",
+      "name_cn": "苏格拉底式追问",
+      "name_en": "Socratic Method",
+      "description": "苏格拉底式追问通过层层深入的连续提问，暴露思维中隐含的假设与矛盾，迫使思考从表层滑行切换到深层开掘，是发现根因的核心工具。",
+      "url": "https://mungermodels.com/models/socratic-method",
+      "discipline": "历史学与哲学",
+      "discipline_slug": "history"
+    },
+    {
+      "slug": "rise-and-fall-of-empires",
+      "name_cn": "帝国兴衰周期",
+      "name_en": "Rise and Fall of Empires",
+      "description": "从罗马帝国到通用汽车，帝国的毁灭几乎从不来自外部，而是来自内部腐蚀。当繁荣让人们忘记繁荣是怎么来的，衰败就已经开始。",
+      "url": "https://mungermodels.com/models/rise-and-fall-of-empires",
+      "discipline": "历史学与哲学",
+      "discipline_slug": "history"
+    },
+    {
+      "slug": "consequentialism-vs-deontology",
+      "name_cn": "后果主义vs义务论",
+      "name_en": "Consequentialism vs Deontology",
+      "description": "后果主义以结果判断行为的道德价值，义务论则坚持有些规则不论结果都须遵守。芒格试图同时对得起边沁和康德，在商业决策中平衡两者。",
+      "url": "https://mungermodels.com/models/consequentialism-vs-deontology",
+      "discipline": "历史学与哲学",
+      "discipline_slug": "history"
+    },
+    {
+      "slug": "historical-contingency-path-dependence",
+      "name_cn": "历史偶然性与路径依赖",
+      "name_en": "Historical Contingency & Path Dependence",
+      "description": "历史的走向不由内在必然性决定，而在关键节点受偶然事件深刻影响；一旦发生便锁定此后的发展路径，对投资和决策有重大启示。",
+      "url": "https://mungermodels.com/models/historical-contingency-path-dependence",
+      "discipline": "历史学与哲学",
+      "discipline_slug": "history"
+    },
+    {
+      "slug": "evolutionary-epistemology",
+      "name_cn": "进化认识论",
+      "name_en": "Evolutionary Epistemology",
+      "description": "人类知识的进步遵循与生物进化相同的逻辑：新思想如基因突变般出现，经受现实检验的选择压力，在残酷竞争中逐渐逼近真理。",
+      "url": "https://mungermodels.com/models/evolutionary-epistemology",
+      "discipline": "历史学与哲学",
+      "discipline_slug": "history"
+    },
+    {
+      "slug": "enlightenment-rationalism",
+      "name_cn": "启蒙运动的理性传统",
+      "name_en": "Enlightenment Rationalism",
+      "description": "启蒙运动确立了理性优先于权威、信念须经验证检验、怀疑是美德三大原则，构成芒格整个思维体系的底层操作系统。",
+      "url": "https://mungermodels.com/models/enlightenment-rationalism",
+      "discipline": "历史学与哲学",
+      "discipline_slug": "history"
+    },
+    {
+      "slug": "survivorship-bias-historical-perspective",
+      "name_cn": "生存者偏差（历史视角）",
+      "name_en": "Survivorship Bias - Historical Perspective",
+      "description": "我们看到的历史由幸存者书写、关于幸存者、为幸存者服务。那些未能幸存的人、物、制度从记录中消失，系统性扭曲了我们对过去的理解。",
+      "url": "https://mungermodels.com/models/survivorship-bias-historical-perspective",
+      "discipline": "历史学与哲学",
+      "discipline_slug": "history"
+    },
+    {
+      "slug": "accounting-as-language-its-limits",
+      "name_cn": "会计作为商业语言及其局限",
+      "name_en": "Accounting as Language & Its Limits",
+      "description": "会计是理解商业的必备语言，但它有系统性局限：财务报表只是现实的近似映射，而非现实本身。芒格强调必须学会会计，更要懂得它的边界。",
+      "url": "https://mungermodels.com/models/accounting-as-language-its-limits",
+      "discipline": "会计学",
+      "discipline_slug": "accounting"
+    },
+    {
+      "slug": "cash-flow-vs-earnings",
+      "name_cn": "现金流量vs利润",
+      "name_en": "Cash Flow vs. Earnings",
+      "description": "利润是会计概念，可被操纵；现金流是真金白银，难以造假。芒格和巴菲特始终关注自由现金流而非账面利润，因为现金才是企业的氧气。",
+      "url": "https://mungermodels.com/models/cash-flow-vs-earnings",
+      "discipline": "会计学",
+      "discipline_slug": "accounting"
+    },
+    {
+      "slug": "double-entry-bookkeeping",
+      "name_cn": "复式记账法",
+      "name_en": "Double-Entry Bookkeeping",
+      "description": "复式记账法要求每笔交易同时记录借方和贷方，通过内在的自我校验机制确保账目平衡。芒格称其为人类文明最伟大的发明之一。",
+      "url": "https://mungermodels.com/models/double-entry-bookkeeping",
+      "discipline": "会计学",
+      "discipline_slug": "accounting"
+    },
+    {
+      "slug": "off-balance-sheet-contingent-liabilities",
+      "name_cn": "表外负债与或有负债",
+      "name_en": "Off-Balance-Sheet & Contingent Liabilities",
+      "description": "表外负债是不出现在资产负债表上的真实义务，或有负债是尚未确定的潜在损失。安然案证明忽视它们可以让千亿帝国在一夜之间崩塌。",
+      "url": "https://mungermodels.com/models/off-balance-sheet-contingent-liabilities",
+      "discipline": "会计学",
+      "discipline_slug": "accounting"
+    },
+    {
+      "slug": "sunk-cost-vs-marginal-cost",
+      "name_cn": "沉没成本vs边际成本",
+      "name_en": "Sunk Cost vs. Marginal Cost",
+      "description": "沉没成本是已经花掉且无法收回的钱，边际成本是多做一单位的增量成本。理性决策应只看边际成本而忽略沉没成本，但人性使这极难做到。",
+      "url": "https://mungermodels.com/models/sunk-cost-vs-marginal-cost",
+      "discipline": "会计学",
+      "discipline_slug": "accounting"
+    },
+    {
+      "slug": "depreciation-amortization",
+      "name_cn": "折旧与摊销",
+      "name_en": "Depreciation & Amortization",
+      "description": "折旧与摊销将资产的消耗分摊到其使用寿命中，不同的折旧方法可以让同一家企业呈现截然不同的利润面貌，是理解真实盈利能力的关键。",
+      "url": "https://mungermodels.com/models/depreciation-amortization",
+      "discipline": "会计学",
+      "discipline_slug": "accounting"
+    },
+    {
+      "slug": "deferred-revenue-revenue-recognition",
+      "name_cn": "递延收入与收入确认",
+      "name_en": "Deferred Revenue & Revenue Recognition",
+      "description": "收入确认决定企业何时将交易记录为收入，激进的确认方式可制造利润幻觉。安然案证明理解收入质量是识破财务造假的第一道防线。",
+      "url": "https://mungermodels.com/models/deferred-revenue-revenue-recognition",
+      "discipline": "会计学",
+      "discipline_slug": "accounting"
+    },
+    {
+      "slug": "opportunity-cost-in-accounting",
+      "name_cn": "机会成本会计视角",
+      "name_en": "Opportunity Cost in Accounting",
+      "description": "传统会计只记录已发生的交易，却忽略了放弃的最佳替代方案的价值。芒格认为不考虑机会成本的决策注定是糟糕的决策。",
+      "url": "https://mungermodels.com/models/opportunity-cost-in-accounting",
+      "discipline": "会计学",
+      "discipline_slug": "accounting"
+    },
+    {
+      "slug": "audit-independent-verification",
+      "name_cn": "审计与独立验证",
+      "name_en": "Audit & Independent Verification",
+      "description": "审计通过独立第三方验证财务信息的真实性，是商业信任体系的基石。安达信的覆灭警示：审计师的独立性一旦丧失，整个验证机制便形同虚设。",
+      "url": "https://mungermodels.com/models/audit-independent-verification",
+      "discipline": "会计学",
+      "discipline_slug": "accounting"
+    },
+    {
+      "slug": "goodwill-impairment",
+      "name_cn": "商誉及其减值",
+      "name_en": "Goodwill & Impairment",
+      "description": "会计商誉是收购溢价的记录，经济商誉则是企业超额盈利能力的真实来源。理解两者的区别是评估收购交易和企业价值的核心能力。",
+      "url": "https://mungermodels.com/models/goodwill-impairment",
+      "discipline": "会计学",
+      "discipline_slug": "accounting"
+    },
+    {
+      "slug": "inventory-valuation-methods",
+      "name_cn": "存货计价方法",
+      "name_en": "Inventory Valuation Methods",
+      "description": "先进先出与后进先出等存货计价方法的选择，可以让完全相同的企业呈现截然不同的利润，尤其在通胀环境下差异巨大，是财务分析的关键盲区。",
+      "url": "https://mungermodels.com/models/inventory-valuation-methods",
+      "discipline": "会计学",
+      "discipline_slug": "accounting"
+    },
+    {
+      "slug": "margin-of-safety",
+      "name_cn": "安全边际",
+      "name_en": "Margin of Safety",
+      "description": "安全边际是以显著低于内在价值的价格买入，为判断错误和意外事件留出缓冲空间。这一源自工程学的冗余思想，是价值投资最核心的原则。",
+      "url": "https://mungermodels.com/models/margin-of-safety",
+      "discipline": "投资学与金融学",
+      "discipline_slug": "invest"
+    },
+    {
+      "slug": "circle-of-competence",
+      "name_cn": "能力圈",
+      "name_en": "Circle of Competence",
+      "description": "能力圈要求清晰界定自己真正理解的领域，只在圈内行动。知道边界在哪里比扩大边界更重要——大多数灾难源于在能力圈之外做决策。",
+      "url": "https://mungermodels.com/models/circle-of-competence",
+      "discipline": "投资学与金融学",
+      "discipline_slug": "invest"
+    },
+    {
+      "slug": "mr-market",
+      "name_cn": "市场先生",
+      "name_en": "Mr. Market",
+      "description": "格雷厄姆将市场比喻为一个情绪不稳定的合伙人：每天给你报价，但报价反映的是他的情绪而非企业的价值。投资者应利用市场先生，而非被他左右。",
+      "url": "https://mungermodels.com/models/mr-market",
+      "discipline": "投资学与金融学",
+      "discipline_slug": "invest"
+    },
+    {
+      "slug": "pari-mutuel-system",
+      "name_cn": "彩池投注系统",
+      "name_en": "Pari-mutuel System",
+      "description": "芒格用赛马场的彩池投注类比股市：市场价格反映了大多数人的共识预期，真正的超额回报只存在于共识判断出错的地方。",
+      "url": "https://mungermodels.com/models/pari-mutuel-system",
+      "discipline": "投资学与金融学",
+      "discipline_slug": "invest"
+    },
+    {
+      "slug": "bet-seldom-bet-big",
+      "name_cn": "少下注下大注",
+      "name_en": "Bet Seldom, Bet Big",
+      "description": "芒格一生的大部分财富来自不超过十个决策。少下注、下大注的核心是极端的选择性：等待极少数胜率和赔率都极高的机会，然后重仓出击。",
+      "url": "https://mungermodels.com/models/bet-seldom-bet-big",
+      "discipline": "投资学与金融学",
+      "discipline_slug": "invest"
+    },
+    {
+      "slug": "intrinsic-value",
+      "name_cn": "内在价值",
+      "name_en": "Intrinsic Value",
+      "description": "内在价值是企业未来全部现金流的折现总和，与市场报价无关。芒格和巴菲特的投资体系建立在一个核心区分之上：价格不是价值。",
+      "url": "https://mungermodels.com/models/intrinsic-value",
+      "discipline": "投资学与金融学",
+      "discipline_slug": "invest"
+    },
+    {
+      "slug": "sit-on-your-ass-investing",
+      "name_cn": "坐等投资法",
+      "name_en": "Sit-on-Your-Ass Investing",
+      "description": "坐等投资法的核心是买入优秀企业后长期持有、什么都不做。逻辑最简单、回报最惊人、执行却最困难，因为它要求对抗人类活动的本能。",
+      "url": "https://mungermodels.com/models/sit-on-your-ass-investing",
+      "discipline": "投资学与金融学",
+      "discipline_slug": "invest"
+    },
+    {
+      "slug": "discounted-cash-flow",
+      "name_cn": "现金流贴现法",
+      "name_en": "Discounted Cash Flow",
+      "description": "现金流贴现法将未来现金流折算为当前价值，是评估一切资产内在价值的基本框架。芒格强调其核心是思想方式而非精确计算。",
+      "url": "https://mungermodels.com/models/discounted-cash-flow",
+      "discipline": "投资学与金融学",
+      "discipline_slug": "invest"
+    },
+    {
+      "slug": "too-hard-pile",
+      "name_cn": "太难堆",
+      "name_en": "Too Hard Pile",
+      "description": "芒格的'太难堆'是一种决策纪律：果断将超出理解能力的问题扔进太难堆不予处理，把精力集中在少数真正能看懂的机会上。",
+      "url": "https://mungermodels.com/models/too-hard-pile",
+      "discipline": "投资学与金融学",
+      "discipline_slug": "invest"
+    },
+    {
+      "slug": "fragility-antifragility",
+      "name_cn": "脆弱性与反脆弱性",
+      "name_en": "Fragility & Antifragility",
+      "description": "脆弱的真正反义词不是不碎而是越摔越硬——伯克希尔在2008年危机中不仅生存还获益超百亿美元，这是精心设计的反脆弱系统属性在发挥作用。",
+      "url": "https://mungermodels.com/models/fragility-antifragility",
+      "discipline": "复杂系统",
+      "discipline_slug": "complex"
+    },
+    {
+      "slug": "complex-systems",
+      "name_cn": "复杂系统",
+      "name_en": "Complex Systems",
+      "description": "复杂系统是整体行为无法从部件推导出来的系统——一只蚂蚁没有智能，一百万只蚂蚁涌现出超级有机体。你的大脑、城市、市场、生态圈都是这种结构，而用简单系统的直觉去处理它们是现代最昂贵的认知错误之一。",
+      "url": "https://mungermodels.com/models/complex-systems",
+      "discipline": "复杂系统",
+      "discipline_slug": "complex"
+    },
+    {
+      "slug": "emergence",
+      "name_cn": "涌现性",
+      "name_en": "Emergence",
+      "description": "一滴水不会湿，一只蚂蚁无智能，但数十亿水分子产生湿润、数十万蚂蚁涌现出超级有机体——整体展现出组成部分所不具有的全新属性。",
+      "url": "https://mungermodels.com/models/emergence",
+      "discipline": "复杂系统",
+      "discipline_slug": "complex"
+    },
+    {
+      "slug": "self-organized-criticality",
+      "name_cn": "自组织临界性",
+      "name_en": "Self-Organized Criticality",
+      "description": "沙堆会自发演化到临界状态，每添一粒沙都可能引发任意规模的雪崩——从地震到金融崩盘，灾难性大事件与日常小波动有完全相同的触发机制。",
+      "url": "https://mungermodels.com/models/self-organized-criticality",
+      "discipline": "复杂系统",
+      "discipline_slug": "complex"
+    },
+    {
+      "slug": "delay-effects",
+      "name_cn": "延迟效应",
+      "name_en": "Delay Effects",
+      "description": "美联储加息的全面影响需要12到18个月才能显现——因与果之间的时间滞后让人类大脑系统性地误判因果关系，这是长期思维的物理学基础。",
+      "url": "https://mungermodels.com/models/delay-effects",
+      "discipline": "复杂系统",
+      "discipline_slug": "complex"
+    },
+    {
+      "slug": "critical-mass-phase-transitions-in-systems",
+      "name_cn": "临界质量与相变",
+      "name_en": "Critical Mass & Phase Transitions in Systems",
+      "description": "水在99度时还是水但101度变成了完全不同的蒸汽——世界上最重要的变化总是出人意料，因为迹象是线性的而变化是非线性的质的跃迁。",
+      "url": "https://mungermodels.com/models/critical-mass-phase-transitions-in-systems",
+      "discipline": "复杂系统",
+      "discipline_slug": "complex"
+    },
+    {
+      "slug": "bayesian-updating",
+      "name_cn": "贝叶斯更新",
+      "name_en": "Bayesian Updating",
+      "description": "不是对错而是校准——面对新证据按比例调整信念概率，既不顽固拒绝改变也不在一条坏消息面前完全崩溃，这是不确定世界中修正判断的操作系统。",
+      "url": "https://mungermodels.com/models/bayesian-updating",
+      "discipline": "复杂系统",
+      "discipline_slug": "complex"
+    },
+    {
+      "slug": "adaptation-path-dependence",
+      "name_cn": "适应性与路径依赖",
+      "name_en": "Adaptation & Path Dependence",
+      "description": "MS-DOS击败技术更优的CP/M源于一系列偶然事件被递增回报放大为四十年垄断——在复杂适应系统中，历史不是背景而是原因。",
+      "url": "https://mungermodels.com/models/adaptation-path-dependence",
+      "discipline": "复杂系统",
+      "discipline_slug": "complex"
+    },
+    {
+      "slug": "intellectual-humility",
+      "name_cn": "知识谦逊",
+      "name_en": "Intellectual Humility",
+      "description": "知识谦逊是诚实面对自己认知边界的品格。芒格和巴菲特说得最多的三个字是'我不知道'，正是这种坦诚让他们避开了无数灾难。",
+      "url": "https://mungermodels.com/models/intellectual-humility",
+      "discipline": "投资原则与品格",
+      "discipline_slug": "decision"
+    },
+    {
+      "slug": "risk-first",
+      "name_cn": "风险优先",
+      "name_en": "Risk First",
+      "description": "芒格的第一个问题永远不是'能赚多少'，而是'可能亏多少'。风险优先意味着在考虑收益之前，先确保不会遭受不可逆转的损失。",
+      "url": "https://mungermodels.com/models/risk-first",
+      "discipline": "投资原则与品格",
+      "discipline_slug": "decision"
+    },
+    {
+      "slug": "lifelong-learning",
+      "name_cn": "终身学习",
+      "name_en": "Lifelong Learning",
+      "description": "芒格是一台'长了两条腿的学习机器'。终身学习不是兴趣爱好，而是在不断变化的世界中保持竞争力的唯一可靠策略，也是复利效应在智识上的体现。",
+      "url": "https://mungermodels.com/models/lifelong-learning",
+      "discipline": "投资原则与品格",
+      "discipline_slug": "decision"
+    },
+    {
+      "slug": "independence",
+      "name_cn": "独立思考",
+      "name_en": "Independence",
+      "description": "独立思考要求基于自己的分析而非市场共识做决策。当所有人都在恐慌抛售时敢于买入，当所有人都在狂热追捧时敢于旁观，这是投资成功的核心品格。",
+      "url": "https://mungermodels.com/models/independence",
+      "discipline": "投资原则与品格",
+      "discipline_slug": "decision"
+    },
+    {
+      "slug": "patience-discipline",
+      "name_cn": "耐心与纪律",
+      "name_en": "Patience & Discipline",
+      "description": "像泰德·威廉姆斯只在最佳击球区挥棒一样，芒格的耐心与纪律要求投资者忍受长期等待，只在极少数高确定性机会出现时果断出手。",
+      "url": "https://mungermodels.com/models/patience-discipline",
+      "discipline": "投资原则与品格",
+      "discipline_slug": "decision"
+    }
+  ]
+}

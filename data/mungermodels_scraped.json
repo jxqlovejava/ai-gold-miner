@@ -1,0 +1,1025 @@
+{
+  "source": "mungermodels.com (scraped via ClashX SOCKS5)",
+  "scraped_count": 120,
+  "site_total": 232,
+  "disciplines": {
+    "meta": {
+      "name": "元认知与思维方法论",
+      "count": 25
+    },
+    "psych": {
+      "name": "心理学",
+      "count": 31
+    },
+    "math": {
+      "name": "数学与统计学",
+      "count": 20
+    },
+    "econ": {
+      "name": "微观经济学",
+      "count": 23
+    },
+    "physics": {
+      "name": "物理学与化学",
+      "count": 18
+    },
+    "bio": {
+      "name": "生物学与进化论",
+      "count": 20
+    },
+    "eng": {
+      "name": "工程学",
+      "count": 17
+    },
+    "complex": {
+      "name": "复杂系统与决策科学",
+      "count": 8
+    },
+    "mgmt": {
+      "name": "管理学与商业",
+      "count": 19
+    },
+    "invest": {
+      "name": "投资学与金融学",
+      "count": 9
+    },
+    "accounting": {
+      "name": "会计学",
+      "count": 11
+    },
+    "law": {
+      "name": "法学与政治学",
+      "count": 13
+    },
+    "history": {
+      "name": "历史学与哲学",
+      "count": 13
+    },
+    "decision": {
+      "name": "投资原则与品格",
+      "count": 5
+    }
+  },
+  "models": [
+    {
+      "slug": "competitive-destruction",
+      "name_cn": "竞争性毁灭",
+      "desc_preview": "新技术不是在现有框架内竞争，而是直接摧毁旧框架——芒格用马鞭工厂的故事警示投资者：你的企业可能被一种你今天还看不到的力量彻底消灭。 查看详情 →",
+      "url": "https://mungermodels.com/models/competitive-destruction",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "social-proof-tendency",
+      "name_cn": "社会认同倾向",
+      "desc_preview": "人类天生根据周围人的行为来决定自己的行动，尤其在困惑和压力下更甚。这种从众本能在现代社会中会引发信息级联、泡沫与恐慌。 查看详情 →",
+      "url": "https://mungermodels.com/models/social-proof-tendency",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "incentives-economic-view",
+      "name_cn": "激励机制",
+      "desc_preview": "当无法改变人性时该如何设计制度来利用人性——芒格将心理学的激励洞见与经济学的机制设计焊接在一起，形成了对激励问题的完整理解。 查看详情 →",
+      "url": "https://mungermodels.com/models/incentives-economic-view",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "fragility-antifragility",
+      "name_cn": "脆弱性与反脆弱性",
+      "desc_preview": "脆弱的真正反义词不是不碎而是越摔越硬——伯克希尔在2008年危机中不仅生存还获益超百亿美元，这是精心设计的反脆弱系统属性在发挥作用。 查看详情 →",
+      "url": "https://mungermodels.com/models/fragility-antifragility",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "bayes-theorem",
+      "name_cn": "贝叶斯定理",
+      "desc_preview": "贝叶斯定理揭示了新证据必须在先验概率背景下解读的核心逻辑，它从根本上改变你处理信息、更新判断和避免基础比率忽视的方式。 查看详情 →",
+      "url": "https://mungermodels.com/models/bayes-theorem",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "inversion",
+      "name_cn": "逆向思维",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/inversion",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "checklist-method",
+      "name_cn": "检查清单方法",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/checklist-method",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "avoiding-ideology",
+      "name_cn": "避免意识形态偏见",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/avoiding-ideology",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "multidisciplinary-approach",
+      "name_cn": "跨学科思维",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/multidisciplinary-approach",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "man-with-a-hammer-syndrome",
+      "name_cn": "铁锤人倾向",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/man-with-a-hammer-syndrome",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "second-order-thinking",
+      "name_cn": "二阶效应",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/second-order-thinking",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "occams-razor",
+      "name_cn": "奥卡姆剃刀",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/occams-razor",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "avoiding-stupidity-over-seeking-brilliance",
+      "name_cn": "避蠢优于求智",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/avoiding-stupidity-over-seeking-brilliance",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "latticework-of-mental-models",
+      "name_cn": "多元思维模型框架",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/latticework-of-mental-models",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "inconsistency-avoidance-tendency",
+      "name_cn": "避免不一致性倾向",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/inconsistency-avoidance-tendency",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "lollapalooza-tendency",
+      "name_cn": "Lollapalooza倾向",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/lollapalooza-tendency",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "reward-and-punishment-superresponse-tendency",
+      "name_cn": "奖励和惩罚超级反应倾向",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/reward-and-punishment-superresponse-tendency",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "excessive-self-regard-tendency",
+      "name_cn": "自视过高的倾向",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/excessive-self-regard-tendency",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "deprival-superreaction-tendency",
+      "name_cn": "被剥夺超级反应倾向",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/deprival-superreaction-tendency",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "influence-from-mere-association-tendency",
+      "name_cn": "受简单联想影响的倾向",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/influence-from-mere-association-tendency",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "authority-misinfluence-tendency",
+      "name_cn": "权威错误影响倾向",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/authority-misinfluence-tendency",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "doubt-avoidance-tendency",
+      "name_cn": "避免怀疑倾向",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/doubt-avoidance-tendency",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "compound-interest",
+      "name_cn": "复利效应",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/compound-interest",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "probabilistic-thinking-expected-value",
+      "name_cn": "概率思维与期望值",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/probabilistic-thinking-expected-value",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "law-of-large-numbers",
+      "name_cn": "大数定律",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/law-of-large-numbers",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "regression-to-the-mean",
+      "name_cn": "回归均值",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/regression-to-the-mean",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "multiplicative-systems",
+      "name_cn": "乘法系统思维",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/multiplicative-systems",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "decision-tree-theory",
+      "name_cn": "决策树理论",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/decision-tree-theory",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "asymmetry-convexity",
+      "name_cn": "不对称性与凸性",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/asymmetry-convexity",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "power-laws",
+      "name_cn": "幂律分布",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/power-laws",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "economies-of-scale",
+      "name_cn": "规模优势",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/economies-of-scale",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "opportunity-cost",
+      "name_cn": "机会成本",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/opportunity-cost",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "moral-hazard",
+      "name_cn": "道德风险",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/moral-hazard",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "externalities",
+      "name_cn": "外部性",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/externalities",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "agency-costs",
+      "name_cn": "代理成本",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/agency-costs",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "supply-and-demand",
+      "name_cn": "供给与需求",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/supply-and-demand",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "monopoly-oligopoly",
+      "name_cn": "垄断与寡头",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/monopoly-oligopoly",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "feedback-loops",
+      "name_cn": "反馈环",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/feedback-loops",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "critical-mass",
+      "name_cn": "临界质量",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/critical-mass",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "autocatalysis",
+      "name_cn": "自我催化模型",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/autocatalysis",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "entropy",
+      "name_cn": "熵",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/entropy",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "reversibility-irreversibility",
+      "name_cn": "可逆性与不可逆性",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/reversibility-irreversibility",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "phase-transitions",
+      "name_cn": "相变与临界现象",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/phase-transitions",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "nonlinear-consequences",
+      "name_cn": "非线性后果",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/nonlinear-consequences",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "catalysts",
+      "name_cn": "催化剂",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/catalysts",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "superposition-and-emergence",
+      "name_cn": "叠加原理与涌现",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/superposition-and-emergence",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "modern-darwinian-synthesis",
+      "name_cn": "进化论",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/modern-darwinian-synthesis",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "ecosystem-thinking",
+      "name_cn": "生态系统思维",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/ecosystem-thinking",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "red-queen-effect",
+      "name_cn": "红皇后效应",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/red-queen-effect",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "adaptation",
+      "name_cn": "适应性",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/adaptation",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "niche-differentiation",
+      "name_cn": "利基分化",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/niche-differentiation",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "complex-adaptive-systems",
+      "name_cn": "复杂适应系统",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/complex-adaptive-systems",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "evolutionary-arms-race",
+      "name_cn": "进化军备竞赛",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/evolutionary-arms-race",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "natural-selection-survival-of-the-fittest",
+      "name_cn": "自然选择与适者生存",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/natural-selection-survival-of-the-fittest",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "co-evolution",
+      "name_cn": "协同进化",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/co-evolution",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "redundancy",
+      "name_cn": "冗余备份系统",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/redundancy",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "breakpoints",
+      "name_cn": "断裂点",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/breakpoints",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "path-dependence-lock-in",
+      "name_cn": "路径依赖与锁定",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/path-dependence-lock-in",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "scaling-effects-diseconomies-in-engineering",
+      "name_cn": "规模效应与反效应",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/scaling-effects-diseconomies-in-engineering",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "tight-coupling-loose-coupling",
+      "name_cn": "紧耦合与松耦合",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/tight-coupling-loose-coupling",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "quality-control",
+      "name_cn": "质量控制",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/quality-control",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "engineering-margin-of-safety",
+      "name_cn": "安全边际（工程源头）",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/engineering-margin-of-safety",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "single-point-of-failure",
+      "name_cn": "单点故障",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/single-point-of-failure",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "failure-mode-analysis",
+      "name_cn": "故障模式分析",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/failure-mode-analysis",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "emergence",
+      "name_cn": "涌现性",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/emergence",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "self-organized-criticality",
+      "name_cn": "自组织临界性",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/self-organized-criticality",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "delay-effects",
+      "name_cn": "延迟效应",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/delay-effects",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "critical-mass-phase-transitions-in-systems",
+      "name_cn": "临界质量与相变",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/critical-mass-phase-transitions-in-systems",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "complex-systems",
+      "name_cn": "复杂系统",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/complex-systems",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "adaptation-path-dependence",
+      "name_cn": "适应性与路径依赖",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/adaptation-path-dependence",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "bayesian-updating",
+      "name_cn": "贝叶斯更新",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/bayesian-updating",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "moat",
+      "name_cn": "护城河（Moat）",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/moat",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "network-effects",
+      "name_cn": "网络效应",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/network-effects",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "flywheel-effect",
+      "name_cn": "飞轮效应",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/flywheel-effect",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "switching-costs",
+      "name_cn": "转换成本",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/switching-costs",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "brand-power",
+      "name_cn": "品牌认同",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/brand-power",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "simplicity-in-business",
+      "name_cn": "简单化在商业中的应用",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/simplicity-in-business",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "corporate-culture-as-asset",
+      "name_cn": "企业文化作为资产",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/corporate-culture-as-asset",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "principal-agent-solutions",
+      "name_cn": "委托代理问题的管理解法",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/principal-agent-solutions",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "incentive-structure-design",
+      "name_cn": "激励结构设计",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/incentive-structure-design",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "margin-of-safety",
+      "name_cn": "安全边际",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/margin-of-safety",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "circle-of-competence",
+      "name_cn": "能力圈",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/circle-of-competence",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "mr-market",
+      "name_cn": "市场先生",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/mr-market",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "pari-mutuel-system",
+      "name_cn": "彩池投注系统",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/pari-mutuel-system",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "sit-on-your-ass-investing",
+      "name_cn": "坐等投资法",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/sit-on-your-ass-investing",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "bet-seldom-bet-big",
+      "name_cn": "少下注下大注",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/bet-seldom-bet-big",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "discounted-cash-flow",
+      "name_cn": "现金流贴现法",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/discounted-cash-flow",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "intrinsic-value",
+      "name_cn": "内在价值",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/intrinsic-value",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "too-hard-pile",
+      "name_cn": "太难堆",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/too-hard-pile",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "accounting-as-language-its-limits",
+      "name_cn": "会计作为商业语言及其局限",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/accounting-as-language-its-limits",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "cash-flow-vs-earnings",
+      "name_cn": "现金流量vs利润",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/cash-flow-vs-earnings",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "double-entry-bookkeeping",
+      "name_cn": "复式记账法",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/double-entry-bookkeeping",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "off-balance-sheet-contingent-liabilities",
+      "name_cn": "表外负债与或有负债",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/off-balance-sheet-contingent-liabilities",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "sunk-cost-vs-marginal-cost",
+      "name_cn": "沉没成本vs边际成本",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/sunk-cost-vs-marginal-cost",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "depreciation-amortization",
+      "name_cn": "折旧与摊销",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/depreciation-amortization",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "deferred-revenue-revenue-recognition",
+      "name_cn": "递延收入与收入确认",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/deferred-revenue-revenue-recognition",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "opportunity-cost-in-accounting",
+      "name_cn": "机会成本会计视角",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/opportunity-cost-in-accounting",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "audit-independent-verification",
+      "name_cn": "审计与独立验证",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/audit-independent-verification",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "incentive-structure-agency-problem",
+      "name_cn": "激励结构与代理问题",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/incentive-structure-agency-problem",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "adversarial-system",
+      "name_cn": "对抗制与辩证过程",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/adversarial-system",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "fiduciary-duty",
+      "name_cn": "信托责任",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/fiduciary-duty",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "tragedy-of-the-commons",
+      "name_cn": "公地悲剧",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/tragedy-of-the-commons",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "regulatory-capture",
+      "name_cn": "监管俘获",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/regulatory-capture",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "separation-of-powers",
+      "name_cn": "权力分立与制衡",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/separation-of-powers",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "burden-of-proof",
+      "name_cn": "举证责任与证据标准",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/burden-of-proof",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "intellectual-property-law",
+      "name_cn": "知识产权法",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/intellectual-property-law",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "negligence-vs-strict-liability",
+      "name_cn": "过失与严格责任",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/negligence-vs-strict-liability",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "intellectual-humility",
+      "name_cn": "认知谦逊",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/intellectual-humility",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "lessons-of-history",
+      "name_cn": "以史为鉴",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/lessons-of-history",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "stoicism",
+      "name_cn": "斯多葛主义",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/stoicism",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "empiricism",
+      "name_cn": "经验主义",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/empiricism",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "franklins-self-improvement-system",
+      "name_cn": "富兰克林的自我修炼",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/franklins-self-improvement-system",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "pragmatism",
+      "name_cn": "实用主义",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/pragmatism",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "socratic-method",
+      "name_cn": "苏格拉底式追问",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/socratic-method",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "consequentialism-vs-deontology",
+      "name_cn": "后果主义vs义务论",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/consequentialism-vs-deontology",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "historical-contingency-path-dependence",
+      "name_cn": "历史偶然性与路径依赖",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/historical-contingency-path-dependence",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "risk-first",
+      "name_cn": "风险优先",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/risk-first",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "lifelong-learning",
+      "name_cn": "终身学习",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/lifelong-learning",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "independence",
+      "name_cn": "独立思考",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/independence",
+      "discipline": "未知",
+      "discipline_slug": ""
+    },
+    {
+      "slug": "patience-discipline",
+      "name_cn": "耐心与纪律",
+      "desc_preview": "",
+      "url": "https://mungermodels.com/models/patience-discipline",
+      "discipline": "未知",
+      "discipline_slug": ""
+    }
+  ]
+}
