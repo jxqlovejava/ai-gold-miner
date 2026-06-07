@@ -1,0 +1,19 @@
+# Environment
+.env
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Reports (generated)
+reports/

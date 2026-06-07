@@ -2,7 +2,7 @@
 
 覆盖现货黄金 + 积存金的双标的、多维度、日内级别智能投资决策辅助系统。
 
-支持 **8 维信号分析**、**异常检测**、**多目标策略**、**极端情景推演**，以及 **BTC 联动评估**。
+支持 **8 维信号分析**、**异常检测**、**多目标策略**、**极端情景推演**、**BTC 联动评估**、**ETF 资金流追踪**、**投资军规审查**，以及 **Munger 多元思维模型库**。
 
 ---
 
@@ -11,6 +11,10 @@
 | 能力 | 说明 |
 |------|------|
 | **8 维信号分析** | 技术面、基本面、消息面、情绪面、事件驱动、Polymarket、异常检测、极端情景 |
+| **ETF 资金流追踪** | 黄金 ETF + 比特币 ETF 流入流出，跨资产背离信号 |
+| **投资军规审查** | 15 条硬约束规则（仓位/时机/情绪/流程），阻断违规决策 |
+| **Munger 思维模型** | 232 个芒格多元思维模型，114 个黄金投资相关 |
+| **情景分析** | 用户自定义极端事件推演，LLM 驱动影响评估与策略建议 |
 | **统一信号管线** | 9 步拓扑排序执行，自动处理依赖关系 |
 | **多 Agent 辩论** | 多头 vs 空头 vs 投资经理三方博弈 |
 | **多目标策略** | 盈利最大化 / 回本优先 / 落袋为安 / 均衡，自动切换 |
@@ -56,6 +60,7 @@ src/gold_miner/
 │   ├── trust_score.py     # 信息源可信度: 准确率追踪 + 时间衰减
 │   ├── human_judgment.py  # 人工审核: 确认/驳回/存疑
 │   ├── scenario.py        # 极端情景: 14 种系统性风险 + BTC 联动
+│   ├── etf_flow_signal.py # ETF 资金流: 黄金 ETF + BTC ETF 流入流出
 │   └── pipeline.py        # 统一信号管线 (9 步拓扑执行)
 │
 ├── decision/           # 决策层
@@ -87,8 +92,19 @@ src/gold_miner/
 │   ├── analyzer.py        # 失误原因分析
 │   └── findings.py        # 改进发现
 │
-├── doctrine/           # 投资军规
-│   └── models.py          # 硬约束规则 / 策略模板 / 思维模型
+├── doctrine/           # 投资军规与思维模型
+│   ├── models.py          # 数据模型: 规则 / 策略 / 思维模型
+│   ├── rules.py           # 15 条硬约束军规
+│   ├── strategies.py      # 8 个投资策略模板
+│   ├── mental_models.py   # 10 个核心投资思维模型
+│   ├── checker.py         # DoctrineChecker 审查引擎
+│   ├── munger_models.py   # 232 个芒格多元思维模型库
+│   └── store.py           # 规则持久化
+│
+├── scenarios/          # 情景分析
+│   ├── models.py          # 情景报告数据模型
+│   ├── analyzer.py        # LLM 驱动情景分析器
+│   └── store.py           # 情景报告持久化
 │
 ├── verification/       # 验证层
 │   ├── cli.py             # 验证 CLI
@@ -284,7 +300,33 @@ pipeline = SignalPipeline()
 result = engine.run(price_df, lambda df: pipeline.execute(context))
 ```
 
-### 极端情景评估
+### 投资军规审查
+
+```bash
+# 运行军规审查
+gold-miner doctrine --check
+
+# 列出全部规则 / 策略 / 思维模型
+gold-miner doctrine --list --type rules
+gold-miner doctrine --list --type strategies
+gold-miner doctrine --list --type models
+
+# 搜索 Munger 思维模型库
+gold-miner doctrine --search "安全边际"
+gold-miner doctrine --discipline invest
+```
+
+### 情景分析
+
+```bash
+# 分析自定义极端事件对黄金的影响
+gold-miner scenario "如果2027年爆发全球美债危机，对黄金有什么影响？"
+
+# 查看已保存的情景报告
+gold-miner scenario --list
+```
+
+### 极端情景评估 (代码)
 
 ```python
 from gold_miner.signals.scenario import ScenarioAnalyzer
