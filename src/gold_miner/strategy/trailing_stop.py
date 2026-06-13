@@ -4,6 +4,7 @@
 - 多头: 止损价 = 持仓期间最高价 - multiplier × ATR
 - 价格创新高, 止损价跟随上移
 - 价格从高点回撤 multiplier×ATR, 触发减仓/止盈
+- 浮盈状态下止损不低于成本价(保本)
 """
 
 from dataclasses import dataclass
@@ -18,6 +19,7 @@ class TrailingStopSignal:
 
     timestamp: datetime
     current_price: float
+    cost_basis: float | None
     highest_high: float
     atr: float
     multiplier: float
@@ -33,6 +35,7 @@ class ATRTrailingStop:
     Args:
         atr_period: ATR 计算周期, 默认 14
         multiplier: ATR 乘数, 默认 2.5
+        cost_basis: 成本价, 浮盈时止损不低于成本价
         hard_stop_price: 硬止损价, 不可突破
         reduce_action: 触发移动止盈后的动作, 默认 "reduce_half"
     """
@@ -41,6 +44,7 @@ class ATRTrailingStop:
         self,
         atr_period: int = 14,
         multiplier: float = 2.5,
+        cost_basis: float | None = None,
         hard_stop_price: float | None = None,
         reduce_action: str = "reduce_half",
     ) -> None:
@@ -51,6 +55,7 @@ class ATRTrailingStop:
 
         self.atr_period = atr_period
         self.multiplier = multiplier
+        self.cost_basis = cost_basis
         self.hard_stop_price = hard_stop_price
         self.reduce_action = reduce_action
 
@@ -63,7 +68,7 @@ class ATRTrailingStop:
 
         Args:
             df: 包含 open/high/low/close 列的 DataFrame
-            entry_price: 进场价格, 用于初始化最高价; 为 None 时使用历史最低价
+            entry_price: 进场价格, 用于初始化最高价; 为 None 时使用历史最高价
 
         Returns:
             TrailingStopSignal
@@ -93,8 +98,21 @@ class ATRTrailingStop:
         else:
             highest_high = historical_high
 
-        # ATR 移动止盈价
+        # 计算 ATR 移动止盈价
         trailing_stop = highest_high - self.multiplier * latest_atr
+
+        # 成本价保护逻辑:
+        # - 浮盈时 (current_price > cost_basis): ATR 止盈有效, 且不低于成本价
+        # - 浮亏/保本时 (current_price <= cost_basis): ATR 止盈暂不激活, 以硬止损为防线
+        cost_basis = self.cost_basis
+        if cost_basis is not None:
+            in_profit = current_price > cost_basis
+            if in_profit:
+                trailing_stop = max(trailing_stop, cost_basis)
+            else:
+                trailing_stop = float("-inf")  # 让硬止损单独生效
+        else:
+            in_profit = False
 
         # 硬止损约束
         if self.hard_stop_price is not None:
@@ -106,9 +124,8 @@ class ATRTrailingStop:
         if current_price <= effective_stop:
             triggered = True
             action = self.reduce_action
-            reason = (
-                f"价格 {current_price:.2f} 触及移动止盈位 {effective_stop:.2f} "
-                f"(从高点 {highest_high:.2f} 回撤 {self.multiplier}×ATR={self.multiplier * latest_atr:.2f})"
+            reason = self._build_trigger_reason(
+                current_price, effective_stop, highest_high, latest_atr, in_profit, cost_basis
             )
         else:
             triggered = False
@@ -117,6 +134,8 @@ class ATRTrailingStop:
                 f"未触发: 当前 {current_price:.2f}, 移动止盈位 {effective_stop:.2f}, "
                 f"距离 {(current_price - effective_stop):.2f}"
             )
+            if not in_profit and cost_basis is not None:
+                reason += f"；当前低于成本价 {cost_basis:.2f}, ATR 止盈暂不激活, 以硬止损 {self.hard_stop_price} 为最后防线"
 
         # 提取最新数据的时间戳
         if "timestamp" in latest.index:
@@ -129,6 +148,7 @@ class ATRTrailingStop:
         return TrailingStopSignal(
             timestamp=ts,
             current_price=round(current_price, 2),
+            cost_basis=cost_basis,
             highest_high=round(highest_high, 2),
             atr=round(latest_atr, 2),
             multiplier=self.multiplier,
@@ -137,6 +157,24 @@ class ATRTrailingStop:
             action=action,
             reason=reason,
         )
+
+    def _build_trigger_reason(
+        self,
+        current_price: float,
+        effective_stop: float,
+        highest_high: float,
+        latest_atr: float,
+        in_profit: bool,
+        cost_basis: float | None,
+    ) -> str:
+        """构建触发说明."""
+        reason = (
+            f"价格 {current_price:.2f} 触及移动止盈位 {effective_stop:.2f} "
+            f"(从高点 {highest_high:.2f} 回撤 {self.multiplier}×ATR={self.multiplier * latest_atr:.2f})"
+        )
+        if in_profit and cost_basis is not None:
+            reason += f"；当前仍处于成本价 {cost_basis:.2f} 上方"
+        return reason
 
     def _true_range(self, df: pd.DataFrame) -> pd.Series:
         """计算真实波幅 True Range."""
@@ -153,6 +191,7 @@ def format_signal(signal: TrailingStopSignal) -> str:
     lines = [
         f"日期: {signal.timestamp}",
         f"当前价: {signal.current_price}",
+        f"成本价: {signal.cost_basis if signal.cost_basis else '未设置'}",
         f"持仓期间最高价: {signal.highest_high}",
         f"14日 ATR: {signal.atr}",
         f"ATR 乘数: {signal.multiplier}",

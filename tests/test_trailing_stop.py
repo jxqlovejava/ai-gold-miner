@@ -40,6 +40,45 @@ def test_atr_trailing_stop_not_triggered():
     assert signal.highest_high == 112.0  # 110 + 2
 
 
+def test_cost_basis_protection():
+    """浮盈时 ATR 止盈价不应低于成本价."""
+    prices = [1000.0] * 13 + [1070.0, 1040.0]  # 创新高后小幅回落
+    df = _make_df(prices)
+
+    ts = ATRTrailingStop(
+        atr_period=14,
+        multiplier=2.5,
+        cost_basis=1014.42,
+        hard_stop_price=710.0,
+    )
+    signal = ts.calculate(df, entry_price=1014.42)
+
+    # 当前价 1040 > 成本价 1014.42, 处于浮盈状态
+    assert signal.cost_basis == 1014.42
+    assert signal.stop_price >= signal.cost_basis
+    assert signal.stop_price < signal.highest_high
+
+
+def test_underwater_no_trailing_stop():
+    """浮亏时 ATR 移动止盈不激活, 以硬止损为最后防线."""
+    prices = [1000.0] * 13 + [1070.0, 900.0]
+    df = _make_df(prices)
+
+    ts = ATRTrailingStop(
+        atr_period=14,
+        multiplier=2.5,
+        cost_basis=1014.42,
+        hard_stop_price=710.0,
+    )
+    signal = ts.calculate(df, entry_price=1014.42)
+
+    # 当前价 900 < 成本价 1014.42, 处于浮亏状态, 但高于硬止损 710
+    assert signal.current_price < signal.cost_basis
+    assert signal.stop_price == 710.0
+    assert "低于成本价" in signal.reason
+    assert signal.triggered is False
+
+
 def test_atr_trailing_stop_triggered():
     """价格从高点回撤超过 multiplier×ATR, 应触发."""
     prices = [100.0] * 13 + [110.0, 90.0]  # 创新高后大跌
