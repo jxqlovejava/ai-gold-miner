@@ -274,6 +274,20 @@ polymarket_min_volume=500
 
 ---
 
+## 密钥与安全
+
+**严禁将真实密钥提交到 Git。**
+
+- 所有 API Key、代理密码、订阅 Token 必须保存在 `.env` 中
+- 项目仅提交 `.env.example` 作为模板，`.env` 已在 `.gitignore` 中排除
+- 代理/网络工具相关文件（`data/proxy/provider.yaml`、`data/proxy/config.yaml`、`data/proxy/cache.db`、`src/gold_miner/proxy/mihomo`）已在 `.gitignore` 中排除
+- 若不慎将含密钥的文件推送到远程，请立即：
+  1. 在服务商后台重置/轮换对应密钥
+  2. 使用 `git filter-repo` 或 BFG 清理 git 历史
+  3. 强制推送清理后的历史
+
+---
+
 ## 使用
 
 ### 运行扫描

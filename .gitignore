@@ -17,3 +17,13 @@ __pycache__/
 
 # Reports (generated)
 reports/
+
+# Personal (sensitive)
+investor_profile.md
+
+# Proxy / network tools (contains credentials and binaries)
+data/proxy/provider.yaml
+data/proxy/config.yaml
+data/proxy/cache.db
+data/proxy/*.db
+src/gold_miner/proxy/mihomo
