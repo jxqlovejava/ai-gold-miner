@@ -27,3 +27,4 @@ data/proxy/config.yaml
 data/proxy/cache.db
 data/proxy/*.db
 src/gold_miner/proxy/mihomo
+docs/superpowers/specs/
