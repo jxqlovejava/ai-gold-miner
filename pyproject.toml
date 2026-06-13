@@ -20,6 +20,8 @@ dependencies = [
     "schedule>=1.2",
     "loguru>=0.7",
     "beautifulsoup4>=4.12",
+    "pyyaml>=6.0",
+    "apscheduler>=3.10",
 ]
 
 [project.optional-dependencies]
@@ -32,6 +34,7 @@ dev = [
 
 [project.scripts]
 gold-miner = "gold_miner.cli:main"
+gold-miner-agent = "gold_miner.agent.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/gold_miner"]

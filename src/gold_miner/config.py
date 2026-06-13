@@ -74,6 +74,17 @@ class Settings(BaseSettings):
     polymarket_min_volume: float = 500.0  # 最低24h交易量过滤
     polymarket_max_markets: int = 20      # 最多采集市场数
 
+    # Agent Scheduler
+    agent_enabled: bool = False
+    agent_timezone: str = "Asia/Shanghai"
+    agent_schedule_pre_market: str = "08:00"      # 盘前简报
+    agent_schedule_post_open: str = "09:30"       # 开盘分析
+    agent_schedule_closing: str = "14:30"         # 尾盘提醒
+    agent_schedule_event_scan: str = "20:30"      # 事件扫描
+    agent_schedule_weekly: str = "sun-21:00"      # 周度展望
+    agent_api_host: str = "0.0.0.0"
+    agent_api_port: int = 8080
+
     # Paths
     data_dir: Path = Path("./data")
     log_level: str = "INFO"

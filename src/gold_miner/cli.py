@@ -1704,7 +1704,7 @@ def main() -> None:
         choices=[
             "scan", "quote", "backtest", "journal", "proxy-install",
             "track", "review", "findings", "analyze", "scenario", "doctrine", "daemon",
-            "verify", "report",
+            "verify", "report", "advisor",
         ],
         help="命令",
     )
@@ -1756,6 +1756,13 @@ def main() -> None:
     parser.add_argument("--notes", type=str, default=None, help="确认备注")
     parser.add_argument("--report", action="store_true", default=False, help="生成 Markdown 验证报告")
     parser.add_argument("--expert", action="store_true", default=False, help="专家版报告 (默认小白版)")
+    # advisor 命令参数
+    parser.add_argument("--position", type=float, default=0.0, help="当前仓位 0~1 (advisor)")
+    parser.add_argument("--cost", type=float, default=0.0, help="持仓均价 (advisor)")
+    parser.add_argument("--strategy-pref", type=str, default=None, help="策略偏好 balanced|maximize_profit|cost_recovery|take_profit (advisor)")
+    parser.add_argument("--question", type=str, default=None, help="咨询问题 (advisor ask)")
+    parser.add_argument("--watch-interval", type=int, default=60, help="监控间隔分钟 (advisor watch)")
+    parser.add_argument("--dry-run", action="store_true", default=False, help="测试运行 (advisor watch)")
     args = parser.parse_args()
 
     setup_logging()
@@ -1911,6 +1918,38 @@ def main() -> None:
 
     elif args.command == "verify":
         run_verify(args)
+
+    elif args.command == "advisor":
+        from gold_miner.advisor.orchestrator import Advisor
+        from gold_miner.advisor.core import UserProfile
+
+        advisor = Advisor()
+        # advisor 默认运行 daily，除非指定了其他子命令
+        # 由于 CLI 使用扁平结构，我们通过额外参数区分
+        if args.question:
+            # ask 模式
+            print("=" * 60)
+            print("💬 投资咨询")
+            print("=" * 60)
+            print(f"问题: {args.question}")
+            print("-" * 60)
+            report = advisor.consult(
+                question=args.question,
+                current_position_pct=args.position,
+                avg_cost=args.cost,
+            )
+            print(report.to_markdown())
+        else:
+            # 默认 daily 模式
+            print("=" * 60)
+            print("🎯 今日行动指令")
+            print("=" * 60)
+            report = advisor.daily_guide(
+                current_position_pct=args.position,
+                avg_cost=args.cost,
+                strategy_preference=args.strategy_pref,
+            )
+            print(report.to_markdown())
 
 
 if __name__ == "__main__":
