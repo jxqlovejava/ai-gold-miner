@@ -1,0 +1,19 @@
+# 持仓配置 — 由主动Agent自动加载
+# 修改此文件后无需重启，下次调度自动读取
+
+positions:
+  gold_jd:
+    instrument: 积存金
+    platform: 京东金融
+    grams: 129.1371
+    avg_cost: 1014.42
+    hard_stop: 710
+    warn_line: 720
+
+limits:
+  total_funds: 200000
+  max_gold_pct: 80     # r002: 黄金总敞口不超过80%
+  max_single_pct: 20   # r001: 单笔不超过20%
+  risk_profile: balanced
+  drawdown_tolerance_pct: 15
+  investment_horizon: 1-3年
