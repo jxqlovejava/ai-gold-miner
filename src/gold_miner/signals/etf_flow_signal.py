@@ -6,7 +6,11 @@ from typing import Any
 
 from loguru import logger
 
-from gold_miner.data.etf_flow import BtcEtfFlowFetcher, GoldEtfFlowFetcher
+from gold_miner.data.etf_flow import (
+    BtcEtfFlowFetcher,
+    GoldEtfFlowFetcher,
+    IntlGoldEtfFlowFetcher,
+)
 from gold_miner.signals.base import Signal, SignalDirection, SignalStrength
 
 
@@ -16,11 +20,13 @@ class EtfFlowSignalGenerator:
     def __init__(self) -> None:
         self.gold_fetcher = GoldEtfFlowFetcher()
         self.btc_fetcher = BtcEtfFlowFetcher()
+        self.intl_fetcher = IntlGoldEtfFlowFetcher()
 
     def generate_signals(self) -> list[Signal]:
         """生成所有ETF资金流信号."""
         signals: list[Signal] = []
         signals.extend(self._gold_etf_signals())
+        signals.extend(self._intl_gold_etf_signals())
         signals.extend(self._btc_etf_signals())
         signals.extend(self._cross_asset_signals())
         return signals
@@ -86,6 +92,120 @@ class EtfFlowSignalGenerator:
 
         except Exception as e:
             logger.debug(f"黄金ETF信号异常: {e}")
+
+        return signals
+
+    # ------------------------------------------------------------------
+    # 国际黄金ETF信号
+    # ------------------------------------------------------------------
+
+    def _intl_gold_etf_signals(self) -> list[Signal]:
+        """国际黄金ETF资金流信号 — GLD/IAU/GLDM等.
+
+        逻辑:
+        - 国际ETF资金大幅流入 = 全球机构增持黄金 → 看涨
+        - 国际ETF资金大幅流出 = 机构减持 → 看跌
+        - GLD 成交量异常放大 = 资金活跃
+        """
+        signals: list[Signal] = []
+        try:
+            summary = self.intl_fetcher.fetch_flow_summary()
+            if summary.get("status") != "ok":
+                return signals
+
+            direction = summary.get("flow_direction", "neutral")
+            score = summary.get("flow_score", 0.0)
+            gld_change = summary.get("gld_change_pct", 0.0)
+            gld_vol_ratio = summary.get("gld_volume_ratio", 1.0)
+            vol_surge = summary.get("volume_surge_count", 0)
+
+            if direction == "strong_inflow":
+                signals.append(Signal(
+                    name="国际黄金ETF大幅流入",
+                    dimension="sentiment",
+                    direction=SignalDirection.BULLISH,
+                    strength=SignalStrength.STRONG,
+                    score=round(score, 2),
+                    description=(
+                        f"国际黄金ETF资金大幅流入: GLD涨{gld_change:+.1f}%, "
+                        f"{vol_surge}只ETF放量, 全球机构增持"
+                    ),
+                    metadata={"source": "intl_gold_etf", "gld_change": gld_change},
+                ))
+            elif direction == "inflow":
+                signals.append(Signal(
+                    name="国际黄金ETF资金流入",
+                    dimension="sentiment",
+                    direction=SignalDirection.BULLISH,
+                    strength=SignalStrength.MODERATE,
+                    score=round(score, 2),
+                    description=f"国际黄金ETF资金流入: GLD涨{gld_change:+.1f}%",
+                    metadata={"source": "intl_gold_etf", "gld_change": gld_change},
+                ))
+            elif direction == "strong_outflow":
+                signals.append(Signal(
+                    name="国际黄金ETF大幅流出",
+                    dimension="sentiment",
+                    direction=SignalDirection.BEARISH,
+                    strength=SignalStrength.STRONG,
+                    score=round(score, 2),
+                    description=(
+                        f"国际黄金ETF资金大幅流出: GLD跌{gld_change:+.1f}%, "
+                        f"{vol_surge}只ETF放量, 全球机构减持"
+                    ),
+                    metadata={"source": "intl_gold_etf", "gld_change": gld_change},
+                ))
+            elif direction == "outflow":
+                signals.append(Signal(
+                    name="国际黄金ETF资金流出",
+                    dimension="sentiment",
+                    direction=SignalDirection.BEARISH,
+                    strength=SignalStrength.MODERATE,
+                    score=round(score, 2),
+                    description=f"国际黄金ETF资金流出: GLD跌{gld_change:+.1f}%",
+                    metadata={"source": "intl_gold_etf", "gld_change": gld_change},
+                ))
+
+            # GLD 成交量异动
+            if gld_vol_ratio > 2.0:
+                signals.append(Signal(
+                    name="GLD成交量异常放大",
+                    dimension="sentiment",
+                    direction=SignalDirection.BULLISH if gld_change > 0 else SignalDirection.BEARISH,
+                    strength=SignalStrength.MODERATE if gld_change > 0 else SignalStrength.WEAK,
+                    score=0.2 if gld_change > 0 else -0.15,
+                    description=f"GLD成交量达20日均值{gld_vol_ratio:.1f}倍, 资金异动",
+                    metadata={"source": "intl_gold_etf_volume", "gld_vol_ratio": gld_vol_ratio},
+                ))
+
+            # 国内vs国际背离
+            domestic = self.gold_fetcher.fetch_daily_change()
+            if domestic.get("status") == "ok":
+                dom_dir = domestic.get("flow_direction", "neutral")
+                intl_dir = direction
+                if dom_dir == "inflow" and "outflow" in intl_dir:
+                    signals.append(Signal(
+                        name="内外盘背离: 国内↑国际↓",
+                        dimension="sentiment",
+                        direction=SignalDirection.BULLISH,
+                        strength=SignalStrength.WEAK,
+                        score=0.1,
+                        description="国内黄金ETF流入但国际ETF流出，内资更乐观",
+                        metadata={"source": "domestic_intl_divergence"},
+                    ))
+                elif dom_dir == "outflow" and "inflow" in intl_dir:
+                    signals.append(Signal(
+                        name="内外盘背离: 国内↓国际↑",
+                        dimension="sentiment",
+                        direction=SignalDirection.BEARISH,
+                        strength=SignalStrength.WEAK,
+                        score=-0.1,
+                        description="国内黄金ETF流出但国际ETF流入，外资更乐观",
+                        metadata={"source": "domestic_intl_divergence"},
+                    ))
+
+        except Exception as e:
+            logger.debug(f"国际黄金ETF信号异常: {e}")
 
         return signals
 

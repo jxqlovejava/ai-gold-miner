@@ -239,10 +239,10 @@ class FundamentalAnalyzer:
         return signals
 
     def analyze_central_bank(self) -> list[Signal]:
-        """分析全球央行购金数据.
+        """分析全球央行购金数据 — 季度+月度综合.
 
         央行持续购金 → 结构性利好（最可靠的长期看涨信号之一）
-        数据来源: 世界黄金协会 (WGC) Gold Demand Trends
+        数据来源: WGC季度报告 + 重点国别月度监控
         """
         signals: list[Signal] = []
         try:
@@ -308,6 +308,95 @@ class FundamentalAnalyzer:
                     ))
         except Exception as e:
             logger.warning(f"央行购金数据分析失败: {e}")
+
+        # 月度重点国别央行购金监控
+        signals.extend(self._analyze_monthly_central_bank())
+
+        return signals
+
+    def _analyze_monthly_central_bank(self) -> list[Signal]:
+        """分析重点国别央行月度购金数据.
+
+        补充季度WGC数据，提供更及时的央行购金信号。
+        """
+        signals: list[Signal] = []
+        try:
+            from gold_miner.data.central_bank import MonthlyCentralBankFetcher
+
+            fetcher = MonthlyCentralBankFetcher()
+            summary = fetcher.fetch_summary()
+            if summary.get("status") != "ok":
+                return signals
+
+            total = summary.get("total_monthly_tonnes", 0)
+            trend = summary.get("trend", "neutral")
+            top_buyer = summary.get("top_buyer", {})
+            significant_count = summary.get("significant_countries", 0)
+
+            if trend == "strong_buying":
+                signals.append(Signal(
+                    name="重点央行月度大举购金",
+                    dimension="fundamental",
+                    direction=SignalDirection.BULLISH,
+                    strength=SignalStrength.STRONG,
+                    score=0.6,
+                    description=(
+                        f"重点央行月度合计购金{total:.0f}吨，"
+                        f"{significant_count}国显著增持，"
+                        f"{top_buyer.get('country', 'unknown')}领先({top_buyer.get('purchases', 0):.0f}t)"
+                    ),
+                    metadata={
+                        "source": "monthly_cb",
+                        "total_monthly": total,
+                        "trend": trend,
+                    },
+                ))
+            elif trend == "buying":
+                signals.append(Signal(
+                    name="重点央行月度持续购金",
+                    dimension="fundamental",
+                    direction=SignalDirection.BULLISH,
+                    strength=SignalStrength.MODERATE,
+                    score=0.35,
+                    description=(
+                        f"重点央行月度合计购金{total:.0f}吨，"
+                        f"持续增持黄金储备"
+                    ),
+                    metadata={"source": "monthly_cb", "total_monthly": total},
+                ))
+            elif trend == "selling":
+                signals.append(Signal(
+                    name="重点央行月度净卖出",
+                    dimension="fundamental",
+                    direction=SignalDirection.BEARISH,
+                    strength=SignalStrength.WEAK,
+                    score=-0.15,
+                    description=f"重点央行月度净卖出{abs(total):.0f}吨",
+                    metadata={"source": "monthly_cb", "total_monthly": total},
+                ))
+
+            # 中国央行专项信号 (最重要单一变量)
+            china_data = fetcher.fetch_china_pboC()
+            if china_data and china_data.is_significant:
+                signals.append(Signal(
+                    name="中国央行加大购金",
+                    dimension="fundamental",
+                    direction=SignalDirection.BULLISH,
+                    strength=SignalStrength.MODERATE,
+                    score=0.3,
+                    description=(
+                        f"中国央行{china_data.date_label}购金"
+                        f"{china_data.net_purchases_tonnes:.0f}吨，"
+                        f"连续增持信号"
+                    ),
+                    metadata={
+                        "source": "pboc_monthly",
+                        "china_purchases": china_data.net_purchases_tonnes,
+                    },
+                ))
+
+        except Exception as e:
+            logger.debug(f"月度央行购金分析失败: {e}")
 
         return signals
 

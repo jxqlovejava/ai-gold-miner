@@ -42,8 +42,11 @@ class SignalPipeline:
 
     def _setup_default_steps(self) -> None:
         # 占位步骤 — 实际 generator 在 execute 时注入
+        from gold_miner.signals.cot_signal import CotSignalGenerator
+        from gold_miner.signals.etf_flow_signal import EtfFlowSignalGenerator
         from gold_miner.signals.event_driven import EventDrivenSignalGenerator
         from gold_miner.signals.fundamental import FundamentalAnalyzer
+        from gold_miner.signals.institutional_signal import InstitutionalSignalGenerator
         from gold_miner.signals.news_signal import NewsSignalGenerator
         from gold_miner.signals.polymarket_signal import PolymarketSignalGenerator
         from gold_miner.signals.sentiment_signal import SentimentAnalyzer
@@ -80,6 +83,26 @@ class SignalPipeline:
         self.register(PipelineStep(
             name="sentiment",
             generator=lambda ctx: SentimentAnalyzer(ctx.au_df).generate_signals(),
+            depends_on=[],
+        ))
+
+        self.register(PipelineStep(
+            name="etf_flow",
+            generator=lambda _ctx: EtfFlowSignalGenerator().generate_signals(),
+            depends_on=[],
+        ))
+
+        self.register(PipelineStep(
+            name="cot",
+            generator=lambda _ctx: CotSignalGenerator().generate_signals(),
+            depends_on=[],
+        ))
+
+        self.register(PipelineStep(
+            name="smart_money",
+            generator=lambda ctx: InstitutionalSignalGenerator(
+                current_spot=ctx.gold_df["close"].iloc[-1] if not ctx.gold_df.empty else 3300
+            ).generate_signals(),
             depends_on=[],
         ))
 
