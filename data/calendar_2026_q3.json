@@ -1,0 +1,32 @@
+{
+  "generated_at": "2026-06-10",
+  "period": "2026年6月-8月",
+  "current_rate": {"fed_funds": "4.50%", "unchanged_since": "2024-12-19", "months_on_hold": 18},
+  "events": [
+    {"date": "2026-06-10", "name": "美国5月CPI", "type": "cpi", "impact": "high", "status": "done", "actual": "4.2%", "prior": "3.8%", "gold_effect": "通胀加速→利空，当日金价跌3.1%"},
+    {"date": "2026-06-11", "name": "美国5月PPI", "type": "ppi", "impact": "high", "status": "today", "gold_effect": "若PPI同步走高→确认通胀加速→二次利空；若低于预期→缓解担忧→反弹"},
+    {"date": "2026-06-12", "name": "初请失业金人数", "type": "jobless", "impact": "medium", "status": "upcoming", "gold_effect": "就业走弱→利好黄金"},
+    {"date": "2026-06-17", "name": "FOMC利率决议+点阵图", "type": "fed_rate", "impact": "high", "status": "upcoming", "gold_effect": "年度最关键！点阵图决定下半年降息路径。鹰派→利空，鸽派→暴涨"},
+    {"date": "2026-06-18", "name": "FOMC新闻发布会", "type": "fed_rate", "impact": "high", "status": "upcoming", "gold_effect": "鲍威尔前瞻指引措辞定方向"},
+    {"date": "2026-06-19", "name": "三巫日(期权/期货到期)", "type": "other", "impact": "medium", "status": "upcoming", "gold_effect": "波动率可能异常放大"},
+    {"date": "2026-06-25", "name": "核心PCE物价指数(5月)", "type": "pce", "impact": "high", "status": "upcoming", "gold_effect": "Fed最关注的通胀指标。高于预期→利空，低于预期→利好"},
+    {"date": "2026-07-02", "name": "ISM制造业PMI(6月)", "type": "pmi", "impact": "high", "status": "upcoming", "gold_effect": "<50表示制造业收缩→经济放缓→利好黄金"},
+    {"date": "2026-07-03", "name": "ISM服务业PMI(6月)", "type": "pmi", "impact": "high", "status": "upcoming", "gold_effect": "服务业占GDP70%，走弱→衰退担忧→利好"},
+    {"date": "2026-07-03", "name": "非农就业(6月)", "type": "nfp", "impact": "high", "status": "upcoming", "gold_effect": "就业低于预期→降息预期升温→利好黄金"},
+    {"date": "2026-07-12", "name": "美国6月PPI", "type": "ppi", "impact": "high", "status": "upcoming", "gold_effect": "上游通胀趋势验证"},
+    {"date": "2026-07-14", "name": "美国6月CPI", "type": "cpi", "impact": "high", "status": "upcoming", "gold_effect": "若连续两个月>4%→滞胀叙事→复杂影响"},
+    {"date": "2026-07-29", "name": "FOMC利率决议", "type": "fed_rate", "impact": "high", "status": "upcoming", "gold_effect": "下半年第一次决议"},
+    {"date": "2026-07-30", "name": "核心PCE(6月)", "type": "pce", "impact": "high", "status": "upcoming"},
+    {"date": "2026-08-07", "name": "非农就业(7月)", "type": "nfp", "impact": "high", "status": "upcoming"},
+    {"date": "2026-08-12", "name": "美国7月CPI", "type": "cpi", "impact": "high", "status": "upcoming"},
+    {"date": "2026-08-14", "name": "美国7月PPI", "type": "ppi", "impact": "high", "status": "upcoming"},
+    {"date": "2026-08-27", "name": "核心PCE(7月)", "type": "pce", "impact": "high", "status": "upcoming"}
+  ],
+  "remaining_fomc_2026": [
+    {"date": "2026-06-17", "status": "next"},
+    {"date": "2026-07-29"},
+    {"date": "2026-09-16"},
+    {"date": "2026-11-04"},
+    {"date": "2026-12-16"}
+  ]
+}

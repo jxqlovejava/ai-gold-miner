@@ -234,3 +234,197 @@ class BtcEtfFlowFetcher(DataFetcher):
             "etf_count": len(df),
             "timestamp": datetime.now().isoformat(),
         }
+
+
+class IntlGoldEtfFlowFetcher(DataFetcher):
+    """国际黄金ETF资金流数据获取器.
+
+    追踪全球最大黄金ETF日频资金流:
+    - GLD (SPDR Gold Shares) — 全球最大, 管理资产超800亿美元
+    - IAU (iShares Gold Trust)
+    - GLDM (SPDR Gold MiniShares)
+    - PHYS (Sprott Physical Gold Trust)
+    - SGOL (abrdn Physical Gold Shares)
+
+    数据源: yfinance (日频OHLCV)
+    """
+
+    INTL_GOLD_ETFS = {
+        "GLD": "SPDR Gold Shares",
+        "IAU": "iShares Gold Trust",
+        "GLDM": "SPDR Gold MiniShares",
+        "PHYS": "Sprott Physical Gold Trust",
+        "SGOL": "abrdn Physical Gold Shares",
+    }
+
+    # 资金流判断阈值
+    VOLUME_SURGE_THRESHOLD = 1.5  # 成交量相对20日均值倍数
+    PRICE_CHANGE_THRESHOLD = 0.5  # 价格变化%阈值
+
+    def __init__(self) -> None:
+        super().__init__(
+            DataSourceMeta(
+                name="intl_gold_etf_flow",
+                source="yfinance",
+                frequency="daily",
+                description="国际黄金ETF日频资金流 (GLD/IAU/GLDM/PHYS/SGOL)",
+            )
+        )
+
+    def fetch(
+        self,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        **kwargs: Any,
+    ) -> pd.DataFrame:
+        """获取所有国际黄金ETF日频数据."""
+        try:
+            import yfinance as yf
+
+            records = []
+            for symbol, name in self.INTL_GOLD_ETFS.items():
+                try:
+                    ticker = yf.Ticker(symbol)
+                    hist = ticker.history(period="30d")
+                    if hist.empty or len(hist) < 5:
+                        continue
+
+                    latest = hist.iloc[-1]
+                    prev = hist.iloc[-2]
+                    vol_ma20 = hist["Volume"].tail(20).mean()
+                    price_ma20 = hist["Close"].tail(20).mean()
+
+                    records.append({
+                        "timestamp": hist.index[-1].to_pydatetime(),
+                        "symbol": symbol,
+                        "name": name,
+                        "close": float(latest["Close"]),
+                        "volume": int(latest["Volume"]),
+                        "change_pct": float((latest["Close"] / prev["Close"] - 1) * 100),
+                        "volume_ratio": float(latest["Volume"] / vol_ma20) if vol_ma20 > 0 else 1.0,
+                        "price_vs_ma20": float((latest["Close"] / price_ma20 - 1) * 100),
+                        "open": float(latest["Open"]),
+                        "high": float(latest["High"]),
+                        "low": float(latest["Low"]),
+                    })
+                except Exception:
+                    continue
+
+            if not records:
+                return pd.DataFrame()
+
+            df = pd.DataFrame(records)
+            return df
+        except Exception as e:
+            logger.warning(f"国际黄金ETF数据获取失败: {e}")
+            return pd.DataFrame()
+
+    def fetch_latest(self) -> pd.DataFrame:
+        """抓取最新数据."""
+        return self.fetch()
+
+    def fetch_flow_summary(self) -> dict[str, Any]:
+        """获取国际黄金ETF资金流摘要.
+
+        Returns:
+            dict with: total_aum_proxy, flow_direction, flow_score,
+                       volume_surge_count, avg_change_pct, leader_symbol
+        """
+        df = self.fetch()
+        if df.empty:
+            return {"status": "no_data"}
+
+        total_volume = int(df["volume"].sum())
+        avg_change = float(df["change_pct"].mean())
+        vol_surge_count = int((df["volume_ratio"] > self.VOLUME_SURGE_THRESHOLD).sum())
+
+        # GLD 权重最高
+        gld_row = df[df["symbol"] == "GLD"]
+        gld_change = float(gld_row["change_pct"].iloc[0]) if not gld_row.empty else avg_change
+        gld_vol_ratio = float(gld_row["volume_ratio"].iloc[0]) if not gld_row.empty else 1.0
+
+        # 综合资金流方向
+        inflow_score = 0.0
+        for _, row in df.iterrows():
+            symbol = row["symbol"]
+            weight = 0.5 if symbol == "GLD" else 0.125  # GLD 权重50%
+            inflow_score += row["change_pct"] * weight
+
+        # 量价配合判断
+        if inflow_score > 0.8 and vol_surge_count >= 2:
+            direction = "strong_inflow"
+            score = min(inflow_score / 2, 1.0)
+        elif inflow_score > 0.3:
+            direction = "inflow"
+            score = min(inflow_score / 2, 0.5)
+        elif inflow_score < -0.8 and vol_surge_count >= 2:
+            direction = "strong_outflow"
+            score = max(inflow_score / 2, -1.0)
+        elif inflow_score < -0.3:
+            direction = "outflow"
+            score = max(inflow_score / 2, -0.5)
+        else:
+            direction = "neutral"
+            score = 0.0
+
+        return {
+            "status": "ok",
+            "timestamp": datetime.now().isoformat(),
+            "total_volume": total_volume,
+            "avg_change_pct": round(avg_change, 2),
+            "gld_change_pct": round(gld_change, 2),
+            "gld_volume_ratio": round(gld_vol_ratio, 2),
+            "volume_surge_count": vol_surge_count,
+            "flow_direction": direction,
+            "flow_score": round(score, 2),
+            "etf_count": len(df),
+        }
+
+    def fetch_weekly_trend(self, weeks: int = 4) -> dict[str, Any]:
+        """获取近N周趋势.
+
+        基于每周最后一个交易日的量价数据计算趋势。
+        """
+        try:
+            import yfinance as yf
+
+            # 获取GLD足够长的历史数据
+            ticker = yf.Ticker("GLD")
+            hist = ticker.history(period=f"{weeks + 2}w")
+            if hist.empty or len(hist) < 10:
+                return {"status": "no_data"}
+
+            # 按周聚合
+            hist = hist.reset_index()
+            hist["week"] = hist["Date"].dt.isocalendar().week
+            hist["year"] = hist["Date"].dt.isocalendar().year
+
+            weekly = hist.groupby(["year", "week"]).agg({
+                "Close": ["first", "last", "mean"],
+                "Volume": "sum",
+            }).reset_index()
+            weekly.columns = ["year", "week", "open", "close", "avg", "volume"]
+            weekly = weekly.tail(weeks)
+
+            if len(weekly) < 2:
+                return {"status": "no_data"}
+
+            # 计算周变化
+            weekly["change_pct"] = (weekly["close"] / weekly["open"] - 1) * 100
+            avg_weekly_change = float(weekly["change_pct"].mean())
+            latest_week = float(weekly["change_pct"].iloc[-1])
+
+            trend = "up" if latest_week > 0 and avg_weekly_change > 0 else \
+                    "down" if latest_week < 0 and avg_weekly_change < 0 else "mixed"
+
+            return {
+                "status": "ok",
+                "weeks": len(weekly),
+                "latest_week_change_pct": round(latest_week, 2),
+                "avg_weekly_change_pct": round(avg_weekly_change, 2),
+                "trend": trend,
+                "total_volume_4w": int(weekly.tail(4)["volume"].sum()),
+            }
+        except Exception as e:
+            logger.warning(f"周趋势获取失败: {e}")
+            return {"status": "error", "message": str(e)}

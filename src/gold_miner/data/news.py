@@ -25,6 +25,7 @@ class NewsItem:
     sentiment: float = 0.0  # -1 ~ +1
     keywords: list[str] = field(default_factory=list)
     is_breaking: bool = False
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class AnySearchFetcher:
