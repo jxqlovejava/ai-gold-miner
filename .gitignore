@@ -15,6 +15,9 @@ __pycache__/
 .vscode/
 .idea/
 
+# Claude Code local config
+.claude/
+
 # Reports (generated)
 reports/
 
