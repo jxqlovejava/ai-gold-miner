@@ -5,10 +5,14 @@ positions:
   gold_jd:
     instrument: 积存金
     platform: 京东金融
-    grams: 129.1371
+    grams: 109.1372
     avg_cost: 1014.42
     hard_stop: 710
     warn_line: 720
+    secondary_stop: 900   # 二次止损：清掉机动仓
+    split:
+      core: 80.0          # 核心仓：长线持有，只在710清仓
+      tactical: 29.1372   # 机动仓：中短线风控，946/900分批减仓
 
 limits:
   total_funds: 200000
