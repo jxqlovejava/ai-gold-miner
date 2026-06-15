@@ -50,7 +50,7 @@ class PerformanceAnalyzer:
         return True  # neutral signals can't be "wrong"
 
     def analyze(self, predictions: list[PredictionRecord]) -> AnalysisResult:
-        resolved = [p for p in predictions if p.actual_price is not None]
+        resolved = [p for p in predictions if p.actual_price is not None and not p.invalidated]
         if not resolved:
             return AnalysisResult(
                 total_predictions=len(predictions),

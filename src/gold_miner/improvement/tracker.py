@@ -5,7 +5,6 @@
 """
 
 import json
-import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -33,6 +32,8 @@ class PredictionRecord:
     resolved_at: datetime | None = None
     actual_return: float | None = None
     was_correct: bool | None = None
+    invalidated: bool = False
+    invalidation_reason: str = ""
 
 
 class PredictionTracker:
@@ -79,7 +80,7 @@ class PredictionTracker:
     ) -> PredictionRecord | None:
         """用实际价格结算预测，计算正确性和收益率."""
         for record in self.records:
-            if record.id == prediction_id and record.actual_price is None:
+            if record.id == prediction_id and record.actual_price is None and not record.invalidated:
                 record.actual_price = actual_price
                 record.resolved_at = datetime.now()
                 record.actual_return = (
@@ -96,6 +97,18 @@ class PredictionTracker:
                 else:  # hold / neutral
                     record.was_correct = abs(ret) < 0.01
 
+                self._rewrite()
+                return record
+        return None
+
+    def invalidate_prediction(
+        self, prediction_id: str, reason: str = ""
+    ) -> PredictionRecord | None:
+        """将预测标记为无效，不再参与准确率统计."""
+        for record in self.records:
+            if record.id == prediction_id and not record.invalidated:
+                record.invalidated = True
+                record.invalidation_reason = reason
                 self._rewrite()
                 return record
         return None
