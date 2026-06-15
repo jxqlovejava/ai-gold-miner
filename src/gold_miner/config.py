@@ -87,11 +87,19 @@ class Settings(BaseSettings):
 
     # Paths
     data_dir: Path = Path("./data")
+    private_data_dir: Path = Path("./data/private")
+    store_type: str = "local"
     log_level: str = "INFO"
 
     @property
     def data_path(self) -> Path:
         path = Path(self.data_dir)
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    @property
+    def private_data_path(self) -> Path:
+        path = Path(self.private_data_dir)
         path.mkdir(parents=True, exist_ok=True)
         return path
 
