@@ -171,7 +171,7 @@ class ActionGuide:
     def _fetch_data(self) -> MarketSnapshot:
         """采集市场数据."""
         gold_fetcher = SpotGoldFetcher()
-        gold_df = gold_fetcher.fetch_recent(days=90)
+        gold_df = gold_fetcher.fetch(days=90)
         gold_price = float(gold_df["close"].iloc[-1]) if not gold_df.empty else 0.0
 
         macro = MacroDataFetcher()
@@ -285,7 +285,6 @@ class ActionGuide:
         # 策略引擎评估
         comparison = self.strategy_engine.evaluate(
             bundle=bundle,
-            direction=direction,
             entry_price=snapshot.gold_price,
             atr=atr,
             portfolio_return=portfolio_return,
