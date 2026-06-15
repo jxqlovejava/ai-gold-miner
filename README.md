@@ -237,10 +237,28 @@ source .venv/bin/activate  # Linux/Mac
 # 安装依赖
 pip install -e ".[dev]"
 
-# 配置环境变量
+# 运行初始化向导（推荐）
+gold-miner setup
+
+# 或手动配置
 cp .env.example .env
 # 编辑 .env 填入 API Keys
 ```
+
+### 环境诊断
+
+```bash
+# 检查运行环境是否就绪
+gold-miner doctor
+```
+
+诊断项目包括：
+- Python 版本（>= 3.11）
+- `.env` 配置文件存在性
+- `data/private/` 目录可写性
+- 至少一个 API key 已配置
+- Yahoo Finance 网络连通性
+- 存储接口可用性
 
 ---
 
@@ -290,20 +308,25 @@ polymarket_min_volume=500
 
 ## 个人投资经验与规则存放
 
-本项目的投资决策不仅依赖代码，还依赖一套可演化的个人投资知识体系。相关文件位置如下：
+本项目的投资决策不仅依赖代码，还依赖一套可演化的个人投资知识体系。**所有含个人敏感数据的文件存放在 `data/private/` 目录下，该目录已加入 `.gitignore`，不会进入版本控制。**
+
+相关文件位置如下：
 
 | 文件 | 用途 | 更新频率 |
 |------|------|----------|
 | `CLAUDE.md` | **项目级投资操作系统**：投资者画像、15 条军规、Munger 思维模型、信息验证协议 | 规则/画像变更时 |
-| `data/personal_rules.md` | **个人自定义规则**：你自己的投资纪律、偏好、特殊约束 | 随时 |
-| `data/trade_log.md` | **交易实战经验**：每笔买卖记录、决策依据、复盘 | 每次交易后 |
-| `data/portfolio.yaml` | **持仓配置快照**：当前仓位、成本、目标、上限 | 仓位变化后 |
+| `data/private/personal_rules.md` | **个人自定义规则**：你自己的投资纪律、偏好、特殊约束 | 随时 |
+| `data/private/trade_log.md` | **交易实战经验**：每笔买卖记录、决策依据、复盘 | 每次交易后 |
+| `data/private/portfolio.yaml` | **持仓配置快照**：当前仓位、成本、目标、上限 | 仓位变化后 |
+| `data/private/investor_profile.md` | **投资者画像**：风险偏好、资金约束、交易风格 | 画像变更时 |
 | `.learnings/` | **错误/经验沉淀**：每次纠正后的学习记录 | 出现值得记录的经验时 |
+
+> **首次使用**：复制 `data/private/*.example.*` 模板到 `data/private/` 并填入实际数据。
 
 ### 建议工作流
 
-1. **日常交易后**：把操作写入 `data/trade_log.md`
-2. **发现新纪律/偏好**：写入 `data/personal_rules.md`
+1. **日常交易后**：把操作写入 `data/private/trade_log.md`
+2. **发现新纪律/偏好**：写入 `data/private/personal_rules.md`
 3. **规则成熟且通用**：升级到 `CLAUDE.md` 的军规或 Munger 模型
 4. **犯了错或纠正了偏差**：写入 `.learnings/`，避免下次再犯
 
@@ -312,7 +335,7 @@ polymarket_min_volume=500
 如果你提供新的黄金投资方法论，我会：
 1. 解析核心规则
 2. 映射到现有军规或新增条目
-3. 先写入 `data/personal_rules.md` 验证
+3. 先写入 `data/private/personal_rules.md` 验证
 4. 成熟后固化到 `CLAUDE.md`
 
 ---

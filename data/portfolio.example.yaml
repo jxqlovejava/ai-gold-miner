@@ -1,0 +1,24 @@
+# 持仓配置示例
+# 复制为 portfolio.yaml 并填入实际数据
+
+positions:
+  gold_example:
+    instrument: 积存金
+    platform: 京东金融
+    bank: MS              # 民生银行积存金
+    grams: 100.0
+    avg_cost: 500.00
+    hard_stop: 350
+    warn_line: 360
+    secondary_stop: 450
+    split:
+      core: 70.0
+      tactical: 30.0
+
+limits:
+  total_funds: 200000
+  max_gold_pct: 80
+  max_single_pct: 20
+  risk_profile: balanced
+  drawdown_tolerance_pct: 15
+  investment_horizon: 1-3年

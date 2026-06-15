@@ -18,11 +18,25 @@ __pycache__/
 # Claude Code local config
 .claude/
 
-# Reports (generated)
-reports/
+# Private data directory (contains real personal data)
+data/private/
 
-# Personal (sensitive)
+# JSONL data files (personal predictions, events, scenarios)
+data/*.jsonl
+
+# Reports (generated, may contain personal data)
+data/reports/
+
+# Personal (sensitive) - keep for backward compat, but also covered by data/private/
 investor_profile.md
+data/personal_rules.md
+data/portfolio.yaml
+data/trade_log.md
+data/jd_ms_gold_history.csv
+data/doctrine_state.json
+data/scenarios.jsonl
+data/prediction_journal.jsonl
+data/event_store.jsonl
 
 # Proxy / network tools (contains credentials and binaries)
 data/proxy/provider.yaml
