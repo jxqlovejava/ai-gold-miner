@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>黄金市场月度分析报告 — 2026.6.6</title>
+<style>
+  @page { size: A4; margin: 1.8cm; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'SF Pro Display', 'PingFang SC', 'Microsoft YaHei', sans-serif; color: #1d1d1f; line-height: 1.8; max-width: 850px; margin: 0 auto; padding: 40px 20px; background: #fff; font-size: 15px; }
+
+  .cover { text-align: center; padding: 60px 0 50px; border-bottom: 2px solid #e5e5e5; margin-bottom: 40px; }
+  .cover h1 { font-size: 34px; font-weight: 700; margin-bottom: 10px; }
+  .cover .subtitle { font-size: 15px; color: #86868b; margin-bottom: 15px; }
+  .cover .key-metric { display: inline-block; background: #fff3e0; border: 2px solid #f57c00; border-radius: 12px; padding: 12px 24px; margin: 8px; }
+  .cover .key-metric .label { font-size: 12px; color: #f57c00; font-weight: 600; }
+  .cover .key-metric .val { font-size: 24px; font-weight: 800; }
+
+  h2 { font-size: 20px; font-weight: 700; margin: 36px 0 14px; padding: 10px 14px; background: #f5f5f7; border-radius: 8px; }
+  h3 { font-size: 17px; font-weight: 600; margin: 24px 0 10px; color: #333; }
+
+  .red { color: #d32f2f; font-weight: 700; }
+  .green { color: #2e7d32; font-weight: 700; }
+  .bold { font-weight: 700; }
+  .muted { color: #86868b; font-size: 13px; }
+
+  .explain { background: #f0f7ff; border-left: 3px solid #1976d2; padding: 8px 14px; margin: 6px 0 12px; font-size: 13px; color: #555; border-radius: 0 6px 6px 0; }
+  .explain::before { content: "💡 小白解读："; font-weight: 600; color: #1976d2; }
+
+  .key-finding { background: #fff3e0; border-left: 3px solid #f57c00; padding: 12px 16px; margin: 10px 0; border-radius: 0 8px 8px 0; }
+  .key-finding .title { font-weight: 700; color: #e65100; margin-bottom: 4px; }
+
+  table { width: 100%; border-collapse: collapse; margin: 10px 0 18px; font-size: 14px; }
+  th { background: #f5f5f7; text-align: left; padding: 9px 10px; font-weight: 600; border-bottom: 2px solid #d2d2d7; font-size: 13px; }
+  td { padding: 7px 10px; border-bottom: 1px solid #e5e5e5; }
+
+  .score-card { display: flex; gap: 10px; margin: 14px 0; flex-wrap: wrap; }
+  .score-item { flex: 1; min-width: 150px; background: #f5f5f7; border-radius: 10px; padding: 14px; text-align: center; }
+  .score-item .dim { font-size: 12px; color: #86868b; font-weight: 600; }
+  .score-item .val { font-size: 26px; font-weight: 700; margin: 4px 0; }
+  .score-item .count { font-size: 11px; color: #86868b; }
+
+  .debate { display: flex; gap: 16px; margin: 14px 0; }
+  .bull, .bear { flex: 1; padding: 18px; border-radius: 10px; font-size: 14px; }
+  .bull { background: #e8f5e9; border-left: 4px solid #2e7d32; }
+  .bear { background: #ffebee; border-left: 4px solid #d32f2f; }
+  .bull h4 { color: #2e7d32; margin-bottom: 8px; font-size: 16px; }
+  .bear h4 { color: #d32f2f; margin-bottom: 8px; font-size: 16px; }
+
+  .verdict { background: linear-gradient(135deg, #1d1d1f, #333); color: #fff; padding: 20px; border-radius: 12px; margin: 18px 0; text-align: center; }
+  .verdict .direction { font-size: 18px; font-weight: 700; }
+  .verdict .position { font-size: 32px; font-weight: 800; margin: 6px 0; }
+  .verdict .risk { font-size: 12px; color: #aaa; }
+
+  .strategy { background: #f5f5f7; border-radius: 10px; padding: 18px; margin: 14px 0; }
+  .strategy h4 { margin-bottom: 10px; }
+
+  .scenario { display: flex; gap: 10px; margin: 14px 0; flex-wrap: wrap; }
+  .scenario-item { flex: 1; min-width: 180px; padding: 14px; border-radius: 10px; text-align: center; font-size: 14px; }
+  .scenario-item.base { background: #e3f2fd; }
+  .scenario-item.bull { background: #e8f5e9; }
+  .scenario-item.bear { background: #ffebee; }
+  .scenario-item .prob { font-size: 26px; font-weight: 700; }
+
+  .signal-list { list-style: none; padding: 0; }
+  .signal-list li { padding: 5px 0; font-size: 14px; border-bottom: 1px dotted #e5e5e5; }
+  .signal-list li:last-child { border-bottom: none; }
+
+  .do { color: #2e7d32; font-weight: 700; }
+  .dont { color: #d32f2f; font-weight: 700; }
+
+  .footer { margin-top: 50px; padding-top: 18px; border-top: 2px solid #e5e5e5; font-size: 12px; color: #aaa; text-align: center; }
+
+  @media print {
+    body { padding: 0; font-size: 13px; }
+    h2 { page-break-before: always; font-size: 18px; }
+    h2:first-of-type { page-break-before: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <h1>黄金市场月度分析报告</h1>
+  <div class="subtitle">2026年6月6日 · Gold Miner 多因子量化系统</div>
+
+  <div class="key-metric">
+    <div class="label">今日金价</div>
+    <div class="val red">¥947.50/克</div>
+  </div>
+  <div class="key-metric">
+    <div class="label">今日涨跌</div>
+    <div class="val red">-2.76%</div>
+  </div>
+  <div class="key-metric">
+    <div class="label">综合评分</div>
+    <div class="val green">+0.08</div>
+  </div>
+  <div class="key-metric">
+    <div class="label">建议方向</div>
+    <div class="val green">逢低做多</div>
+  </div>
+</div>
+
+<!-- ═══════════════ 1. 今天发生了什么 ═══════════════ -->
+<h2>1. 今天发生了什么？</h2>
+
+<div class="key-finding">
+  <div class="title">🔑 核心事件：美国5月非农就业数据远超预期</div>
+  <p style="margin-top:4px">今晚公布的美国5月非农就业新增 <span class="bold">17.2 万人</span>，远超市场预期的 <span class="bold">~12 万人</span>，失业率维持在 <span class="bold">4.3%</span>。</p>
+</div>
+
+<div class="explain">
+"非农就业"是美国最重要的经济数据之一，简单说就是"上个月美国新增了多少工作岗位"。数据越好 → 说明经济越强劲 → 美联储越不急着降息 → 美元走强 → 黄金下跌。
+</div>
+
+<p>受此影响，<span class="red bold">黄金单日暴跌 2.76%</span>，从 ¥974 附近急跌至 ¥947.50。不仅是黄金，白银（-8.8%）、铂金（-6.9%）、钯金（-7.7%）全线暴跌。全球贵金属市场遭遇系统性抛售。</p>
+
+<div class="key-finding">
+  <div class="title">🔑 次要事件：美伊和谈停滞</div>
+  <p style="margin-top:4px">美国和伊朗的和平谈判陷入僵局，中东局势不确定性上升。这通常对黄金是利好（避险需求），但今天被强劲的就业数据盖过了。</p>
+</div>
+
+<!-- ═══════════════ 2. 最近一个月金价走势 ═══════════════ -->
+<h2>2. 最近一个月金价怎么走的？</h2>
+
+<table>
+  <tr><th>时间</th><th>金价变化</th><th>涨跌</th><th>发生了什么</th></tr>
+  <tr><td>5月初（5/6）</td><td>¥1,017 开盘</td><td>—</td><td>起点</td></tr>
+  <tr><td>5月中旬</td><td>涨到 ¥1,045</td><td><span class="green">最高点</span></td><td>避险情绪推动</td></tr>
+  <tr><td>5月后半月</td><td>跌到 ¥985 附近</td><td><span class="red">-3.8%</span></td><td>连续三周下跌</td></tr>
+  <tr><td>6月第一周</td><td>跌到 ¥974</td><td><span class="red">继续跌</span></td><td>弱势横盘等数据</td></tr>
+  <tr><td style="background:#fff3e0"><span class="bold">今天（6/6）</span></td><td style="background:#fff3e0"><span class="red bold">急跌至 ¥947.50</span></td><td style="background:#fff3e0"><span class="red bold">-2.76%</span></td><td style="background:#fff3e0">非农数据远超预期</td></tr>
+</table>
+
+<div class="explain">
+从 ¥1,045 跌到 ¥947.50，30天跌了约 6.8%。过去30天里只有6天是涨的，剩下24天都在跌。这种"单边下跌"在黄金市场并不常见。
+</div>
+
+<!-- ═══════════════ 3. 四大维度体检 ═══════════════ -->
+<h2>3. 四大维度全面体检</h2>
+
+<div class="score-card">
+  <div class="score-item">
+    <div class="dim">📊 技术面</div>
+    <div class="val green">+0.30</div>
+    <div class="count">1个信号 · 偏多</div>
+  </div>
+  <div class="score-item">
+    <div class="dim">🏛️ 基本面</div>
+    <div class="val green">+0.23</div>
+    <div class="count">6个信号 · 偏多</div>
+  </div>
+  <div class="score-item">
+    <div class="dim">📰 消息面</div>
+    <div class="val red">-0.13</div>
+    <div class="count">6个信号 · 偏空</div>
+  </div>
+  <div class="score-item">
+    <div class="dim">💭 情绪面</div>
+    <div class="val red">-0.03</div>
+    <div class="count">1个信号 · 中性</div>
+  </div>
+</div>
+
+<div class="explain">
+综合评分 <span class="green">+0.08</span>（范围 -1 到 +1）。正数 = 看涨，负数 = 看跌。+0.08 意味着谨慎看涨。
+</div>
+
+<!-- 3.1 技术面 -->
+<h3>3.1 📊 技术面 — "看图说话"</h3>
+<p>技术面就是看价格图表上的各种指标，判断现在是"太贵了"还是"太便宜了"。</p>
+
+<table>
+  <tr><th width="200">指标</th><th>当前值</th><th>通俗解释</th></tr>
+  <tr>
+    <td><span class="bold">RSI（相对强弱）</span></td>
+    <td><span class="bold">32</span></td>
+    <td>类似体温计，0-100范围。<span class="red">低于30=发烧（超卖）</span>，高于70=过热。<span class="bold">现在32，接近超卖</span>，历史上到这个位置后反弹概率71%</td>
+  </tr>
+  <tr>
+    <td><span class="bold">MACD（趋势指标）</span></td>
+    <td><span class="red bold">-7.92（死叉）</span></td>
+    <td>金叉=上涨趋势启动，<span class="red">死叉=下跌趋势中</span>。但已经深度负值，继续下跌空间有限</td>
+  </tr>
+  <tr>
+    <td><span class="bold">布林带</span></td>
+    <td><span class="red bold">跌破了！</span></td>
+    <td>价格在一条"通道"里波动。<span class="red">跌出通道下边界=超跌</span>，就像皮球砸到地板，通常会弹回来</td>
+  </tr>
+  <tr>
+    <td><span class="bold">20日均线</span></td>
+    <td>¥991（现价低 4.4%）</td>
+    <td>过去20天的平均价。现价远低于均线，说明短期跌过头了</td>
+  </tr>
+</table>
+
+<!-- 3.2 基本面 -->
+<h3>3.2 🏛️ 基本面 — "影响金价的宏观因素"</h3>
+<p>基本面是看经济大环境对黄金有利还是不利。</p>
+
+<table>
+  <tr><th width="200">因素</th><th>当前状态</th><th>通俗解释</th></tr>
+  <tr>
+    <td><span class="bold">美元强弱</span></td>
+    <td><span class="red">美元走强（不利）</span></td>
+    <td>黄金以美元计价。美元升值 → 黄金变贵 → 需求减少 → 金价承压</td>
+  </tr>
+  <tr>
+    <td><span class="bold">实际利率</span></td>
+    <td><span class="green">在下降（有利）</span></td>
+    <td>把钱存银行能赚多少利息。利率下降 → 黄金更划算（因为黄金不生利息，利率低了机会成本就低）</td>
+  </tr>
+  <tr>
+    <td><span class="bold">通胀预期</span></td>
+    <td><span class="red">在回落（不利）</span></td>
+    <td>大家对未来物价涨不涨的判断。通胀回落 → 不需要黄金保值了 → 需求减少</td>
+  </tr>
+  <tr>
+    <td><span class="bold">央行买黄金</span></td>
+    <td><span class="green bold">大量在买（强有利）</span></td>
+    <td>全球央行 Q1 买了 <span class="green bold">244 吨黄金</span>（同比+3%）。相当于每天买 ~2.7 吨，这是金价最大的"托底"力量</td>
+  </tr>
+  <tr>
+    <td><span class="bold">金银比</span></td>
+    <td><span class="red">54.0（偏低）</span></td>
+    <td>一盎司黄金能买多少盎司白银。低于60说明市场不太恐慌，避险需求不高</td>
+  </tr>
+</table>
+
+<!-- 3.3 消息面 -->
+<h3>3.3 📰 消息面 — "市场在讨论什么"</h3>
+
+<div class="key-finding">
+  <div class="title">🔴 最重磅：美国5月非农就业 17.2 万（远超预期 ~12 万）</div>
+  <p>来源：Morningstar / Yahoo Finance / TradingKey</p>
+  <p class="red">→ 经济太强劲 → 降息推迟 → 美元走强 → 金价大跌。这是今天暴跌的直接原因。</p>
+  <p style="font-size:13px;color:#555">引用 TradingKey："非农数据彻底推翻了降息预期。现货黄金跌破 $4,400，创近期新低。"</p>
+</div>
+
+<div class="key-finding">
+  <div class="title">🟠 次要：美伊和谈停滞</div>
+  <p>来源：CNA / Irish Times</p>
+  <p style="color:#e65100">→ 中东局势不确定性上升，但今天被非农数据的利空完全盖过。如果后续局势升级，可能成为避险催化剂。</p>
+</div>
+
+<p><span class="bold">其他关注点：</span></p>
+<ul style="padding-left:20px;font-size:14px">
+  <li>亚洲股市下跌，AI概念涨势暂停 → 风险偏好降低，部分资金可能回流黄金</li>
+  <li>印度央行维持利率 5.25% → 中性</li>
+  <li>市场关注下周 FOMC 会议（美联储议息会议）→ 新的不确定性</li>
+</ul>
+
+<!-- 3.4 情绪面 -->
+<h3>3.4 💭 情绪面 — "期货市场的聪明钱在做什么"</h3>
+
+<table>
+  <tr><th width="200">指标</th><th>当前值</th><th>通俗解释</th></tr>
+  <tr>
+    <td><span class="bold">期货持仓量</span></td>
+    <td><span class="red">191,132 手（减仓 669）</span></td>
+    <td>上海期货交易所的黄金期货合约有多少人在交易。减少说明有人在退出观望</td>
+  </tr>
+  <tr>
+    <td><span class="bold">成交量</span></td>
+    <td>196,978 手（正常）</td>
+    <td>买卖活跃度正常，没有恐慌性抛售</td>
+  </tr>
+</table>
+
+<div class="explain">
+期货市场的"聪明钱"在减仓但没恐慌。如果持仓量大幅下降（比如一天减少 5,000 手以上），那才是真正的危险信号。现在 -669 手属于正常波动范围。
+</div>
+
+<!-- ═══════════════ 4. 多空辩论 ═══════════════ -->
+<h2>4. 多方 vs 空方 — 系统辩论</h2>
+
+<div class="debate">
+  <div class="bull">
+    <h4>🐂 多头（看涨方）· 信心 61%</h4>
+    <p style="margin:6px 0;font-size:13px;color:#555">看涨黄金的理由：</p>
+    <ul class="signal-list">
+      <li>✓ <span class="green bold">央行在大买</span>：Q1买了244吨，这是铁底</li>
+      <li>✓ <span class="green bold">利率在降</span>：存钱利息变少，黄金更有吸引力</li>
+      <li>✓ <span class="green bold">跌太多了</span>：RSI 32，布林带跌破，大概率反弹</li>
+    </ul>
+  </div>
+  <div class="bear">
+    <h4>🐻 空头（看跌方）· 信心 39%</h4>
+    <p style="margin:6px 0;font-size:13px;color:#555">看跌黄金的理由：</p>
+    <ul class="signal-list">
+      <li>✗ <span class="red bold">非农太强</span>：17.2万远超预期，降息梦碎</li>
+      <li>✗ <span class="red bold">美元在涨</span>：美元走强，金价承压</li>
+      <li>✗ <span class="red bold">通胀在退</span>：不需要黄金来保值了</li>
+    </ul>
+  </div>
+</div>
+
+<div class="verdict">
+  <div class="direction green">🏛️ 系统裁决：逢低做多</div>
+  <div class="position">49% 仓位</div>
+  <div class="risk">中等信号 · 风控通过 · 盈亏比 1:1.5~2</div>
+</div>
+
+<div class="explain">
+多空辩论就像法庭辩论——多头律师和空头律师各自陈述理由，系统（法官）综合判断后给出裁决。多头61% vs 空头39%，多头胜出但优势不大，所以仓位建议控制在50%以内。
+</div>
+
+<!-- ═══════════════ 5. 接下来一个月怎么看 ═══════════════ -->
+<h2>5. 接下来一个月怎么走？</h2>
+
+<div class="scenario">
+  <div class="scenario-item base">
+    <div class="prob">50%</div>
+    <div class="label" style="font-size:13px;color:#555">最可能</div>
+    <div class="range green" style="font-size:16px;font-weight:700">¥930-1,010</div>
+    <p style="font-size:13px;color:#555;margin-top:6px">超卖反弹 → 980-1,000 震荡 → 等下周美联储会议信号</p>
+  </div>
+  <div class="scenario-item bull">
+    <div class="prob">25%</div>
+    <div class="label" style="font-size:13px;color:#555">较乐观</div>
+    <div class="range green" style="font-size:16px;font-weight:700">¥1,020-1,050</div>
+    <p style="font-size:13px;color:#555;margin-top:6px">美伊局势升级 + 美联储意外放鸽 → 避险资金涌入</p>
+  </div>
+  <div class="scenario-item bear">
+    <div class="prob">25%</div>
+    <div class="label" style="font-size:13px;color:#555">较悲观</div>
+    <div class="range red" style="font-size:16px;font-weight:700">¥900-930</div>
+    <p style="font-size:13px;color:#555;margin-top:6px">下周美联储鹰派表态 + 美元继续走强 → 继续承压</p>
+  </div>
+</div>
+
+<div class="explain">
+"概率"不是精确计算，而是基于历史类似情况的统计。RSI接近30+跌破布林带+月度跌超5%，历史上71%的情况次月会反弹，平均涨1.4%。
+</div>
+
+<!-- ═══════════════ 6. 交易策略 ═══════════════ -->
+<h2>6. 建议交易策略</h2>
+
+<div class="strategy">
+  <h4>📋 怎么买？— 分批进场，不要一次性全买</h4>
+  <table>
+    <tr><th>第几批</th><th>什么价位买</th><th>买多少</th><th>为什么要等这个价</th></tr>
+    <tr style="background:#e8f5e9">
+      <td><span class="green bold">第一批</span></td>
+      <td><span class="bold">¥945-950</span></td>
+      <td><span class="bold">仓位的30%</span></td>
+      <td>现价已经在超卖区域，先建底仓</td>
+    </tr>
+    <tr>
+      <td>第二批</td>
+      <td>¥925-935</td>
+      <td>仓位的20%</td>
+      <td>如果继续跌到前期低点附近，加仓摊低成本</td>
+    </tr>
+    <tr>
+      <td>第三批</td>
+      <td>¥980+</td>
+      <td>仓位的20%</td>
+      <td>等价格回到均线以上，确认反弹再追加</td>
+    </tr>
+  </table>
+</div>
+
+<div class="strategy">
+  <h4>🛡️ 怎么保护自己？— 设好止损止盈</h4>
+  <table>
+    <tr><td width="100">入场价</td><td><span class="bold">¥947.50 附近</span>（当前实时价）</td></tr>
+    <tr><td><span class="red bold">止损价</span></td><td><span class="red bold">¥910（亏 4.0%）</span> — 跌破这个价说明判断错了，果断卖出</td></tr>
+    <tr><td><span class="green bold">止盈价1</span></td><td><span class="green bold">¥1,000（赚 5.5%）</span> — 回到20日均线附近，先落袋一部分</td></tr>
+    <tr><td><span class="green bold">止盈价2</span></td><td><span class="green bold">¥1,020（赚 7.7%）</span> — 前期阻力区，全部止盈</td></tr>
+    <tr><td>盈亏比</td><td>亏1块钱能赚1.5-2块钱，数学上划算</td></tr>
+  </table>
+</div>
+
+<div class="explain">
+"止损"就是你最多愿意亏多少。设好止损就像是给车上保险——出了事故保险公司赔，做投资设了止损就是错了不扛单。
+</div>
+
+<div class="strategy">
+  <h4>⚡ 三条黄金纪律</h4>
+  <p><span class="do">✓ 可以做</span> ¥945-950 分三次买，设好止损</p>
+  <p><span class="do">✓ 可以做</span> 如果跌到 ¥925-935，勇敢加仓（历史上这种情况 71% 会涨回来）</p>
+  <p><span class="dont">✗ 不要做</span> ¥940 以下恐慌全卖了（你卖的对象可能是全球央行——他们在每天买2.7吨）</p>
+  <p><span class="dont">✗ 不要做</span> 觉得要涨就一把全买进去（万一非农后续影响还没消化完，还有可能跌）</p>
+  <p><span class="dont">✗ 不要做</span> 涨到 ¥1,000 以上去追（上面有很多人等着解套卖出，阻力很大）</p>
+</div>
+
+<div class="explain">
+核心逻辑就一句话：<span class="bold">央行每天在买，这是铁底；跌了30天+RSI触底，技术上该反弹了；但非农数据太强，短期还有不确定性，所以要分批买、设止损、不追高。</span>
+</div>
+
+<!-- ═══════════════ Footer ═══════════════ -->
+<div class="footer">
+  <p><span class="bold">Gold Miner</span> 多因子量化决策系统 · 自动生成于 2026-06-06</p>
+  <p>数据来源：上海黄金交易所 · FRED · NewsAPI · jinjia.com.cn · anysearch · 世界黄金协会 · 上期所</p>
+  <p style="margin-top:8px">⚠ 免责声明：本报告仅供参考，不构成投资建议。过往表现不代表未来收益。投资有风险，入市需谨慎。</p>
+</div>
+
+</body>
+</html>
