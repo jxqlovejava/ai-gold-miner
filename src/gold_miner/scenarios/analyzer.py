@@ -7,7 +7,6 @@ import re
 from datetime import datetime
 from typing import Any
 
-from gold_miner.config import settings
 from gold_miner.llm.client import LLMClient
 from gold_miner.scenarios.models import (
     HistoricalAnalog,

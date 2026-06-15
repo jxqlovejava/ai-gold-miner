@@ -1,10 +1,10 @@
 """安全边际计算 — 波动率/流动性/相关性缓冲."""
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 
-class MarginType(str, Enum):
+class MarginType(StrEnum):
     VOLATILITY = "volatility"
     LIQUIDITY = "liquidity"
     CORRELATION = "correlation"

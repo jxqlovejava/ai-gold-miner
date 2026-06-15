@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
-from gold_miner.signals.base import Signal, SignalBundle, SignalDirection, SignalStrength
+from gold_miner.signals.base import Signal, SignalDirection, SignalStrength
 
 
 @dataclass
@@ -445,9 +445,8 @@ class ScenarioAnalyzer:
 
         # 滞胀
         stag_prob = 0.0
-        if cpi_value and gdp_growth is not None:
-            if cpi_value > 3.5 and gdp_growth < 1.5:
-                stag_prob = min((cpi_value - 3.5) / 5 + (1.5 - gdp_growth) / 2, 0.8)
+        if cpi_value and gdp_growth is not None and cpi_value > 3.5 and gdp_growth < 1.5:
+            stag_prob = min((cpi_value - 3.5) / 5 + (1.5 - gdp_growth) / 2, 0.8)
         probs["stagflation"] = min(stag_prob, 1.0)
 
         # 地缘危机

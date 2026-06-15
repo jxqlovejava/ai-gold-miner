@@ -26,7 +26,6 @@ from gold_miner.advisor.core import (
     PositionSize,
 )
 from gold_miner.data.macro import MacroDataFetcher
-from gold_miner.data.news import NewsFetcher
 from gold_miner.data.sentiment import SentimentDataFetcher
 from gold_miner.data.spot_gold import SpotGoldFetcher
 from gold_miner.decision.agents import BearAgent, BullAgent, PortfolioManager
@@ -112,8 +111,8 @@ class ActionGuide:
         logger.info(f"[ActionGuide] 综合评分: {bundle.composite_score:+.3f}, 置信度: {bundle.confidence:.1%}")
 
         # 4. Agent 辩论
-        opinions = self._agent_debate(bundle)
-        logger.info(f"[ActionGuide] Agent 辩论完成")
+        self._agent_debate(bundle)
+        logger.info("[ActionGuide] Agent 辩论完成")
 
         # 5. 策略决策
         strategy_decision = self._select_strategy(
@@ -275,7 +274,7 @@ class ActionGuide:
         atr = self._estimate_atr(snapshot.gold_df)
 
         # 方向判断
-        direction = self._determine_direction(bundle)
+        self._determine_direction(bundle)
 
         # 计算当前组合收益（简化）
         portfolio_return = 0.0

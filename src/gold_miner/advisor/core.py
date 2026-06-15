@@ -10,22 +10,21 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum, StrEnum
+from enum import StrEnum
 from typing import Any, Protocol
-
 
 # ---------------------------------------------------------------------------
 # 枚举
 # ---------------------------------------------------------------------------
 
-class AlertLevel(str, Enum):
+class AlertLevel(StrEnum):
     CRITICAL = "critical"      # 必须立即行动
     HIGH = "high"              # 强烈建议关注
     MEDIUM = "medium"          # 值得关注
     LOW = "low"                # 参考信息
 
 
-class ActionType(str, Enum):
+class ActionType(StrEnum):
     BUY = "buy"
     SELL = "sell"
     HOLD = "hold"
@@ -35,7 +34,7 @@ class ActionType(str, Enum):
     HEDGE = "hedge"            # 对冲
 
 
-class PositionSize(str, Enum):
+class PositionSize(StrEnum):
     FULL = "full"              # 重仓 ~80%
     HEAVY = "heavy"            # 较重 ~60%
     MODERATE = "moderate"      # 中等 ~40%

@@ -17,8 +17,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from loguru import logger
 
 from gold_miner.data.comex_large_traders import ComexLargeTraderFetcher
@@ -72,7 +70,7 @@ class InstitutionalSignalGenerator:
             upside = consensus.get("upside_pct", 0)
             bullish = consensus.get("bullish_count", 0)
             bearish = consensus.get("bearish_count", 0)
-            neutral = consensus.get("neutral_count", 0)
+            consensus.get("neutral_count", 0)
             total = consensus.get("total_banks", 0)
             avg_target = consensus.get("avg_target", 0)
 
@@ -393,10 +391,7 @@ class InstitutionalSignalGenerator:
                     total_score += scores[key] * weight
                     total_weight += weight
 
-            if total_weight > 0:
-                composite = total_score / total_weight
-            else:
-                composite = 0.0
+            composite = total_score / total_weight if total_weight > 0 else 0.0
 
             # 生成综合信号
             if abs(composite) >= 0.3:

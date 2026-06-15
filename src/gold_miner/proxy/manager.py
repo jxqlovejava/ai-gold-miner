@@ -4,7 +4,6 @@ import atexit
 import os
 import shutil
 import subprocess
-import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -74,7 +73,6 @@ class ProxyManager:
             是否下载成功
         """
         import platform
-        import sys
 
         system = platform.system().lower()
         machine = platform.machine().lower()

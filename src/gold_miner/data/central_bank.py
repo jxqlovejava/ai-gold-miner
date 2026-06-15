@@ -374,7 +374,7 @@ class MonthlyCentralBankFetcher:
             fetched_at=now,
         )
 
-    def fetch_china_pboC(self) -> MonthlyCentralBankData | None:
+    def fetch_china_pboc(self) -> MonthlyCentralBankData | None:
         """专门获取中国央行(PBOC)黄金储备数据.
 
         中国人民银行每月7号左右公布上月外汇储备和黄金储备。

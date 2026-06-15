@@ -1,12 +1,10 @@
 """AutoResolver — 自动结算到期预测."""
 
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 
 from loguru import logger
 
-from gold_miner.config import settings
 from gold_miner.data.spot_gold import SpotGoldFetcher
 from gold_miner.events.models import EventType
 from gold_miner.events.store import EventStore

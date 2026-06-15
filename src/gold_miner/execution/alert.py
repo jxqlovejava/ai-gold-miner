@@ -1,6 +1,6 @@
 """价格预警 — 大波动、关键位突破、DXY异动检测."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import pandas as pd
 from loguru import logger

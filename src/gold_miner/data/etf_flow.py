@@ -1,7 +1,7 @@
 """ETF 资金流数据 — 黄金ETF + 比特币ETF流入流出追踪."""
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 
 import pandas as pd

@@ -37,7 +37,7 @@ class FundamentalAnalyzer:
             df = self.dxy.sort_values("timestamp").reset_index(drop=True)
             ma5 = df["value"].tail(5).mean()
             ma20 = df["value"].tail(20).mean()
-            latest = df["value"].iloc[-1]
+            df["value"].iloc[-1]
 
             if ma5 < ma20 * 0.995:  # 美元短期走弱
                 score = min((ma20 - ma5) / ma20 * 10, 1.0)
@@ -376,7 +376,7 @@ class FundamentalAnalyzer:
                 ))
 
             # 中国央行专项信号 (最重要单一变量)
-            china_data = fetcher.fetch_china_pboC()
+            china_data = fetcher.fetch_china_pboc()
             if china_data and china_data.is_significant:
                 signals.append(Signal(
                     name="中国央行加大购金",

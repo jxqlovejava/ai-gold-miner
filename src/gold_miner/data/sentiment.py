@@ -1,6 +1,6 @@
 """情绪面数据 — 国内上期所 AU 期货持仓 + 金银比 (不再依赖 Yahoo Finance)."""
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 
 import akshare as ak

@@ -13,16 +13,13 @@
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
 
 from loguru import logger
 
 from gold_miner.advisor.core import (
     AdvisorReport,
-    AlertLevel,
     UserProfile,
 )
 from gold_miner.advisor.early_warning import EarlyWarningEngine
@@ -30,7 +27,6 @@ from gold_miner.advisor.extreme_guard import ExtremeGuard
 from gold_miner.advisor.sentiment_guard import SentimentGuard
 from gold_miner.doctrine.checker import DoctrineChecker
 from gold_miner.llm.client import LLMClient
-
 
 # ---------------------------------------------------------------------------
 # 意图识别
@@ -170,7 +166,7 @@ class Consultant:
             )
 
         best_intent = max(scores, key=scores.get)
-        total_kw = sum(len(INTENT_PATTERNS[k]) for k in INTENT_PATTERNS)
+        sum(len(INTENT_PATTERNS[k]) for k in INTENT_PATTERNS)
         confidence = min(scores[best_intent] / len(INTENT_PATTERNS[best_intent]) * 2, 1.0)
 
         return ParsedIntent(
@@ -315,16 +311,16 @@ class Consultant:
             )
         elif position_pct > 0.6:
             lines.append(
-                f"\n仓位偏重。若市场出现意外波动，回撤会较大。"
-                f"建议设置严格止损。"
+                "\n仓位偏重。若市场出现意外波动，回撤会较大。"
+                "建议设置严格止损。"
             )
         elif position_pct < 0.1 and profile.risk_tolerance != "low":
             lines.append(
-                f"\n仓位过轻，可能错过趋势行情。"
-                f"若信号支持，可考虑逐步建仓至20-30%。"
+                "\n仓位过轻，可能错过趋势行情。"
+                "若信号支持，可考虑逐步建仓至20-30%。"
             )
         else:
-            lines.append(f"\n✅ 仓位在合理范围内，继续执行策略。")
+            lines.append("\n✅ 仓位在合理范围内，继续执行策略。")
 
         if avg_cost > 0:
             lines.append(f"\n持仓均价: ${avg_cost:.2f}")

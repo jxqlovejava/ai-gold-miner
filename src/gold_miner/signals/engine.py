@@ -5,7 +5,7 @@ from typing import Any
 
 from loguru import logger
 
-from gold_miner.signals.base import Signal, SignalBundle, SignalDirection
+from gold_miner.signals.base import SignalBundle
 
 
 @dataclass

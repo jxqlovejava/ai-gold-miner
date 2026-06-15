@@ -14,21 +14,21 @@
 当前使用 BLS 官方公布的年度发布日程（每年年初发布全年时间表）作为权威数据源。
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from loguru import logger
 
 
-class EventImpact(str, Enum):
+class EventImpact(StrEnum):
     HIGH = "high"
     MEDIUM = "medium"
     LOW = "low"
 
 
-class EventType(str, Enum):
+class EventType(StrEnum):
     FED_RATE = "fed_rate"
     CPI = "cpi"
     PPI = "ppi"

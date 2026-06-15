@@ -12,15 +12,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta
-from typing import Any
+from dataclasses import dataclass
+from datetime import datetime
 
 from loguru import logger
 
 from gold_miner.advisor.core import AdvisorReport, AlertLevel, EventForecast
 from gold_miner.data.calendar import CalendarEvent, EventCalendar, EventImpact, EventType
-
 
 # ---------------------------------------------------------------------------
 # 历史影响数据库 — 基于回测和历史统计
@@ -261,19 +259,19 @@ class EarlyWarningEngine:
     def _build_advice(event: CalendarEvent, direction: str, days_until: int) -> str:
         """生成针对事件的应对建议."""
         if days_until <= 1:
-            return f"事件即将公布，建议观望，待数据出炉后再决策"
+            return "事件即将公布，建议观望，待数据出炉后再决策"
 
         if direction == "up":
             if days_until <= 3:
-                return f"事件偏向利多，可考虑提前小幅加仓(≤10%)"
-            return f"事件偏向利多，关注但不必提前行动"
+                return "事件偏向利多，可考虑提前小幅加仓(≤10%)"
+            return "事件偏向利多，关注但不必提前行动"
 
         if direction == "down":
             if days_until <= 3:
-                return f"事件偏向利空，可考虑提前减仓避险"
-            return f"事件偏向利空，保持关注，临近再评估"
+                return "事件偏向利空，可考虑提前减仓避险"
+            return "事件偏向利空，保持关注，临近再评估"
 
-        return f"方向不明，建议维持现状，事件前1天再评估"
+        return "方向不明，建议维持现状，事件前1天再评估"
 
     @staticmethod
     def _find_analogs(event_type: EventType) -> list[str]:

@@ -1,8 +1,9 @@
 """回测引擎."""
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Callable
+from typing import Any
 
 import pandas as pd
 
@@ -38,7 +39,7 @@ class BacktestEngine:
         price_df: pd.DataFrame,
         signal_fn: Callable[[pd.DataFrame], SignalBundle],
     ) -> BacktestResult:
-        result = BacktestResult()
+        BacktestResult()
         capital = self.initial_capital
         position = 0.0
         entry_price = 0.0

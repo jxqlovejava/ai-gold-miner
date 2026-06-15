@@ -1,4 +1,4 @@
-"""持仓管理器 — 从YAML加载、市值追踪、军规自动检查."""
+"""持仓管理器 — 从存储层加载、市值追踪、军规自动检查."""
 
 from __future__ import annotations
 
@@ -8,6 +8,8 @@ from pathlib import Path
 
 import yaml
 from loguru import logger
+
+from gold_miner.storage import get_store
 
 
 @dataclass
@@ -46,30 +48,36 @@ class PortfolioSnapshot:
 
 
 class PortfolioTracker:
-    """持仓追踪器 — 加载YAML配置，计算实时风险指标."""
+    """持仓追踪器 — 从存储层加载配置，计算实时风险指标."""
 
     def __init__(self, config_path: str | None = None) -> None:
-        self.config_path = Path(config_path or "data/portfolio.yaml")
+        self.config_path = Path(config_path) if config_path else None
         self.positions: list[Position] = []
         self.total_funds: float = 200_000
         self.max_gold_pct: float = 0.80
         self.max_single_pct: float = 0.20
         self.risk_profile: str = "balanced"
+        self._store = get_store()
         self._load()
 
     def _load(self) -> None:
-        if not self.config_path.exists():
-            logger.warning(f"持仓配置文件不存在: {self.config_path}")
+        # 优先从存储层加载，fallback 到旧路径
+        data = self._store.load_portfolio()
+        if not data and self.config_path and self.config_path.exists():
+            # 迁移期：旧路径仍可读
+            logger.debug(f"从旧路径加载持仓: {self.config_path}")
+            with open(self.config_path) as f:
+                data = yaml.safe_load(f) or {}
+        if not data:
+            logger.warning("持仓配置未找到")
             return
-        with open(self.config_path) as f:
-            data = yaml.safe_load(f) or {}
         limits = data.get("limits", {})
         self.total_funds = limits.get("total_funds", 200_000)
         self.max_gold_pct = limits.get("max_gold_pct", 80) / 100
         self.max_single_pct = limits.get("max_single_pct", 20) / 100
         self.risk_profile = limits.get("risk_profile", "balanced")
         self.positions = []
-        for key, cfg in data.get("positions", {}).items():
+        for _key, cfg in data.get("positions", {}).items():
             self.positions.append(Position(
                 instrument=cfg["instrument"],
                 platform=cfg.get("platform", ""),

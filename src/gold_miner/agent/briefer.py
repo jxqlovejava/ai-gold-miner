@@ -6,8 +6,9 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
-import pandas as pd
 from loguru import logger
+
+from gold_miner.agent.portfolio import PortfolioTracker
 
 
 @dataclass

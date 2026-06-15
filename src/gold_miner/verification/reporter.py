@@ -42,8 +42,8 @@ class VerificationReporter:
         # 概览
         _h(lines, "## 概览")
         lines.append("")
-        lines.append(f"| 指标 | 值 |")
-        lines.append(f"|------|----|")
+        lines.append("| 指标 | 值 |")
+        lines.append("|------|----|")
         lines.append(f"| 总预测数 | {len(states)} |")
         lines.append(f"| 已结算 | {len(settled)} |")
         lines.append(f"| 待结算 | {len(pending)} |")
@@ -82,7 +82,7 @@ class VerificationReporter:
                     f"现价: {s.observed_price:.2f})"
                 )
             lines.append("")
-            lines.append(f"使用 `gold-miner verify --confirm <ID>` 确认结算。")
+            lines.append("使用 `gold-miner verify --confirm <ID>` 确认结算。")
             lines.append("")
 
         # 分维度准确率
@@ -162,8 +162,8 @@ def _prediction_card(state: PredictionState) -> list[str]:
     status_icon = "✓" if state.was_correct else "✗" if state.was_correct is False else "○"
     lines.append(f"### {status_icon} {state.direction.upper()} | {state.source}")
     lines.append("")
-    lines.append(f"| 字段 | 值 |")
-    lines.append(f"|------|----|")
+    lines.append("| 字段 | 值 |")
+    lines.append("|------|----|")
     lines.append(f"| 创建时间 | {state.created_at.strftime('%Y-%m-%d %H:%M') if state.created_at else '?'} |")
     lines.append(f"| 方向 | {state.direction} |")
     lines.append(f"| 综合评分 | {state.composite_score:+.2f} |")

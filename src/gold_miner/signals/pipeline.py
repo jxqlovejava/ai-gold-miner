@@ -1,7 +1,8 @@
 """信号管线 — 统一协调各维度信号生成顺序."""
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 import pandas as pd
 from loguru import logger

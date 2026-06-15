@@ -433,7 +433,7 @@ class TestMonthlyCentralBankFetcher:
         fetcher = MonthlyCentralBankFetcher()
         # PBOC官网解析通常失败，测试回退
         with patch.object(fetcher.client, "get", side_effect=Exception("Connection error")):
-            result = fetcher.fetch_china_pboC()
+            result = fetcher.fetch_china_pboc()
             assert result is not None
             assert result.country == "中国"
             assert result.net_purchases_tonnes > 0

@@ -35,7 +35,7 @@ class TradeJournal:
     def _load(self) -> None:
         if not self.journal_file.exists():
             return
-        with open(self.journal_file, "r", encoding="utf-8") as f:
+        with open(self.journal_file, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if not line:

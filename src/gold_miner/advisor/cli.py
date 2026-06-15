@@ -17,10 +17,7 @@
 
 from __future__ import annotations
 
-from loguru import logger
-
 from gold_miner.advisor.orchestrator import Advisor
-from gold_miner.advisor.core import UserProfile
 
 
 def register_advisor_parser(subparsers) -> None:

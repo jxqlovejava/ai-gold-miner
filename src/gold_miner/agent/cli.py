@@ -14,9 +14,32 @@
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from datetime import datetime
+
+
+def _run_workflow(name: str, dry_run: bool = False) -> None:
+    """通过工作流名称运行工作流."""
+    from gold_miner.workflows.base import WorkflowContext
+    from gold_miner.workflows.registry import get_registry
+
+    registry = get_registry()
+    try:
+        workflow = registry.resolve(name)
+    except ValueError as e:
+        print(f"错误: {e}")
+        return
+
+    ctx = WorkflowContext(dry_run=dry_run)
+    result = workflow.run(ctx)
+
+    for msg in result.messages:
+        print(f"  {msg}")
+
+    if result.success:
+        print(f"\n工作流完成: {workflow.name}")
+    else:
+        print(f"\n工作流失败: {workflow.name}")
 
 
 def cmd_start(_args: argparse.Namespace) -> None:
@@ -34,23 +57,20 @@ def cmd_start(_args: argparse.Namespace) -> None:
 
 def cmd_briefing(_args: argparse.Namespace) -> None:
     """手动触发完整分析周期."""
-    from gold_miner.agent.proactive import ProactiveAgent
-    agent = ProactiveAgent()
-    briefings = agent.run_full_cycle()
-    for b in briefings:
-        print(b.to_markdown())
-        print("\n---\n")
+    _run_workflow("daily")
 
 
 def cmd_single(kind: str) -> None:
-    """触发单个简报."""
-    from gold_miner.agent.proactive import ProactiveAgent
-    agent = ProactiveAgent()
-    b = agent.run_once(kind)
-    if b:
-        print(b.to_markdown())
-    else:
-        print(f"[{kind}] 简报生成失败")
+    """触发单个简报 — 映射到工作流."""
+    workflow_map = {
+        "pre_market": "pre-market",
+        "post_open": "intra-day",
+        "closing": "post-market",
+        "event_scan": "intra-day",
+        "weekly": "weekly-review",
+    }
+    wf_name = workflow_map.get(kind, kind)
+    _run_workflow(wf_name)
 
 
 def cmd_pre_market(_args: argparse.Namespace) -> None:
@@ -111,9 +131,10 @@ def cmd_backtest(args: argparse.Namespace) -> None:
 
 def cmd_status(_args: argparse.Namespace) -> None:
     """查看系统状态."""
-    from gold_miner.config import settings
-    from gold_miner.agent.portfolio import PortfolioTracker
     from gold_miner.agent.briefer import Briefer
+    from gold_miner.agent.portfolio import PortfolioTracker
+    from gold_miner.config import settings
+    from gold_miner.workflows.registry import get_registry
 
     print("=== 系统状态 ===")
     print(f"时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
@@ -131,15 +152,23 @@ def cmd_status(_args: argparse.Namespace) -> None:
         print(f"持仓加载失败: {e}")
 
     # 调度表
-    print(f"\n调度任务:")
-    print(f"  {settings.agent_schedule_pre_market} — 盘前简报")
-    print(f"  {settings.agent_schedule_post_open} — 开盘分析")
-    print(f"  {settings.agent_schedule_closing} — 尾盘提醒")
-    print(f"  {settings.agent_schedule_event_scan} — 事件扫描")
+    print("\n调度任务:")
+    print(f"  {settings.agent_schedule_pre_market} — 盘前简报 (pre-market)")
+    print(f"  {settings.agent_schedule_post_open} — 开盘分析 (intra-day)")
+    print(f"  {settings.agent_schedule_closing} — 尾盘提醒 (post-market)")
+    print(f"  {settings.agent_schedule_event_scan} — 事件扫描 (intra-day)")
+    print("  sun-21:00 — 周度展望 (weekly-review)")
 
     # 通知
     print(f"\n通知: {'企业微信' if settings.wechat_webhook_url else '未配置'}")
     print(f"数据目录: {settings.data_path}")
+
+    # 工作流列表
+    print("\n已注册工作流:")
+    registry = get_registry()
+    for wf in registry.get_all():
+        aliases = ", ".join(sorted(wf.aliases)) if wf.aliases else ""
+        print(f"  {wf.name} ({aliases})")
 
 
 def main() -> None:

@@ -1,20 +1,18 @@
 """EventStore — JSONL 只追加事件存储 + 状态重放."""
 
-import json
-from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from loguru import logger
 
-from gold_miner.config import settings
 from gold_miner.events.models import (
     Event,
     EventType,
     EvidenceSnapshot,
     PredictionState,
 )
+from gold_miner.storage import get_store
 
 
 class EventStore:
@@ -24,8 +22,8 @@ class EventStore:
     """
 
     def __init__(self, data_dir: Path | None = None) -> None:
-        self.data_dir = data_dir or settings.data_path
-        self.file = self.data_dir / "event_store.jsonl"
+        self.data_dir = data_dir  # 保留参数用于兼容
+        self._store = get_store(private_data_dir=data_dir)
 
     # ------------------------------------------------------------------
     # 写入
@@ -53,8 +51,7 @@ class EventStore:
             "prediction_id": event.prediction_id,
             "payload": _serialize_payload(event.payload),
         }
-        with open(self.file, "a", encoding="utf-8") as f:
-            f.write(json.dumps(data, ensure_ascii=False) + "\n")
+        self._store.append_event(data)
 
     # ------------------------------------------------------------------
     # 查询
@@ -141,25 +138,19 @@ class EventStore:
     # ------------------------------------------------------------------
 
     def _iter_events(self) -> list[Event]:
-        if not self.file.exists():
-            return []
+        raw_records = self._store.load_events()
         result: list[Event] = []
-        with open(self.file, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    data = json.loads(line)
-                    result.append(Event(
-                        event_id=data["event_id"],
-                        timestamp=datetime.fromisoformat(data["timestamp"]),
-                        event_type=EventType(data["event_type"]),
-                        prediction_id=data["prediction_id"],
-                        payload=data["payload"],
-                    ))
-                except (json.JSONDecodeError, KeyError, ValueError):
-                    continue
+        for data in raw_records:
+            try:
+                result.append(Event(
+                    event_id=data["event_id"],
+                    timestamp=datetime.fromisoformat(data["timestamp"]),
+                    event_type=EventType(data["event_type"]),
+                    prediction_id=data["prediction_id"],
+                    payload=data["payload"],
+                ))
+            except (KeyError, ValueError):
+                continue
         return result
 
 

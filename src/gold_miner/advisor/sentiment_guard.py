@@ -14,16 +14,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
 from loguru import logger
 
-from gold_miner.advisor.core import AdvisorReport, AlertLevel, SentimentReading
+from gold_miner.advisor.core import AdvisorReport, SentimentReading
 from gold_miner.data.macro import MacroDataFetcher
 from gold_miner.signals.etf_flow_signal import EtfFlowSignalGenerator
-from gold_miner.data.sentiment import SentimentDataFetcher
-from gold_miner.signals.sentiment_signal import SentimentAnalyzer
-
 
 # ---------------------------------------------------------------------------
 # COT 模拟数据 — 实际部署时需接入 CFTC COT 报告
@@ -59,7 +55,7 @@ class SentimentGuard:
         self._last_reading = reading
 
         warnings = []
-        alignment_note = self._build_alignment_note(reading)
+        self._build_alignment_note(reading)
 
         # 极端情绪预警
         if reading.retail_extreme:

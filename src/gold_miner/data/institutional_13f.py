@@ -19,15 +19,11 @@
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
-import httpx
 from loguru import logger
-
-from gold_miner.proxy import get_proxied_client
 
 
 @dataclass

@@ -14,18 +14,14 @@
 
 from __future__ import annotations
 
-import csv
-import io
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
-import httpx
 import pandas as pd
 from loguru import logger
 
 from gold_miner.data.base import DataFetcher, DataSourceMeta
-
 
 CFTC_COT_URL = (
     "https://www.cftc.gov/dea/futures/deacmesf.htm"

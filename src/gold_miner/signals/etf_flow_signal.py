@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from loguru import logger
 
 from gold_miner.data.etf_flow import (
@@ -228,7 +226,7 @@ class EtfFlowSignalGenerator:
                 return signals
 
             direction = flow.get("direction", "neutral")
-            score = flow.get("score", 0)
+            flow.get("score", 0)
             avg_change = flow.get("avg_change_pct", 0)
             vol_surge = flow.get("volume_surge_etfs", 0)
 

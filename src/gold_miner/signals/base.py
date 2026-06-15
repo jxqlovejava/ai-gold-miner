@@ -2,17 +2,17 @@
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 
-class SignalDirection(str, Enum):
+class SignalDirection(StrEnum):
     BULLISH = "bullish"
     BEARISH = "bearish"
     NEUTRAL = "neutral"
 
 
-class SignalStrength(str, Enum):
+class SignalStrength(StrEnum):
     STRONG = "strong"
     MODERATE = "moderate"
     WEAK = "weak"

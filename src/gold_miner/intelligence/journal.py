@@ -1,7 +1,6 @@
 """文章分析日志 — JSONL 持久化."""
 
 import json
-import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -90,7 +89,7 @@ class ArticleJournal:
         return None
 
     def update(self, record_id: str, **kwargs: Any) -> ArticleRecord | None:
-        for i, r in enumerate(self.records):
+        for _i, r in enumerate(self.records):
             if r.id == record_id:
                 for k, v in kwargs.items():
                     if hasattr(r, k):

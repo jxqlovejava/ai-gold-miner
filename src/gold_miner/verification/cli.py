@@ -1,7 +1,6 @@
 """验证 CLI — verify 命令实现."""
 
 import argparse
-from datetime import datetime
 
 from loguru import logger
 

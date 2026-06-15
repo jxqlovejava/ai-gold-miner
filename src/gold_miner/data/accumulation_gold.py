@@ -5,7 +5,6 @@ from time import sleep
 from typing import Any
 
 import akshare as ak
-import httpx
 import pandas as pd
 from loguru import logger
 

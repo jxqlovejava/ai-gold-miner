@@ -1,11 +1,11 @@
 """策略目标与配置 — 四种策略目标的不同参数."""
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 
-class StrategyObjective(str, Enum):
+class StrategyObjective(StrEnum):
     MAXIMIZE_PROFIT = "maximize_profit"
     COST_RECOVERY = "cost_recovery"
     TAKE_PROFIT = "take_profit"

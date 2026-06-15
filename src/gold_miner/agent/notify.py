@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 from loguru import logger
 
 
-class Severity(str, Enum):
+class Severity(StrEnum):
     HIGH = "high"
     MEDIUM = "medium"
     INFO = "info"
@@ -44,10 +44,7 @@ class NotificationRouter:
         """发送通知到所有已启用渠道."""
         success = True
 
-        if severity == Severity.HIGH:
-            if not self._send_wechat(title, body, markdown):
-                success = False
-        elif severity == Severity.MEDIUM:
+        if severity == Severity.HIGH or severity == Severity.MEDIUM:
             if not self._send_wechat(title, body, markdown):
                 success = False
         else:

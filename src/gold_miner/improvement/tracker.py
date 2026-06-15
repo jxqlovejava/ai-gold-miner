@@ -4,7 +4,6 @@
 后续手动结算 (resolve) 实际价格后生成准确率数据。
 """
 
-import json
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -12,7 +11,7 @@ from typing import Any
 
 from loguru import logger
 
-from gold_miner.config import settings
+from gold_miner.storage import get_store
 
 
 @dataclass
@@ -40,27 +39,21 @@ class PredictionTracker:
     """预测追踪器 — JSONL 持久化，与 TradeJournal 模式一致."""
 
     def __init__(self, data_dir: Path | None = None) -> None:
-        self.data_dir = data_dir or settings.data_path
-        self.journal_file = self.data_dir / "prediction_journal.jsonl"
+        self.data_dir = data_dir  # 保留参数用于兼容，但实际使用存储层
+        self._store = get_store(private_data_dir=data_dir)
         self.records: list[PredictionRecord] = []
         self._load()
 
     def _load(self) -> None:
-        if not self.journal_file.exists():
-            return
-        with open(self.journal_file, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    data = json.loads(line)
-                    data["timestamp"] = datetime.fromisoformat(data["timestamp"])
-                    if data.get("resolved_at"):
-                        data["resolved_at"] = datetime.fromisoformat(data["resolved_at"])
-                    self.records.append(PredictionRecord(**data))
-                except (json.JSONDecodeError, KeyError, ValueError):
-                    continue
+        raw_records = self._store.load_predictions()
+        for data in raw_records:
+            try:
+                data["timestamp"] = datetime.fromisoformat(data["timestamp"])
+                if data.get("resolved_at"):
+                    data["resolved_at"] = datetime.fromisoformat(data["resolved_at"])
+                self.records.append(PredictionRecord(**data))
+            except (KeyError, ValueError):
+                continue
 
     def record_prediction(self, record: PredictionRecord) -> None:
         self.records.append(record)
@@ -72,8 +65,7 @@ class PredictionTracker:
         data["timestamp"] = record.timestamp.isoformat()
         if record.resolved_at:
             data["resolved_at"] = record.resolved_at.isoformat()
-        with open(self.journal_file, "a", encoding="utf-8") as f:
-            f.write(json.dumps(data, ensure_ascii=False) + "\n")
+        self._store.append_prediction(data)
 
     def resolve_prediction(
         self, prediction_id: str, actual_price: float
@@ -114,13 +106,14 @@ class PredictionTracker:
         return None
 
     def _rewrite(self) -> None:
-        with open(self.journal_file, "w", encoding="utf-8") as f:
-            for record in self.records:
-                data = asdict(record)
-                data["timestamp"] = record.timestamp.isoformat()
-                if record.resolved_at:
-                    data["resolved_at"] = record.resolved_at.isoformat()
-                f.write(json.dumps(data, ensure_ascii=False) + "\n")
+        records_data = []
+        for record in self.records:
+            data = asdict(record)
+            data["timestamp"] = record.timestamp.isoformat()
+            if record.resolved_at:
+                data["resolved_at"] = record.resolved_at.isoformat()
+            records_data.append(data)
+        self._store.save_predictions(records_data)
 
     def load_all(self) -> list[PredictionRecord]:
         return list(self.records)

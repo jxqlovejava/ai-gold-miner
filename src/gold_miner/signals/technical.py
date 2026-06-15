@@ -1,8 +1,6 @@
 """技术面信号 — RSI、MACD、布林带、支撑阻力."""
 
-from datetime import datetime
 
-import numpy as np
 import pandas as pd
 
 from gold_miner.signals.base import Signal, SignalDirection, SignalStrength

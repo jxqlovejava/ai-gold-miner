@@ -15,14 +15,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
 from loguru import logger
 
-from gold_miner.advisor.core import AdvisorReport, AlertLevel, ExtremeStressTest
+from gold_miner.advisor.core import AdvisorReport, ExtremeStressTest
 from gold_miner.scenarios.analyzer import ScenarioAnalyzer
-from gold_miner.scenarios.models import ScenarioReport
-
 
 # ---------------------------------------------------------------------------
 # 极端情景库

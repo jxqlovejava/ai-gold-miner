@@ -3,9 +3,7 @@
 from datetime import datetime, timedelta
 from typing import Any
 
-import httpx
 import pandas as pd
-import yfinance as yf
 from loguru import logger
 
 from gold_miner.config import settings

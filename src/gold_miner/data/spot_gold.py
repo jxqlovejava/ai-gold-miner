@@ -5,6 +5,7 @@
 备用: Yahoo Finance XAU/USD
 """
 
+import contextlib
 from datetime import datetime, timedelta
 from time import sleep
 from typing import Any
@@ -213,10 +214,8 @@ class SpotGoldFetcher(DataFetcher):
                     if 300 < price < 1500:
                         change_pct = None
                         if change_text:
-                            try:
+                            with contextlib.suppress(ValueError):
                                 change_pct = float(change_text.replace("%", "").replace("+", "")) / 100
-                            except ValueError:
-                                pass
                         return {
                             "symbol": "AU9999 (SGE)",
                             "last_price": price,
@@ -310,10 +309,8 @@ class SpotGoldFetcher(DataFetcher):
                         continue
                     change_pct = None
                     if change_text:
-                        try:
+                        with contextlib.suppress(ValueError):
                             change_pct = float(change_text.replace("%", "").replace("+", "")) / 100
-                        except ValueError:
-                            pass
                     results.append({
                         "name": name,
                         "price": price,

@@ -2,52 +2,40 @@
 
 from __future__ import annotations
 
-import json
-from dataclasses import asdict
 from pathlib import Path
 
-from gold_miner.config import settings
 from gold_miner.scenarios.models import ScenarioReport
+from gold_miner.storage import get_store
 
 
 class ScenarioStore:
     """情景分析报告的 JSONL 持久化存储."""
 
     def __init__(self, data_dir: str | Path | None = None) -> None:
-        self.data_dir = Path(data_dir) if data_dir else settings.data_path
-        self.file_path = self.data_dir / "scenarios.jsonl"
+        self._store = get_store(private_data_dir=data_dir)
 
     def save(self, report: ScenarioReport) -> None:
         """保存情景分析报告."""
-        self.data_dir.mkdir(parents=True, exist_ok=True)
         record = _report_to_dict(report)
-        with open(self.file_path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+        self._store.append_scenario(record)
 
     def load(self, report_id: str) -> ScenarioReport | None:
         """按ID加载单个报告."""
-        if not self.file_path.exists():
-            return None
-        for line in _read_lines(self.file_path):
-            try:
-                data = json.loads(line)
-                if data.get("id") == report_id:
-                    return _dict_to_report(data)
-            except json.JSONDecodeError:
-                continue
+        for data in self._store.load_scenarios():
+            if data.get("id") == report_id:
+                return _dict_to_report(data)
         return None
 
     def list_all(self, limit: int = 20) -> list[ScenarioReport]:
         """列出最近的报告（最新在前）."""
-        if not self.file_path.exists():
-            return []
         reports: list[ScenarioReport] = []
-        for line in _read_lines_reverse(self.file_path, limit):
+        for data in reversed(self._store.load_scenarios()):
             try:
-                data = json.loads(line)
                 reports.append(_dict_to_report(data))
-            except json.JSONDecodeError:
+            except (KeyError, ValueError):
                 continue
+            if len(reports) >= limit:
+                break
         return reports
 
 
@@ -197,46 +185,3 @@ def _dict_to_report(data: dict) -> ScenarioReport:
         monitoring_indicators=data.get("monitoring_indicators", []),
         prediction_id=data.get("prediction_id"),
     )
-
-
-def _read_lines(path: Path) -> list[str]:
-    if not path.exists():
-        return []
-    return path.read_text(encoding="utf-8").strip().split("\n")
-
-
-def _read_lines_reverse(path: Path, limit: int) -> list[str]:
-    """读取JSONL文件最后N行（高效，不加载全文件到内存）."""
-    if not path.exists():
-        return []
-    try:
-        with open(path, "rb") as f:
-            f.seek(0, 2)
-            size = f.tell()
-            if size == 0:
-                return []
-
-            buf_size = 8192
-            lines: list[str] = []
-            pos = size
-            carry = b""
-
-            while pos > 0 and len(lines) < limit:
-                read_size = min(buf_size, pos)
-                pos -= read_size
-                f.seek(pos)
-                chunk = f.read(read_size)
-                parts = (chunk + carry).split(b"\n")
-                if pos > 0:
-                    carry = parts[0]
-                    parts = parts[1:]
-                else:
-                    carry = b""
-                decoded = [p.decode("utf-8", errors="replace").strip() for p in reversed(parts)]
-                lines.extend(p for p in decoded if p)
-                if carry:
-                    lines.append(carry.decode("utf-8", errors="replace").strip())
-
-            return [l for l in lines if l][:limit]
-    except Exception:
-        return []

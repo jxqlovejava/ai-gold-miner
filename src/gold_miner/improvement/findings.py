@@ -1,8 +1,8 @@
 """改进建议生成器 — 基于效能分析生成分级、可操作的发现."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
-from gold_miner.improvement.analyzer import AnalysisResult, PerDimensionAccuracy, PerSignalAccuracy
+from gold_miner.improvement.analyzer import AnalysisResult
 from gold_miner.improvement.tracker import PredictionRecord
 from gold_miner.signals.engine import DimensionWeights
 

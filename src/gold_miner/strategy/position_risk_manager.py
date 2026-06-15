@@ -67,8 +67,27 @@ class PositionRiskManager:
         self.secondary_stop = secondary_stop
 
     @classmethod
+    def from_store(cls) -> "PositionRiskManager":
+        """从存储层加载配置."""
+        from gold_miner.storage import get_store
+        store = get_store()
+        config = store.load_portfolio()
+
+        pos = config.get("positions", {}).get("gold_jd", {})
+        split = pos.get("split", {})
+
+        return cls(
+            total_grams=float(pos.get("grams", 0)),
+            avg_cost=float(pos.get("avg_cost", 0)),
+            core_grams=float(split["core"]) if "core" in split else None,
+            tactical_grams=float(split["tactical"]) if "tactical" in split else None,
+            hard_stop=float(pos.get("hard_stop", 710.0)),
+            secondary_stop=float(pos.get("secondary_stop", 900.0)),
+        )
+
+    @classmethod
     def from_yaml(cls, path: str | Path) -> "PositionRiskManager":
-        """从 portfolio.yaml 加载配置."""
+        """从 portfolio.yaml 加载配置 (兼容旧路径)."""
         with open(path, encoding="utf-8") as f:
             config = yaml.safe_load(f)
 

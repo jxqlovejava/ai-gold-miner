@@ -94,7 +94,7 @@ class ProactiveAgent:
 
             for task in self.schedule:
                 task_time = task["time"]
-                task_key = f"{task['name']}_{today}"
+                f"{task['name']}_{today}"
 
                 # 检查是否到了执行时间且今天还没执行
                 if current_time == task_time and last_run.get(task["name"]) != today:
@@ -164,7 +164,7 @@ class ProactiveAgent:
         try:
             b = self.briefer.event_scan(days_ahead=14)
             if b and b.upcoming_events:
-                msg = f"📅 **本周关键事件**\n\n" + "\n".join(f"- {e}" for e in b.upcoming_events[:8])
+                msg = "📅 **本周关键事件**\n\n" + "\n".join(f"- {e}" for e in b.upcoming_events[:8])
                 self.notifier.send_briefing(msg)
         except Exception as e:
             logger.error(f"周度展望失败: {e}")

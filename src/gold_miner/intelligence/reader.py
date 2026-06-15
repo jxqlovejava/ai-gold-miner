@@ -1,6 +1,5 @@
 """文章读取器 — URL 抓取 + 文本提取."""
 
-import re
 
 import httpx
 from bs4 import BeautifulSoup
@@ -70,7 +69,7 @@ class ArticleReader:
         # 清理多余空行
         lines = [line.strip() for line in text.split("\n") if line.strip()]
         # 过滤过短的非内容行
-        lines = [l for l in lines if len(l) > 10 or any("一" <= c <= "鿿" for c in l)]
+        lines = [line for line in lines if len(line) > 10 or any("一" <= c <= "鿿" for c in line)]
 
         result = "\n".join(lines)
         if len(result) < 100:

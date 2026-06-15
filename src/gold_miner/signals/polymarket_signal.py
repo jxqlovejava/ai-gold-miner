@@ -9,14 +9,13 @@ Polymarket 的价格是用户用真实资金押注的结果，比调查、社交
 - "Will gold price exceed $2500?" YES = 金价涨 → 黄金 BULLISH
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 from loguru import logger
 
 from gold_miner.data.polymarket import PredictionMarket
 from gold_miner.signals.base import Signal, SignalDirection, SignalStrength
-
 
 # ------------------------------------------------------------------
 # 方向判定规则

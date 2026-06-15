@@ -2,47 +2,25 @@
 
 import argparse
 import json
+import sys
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
-
 from loguru import logger
 
+from gold_miner.backtest.engine import BacktestEngine
 from gold_miner.config import settings
 from gold_miner.data.accumulation_gold import AccumulationGoldFetcher
 from gold_miner.data.macro import MacroDataFetcher
+from gold_miner.data.news import NewsFetcher
 from gold_miner.data.sentiment import SentimentDataFetcher
 from gold_miner.data.spot_gold import SpotGoldFetcher
 from gold_miner.decision.agents import BearAgent, BullAgent, PortfolioManager
 from gold_miner.decision.risk import RiskManager
-from gold_miner.execution.dashboard import DashboardFormatter
-from gold_miner.execution.dimensions import print_all_dimensions
-from gold_miner.execution.alert import PriceAlert
-from gold_miner.execution.journal import TradeJournal
-from gold_miner.execution.notifier import Notifier
-from gold_miner.execution.report import ReportGenerator
-from gold_miner.proxy import get_proxy_manager
-from gold_miner.signals.base import SignalBundle
-from gold_miner.signals.engine import ScoringEngine
-from gold_miner.signals.fundamental import FundamentalAnalyzer
-from gold_miner.data.news import NewsFetcher
-from gold_miner.signals.etf_flow_signal import EtfFlowSignalGenerator
-from gold_miner.signals.news_signal import NewsSignalGenerator
-from gold_miner.signals.sentiment_signal import SentimentAnalyzer
-from gold_miner.signals.technical import TechnicalAnalyzer
-from gold_miner.backtest.engine import BacktestEngine
-from gold_miner.improvement.analyzer import PerformanceAnalyzer
-from gold_miner.improvement.findings import FindingGenerator
-from gold_miner.improvement.tracker import PredictionRecord, PredictionTracker
-from gold_miner.intelligence.analyzer import ArticleAnalyzer
-from gold_miner.intelligence.forecaster import PriceForecaster
-from gold_miner.intelligence.journal import ArticleJournal, ArticleRecord
-from gold_miner.intelligence.reader import ArticleReader
-from gold_miner.events.models import EventType
-from gold_miner.events.store import EventStore
-from gold_miner.llm.client import LLMClient
+from gold_miner.doctor import run_doctor
 from gold_miner.doctrine import (
     ALL_MODELS,
     ALL_RULES,
@@ -55,16 +33,43 @@ from gold_miner.doctrine import (
 )
 from gold_miner.doctrine.munger_models import (
     ALL_MODELS as MUNGER_ALL,
+)
+from gold_miner.doctrine.munger_models import (
     GOLD_MODELS as MUNGER_GOLD,
+)
+from gold_miner.doctrine.munger_models import (
     get_by_discipline,
-    get_by_slug,
     list_disciplines,
+)
+from gold_miner.doctrine.munger_models import (
     search as search_munger,
 )
+from gold_miner.events.models import EventType
+from gold_miner.events.store import EventStore
+from gold_miner.execution.journal import TradeJournal
+from gold_miner.execution.report import ReportGenerator
+from gold_miner.improvement.analyzer import PerformanceAnalyzer
+from gold_miner.improvement.findings import FindingGenerator
+from gold_miner.improvement.tracker import PredictionRecord, PredictionTracker
+from gold_miner.intelligence.analyzer import ArticleAnalyzer
+from gold_miner.intelligence.journal import ArticleJournal, ArticleRecord
+from gold_miner.intelligence.reader import ArticleReader
+from gold_miner.llm.client import LLMClient
+from gold_miner.pipeline.analysis import AnalysisContext, AnalysisPipeline
+from gold_miner.proxy import get_proxy_manager
 from gold_miner.scenarios.analyzer import ScenarioAnalyzer
 from gold_miner.scenarios.models import ScenarioReport
 from gold_miner.scenarios.store import ScenarioStore
+from gold_miner.setup_cli import run_setup
+from gold_miner.signals.base import SignalBundle
+from gold_miner.signals.engine import ScoringEngine
+from gold_miner.signals.fundamental import FundamentalAnalyzer
+from gold_miner.signals.news_signal import NewsSignalGenerator
+from gold_miner.signals.sentiment_signal import SentimentAnalyzer
+from gold_miner.signals.technical import TechnicalAnalyzer
 from gold_miner.verification.cli import run_verify
+from gold_miner.workflows.base import WorkflowContext
+from gold_miner.workflows.registry import get_registry
 
 
 def setup_logging() -> None:
@@ -79,256 +84,94 @@ def setup_logging() -> None:
 
 
 def run_scan(days: int = 30, with_news: bool = True, with_sentiment: bool = True, deep: bool = False) -> None:
-    """运行完整扫描流程."""
+    """运行完整扫描流程 — 委托给 AnalysisPipeline."""
     logger.info("=" * 50)
     logger.info("开始黄金投资决策扫描")
     logger.info("=" * 50)
 
-    # 1. 数据采集
-    logger.info("[1/4] 数据采集...")
-
-    gold_fetcher = SpotGoldFetcher()
-    gold_df = gold_fetcher.fetch(days=days)
-    if gold_df.empty:
-        logger.error("现货黄金数据获取失败")
-        return
-
-    current_price = gold_df["close"].iloc[-1]
-    logger.info(f"现货黄金最新价: {current_price:.2f}")
-
-    # 美元指数 + 实际利率 + 白银 + 通胀预期
-    macro_fetcher = MacroDataFetcher()
-    dxy_df = macro_fetcher.fetch_dxy()
-    rate_df = macro_fetcher.fetch_real_rate()
-    silver_df = macro_fetcher.fetch_silver()
-    breakeven_df = macro_fetcher.fetch_breakeven()
-    if not rate_df.empty:
-        logger.info(f"实际利率最新: {rate_df['value'].iloc[-1]:.2f}%")
-    if not breakeven_df.empty:
-        logger.info(f"通胀预期最新: {breakeven_df['value'].iloc[-1]:.2f}%")
-    if not silver_df.empty:
-        silver_price = silver_df["value"].iloc[-1]
-        logger.info(f"白银最新价: {silver_price:.2f}")
-
-    # 价格预警
-    try:
-        alert_mgr = PriceAlert()
-        alert_mgr.check_all(gold_df=gold_df, dxy_df=dxy_df, silver_price=silver_price if not silver_df.empty else None)
-    except Exception as e:
-        logger.debug(f"价格预警检查异常: {e}")
-
-    # 新闻
-    news_signals: list = []
-    news_raw: list = []
-    if with_news:
-        news_gen = NewsSignalGenerator()
-        news_signals = news_gen.fetch_and_analyze(hours=24)
-        # 获取原始新闻用于详情展示
-        try:
-            nf = NewsFetcher()
-            news_raw = nf.fetch_latest(max_results=6)
-            news_raw = nf.analyze_sentiment(news_raw)
-        except Exception:
-            pass
-        logger.info(f"新闻信号: {len(news_signals)} 个")
-
-    # 2. 信号处理
-    logger.info("[2/4] 信号处理...")
-
-    bundle = SignalBundle()
-
-    # 技术面
-    tech = TechnicalAnalyzer(gold_df)
-    for sig in tech.generate_signals():
-        bundle.add(sig)
-    logger.info(f"技术信号: {bundle.by_dimension('technical').__len__()} 个")
-
-    # 基本面
-    fundamental = FundamentalAnalyzer(gold_df=gold_df, dxy_df=dxy_df, rate_df=rate_df, silver_df=silver_df, breakeven_df=breakeven_df)
-    for sig in fundamental.generate_signals():
-        bundle.add(sig)
-    logger.info(f"基本面信号: {bundle.by_dimension('fundamental').__len__()} 个")
-
-    # 消息面
-    for sig in news_signals:
-        bundle.add(sig)
-    logger.info(f"消息面信号: {bundle.by_dimension('news').__len__()} 个")
-
-    # 情绪面
-    if with_sentiment:
-        try:
-            sentiment_fetcher = SentimentDataFetcher()
-            au_df = sentiment_fetcher.fetch_au_futures(lookback=60)
-            sentiment_analyzer = SentimentAnalyzer(au_df=au_df)
-            for sig in sentiment_analyzer.generate_signals():
-                bundle.add(sig)
-        except Exception as e:
-            logger.warning(f"情绪面数据获取异常，跳过: {e}")
-    logger.info(f"情绪面信号: {bundle.by_dimension('sentiment').__len__()} 个")
-
-    # ETF 资金流
-    try:
-        etf_gen = EtfFlowSignalGenerator()
-        for sig in etf_gen.generate_signals():
-            bundle.add(sig)
-        logger.info(f"ETF资金流信号: {bundle.by_dimension('sentiment').__len__() - sum(1 for s in bundle.signals if s.metadata.get('source') not in ('gold_etf','btc_etf','cross_etf','gold_etf_volume'))} 个 (新增)")
-    except Exception as e:
-        logger.debug(f"ETF资金流信号异常: {e}")
-
-    # DeepSeek 深度新闻分析
-    if deep and news_signals:
-        try:
-            logger.info("[DeepSeek] 深度分析新闻...")
-            llm = LLMClient()
-            news_text = "\n".join(
-                f"- [{s.metadata.get('source', '?')}] {s.description}"
-                for s in news_signals
-            )[:3000]
-            llm_result = llm.analyze_article(
-                text=news_text,
-                rule_sentiment=(
-                    "bullish" if bundle.composite_score > 0.1
-                    else "bearish" if bundle.composite_score < -0.1
-                    else "neutral"
-                ),
-                rule_score=bundle.composite_score,
-            )
-            if llm_result and not llm_result.get("parse_error"):
-                direction = llm_result.get("sentiment", "neutral")
-                conf = llm_result.get("confidence", 0.5)
-                score_impact = conf if direction == "bullish" else -conf
-                bundle.add(Signal(
-                    name="DeepSeek 新闻深度分析",
-                    dimension="news",
-                    direction=SignalDirection.BULLISH if direction == "bullish" else SignalDirection.BEARISH if direction == "bearish" else SignalDirection.NEUTRAL,
-                    strength=SignalStrength.MODERATE if conf > 0.6 else SignalStrength.WEAK,
-                    score=round(score_impact, 2),
-                    description=llm_result.get("reasoning", "")[:150],
-                ))
-                logger.info(f"DeepSeek 分析完成: {direction} (置信度 {conf:.0%})")
-        except Exception as e:
-            logger.warning(f"DeepSeek分析异常: {e}")
-
-    # 2.5. 四维度详细输出
-    print_all_dimensions(
-        gold_df=gold_df, dxy_df=dxy_df, rate_df=rate_df, breakeven_df=breakeven_df,
-        silver_df=silver_df, news_items=news_raw if with_news else [],
-        au_df=au_df if with_sentiment else None, bundle=bundle,
-    )
-
-    # 3. 打分+决策
-    logger.info("[3/4] 打分与决策...")
-
-    engine = ScoringEngine()
-    engine.score(bundle)
-
-    logger.info(f"综合评分: {bundle.composite_score:+.2f} | 置信度: {bundle.confidence:.0%}")
-
-    # Agent辩论
-    bull = BullAgent()
-    bear = BearAgent()
-    pm = PortfolioManager()
-
-    bull_opinion = bull.analyze(bundle)
-    bear_opinion = bear.analyze(bundle)
-    decision = pm.decide(
-        bull_opinion, bear_opinion, bundle,
+    ctx = AnalysisContext(
+        days=days,
+        with_news=with_news,
+        with_sentiment=with_sentiment,
+        deep=deep,
         risk_profile=settings.risk_profile,
     )
+    pipeline = AnalysisPipeline()
+    result = pipeline.run(ctx)
 
-    # Agent辩论 — 详细论据
-    print(f"\n  🐂 {bull.NAME} (信心 {bull_opinion.confidence:.0%})")
-    print(f"     立场: {bull_opinion.stance}  建议仓位: {bull_opinion.suggested_position_pct:.0%}")
-    if bull_opinion.arguments:
-        print(f"     论据:")
-        for arg in bull_opinion.arguments:
-            print(f"       ✓  {arg}")
-    else:
-        print(f"      (无强看涨信号)")
+    if result.gold_df.empty:
+        logger.error("扫描失败: 无法获取金价数据")
+        return
 
-    print(f"\n  🐻 {bear.NAME} (信心 {bear_opinion.confidence:.0%})")
-    print(f"     立场: {bear_opinion.stance}  建议仓位: {bear_opinion.suggested_position_pct:.0%}")
-    if bear_opinion.arguments:
-        print(f"     论据:")
-        for arg in bear_opinion.arguments:
-            print(f"       ✗  {arg}")
-    else:
-        print(f"      (无强看跌信号)")
+    logger.info("扫描完成")
 
-    direction_cn = {"long": "做多", "short": "做空", "neutral": "观望"}
-    print(f"\n  🏛️ {pm.NAME}: {direction_cn.get(decision['direction'], decision['direction'])} "
-          f"| 仓位 {decision['position_pct']:.0%} | {decision['signal_type']}")
 
-    # 风控审查
-    risk_mgr = RiskManager(max_position_pct=settings.max_position_pct)
-    checks = risk_mgr.check(decision)
-    final_decision = risk_mgr.apply_risk_controls(decision, checks)
+def run_workflow(args: argparse.Namespace) -> None:
+    """工作流命令: gold-miner workflow <name> [--list] [--dry-run]."""
+    registry = get_registry()
 
-    if final_decision.get("risk_override"):
-        print(f"\n  ⚠️ 风控干预: {final_decision['risk_override']}")
-    else:
-        print(f"\n  ✅ 风控通过 ({len(checks)}项检查)")
+    # --list: 列出所有工作流
+    if getattr(args, 'workflow_list', False):
+        print("=" * 50)
+        print("可用工作流")
+        print("=" * 50)
+        for wf in registry.get_all():
+            aliases = ", ".join(sorted(wf.aliases)) if wf.aliases else "无"
+            print(f"\n  {wf.name}")
+            print(f"    描述: {wf.description}")
+            print(f"    别名: {aliases}")
+        print()
+        return
 
-    # 3.5 投资军规审查
-    active_dims = [d for d in ["technical", "fundamental", "news", "sentiment"]
-                   if bundle.by_dimension(d)]
-    doctrine_ctx = {
-        "current_exposure": final_decision.get("position_pct", 0) * 0.5,
-        "gold_allocation_pct": final_decision.get("position_pct", 0),
-        "daily_change_pct": (
-            abs(gold_df["close"].iloc[-1] / gold_df["close"].iloc[-2] - 1) * 100
-            if len(gold_df) >= 2 else 0
-        ),
-        "near_data_event": False,
-        "consecutive_stops": 0,
-        "vix": 0,
-        "fear_greed_index": 50,
-        "unrealized_pnl_pct": 0.0,
-        "has_trailing_stop": final_decision.get("position_pct", 0) > 0,
-        "bullish_signal_count": bundle.bullish_count(),
-        "bearish_signal_count": bundle.bearish_count(),
-        "active_dimensions": active_dims,
-        "bull_confidence": decision.get("bull_confidence", 0),
-        "bear_confidence": decision.get("bear_confidence", 0),
-        "stop_loss_set": final_decision.get("position_pct", 0) > 0,
-        "has_decision_record": True,
-    }
-    final_decision = _print_and_apply_doctrine(final_decision, doctrine_ctx)
+    # 需要名称
+    if not args.workflow_name:
+        print("错误: 请提供工作流名称 或 使用 --workflow-list 列出所有工作流")
+        print("用法: gold-miner workflow <name> [--workflow-dry-run]")
+        print("      gold-miner workflow --workflow-list")
+        sys.exit(1)
 
-    # 4. 输出
-    logger.info("[4/4] 生成决策仪表盘...")
+    # 解析工作流
+    try:
+        workflow = registry.resolve(args.workflow_name)
+    except ValueError as e:
+        print(f"错误: {e}")
+        sys.exit(1)
 
-    trade_decision = DashboardFormatter.from_analysis(
-        signal_bundle=bundle,
-        portfolio_decision=final_decision,
-        instrument="现货黄金 (XAU/USD)",
-        current_price=current_price,
+    # 构建上下文
+    ctx = WorkflowContext(
+        args={
+            "days": args.days,
+            "with_news": args.news,
+            "with_sentiment": args.sentiment,
+            "deep": args.deep,
+            "risk_profile": args.risk or settings.risk_profile,
+        },
+        dry_run=getattr(args, 'workflow_dry_run', False),
     )
 
-    print()
-    print(DashboardFormatter.format(trade_decision))
+    # dry-run
+    if ctx.dry_run:
+        print(f"\n[DRY-RUN] 工作流: {workflow.name}")
+        print(f"描述: {workflow.description}")
+        print("\n执行步骤:")
+        for step in workflow.dry_run_steps(ctx):
+            print(f"  {step}")
+        print("\n(dry-run 模式: 未执行实际网络调用)")
+        return
 
-    # 可选: 推送通知
-    notifier = Notifier()
-    if notifier.enabled and final_decision["position_pct"] > 0:
-        notifier.send(f"黄金信号: {trade_decision.signal.upper()} | 仓位{trade_decision.position_pct:.0%}")
+    # 执行工作流
+    print(f"\n执行工作流: {workflow.name}")
+    print(f"{'='*50}")
+    result = workflow.run(ctx)
 
-    # 自动记录预测 (自改进闭环)
-    if settings.enable_auto_tracking:
-        _auto_track_prediction(bundle, final_decision, current_price)
+    for msg in result.messages:
+        print(f"  {msg}")
 
-    # EventStore: 记录预测事件 + 证据快照
-    _record_prediction_events(
-        bundle=bundle,
-        decision=final_decision,
-        current_price=current_price,
-        dxy_df=dxy_df,
-        rate_df=rate_df,
-        silver_df=silver_df,
-        breakeven_df=breakeven_df,
-        source="scan",
-    )
-
+    if result.success:
+        print(f"\n工作流完成: {workflow.name}")
+    else:
+        print(f"\n工作流失败: {workflow.name}")
+        sys.exit(1)
 
 def _record_prediction_events(
     bundle: SignalBundle,
@@ -827,8 +670,8 @@ def run_scenario(args: argparse.Namespace) -> None:
         logger.info(f"情景报告已保存 (id: {report.id})")
 
     # 6. 提示下一步
-    print(f"\n提示: 使用 --save 保存报告, --track 关联预测追踪以跟踪预判准确率")
-    print(f"  gold-miner scenario --text \"...\" --save --track --horizon 24")
+    print("\n提示: 使用 --save 保存报告, --track 关联预测追踪以跟踪预判准确率")
+    print("  gold-miner scenario --text \"...\" --save --track --horizon 24")
 
 
 def _print_scenario_report(report: ScenarioReport) -> None:
@@ -958,7 +801,7 @@ def _print_scenario_report(report: ScenarioReport) -> None:
         if s.rebalancing_frequency:
             print(f"  审视频率: {s.rebalancing_frequency}")
         if s.hedging_suggestions:
-            print(f"  对冲建议:")
+            print("  对冲建议:")
             for h in s.hedging_suggestions:
                 print(f"    - {h}")
         print()
@@ -1109,14 +952,14 @@ def run_doctrine(args: argparse.Namespace) -> None:
         return
 
     # 默认: 显示概览
-    print(f"\n投资军规系统 — 概览")
+    print("\n投资军规系统 — 概览")
     print(f"  军规: {len(ALL_RULES)}条")
     print(f"  策略: {len(ALL_STRATEGIES)}个")
     print(f"  思维模型: {len(ALL_MODELS)}个")
-    print(f"\n使用 gold-miner doctrine --list 查看全部")
-    print(f"使用 gold-miner doctrine --show <id> 查看详情")
-    print(f"使用 gold-miner doctrine --check 运行军规审查")
-    print(f"使用 gold-miner doctrine --toggle <rule_id> 启用/禁用规则")
+    print("\n使用 gold-miner doctrine --list 查看全部")
+    print("使用 gold-miner doctrine --show <id> 查看详情")
+    print("使用 gold-miner doctrine --check 运行军规审查")
+    print("使用 gold-miner doctrine --toggle <rule_id> 启用/禁用规则")
 
 
 def _print_rule_detail(rule) -> None:
@@ -1146,11 +989,11 @@ def _print_strategy_detail(strategy) -> None:
     if strategy.position_sizing:
         print(f"\n  仓位管理: {strategy.position_sizing}")
     if strategy.entry_rules:
-        print(f"  入场规则:")
+        print("  入场规则:")
         for r in strategy.entry_rules:
             print(f"    - {r}")
     if strategy.exit_rules:
-        print(f"  离场规则:")
+        print("  离场规则:")
         for r in strategy.exit_rules:
             print(f"    - {r}")
     if strategy.stop_loss_rule:
@@ -1188,8 +1031,6 @@ def _run_doctrine_check(args: argparse.Namespace) -> None:
     direction = args.direction or random.choice(["long", "short", "neutral"])
     position = args.price or random.uniform(0.05, 0.5) if args.price else random.uniform(0.05, 0.5)
 
-    from gold_miner.decision.agents import BullAgent, BearAgent
-    from gold_miner.signals.base import SignalBundle
 
     decision = {
         "direction": direction,
@@ -1227,7 +1068,7 @@ def _print_and_apply_doctrine(decision: dict, context: dict) -> dict:
     adjusted = checker.apply_doctrine(decision, result)
 
     print(f"\n{'='*60}")
-    print(f"  投资军规审查")
+    print("  投资军规审查")
     print(f"{'='*60}")
     print(f"  决策: 方向={decision.get('direction', '?')} | 仓位={decision.get('position_pct', 0):.0%}")
     print(f"  通过: {result.passed_count}/{len(result.violations)}")
@@ -1248,7 +1089,7 @@ def _print_and_apply_doctrine(decision: dict, context: dict) -> dict:
             print(f"    i  {v.rule.name}: {v.message}")
 
     if result.all_passed:
-        print(f"\n  ✅ 全部军规通过")
+        print("\n  ✅ 全部军规通过")
 
     if adjusted.get("doctrine_override"):
         print(f"\n  ⚡ 军规调整: {adjusted['doctrine_override']}")
@@ -1435,9 +1276,9 @@ def _ingest_and_analyze(input_str: str, is_url: bool = False, deep: bool = False
             print(f"  可信度: {llm_result.get('credibility', 0):.0%}")
             print(f"  时间窗口: {llm_result.get('horizon_days', '?')}天")
             if llm_result.get("is_pumping"):
-                print(f"  ⚠️ 疑似带节奏")
+                print("  ⚠️ 疑似带节奏")
             if llm_result.get("is_institutional_manipulation"):
-                print(f"  ⚠️ 疑似机构操纵")
+                print("  ⚠️ 疑似机构操纵")
             if llm_result.get("key_drivers"):
                 print(f"  核心驱动: {', '.join(llm_result['key_drivers'])}")
             print(f"  推理: {llm_result.get('reasoning', '')[:200]}")
@@ -1493,7 +1334,7 @@ def _ingest_and_analyze(input_str: str, is_url: bool = False, deep: bool = False
         print("\n可交叉验证的关键主张:")
         for i, c in enumerate(analysis.claims[:5], 1):
             print(f"  {i}. [{c['category']}] {c['claim']}")
-        print(f"\n提示: 使用 --deep 自动调用 DeepSeek 深度分析，或手动:")
+        print("\n提示: 使用 --deep 自动调用 DeepSeek 深度分析，或手动:")
         print(f"  gold-miner analyze --update {record.id} --cross-ref '{{...}}'")
     print(f"  gold-miner analyze --predict {record.id} --direction <bullish|bearish> --confidence <0.X>")
 
@@ -1511,7 +1352,7 @@ def _record_article_prediction_events(
     store = EventStore()
 
     # 证据快照: 文章分析上下文
-    from gold_miner.events.models import EvidenceSnapshot, SourceRef
+    from gold_miner.events.models import EvidenceSnapshot
 
     # 来源引用
     refs: list[dict] = []
@@ -1704,10 +1545,13 @@ def main() -> None:
         choices=[
             "scan", "quote", "backtest", "journal", "proxy-install",
             "track", "review", "findings", "analyze", "scenario", "doctrine", "daemon",
-            "verify", "report", "advisor",
+            "verify", "report", "advisor", "doctor", "setup", "workflow",
         ],
         help="命令",
     )
+    parser.add_argument("workflow_name", nargs="?", default=None, help="工作流名称 (workflow 命令)")
+    parser.add_argument("--workflow-list", dest="workflow_list", action="store_true", default=False, help="列出所有工作流 (workflow --list)")
+    parser.add_argument("--workflow-dry-run", dest="workflow_dry_run", action="store_true", default=False, help="dry-run 模式 (workflow --dry-run)")
     parser.add_argument("--days", type=int, default=365, help="回溯天数")
     parser.add_argument("--news", action="store_true", help="启用新闻分析（需配置API key）")
     parser.add_argument("--sentiment", action="store_true", help="启用情绪分析（COT/ETF数据）")
@@ -1743,7 +1587,7 @@ def main() -> None:
     parser.add_argument("--toggle", type=str, default=None, help="启用/禁用规则 (doctrine --toggle <rule_id>)")
     parser.add_argument("--type", type=str, default=None, help="列出类型: rules/strategies/models (doctrine --list --type)")
     parser.add_argument("--dims", type=str, default=None, help="活跃维度 (doctrine --check --dims technical,fundamental)")
-    parser.add_argument("--change", type=float, default=None, help="模拟日波动% (doctrine --check)")
+    parser.add_argument("--change", type=float, default=None, help="模拟日波动百分比 doctrine --check")
     parser.add_argument("--data-event", action="store_true", default=False, help="模拟重大数据前 (doctrine --check)")
     parser.add_argument("--search", type=str, default=None, help="搜索Munger模型库 (doctrine --search <关键词>)")
     parser.add_argument("--discipline", type=str, default=None, help="按学科筛选Munger模型 (doctrine --discipline invest)")
@@ -1759,10 +1603,12 @@ def main() -> None:
     # advisor 命令参数
     parser.add_argument("--position", type=float, default=0.0, help="当前仓位 0~1 (advisor)")
     parser.add_argument("--cost", type=float, default=0.0, help="持仓均价 (advisor)")
-    parser.add_argument("--strategy-pref", type=str, default=None, help="策略偏好 balanced|maximize_profit|cost_recovery|take_profit (advisor)")
-    parser.add_argument("--question", type=str, default=None, help="咨询问题 (advisor ask)")
-    parser.add_argument("--watch-interval", type=int, default=60, help="监控间隔分钟 (advisor watch)")
-    parser.add_argument("--dry-run", action="store_true", default=False, help="测试运行 (advisor watch)")
+    parser.add_argument("--strategy-pref", type=str, default=None, help="策略偏好 balanced|maximize_profit|cost_recovery|take_profit advisor")
+    parser.add_argument("--question", type=str, default=None, help="咨询问题 advisor ask")
+    parser.add_argument("--watch-interval", type=int, default=60, help="监控间隔分钟 advisor watch")
+    parser.add_argument("--dry-run", action="store_true", default=False, help="测试运行 advisor watch")
+    # setup command parameters
+    parser.add_argument("--non-interactive", action="store_true", default=False, help="非交互模式 setup")
     args = parser.parse_args()
 
     setup_logging()
@@ -1773,7 +1619,7 @@ def main() -> None:
     if args.command == "quote":
         fetcher = SpotGoldFetcher()
         quote = fetcher.fetch_realtime_quote()
-        print(f"现货黄金报价:")
+        print("现货黄金报价:")
         for k, v in quote.items():
             print(f"  {k}: {v}")
 
@@ -1783,7 +1629,7 @@ def main() -> None:
             acc_latest = acc_fetcher.fetch_latest()
             if not acc_latest.empty:
                 acc_row = acc_latest.iloc[-1]
-                print(f"\n积存金 (Au99.99 人民币/克):")
+                print("\n积存金 (Au99.99 人民币/克):")
                 print(f"  最新价: {acc_row['close']:.2f}")
                 acc_premium = acc_fetcher.fetch_premium()
                 if acc_premium.get("premium_pct"):
@@ -1800,7 +1646,7 @@ def main() -> None:
     elif args.command == "journal":
         journal = TradeJournal()
         stats = journal.stats()
-        print(f"交易统计:")
+        print("交易统计:")
         for k, v in stats.items():
             print(f"  {k}: {v}")
 
@@ -1869,19 +1715,19 @@ def main() -> None:
         # 网络不可达时用已知重要新闻兜底
         if not items:
             from datetime import datetime as dt
+
             from gold_miner.data.news import NewsItem
-            today_str = dt.now().strftime("%m/%d")
             items = [
-                NewsItem(title=f"美国非农就业新增17.2万，远超预期", source="Trading Economics",
+                NewsItem(title="美国非农就业新增17.2万，远超预期", source="Trading Economics",
                          published_at=dt.now(), sentiment=-0.5, is_breaking=True,
-                         summary=f"美国5月非农就业新增17.2万人，远超市场预期的~12万人，失业率维持4.3%。强劲的就业数据削弱了美联储降息预期，导致黄金承压下跌。"),
-                NewsItem(title=f"美伊和谈停滞，中东局势不确定性上升", source="CNA",
+                         summary="美国5月非农就业新增17.2万人，远超市场预期的~12万人，失业率维持4.3%。强劲的就业数据削弱了美联储降息预期，导致黄金承压下跌。"),
+                NewsItem(title="美伊和谈停滞，中东局势不确定性上升", source="CNA",
                          published_at=dt.now(), sentiment=0.2, is_breaking=True,
                          summary="美国与伊朗的和平谈判陷入僵局，市场避险情绪有所回升，但被强劲的非农数据盖过。"),
-                NewsItem(title=f"黄金单日暴跌2.76%，贵金属全线重挫", source="Reuters",
+                NewsItem(title="黄金单日暴跌2.76%，贵金属全线重挫", source="Reuters",
                          published_at=dt.now(), sentiment=-0.4, is_breaking=True,
                          summary="现货黄金单日大跌2.76%至每克947.50元，白银跌8.8%，铂金跌6.9%，钯金跌7.7%。贵金属全线遭遇系统性抛售。"),
-                NewsItem(title=f"全球央行Q1购金244吨，结构性支撑金价", source="世界黄金协会",
+                NewsItem(title="全球央行Q1购金244吨，结构性支撑金价", source="世界黄金协会",
                          published_at=dt.now(), sentiment=0.5, is_breaking=False,
                          summary="全球央行Q1净购金244吨，同比增长3%。中国、波兰等国央行持续增持，为金价提供结构性支撑。"),
             ]
@@ -1921,7 +1767,6 @@ def main() -> None:
 
     elif args.command == "advisor":
         from gold_miner.advisor.orchestrator import Advisor
-        from gold_miner.advisor.core import UserProfile
 
         advisor = Advisor()
         # advisor 默认运行 daily，除非指定了其他子命令
@@ -1950,6 +1795,15 @@ def main() -> None:
                 strategy_preference=args.strategy_pref,
             )
             print(report.to_markdown())
+
+    elif args.command == "doctor":
+        sys.exit(run_doctor())
+
+    elif args.command == "setup":
+        sys.exit(run_setup(non_interactive=args.non_interactive))
+
+    elif args.command == "workflow":
+        run_workflow(args)
 
 
 if __name__ == "__main__":
