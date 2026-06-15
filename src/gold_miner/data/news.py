@@ -10,6 +10,7 @@ from bs4 import BeautifulSoup
 from loguru import logger
 
 from gold_miner.config import settings
+from gold_miner.data.source_tiers import get_source_tier
 from gold_miner.proxy import get_proxied_client
 
 
@@ -99,6 +100,26 @@ class AnySearchFetcher:
         if not text:
             return items
 
+        # 检测配额耗尽或 API 错误
+        quota_exhausted_keywords = [
+            "daily_free_quota_exhausted",
+            "free quota is exhausted",
+            "quota exhausted",
+            "quota exceeded",
+            "limit reached",
+            "too many requests",
+            "rate limit",
+            "api error",
+            "service unavailable",
+            "payment required",
+            "402",
+            "429",
+        ]
+        lower_text = text.lower()
+        if any(kw in lower_text for kw in quota_exhausted_keywords):
+            logger.warning(f"anysearch 配额耗尽或 API 错误: {text[:200]}")
+            return items
+
         # anysearch 返回 Markdown 格式或 JSON 格式
         # 尝试解析 JSON
         try:
@@ -131,13 +152,17 @@ class AnySearchFetcher:
         except ValueError:
             published_at = datetime.now()
 
-        return NewsItem(
+        source = entry.get("source", entry.get("domain", "anysearch"))
+        url = entry.get("url", entry.get("link", ""))
+        item = NewsItem(
             title=entry.get("title", entry.get("name", "")),
-            source=entry.get("source", entry.get("domain", "anysearch")),
+            source=source,
             published_at=published_at,
-            url=entry.get("url", entry.get("link", "")),
+            url=url,
             summary=entry.get("summary", entry.get("snippet", entry.get("description", ""))),
         )
+        item.metadata["source_tier"] = get_source_tier(source, url)
+        return item
 
 
 class SearchEngineFetcher:
@@ -176,32 +201,6 @@ class SearchEngineFetcher:
             logger.warning(f"Bing抓取失败: {e}")
             return []
 
-    def _parse_duckduckgo_html(self, html: str, max_results: int) -> list[NewsItem]:
-        """解析 DuckDuckGo HTML 结果."""
-        soup = BeautifulSoup(html, "html.parser")
-        items: list[NewsItem] = []
-
-        # DuckDuckGo HTML 版结果在 .result 类中
-        for result in soup.find_all("div", class_="result")[:max_results]:
-            title_tag = result.find("a", class_="result__a")
-            snippet_tag = result.find("a", class_="result__snippet")
-            if not title_tag:
-                continue
-
-            title = title_tag.get_text(strip=True)
-            url = title_tag.get("href", "")
-            summary = snippet_tag.get_text(strip=True) if snippet_tag else ""
-
-            items.append(NewsItem(
-                title=title,
-                source="DuckDuckGo",
-                published_at=datetime.now(),
-                url=url,
-                summary=summary,
-            ))
-
-        return items
-
     def _parse_bing_html(self, html: str, max_results: int) -> list[NewsItem]:
         """解析 Bing HTML 结果."""
         soup = BeautifulSoup(html, "html.parser")
@@ -220,15 +219,144 @@ class SearchEngineFetcher:
             summary_tag = result.find("p")
             summary = summary_tag.get_text(strip=True) if summary_tag else ""
 
-            items.append(NewsItem(
+            item = NewsItem(
                 title=title,
                 source="Bing",
                 published_at=datetime.now(),
                 url=url,
                 summary=summary,
-            ))
+            )
+            item.metadata["source_tier"] = get_source_tier("Bing", url)
+            items.append(item)
 
         return items
+
+    def _parse_duckduckgo_html(self, html: str, max_results: int) -> list[NewsItem]:
+        """解析 DuckDuckGo HTML 结果."""
+        soup = BeautifulSoup(html, "html.parser")
+        items: list[NewsItem] = []
+
+        # DuckDuckGo HTML 版结果在 .result 类中
+        for result in soup.find_all("div", class_="result")[:max_results]:
+            title_tag = result.find("a", class_="result__a")
+            snippet_tag = result.find("a", class_="result__snippet")
+            if not title_tag:
+                continue
+
+            title = title_tag.get_text(strip=True)
+            url = title_tag.get("href", "")
+            summary = snippet_tag.get_text(strip=True) if snippet_tag else ""
+
+            item = NewsItem(
+                title=title,
+                source="DuckDuckGo",
+                published_at=datetime.now(),
+                url=url,
+                summary=summary,
+            )
+            item.metadata["source_tier"] = get_source_tier("DuckDuckGo", url)
+            items.append(item)
+
+        return items
+
+    def fetch_from_bing_news(self, query: str, max_results: int = 10) -> list[NewsItem]:
+        """从 Bing News 抓取新闻结果（区别于通用 Bing 搜索）."""
+        url = f"https://www.bing.com/news/search?q={query.replace(' ', '+')}"
+        try:
+            with get_proxied_client(timeout=30, follow_redirects=True) as client:
+                resp = client.get(url, headers=self._HEADERS)
+            resp.raise_for_status()
+            return self._parse_bing_news_html(resp.text, max_results)
+        except Exception as e:
+            logger.warning(f"Bing News抓取失败: {e}")
+            return []
+
+    def _parse_bing_news_html(self, html: str, max_results: int) -> list[NewsItem]:
+        """解析 Bing News HTML 结果."""
+        soup = BeautifulSoup(html, "html.parser")
+        items: list[NewsItem] = []
+
+        # Bing News 结果卡片结构
+        for card in soup.find_all("div", class_="news-card")[:max_results]:
+            a_tag = card.find("a", class_="title")
+            if not a_tag:
+                a_tag = card.find("a")
+            if not a_tag:
+                continue
+
+            title = a_tag.get_text(strip=True)
+            url = a_tag.get("href", "")
+
+            # 来源
+            source_tag = card.find("div", class_="source")
+            source = source_tag.get_text(strip=True) if source_tag else "Bing News"
+
+            # 摘要
+            snippet_tag = card.find("div", class_="snippet")
+            summary = snippet_tag.get_text(strip=True) if snippet_tag else ""
+
+            item = NewsItem(
+                title=title,
+                source=source,
+                published_at=datetime.now(),
+                url=url,
+                summary=summary,
+            )
+            item.metadata["source_tier"] = get_source_tier(source, url)
+            items.append(item)
+
+        # fallback: 通用新闻链接解析
+        if not items:
+            for a in soup.find_all("a", href=True)[:max_results * 2]:
+                href = a.get("href", "")
+                if not href.startswith("http"):
+                    continue
+                title = a.get_text(strip=True)
+                if not title or len(title) < 10:
+                    continue
+                item = NewsItem(
+                    title=title,
+                    source="Bing News",
+                    published_at=datetime.now(),
+                    url=href,
+                    summary="",
+                )
+                item.metadata["source_tier"] = get_source_tier("Bing News", href)
+                items.append(item)
+                if len(items) >= max_results:
+                    break
+
+        return items
+
+    def fetch_multi(self, queries: list[str], max_results: int = 10) -> list[NewsItem]:
+        """对多个查询同时跑 DuckDuckGo 和 Bing，去重后合并."""
+        all_items: list[NewsItem] = []
+        seen_urls: set[str] = set()
+
+        for q in queries:
+            # DuckDuckGo
+            try:
+                ddg_items = self.fetch_from_duckduckgo(q, max_results=max_results)
+                for item in ddg_items:
+                    url_key = item.url or f"{item.title}|{item.source}"
+                    if url_key not in seen_urls:
+                        seen_urls.add(url_key)
+                        all_items.append(item)
+            except Exception as e:
+                logger.debug(f"fetch_multi DDG 失败 [{q}]: {e}")
+
+            # Bing News
+            try:
+                bing_items = self.fetch_from_bing_news(q, max_results=max_results)
+                for item in bing_items:
+                    url_key = item.url or f"{item.title}|{item.source}"
+                    if url_key not in seen_urls:
+                        seen_urls.add(url_key)
+                        all_items.append(item)
+            except Exception as e:
+                logger.debug(f"fetch_multi Bing News 失败 [{q}]: {e}")
+
+        return all_items[:max_results]
 
 
 class NewsFetcher:
@@ -332,7 +460,7 @@ class NewsFetcher:
         # 2. anysearch + NFP专项（每月第一个周五自动补充）
         if is_nfp_day:
             nfp_items = self.anysearch.search(
-                query="nonfarm payrolls May results 2026",
+                query="nonfarm payrolls results",
                 max_results=3, freshness="day", content_types=["news"],
             )
             if nfp_items:
@@ -352,13 +480,29 @@ class NewsFetcher:
                 logger.info(f"anysearch 返回 {len(items)} 条新闻")
                 return items
 
-        # 3. DuckDuckGo
+        # 3. 搜索引擎回退 — 多查询并行（不硬编码具体月份/年份）
+        target_queries = [
+            "gold price XAU USD today",
+            "FOMC Fed gold",
+            "Iran US nuclear deal gold",
+            "central bank gold demand",
+            "黄金价格 今日 走势",
+            "美联储 利率决议 黄金",
+            "伊朗 和谈 黄金",
+            "央行 购金 黄金",
+        ]
+        items = self.search_engine.fetch_multi(target_queries, max_results=max_results)
+        if items:
+            logger.info(f"搜索引擎多查询返回 {len(items)} 条新闻")
+            return items
+
+        # 4. 单查询兜底
         items = self.search_engine.fetch_from_duckduckgo("gold price news", max_results)
         if items:
             logger.info(f"DuckDuckGo 返回 {len(items)} 条新闻")
             return items
 
-        # 4. Bing 兜底
+        # 5. Bing 兜底
         items = self.search_engine.fetch_from_bing("gold price news", max_results)
         if items:
             logger.info(f"Bing 返回 {len(items)} 条新闻")
@@ -403,6 +547,10 @@ class NewsFetcher:
                     published_at=published_at,
                     url=article.get("url", ""),
                     summary=article.get("description", ""),
+                )
+                item.metadata["source_tier"] = get_source_tier(
+                    article.get("source", {}).get("name", "Unknown"),
+                    article.get("url", ""),
                 )
                 items.append(item)
 

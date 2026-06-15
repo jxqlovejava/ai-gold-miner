@@ -11,16 +11,16 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
-from typing import Any
+from enum import StrEnum
 
 from loguru import logger
 
 from gold_miner.data.news import NewsItem
+from gold_miner.data.source_tiers import _domain_matches, get_source_tier
 from gold_miner.proxy import get_proxied_client
 
 
-class VerificationStatus(str, Enum):
+class VerificationStatus(StrEnum):
     CONFIRMED = "confirmed"
     UNVERIFIED = "unverified"
     DISPUTED = "disputed"
@@ -56,7 +56,7 @@ class FactChecker:
         "gold.org", "imf.org", "worldbank.org", "bis.org",
         # 央行
         "pbc.gov.cn", "ecb.europa.eu", "boj.or.jp", "bankofengland.co.uk",
-        "bis.org", "centralbank.ie", "nb.gov.pl", "tcmb.gov.tr",
+        "centralbank.ie", "nb.gov.pl", "tcmb.gov.tr",
         # 交易所
         "nasdaq.com", "nyse.com", "londonstockexchange.com",
         "sse.com.cn", "szse.cn",
@@ -78,6 +78,18 @@ class FactChecker:
         "death", "去世", "assassination", "刺杀",
     ]
 
+    # 冲突检测关键词对 — 仅限明确的事件性矛盾，避免把同篇文章里的多空讨论判为冲突
+    CONFLICT_PAIRS: list[tuple[str, str]] = [
+        ("talks in muscat", "signing in geneva"),
+        ("rate hike", "rate cut"),
+        ("加息", "降息"),
+        ("breakthrough", "stalled"),
+        ("agreement reached", "talks collapsed"),
+        ("deal signed", "deal rejected"),
+        ("war", "peace deal signed"),
+        ("军事打击", "取消军事打击"),
+    ]
+
     def __init__(self, min_cross_sources: int = 2) -> None:
         self.min_cross_sources = min_cross_sources
 
@@ -87,6 +99,11 @@ class FactChecker:
         Returns:
             FactCheckResult: 核查结果，包含状态、交叉源列表、置信度
         """
+        # 确定 source_tier
+        source_tier = item.metadata.get("source_tier")
+        if not source_tier:
+            source_tier = get_source_tier(item.source, item.url)
+
         # 1. 判断是否需要核查
         if not self._needs_verification(item):
             return FactCheckResult(
@@ -107,13 +124,34 @@ class FactChecker:
                 check_method="official_source",
             )
 
-        # 3. 多源交叉验证（搜索引擎搜索同一事件）
+        # 3. 专项验证
+        if "fomc" in item.title.lower() or "fed" in item.title.lower():
+            fomc_result = self._verify_fomc_meeting(item)
+            if fomc_result:
+                return fomc_result
+
+        if "au99.99" in item.title.lower() or "上金所" in item.title:
+            sge_result = self._verify_sge_gold_price(item)
+            if sge_result:
+                return sge_result
+
+        # 4. 多源交叉验证（搜索引擎搜索同一事件）
         cross_sources = self._cross_reference(item)
 
-        # 4. 时间线合理性
+        # 5. 冲突检测
+        if cross_sources and self._detect_conflict(item, cross_sources):
+            return FactCheckResult(
+                news_item=item,
+                status=VerificationStatus.DISPUTED,
+                cross_sources=cross_sources,
+                confidence=0.3,
+                check_method="conflict_detected",
+            )
+
+        # 6. 时间线合理性
         timeline_ok = self._check_timeline(item)
 
-        # 5. 综合判定
+        # 7. 综合判定
         if len(cross_sources) >= self.min_cross_sources:
             status = VerificationStatus.CONFIRMED
             confidence = min(0.5 + len(cross_sources) * 0.15, 0.9)
@@ -162,29 +200,41 @@ class FactChecker:
 
     def _check_official_source(self, item: NewsItem) -> bool:
         """检查新闻是否来自官方/权威信息源."""
-        url_lower = item.url.lower()
-        return any(domain in url_lower for domain in self.OFFICIAL_DOMAINS)
+        domain = item.url.lower().split("://")[-1].split("/")[0]
+        if domain.startswith("www."):
+            domain = domain[4:]
+        return any(_domain_matches(domain, d) for d in self.OFFICIAL_DOMAINS)
 
     def _cross_reference(self, item: NewsItem, max_results: int = 8) -> list[str]:
         """多源交叉验证 — 搜索引擎搜索同一事件关键词.
 
         提取核心实体词，搜索后统计独立报道源数量。
+        同时使用 DuckDuckGo 和 Bing 搜索，合并去重。
         """
         query = self._extract_query(item)
         if not query:
             return []
 
-        sources: list[str] = []
+        all_sources: list[str] = []
+
+        # DuckDuckGo
         try:
-            # 使用 DuckDuckGo 搜索
-            sources = self._search_duckduckgo(query, max_results)
+            ddg_sources = self._search_duckduckgo(query, max_results)
+            all_sources.extend(ddg_sources)
         except Exception as e:
-            logger.debug(f"交叉验证搜索失败: {e}")
+            logger.debug(f"交叉验证 DDG 搜索失败: {e}")
+
+        # Bing
+        try:
+            bing_sources = self._search_bing(query, max_results)
+            all_sources.extend(bing_sources)
+        except Exception as e:
+            logger.debug(f"交叉验证 Bing 搜索失败: {e}")
 
         # 去重: 同域名的只算一个源
         unique_domains: set[str] = set()
         unique_sources: list[str] = []
-        for src in sources:
+        for src in all_sources:
             domain = self._extract_domain(src)
             if domain and domain not in unique_domains:
                 unique_domains.add(domain)
@@ -196,6 +246,126 @@ class FactChecker:
                     if self._extract_domain(s) != original_domain]
 
         return filtered[:max_results]
+
+    def _detect_conflict(self, item: NewsItem, cross_sources_texts: list[str]) -> bool:
+        """检测交叉源中是否存在与新闻核心主张明显矛盾的内容.
+
+        通过关键词对检测矛盾表述（如"加息"vs"降息"）。
+        """
+        item_text = f"{item.title} {item.summary}".lower()
+        for pair_a, pair_b in self.CONFLICT_PAIRS:
+            # 如果原新闻包含 pair_a，而交叉源包含 pair_b
+            if pair_a in item_text:
+                for src_text in cross_sources_texts:
+                    if pair_b in src_text.lower():
+                        logger.debug(f"冲突检测: '{pair_a}' vs '{pair_b}' in {item.title[:40]}")
+                        return True
+            # 反之亦然
+            if pair_b in item_text:
+                for src_text in cross_sources_texts:
+                    if pair_a in src_text.lower():
+                        logger.debug(f"冲突检测: '{pair_b}' vs '{pair_a}' in {item.title[:40]}")
+                        return True
+        return False
+
+    def _verify_fomc_meeting(self, item: NewsItem) -> FactCheckResult | None:
+        """验证 FOMC 会议日期是否匹配官方日历.
+
+        从联邦储备官网获取 FOMC 日历，解析出所有会议日期，
+        检查新闻声称的日期是否落在某个官方会议窗口内（±1 天容差）。
+        """
+        try:
+            with get_proxied_client(timeout=20, follow_redirects=True) as client:
+                resp = client.get(
+                    "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm",
+                    headers={
+                        "User-Agent": (
+                            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+                        ),
+                    },
+                )
+                resp.raise_for_status()
+                html = resp.text
+
+            import re as _re
+            from datetime import datetime as _dt
+
+            # 从标题中提取声称的日期：如 "June 16-17, 2026" 或 "June 17, 2026"
+            claimed_dates: list[_dt] = []
+            month_map = {
+                "january": 1, "february": 2, "march": 3, "april": 4,
+                "may": 5, "june": 6, "july": 7, "august": 8,
+                "september": 9, "october": 10, "november": 11, "december": 12,
+            }
+            for match in _re.finditer(
+                r'(\w+)\s+(\d{1,2})(?:\s*-\s*(\d{1,2}))?,?\s+(\d{4})',
+                item.title,
+                _re.I,
+            ):
+                month = month_map.get(match.group(1).lower())
+                start_day = int(match.group(2))
+                year = int(match.group(4))
+                if month and year:
+                    claimed_dates.append(_dt(year, month, start_day))
+
+            if not claimed_dates:
+                return None
+
+            # 解析官方日历中所有会议日期
+            official_dates: list[_dt] = []
+            for match in _re.finditer(
+                r'(\w+)\s+(\d{1,2})(?:\s*-\s*(\d{1,2}))?,?\s+(\d{4})',
+                html,
+                _re.I,
+            ):
+                month = month_map.get(match.group(1).lower())
+                start_day = int(match.group(2))
+                year = int(match.group(4))
+                if month and year and year >= _dt.now().year:
+                    official_dates.append(_dt(year, month, start_day))
+
+            # 检查是否有声称日期落在某个官方日期 ±1 天内
+            for claimed in claimed_dates:
+                for official in official_dates:
+                    if abs((claimed - official).days) <= 1:
+                        return FactCheckResult(
+                            news_item=item,
+                            status=VerificationStatus.CONFIRMED,
+                            confidence=0.85,
+                            check_method="official_fomc_calendar",
+                        )
+
+            # 月份出现但日期不匹配：仍算部分验证
+            html_lower = html.lower()
+            for claimed in claimed_dates:
+                month_year = f"{claimed.strftime('%B').lower()} {claimed.year}"
+                if month_year in html_lower:
+                    return FactCheckResult(
+                        news_item=item,
+                        status=VerificationStatus.UNVERIFIED,
+                        confidence=0.5,
+                        check_method="fomc_month_matched_date_mismatch",
+                    )
+        except Exception as e:
+            logger.debug(f"FOMC 日历验证失败: {e}")
+
+        return None
+
+    def _verify_sge_gold_price(self, item: NewsItem) -> FactCheckResult | None:
+        """验证上金所 Au99.99 价格数据.
+
+        目前为 stub：如果 URL 包含 sge.com.cn 则视为可信，否则返回 None。
+        未来可扩展为抓取 SGE 实时行情页面。
+        """
+        if "sge.com.cn" in item.url.lower():
+            return FactCheckResult(
+                news_item=item,
+                status=VerificationStatus.CONFIRMED,
+                confidence=0.85,
+                check_method="sge_official_url",
+            )
+        return None
 
     def _search_duckduckgo(self, query: str, max_results: int) -> list[str]:
         """通过 DuckDuckGo 搜索获取结果源列表."""
@@ -215,7 +385,6 @@ class FactChecker:
                 html = resp.text
 
             # 简单HTML解析提取链接
-            import re
             links = re.findall(r'href="(https?://[^"]+)"', html)
             for link in links[:max_results * 2]:
                 if any(domain in link for domain in [
@@ -225,8 +394,37 @@ class FactChecker:
                 sources.append(link)
                 if len(sources) >= max_results:
                     break
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"交叉验证搜索失败: {e}")
+
+        return sources
+
+    def _search_bing(self, query: str, max_results: int) -> list[str]:
+        """通过 Bing 搜索获取结果源列表."""
+        url = f"https://www.bing.com/search?q={query.replace(' ', '+')}"
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+            ),
+        }
+
+        sources: list[str] = []
+        try:
+            with get_proxied_client(timeout=20, follow_redirects=True) as client:
+                resp = client.get(url, headers=headers)
+                resp.raise_for_status()
+                html = resp.text
+
+            links = re.findall(r'href="(https?://[^"]+)"', html)
+            for link in links[:max_results * 2]:
+                if "bing.com" in link or "microsoft.com" in link:
+                    continue
+                sources.append(link)
+                if len(sources) >= max_results:
+                    break
+        except Exception as e:
+            logger.debug(f"交叉验证搜索失败: {e}")
 
         return sources
 
@@ -294,12 +492,7 @@ class FactChecker:
         now = datetime.now()
         age_days = (now - item.published_at).days
 
-        if age_days < 0:
-            return False  # 未来日期
-        if item.is_breaking and age_days > 7:
-            return False  # 旧闻标为突发
-
-        return True
+        return age_days >= 0 and not (item.is_breaking and age_days > 7)
 
     @staticmethod
     def _extract_domain(url: str) -> str:
@@ -321,17 +514,20 @@ def apply_fact_checks(
 ) -> list[NewsItem]:
     """将核查结果应用到 NewsItem 的 metadata 中.
 
-    修改 items 的 metadata 字段，增加 verification_status 和 confidence。
+    修改 items 的 metadata 字段，增加 verification_status、confidence、source_tier。
+    通过 items 与 results 的顺序一一对应，避免标题重复导致覆盖。
     """
-    result_map = {r.news_item.title: r for r in results}
-
-    for item in items:
-        result = result_map.get(item.title)
-        if result:
-            item.metadata["verification_status"] = result.status.value
-            item.metadata["verification_confidence"] = result.confidence
-            item.metadata["verification_method"] = result.check_method
-            item.metadata["cross_sources"] = result.cross_sources
+    for idx, item in enumerate(items):
+        if idx >= len(results):
+            break
+        result = results[idx]
+        item.metadata["verification_status"] = result.status.value
+        item.metadata["verification_confidence"] = result.confidence
+        item.metadata["verification_method"] = result.check_method
+        item.metadata["cross_sources"] = result.cross_sources
+        # 补充 source_tier（如果 news.py 没设置）
+        if not item.metadata.get("source_tier"):
+            item.metadata["source_tier"] = get_source_tier(item.source, item.url)
 
     return items
 
@@ -342,8 +538,8 @@ def filter_unverified_news(
 ) -> list[NewsItem]:
     """过滤掉可信度过低的新闻.
 
-    保留: confirmed 或 confidence >= min_confidence 的新闻
-    丢弃: false/disputed 且 confidence < min_confidence
+    丢弃: false 或 disputed 且 confidence < min_confidence
+    保留: 其余（confidence 由 NewsSignalGenerator 在打分阶段使用）
     """
     filtered: list[NewsItem] = []
     for item in items:
@@ -354,10 +550,23 @@ def filter_unverified_news(
             continue
         if status == VerificationStatus.DISPUTED.value and confidence < 0.3:
             continue
-        if confidence < min_confidence and status != VerificationStatus.CONFIRMED.value:
-            # 低置信度但未确认的新闻降级保留
-            pass
 
         filtered.append(item)
 
     return filtered
+
+
+def format_verification_tag(item: NewsItem) -> str:
+    """根据新闻元数据返回格式化验证标签.
+
+    Returns:
+        例如: [verified: T0], [verified: T2], [unverified], [disputed]
+    """
+    v_status = item.metadata.get("verification_status", "unverified")
+    tier = item.metadata.get("source_tier", "unknown")
+
+    if v_status == "disputed":
+        return "[disputed]"
+    if v_status == "confirmed":
+        return f"[verified: {tier}]"
+    return "[unverified]"

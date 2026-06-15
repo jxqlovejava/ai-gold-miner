@@ -56,7 +56,7 @@ def print_technical(gold_df: pd.DataFrame, bundle: SignalBundle) -> None:
             e = "+" if sig.score > 0 else "-"
             print(f"    [{e}] {sig.name}: {sig.score:+.2f}  {sig.description[:40]}")
     else:
-        print(f"  信号: 无 (技术指标未触发极端值)")
+        print("  信号: 无 (技术指标未触发极端值)")
 
 
 def print_fundamental(
@@ -112,11 +112,19 @@ def print_news(news_items: list, bundle: SignalBundle) -> None:
         print(f"  信号 ({len(sigs)}个, 均分 {avg:+.2f}):")
         for sig in sigs:
             e = "+" if sig.score > 0 else "-" if sig.score < 0 else "o"
-            print(f"    [{e}] {sig.name}: {sig.score:+.2f}")
+            # 提取验证标签（优先用 metadata，不用 name 子串判断）
+            v_tag = ""
+            if sig.metadata.get("verification_status") == "disputed":
+                v_tag = "[disputed]"
+            elif sig.metadata.get("source_tier"):
+                v_tag = f"[verified: {sig.metadata['source_tier']}]"
+            elif sig.metadata.get("aggregate_tier"):
+                v_tag = sig.metadata["aggregate_tier"]
+            print(f"    [{e}] {sig.name}{v_tag}: {sig.score:+.2f}")
             if sig.description:
                 print(f"        {sig.description[:50]}")
     else:
-        print(f"  信号: 无 (新闻情感未达阈值)")
+        print("  信号: 无 (新闻情感未达阈值)")
 
     if news_items:
         print(f"  {'-'*56}")
@@ -124,7 +132,9 @@ def print_news(news_items: list, bundle: SignalBundle) -> None:
         for item in news_items[:6]:
             s = item.sentiment
             e = "+" if s > 0.1 else "-" if s < -0.1 else "o"
-            print(f"    [{e}] [{item.source[:12]}] {item.title[:50]}")
+            tier = item.metadata.get("source_tier", "")
+            tier_tag = f"[{tier}]" if tier else ""
+            print(f"    [{e}] [{item.source[:12]}]{tier_tag} {item.title[:50]}")
 
 
 def print_sentiment(au_df: pd.DataFrame | None, bundle: SignalBundle) -> None:
@@ -143,7 +153,7 @@ def print_sentiment(au_df: pd.DataFrame | None, bundle: SignalBundle) -> None:
         vol_label = "放量" if vol_ratio > 1.2 else "缩量" if vol_ratio < 0.8 else "正常"
         print(f"  AU期货持仓: {oi:.0f}手 ({oi_dir} {oi_5d:+.0f})  成交量: {vol:.0f}手 ({vol_label})")
     else:
-        print(f"  数据: 暂不可用")
+        print("  数据: 暂不可用")
 
     sigs = bundle.by_dimension("sentiment")
     print(f"  {'-'*56}")
@@ -154,7 +164,7 @@ def print_sentiment(au_df: pd.DataFrame | None, bundle: SignalBundle) -> None:
             e = "+" if sig.score > 0 else "-" if sig.score < 0 else "o"
             print(f"    [{e}] {sig.name}: {sig.score:+.2f}  {sig.description[:40]}")
     else:
-        print(f"  信号: 无")
+        print("  信号: 无")
 
 
 def print_all_dimensions(
