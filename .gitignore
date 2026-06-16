@@ -21,6 +21,7 @@ __pycache__/
 
 # Private data directory (contains real personal data)
 data/private/
+data/private/*
 
 # JSONL data files (personal predictions, events, scenarios)
 data/*.jsonl

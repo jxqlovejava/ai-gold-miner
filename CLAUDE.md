@@ -2,9 +2,12 @@
 
 ## 投资者画像
 
-> 私密画像数据存放于 `data/private/investor_profile.md`。
-> 每次涉及金价分析、交易建议、持仓决策时，必须先读取该文件并将完整画像纳入上下文。
-> 若该文件不存在，使用 `data/investor_profile.example.md` 作为占位画像，并提示用户填充真实数据。
+> 私密画像数据分两份文件维护，避免数字重复导致不一致：
+> - **定性画像**（风险偏好、交易风格、信源偏好、笔记）存于 `data/private/investor_profile.md`。
+> - **定量持仓**（持仓量、成本均价、止损价、额度）存于 `data/private/portfolio.yaml`，作为唯一数字真相源。
+>
+> 每次涉及金价分析、交易建议、持仓决策时，先读取 `data/private/investor_profile.md`，再读取 `data/private/portfolio.yaml` 获取当前持仓数字。
+> 若文件不存在，分别使用 `data/investor_profile.example.md` 和 `data/portfolio.example.yaml` 作为占位，并提示用户填充真实数据。
 
 ### 公开约束（不依赖私密文件）
 
@@ -176,12 +179,13 @@
 ## 使用方式
 
 当用户询问金价分析、交易建议、持仓决策时：
-1. 读取 `data/private/investor_profile.md` 获取完整投资者画像。
-2. 实时获取最新市场数据。
-3. 用军规逐条审查建议动作。
-4. 用 2-3 个 Munger 模型解释决策逻辑和认知陷阱。
-5. 结合投资者画像给出具体可执行指令（买/卖/持/加减仓/价位）。
-6. 标注置信度。
+1. 读取 `data/private/investor_profile.md` 获取定性画像。
+2. 读取 `data/private/portfolio.yaml` 获取持仓量、成本、止损等数字。
+3. 实时获取最新市场数据。
+4. 用军规逐条审查建议动作。
+5. 用 2-3 个 Munger 模型解释决策逻辑和认知陷阱。
+6. 结合投资者画像给出具体可执行指令（买/卖/持/加减仓/价位）。
+7. 标注置信度。
 
 **禁止**：脱离画像约束的建议、没有军规审查的建议、忽略信源质量的分析。
 

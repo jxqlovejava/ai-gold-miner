@@ -74,7 +74,7 @@ python -m gold_miner.cli scan --days 30 --news --sentiment --deep
 3. 投资者画像匹配
 4. 事实 vs 解释 + 置信度
 
-军规与 Munger 模型清单见 [CLAUDE.md](CLAUDE.md)；投资者画像读取自 `data/private/investor_profile.md`。
+军规与 Munger 模型清单见 [CLAUDE.md](CLAUDE.md)；投资者画像读取自 `data/private/investor_profile.md`（定性）和 `data/private/portfolio.yaml`（持仓数字）。
 
 ---
 
@@ -116,7 +116,7 @@ python -m gold_miner.cli scan --days 30 --news --sentiment --deep
 ## 快速检查清单
 
 - [ ] 是否运行了 `gold-miner scan`？
-- [ ] 是否已读取 `data/private/investor_profile.md`？
+- [ ] 是否已读取 `data/private/investor_profile.md` 和 `data/private/portfolio.yaml`？
 - [ ] Bull/Bear/PortfolioManager 是否完整列出？
 - [ ] 8 维信号是否逐项说明？
 - [ ] 是否有 API 失败未披露？

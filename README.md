@@ -350,7 +350,7 @@ polymarket_min_volume=500
 | `data/private/personal_rules.md` | **个人自定义规则**：你自己的投资纪律、偏好、特殊约束 | 随时 |
 | `data/private/trade_log.md` | **交易实战经验**：每笔买卖记录、决策依据、复盘 | 每次交易后 |
 | `data/private/portfolio.yaml` | **持仓配置快照**：当前仓位、成本、目标、上限 | 仓位变化后 |
-| `data/private/investor_profile.md` | **投资者画像**：风险偏好、资金约束、交易风格 | 画像变更时 |
+| `data/private/investor_profile.md` | **投资者画像（定性）**：风险偏好、交易风格、信源偏好、笔记；**持仓数字以 portfolio.yaml 为准** | 画像变更时 |
 | `.learnings/` | **错误/经验沉淀**：每次纠正后的学习记录 | 出现值得记录的经验时 |
 
 > **首次使用**：复制 `data/private/*.example.*` 模板到 `data/private/` 并填入实际数据。

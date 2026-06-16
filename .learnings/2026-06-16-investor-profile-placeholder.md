@@ -23,12 +23,19 @@ Trigger: 用户发现 `CLAUDE.md` 与 `AGENTS.md` 标题不一致、内容大量
    - 成本价、持仓克数、止损价位等个人数据可能从 `CLAUDE.md` 泄漏到测试或策略默认值中。
    - 修复时应把默认值改为从配置读取，并把测试数据替换为通用示例值。
 
+5. **同一类私密数字只在一个文件维护**
+   - 持仓量、成本价、止损价、额度等数字必须只维护在 `data/private/portfolio.yaml`。
+   - `data/private/investor_profile.md` 只保留定性画像（风险偏好、交易风格、信源偏好、笔记），数字部分用「见 portfolio.yaml」引用。
+   - 避免 `investor_profile.md` 与 `portfolio.yaml` 数字不一致导致分析错误。
+
 ## 如何应用
 
 - 任何包含用户画像/持仓/成本的项目，优先采用 `data/private/<file>.md` + `data/<file>.example.md` 模式。
 - `CLAUDE.md` 中只保留「引用说明 + 公开约束」，不保留具体持仓数字。
+- **持仓数字统一放在 `portfolio.yaml`，`investor_profile.md` 只写定性画像；分析前两个文件都读取。**
 - 修改项目指令文件后，用 `grep` 检查追踪文件中是否仍有个人数值残留。
 - 多个 `.md` 指令文件保持标题风格一致，内容互补不重复。
+- 定期检查 `investor_profile.md` 与 `portfolio.yaml` 是否数字冲突。
 
 ## 相关文件
 
@@ -39,4 +46,6 @@ Trigger: 用户发现 `CLAUDE.md` 与 `AGENTS.md` 标题不一致、内容大量
 - `tests/test_position_risk_manager.py`
 - `tests/test_trailing_stop.py`
 - `data/private/investor_profile.md`
+- `data/private/portfolio.yaml`
 - `data/investor_profile.example.md`
+- `data/portfolio.example.yaml`
