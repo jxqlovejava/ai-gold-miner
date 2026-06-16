@@ -14,6 +14,9 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    # Runtime mode
+    demo_mode: bool = False
+
     # API Keys
     fred_api_key: str = ""
     news_api_key: str = ""
