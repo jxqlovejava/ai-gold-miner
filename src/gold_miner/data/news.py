@@ -1,6 +1,7 @@
 """新闻数据抓取 — 多源聚合: NewsAPI / anysearch / 搜索引擎."""
 
 import json
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any
@@ -12,6 +13,30 @@ from loguru import logger
 from gold_miner.config import settings
 from gold_miner.data.source_tiers import get_source_tier
 from gold_miner.proxy import get_proxied_client
+
+
+def _is_retryable_error(e: Exception) -> bool:
+    """判断异常是否值得重试."""
+    if isinstance(e, httpx.TimeoutException):
+        return True
+    if isinstance(e, httpx.ConnectError):
+        return True
+    if isinstance(e, httpx.NetworkError):
+        return True
+    if isinstance(e, httpx.RemoteProtocolError):
+        # SSL EOF / 连接被重置等传输层问题
+        return True
+    return False
+
+
+def _should_retry_status(status: int) -> bool:
+    """判断 HTTP 状态码是否值得重试."""
+    return status in (429, 500, 502, 503, 504)
+
+
+def _sleep_backoff(attempt: int, base: float = 1.0) -> None:
+    """指数退避休眠."""
+    time.sleep(base * (2 ** attempt))
 
 
 @dataclass
@@ -71,28 +96,49 @@ class AnySearchFetcher:
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
 
-        try:
-            with get_proxied_client(timeout=30) as client:
-                resp = client.post(self.ENDPOINT, json=payload, headers=headers)
-            resp.raise_for_status()
-            data = resp.json()
+        last_error: Exception | None = None
+        for attempt in range(3):
+            try:
+                with get_proxied_client(timeout=30) as client:
+                    resp = client.post(self.ENDPOINT, json=payload, headers=headers)
+                resp.raise_for_status()
+                data = resp.json()
 
-            if "error" in data:
-                logger.warning(f"anysearch API错误: {data['error']}")
-                return []
+                if "error" in data:
+                    logger.warning(f"anysearch API错误: {data['error']}")
+                    return []
 
-            result = data.get("result", {})
-            content = result.get("content", [])
-            text = ""
-            for item in content:
-                if item.get("type") == "text":
-                    text = item.get("text", "")
+                result = data.get("result", {})
+                content = result.get("content", [])
+                text = ""
+                for item in content:
+                    if item.get("type") == "text":
+                        text = item.get("text", "")
+                        break
+
+                parsed = self._parse_anysearch_results(text)
+                # 配额耗尽或限流时直接返回，不再重试
+                if not parsed and text and any(
+                    kw in text.lower()
+                    for kw in [
+                        "quota exhausted", "quota exceeded", "limit reached",
+                        "too many requests", "rate limit", "payment required", "402", "429",
+                    ]
+                ):
+                    return []
+                return parsed
+            except Exception as e:
+                last_error = e
+                if not _is_retryable_error(e):
                     break
+                if attempt < 2:
+                    logger.warning(f"anysearch请求失败 (尝试 {attempt + 1}/3): {e}, 即将重试")
+                    _sleep_backoff(attempt)
+                else:
+                    logger.warning(f"anysearch请求失败 (尝试 {attempt + 1}/3): {e}")
 
-            return self._parse_anysearch_results(text)
-        except Exception as e:
-            logger.warning(f"anysearch请求失败: {e}")
-            return []
+        logger.warning(f"anysearch请求最终失败: {last_error}")
+        return []
 
     def _parse_anysearch_results(self, text: str) -> list[NewsItem]:
         """解析 anysearch 返回的文本结果."""
@@ -178,28 +224,55 @@ class SearchEngineFetcher:
     }
 
     def fetch_from_duckduckgo(self, query: str, max_results: int = 10) -> list[NewsItem]:
-        """从 DuckDuckGo 抓取搜索结果."""
+        """从 DuckDuckGo 抓取搜索结果（带重试）."""
         url = f"https://duckduckgo.com/html/?q={query.replace(' ', '+')}"
-        try:
-            with get_proxied_client(timeout=30, follow_redirects=True) as client:
-                resp = client.get(url, headers=self._HEADERS)
-            resp.raise_for_status()
-            return self._parse_duckduckgo_html(resp.text, max_results)
-        except Exception as e:
-            logger.warning(f"DuckDuckGo抓取失败: {e}")
-            return []
+        last_error: Exception | None = None
+        # DuckDuckGo 在本环境频繁超时，使用较短超时和较少重试
+        for attempt in range(2):
+            try:
+                with get_proxied_client(timeout=10, follow_redirects=True) as client:
+                    resp = client.get(url, headers=self._HEADERS)
+                resp.raise_for_status()
+                if _should_retry_status(resp.status_code):
+                    raise httpx.HTTPStatusError(
+                        f"DuckDuckGo 返回 {resp.status_code}", request=resp.request, response=resp
+                    )
+                return self._parse_duckduckgo_html(resp.text, max_results)
+            except Exception as e:
+                last_error = e
+                if not _is_retryable_error(e) and not isinstance(e, httpx.HTTPStatusError):
+                    break
+                if attempt < 1:
+                    logger.warning(f"DuckDuckGo抓取失败 (尝试 {attempt + 1}/2): {e}, 即将重试")
+                    _sleep_backoff(attempt)
+                else:
+                    logger.warning(f"DuckDuckGo抓取失败 (尝试 {attempt + 1}/2): {e}")
+        return []
 
     def fetch_from_bing(self, query: str, max_results: int = 10) -> list[NewsItem]:
-        """从 Bing 抓取搜索结果."""
+        """从 Bing 抓取搜索结果（带重试）."""
         url = f"https://www.bing.com/search?q={query.replace(' ', '+')}"
-        try:
-            with get_proxied_client(timeout=30, follow_redirects=True) as client:
-                resp = client.get(url, headers=self._HEADERS)
-            resp.raise_for_status()
-            return self._parse_bing_html(resp.text, max_results)
-        except Exception as e:
-            logger.warning(f"Bing抓取失败: {e}")
-            return []
+        last_error: Exception | None = None
+        for attempt in range(3):
+            try:
+                with get_proxied_client(timeout=30, follow_redirects=True) as client:
+                    resp = client.get(url, headers=self._HEADERS)
+                resp.raise_for_status()
+                if _should_retry_status(resp.status_code):
+                    raise httpx.HTTPStatusError(
+                        f"Bing 返回 {resp.status_code}", request=resp.request, response=resp
+                    )
+                return self._parse_bing_html(resp.text, max_results)
+            except Exception as e:
+                last_error = e
+                if not _is_retryable_error(e) and not isinstance(e, httpx.HTTPStatusError):
+                    break
+                if attempt < 2:
+                    logger.warning(f"Bing抓取失败 (尝试 {attempt + 1}/3): {e}, 即将重试")
+                    _sleep_backoff(attempt)
+                else:
+                    logger.warning(f"Bing抓取失败 (尝试 {attempt + 1}/3): {e}")
+        return []
 
     def _parse_bing_html(self, html: str, max_results: int) -> list[NewsItem]:
         """解析 Bing HTML 结果."""
@@ -260,16 +333,29 @@ class SearchEngineFetcher:
         return items
 
     def fetch_from_bing_news(self, query: str, max_results: int = 10) -> list[NewsItem]:
-        """从 Bing News 抓取新闻结果（区别于通用 Bing 搜索）."""
+        """从 Bing News 抓取新闻结果（区别于通用 Bing 搜索，带重试）."""
         url = f"https://www.bing.com/news/search?q={query.replace(' ', '+')}"
-        try:
-            with get_proxied_client(timeout=30, follow_redirects=True) as client:
-                resp = client.get(url, headers=self._HEADERS)
-            resp.raise_for_status()
-            return self._parse_bing_news_html(resp.text, max_results)
-        except Exception as e:
-            logger.warning(f"Bing News抓取失败: {e}")
-            return []
+        last_error: Exception | None = None
+        for attempt in range(3):
+            try:
+                with get_proxied_client(timeout=30, follow_redirects=True) as client:
+                    resp = client.get(url, headers=self._HEADERS)
+                resp.raise_for_status()
+                if _should_retry_status(resp.status_code):
+                    raise httpx.HTTPStatusError(
+                        f"Bing News 返回 {resp.status_code}", request=resp.request, response=resp
+                    )
+                return self._parse_bing_news_html(resp.text, max_results)
+            except Exception as e:
+                last_error = e
+                if not _is_retryable_error(e) and not isinstance(e, httpx.HTTPStatusError):
+                    break
+                if attempt < 2:
+                    logger.warning(f"Bing News抓取失败 (尝试 {attempt + 1}/3): {e}, 即将重试")
+                    _sleep_backoff(attempt)
+                else:
+                    logger.warning(f"Bing News抓取失败 (尝试 {attempt + 1}/3): {e}")
+        return []
 
     def _parse_bing_news_html(self, html: str, max_results: int) -> list[NewsItem]:
         """解析 Bing News HTML 结果."""
@@ -333,7 +419,11 @@ class SearchEngineFetcher:
         all_items: list[NewsItem] = []
         seen_urls: set[str] = set()
 
-        for q in queries:
+        for idx, q in enumerate(queries):
+            # 查询间短暂间隔，降低被限流风险
+            if idx > 0:
+                time.sleep(0.5)
+
             # DuckDuckGo
             try:
                 ddg_items = self.fetch_from_duckduckgo(q, max_results=max_results)
@@ -346,8 +436,11 @@ class SearchEngineFetcher:
                 logger.debug(f"fetch_multi DDG 失败 [{q}]: {e}")
 
             # Bing News
+            bing_news_ok = False
             try:
                 bing_items = self.fetch_from_bing_news(q, max_results=max_results)
+                if bing_items:
+                    bing_news_ok = True
                 for item in bing_items:
                     url_key = item.url or f"{item.title}|{item.source}"
                     if url_key not in seen_urls:
@@ -355,6 +448,18 @@ class SearchEngineFetcher:
                         all_items.append(item)
             except Exception as e:
                 logger.debug(f"fetch_multi Bing News 失败 [{q}]: {e}")
+
+            # Bing News 失败时，用通用 Bing 搜索兜底
+            if not bing_news_ok:
+                try:
+                    bing_items = self.fetch_from_bing(q, max_results=max_results)
+                    for item in bing_items:
+                        url_key = item.url or f"{item.title}|{item.source}"
+                        if url_key not in seen_urls:
+                            seen_urls.add(url_key)
+                            all_items.append(item)
+                except Exception as e:
+                    logger.debug(f"fetch_multi Bing 兜底失败 [{q}]: {e}")
 
         return all_items[:max_results]
 
@@ -416,7 +521,7 @@ class NewsFetcher:
 
         # 1. NewsAPI (国内直连可用, 质量最高)
         if self.newsapi_key:
-            nfp_query = "nonfarm payrolls May 2026 results" if is_nfp_day else "nonfarm payrolls"
+            nfp_query = f"nonfarm payrolls {today.strftime('%B %Y')} results" if is_nfp_day else "nonfarm payrolls"
 
             # 多批查询: 黄金 + 宏观/地缘 + 就业
             queries = [
@@ -512,52 +617,70 @@ class NewsFetcher:
         return []
 
     def _fetch_from_newsapi(self, query: str, hours: int) -> list[NewsItem]:
-        """从 NewsAPI 获取新闻."""
-        try:
-            from_date = (datetime.now() - timedelta(hours=hours)).strftime("%Y-%m-%d")
-            response = self.client.get(
-                "https://newsapi.org/v2/everything",
-                params={
-                    "q": query,
-                    "from": from_date,
-                    "sortBy": "publishedAt",
-                    "language": "en",
-                    "pageSize": 20,
-                    "apiKey": self.newsapi_key,
-                },
-            )
-            response.raise_for_status()
-            data = response.json()
+        """从 NewsAPI 获取新闻（带重试）."""
+        from_date = (datetime.now() - timedelta(hours=hours)).strftime("%Y-%m-%d")
+        params = {
+            "q": query,
+            "from": from_date,
+            "sortBy": "publishedAt",
+            "language": "en",
+            "pageSize": 20,
+            "apiKey": self.newsapi_key,
+        }
 
-            if data.get("status") != "ok":
-                logger.warning(f"NewsAPI错误: {data.get('message')}")
-                return []
+        last_error: Exception | None = None
+        for attempt in range(3):
+            try:
+                # 每次重试前刷新 client，避免连接池中的失效连接
+                if attempt > 0 and self._client is not None:
+                    self._client.close()
+                    self._client = None
 
-            items: list[NewsItem] = []
-            for article in data.get("articles", []):
-                published_at_str = article.get("publishedAt", "")
-                try:
-                    published_at = datetime.fromisoformat(published_at_str.replace("Z", "+00:00"))
-                except ValueError:
-                    published_at = datetime.now()
+                response = self.client.get("https://newsapi.org/v2/everything", params=params)
+                response.raise_for_status()
+                data = response.json()
 
-                item = NewsItem(
-                    title=article.get("title", ""),
-                    source=article.get("source", {}).get("name", "Unknown"),
-                    published_at=published_at,
-                    url=article.get("url", ""),
-                    summary=article.get("description", ""),
-                )
-                item.metadata["source_tier"] = get_source_tier(
-                    article.get("source", {}).get("name", "Unknown"),
-                    article.get("url", ""),
-                )
-                items.append(item)
+                if data.get("status") != "ok":
+                    logger.warning(f"NewsAPI错误: {data.get('message')}")
+                    return []
 
-            return items
-        except Exception as e:
-            logger.warning(f"NewsAPI请求失败: {e}")
-            return []
+                items: list[NewsItem] = []
+                for article in data.get("articles", []):
+                    published_at_str = article.get("publishedAt", "")
+                    try:
+                        published_at = datetime.fromisoformat(published_at_str.replace("Z", "+00:00"))
+                    except ValueError:
+                        published_at = datetime.now()
+
+                    item = NewsItem(
+                        title=article.get("title", ""),
+                        source=article.get("source", {}).get("name", "Unknown"),
+                        published_at=published_at,
+                        url=article.get("url", ""),
+                        summary=article.get("description", ""),
+                    )
+                    item.metadata["source_tier"] = get_source_tier(
+                        article.get("source", {}).get("name", "Unknown"),
+                        article.get("url", ""),
+                    )
+                    items.append(item)
+
+                return items
+            except Exception as e:
+                last_error = e
+                # 401/403 等认证错误不重试
+                if isinstance(e, httpx.HTTPStatusError) and not _should_retry_status(e.response.status_code):
+                    break
+                if not _is_retryable_error(e) and not isinstance(e, httpx.HTTPStatusError):
+                    break
+                if attempt < 2:
+                    logger.warning(f"NewsAPI请求失败 (尝试 {attempt + 1}/3): {e}, 即将重试")
+                    _sleep_backoff(attempt)
+                else:
+                    logger.warning(f"NewsAPI请求失败 (尝试 {attempt + 1}/3): {e}")
+
+        logger.warning(f"NewsAPI请求最终失败: {last_error}")
+        return []
 
     def fetch_breaking(self) -> list[NewsItem]:
         """抓取突发新闻."""
