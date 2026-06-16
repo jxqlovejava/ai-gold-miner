@@ -4,6 +4,7 @@ import atexit
 import os
 import shutil
 import subprocess
+import time
 from pathlib import Path
 from typing import Any
 
@@ -123,13 +124,35 @@ class ProxyManager:
     def _write_config(self, subscription_url: str = "") -> Path:
         """生成 mihomo 配置文件.
 
-        如果有订阅链接，下载并合并；否则生成最小配置。
+        如果有订阅链接，下载订阅配置并覆盖端口/controller；
+        否则生成最小直连配置。
         """
         config_dir = Path(settings.data_path) / "proxy"
         config_dir.mkdir(parents=True, exist_ok=True)
         config_file = config_dir / "config.yaml"
 
-        # 基础配置
+        if subscription_url:
+            try:
+                headers = {"User-Agent": "clash.meta/mihomo"}
+                resp = httpx.get(
+                    subscription_url, headers=headers, timeout=60, follow_redirects=True
+                )
+                resp.raise_for_status()
+                raw = resp.text
+
+                # 覆盖端口，避免与系统中其他 clash/mihomo 实例冲突
+                raw = self._override_config_value(raw, "mixed-port", self.port)
+                raw = self._override_config_value(
+                    raw, "external-controller", f"'127.0.0.1:{self.API_PORT}'"
+                )
+
+                config_file.write_text(raw, encoding="utf-8")
+                logger.info(f"订阅配置已写入: {config_file}")
+                return config_file
+            except Exception as e:
+                logger.warning(f"下载订阅配置失败，回退到最小配置: {e}")
+
+        # 最小直连配置（无订阅时使用）
         base_config = f"""mixed-port: {self.port}
 allow-lan: true
 bind-address: '*'
@@ -144,27 +167,34 @@ dns:
     nameserver:
         - https://doh.pub/dns-query
         - https://dns.alidns.com/dns-query
-"""
 
-        # 如果有订阅链接，添加 proxy-provider
-        if subscription_url:
-            provider_config = f"""
-proxy-providers:
-    default:
-        url: "{subscription_url}"
-        type: http
-        interval: 86400
-        path: ./provider.yaml
-        health-check:
-            enable: true
-            url: https://www.gstatic.com/generate_204
-            interval: 300
-"""
-            base_config += provider_config
+proxies:
+    - name: DIRECT
+      type: direct
 
+proxy-groups:
+    - name: Proxy
+      type: select
+      proxies:
+        - DIRECT
+
+rules:
+    - MATCH,Proxy
+"""
         config_file.write_text(base_config, encoding="utf-8")
         logger.info(f"代理配置已写入: {config_file}")
         return config_file
+
+    @staticmethod
+    def _override_config_value(config_text: str, key: str, value: Any) -> str:
+        """覆盖 YAML 配置中指定 key 的值（整行替换）."""
+        import re
+
+        pattern = re.compile(rf"^(\s*{re.escape(key)}\s*:\s*).+$", re.MULTILINE)
+        if pattern.search(config_text):
+            return pattern.sub(rf"\g<1>{value}", config_text)
+        # 未找到则在文件开头插入
+        return f"{key}: {value}\n{config_text}"
 
     def start(self, subscription_url: str = "") -> bool:
         """启动代理进程.
@@ -185,13 +215,28 @@ proxy-providers:
 
         self.config_path = self._write_config(subscription_url)
         config_dir = self.config_path.parent
+        # 项目根目录，mihomo 需要以此为 cwd 才能正确加载相对路径配置
+        project_root = Path(self.binary).resolve().parents[3]
+
+        # 删除旧的 provider.yaml，避免 -d 模式下 mihomo 将其作为附加配置加载
+        legacy_provider = config_dir / "provider.yaml"
+        if legacy_provider.exists():
+            legacy_provider.unlink()
 
         try:
+            # 隔离 HOME/XDG_CONFIG_HOME，避免 mihomo 加载用户全局 clash 配置
+            home_dir = config_dir / ".mihomo-home"
+            home_dir.mkdir(parents=True, exist_ok=True)
+            env = os.environ.copy()
+            env["HOME"] = str(home_dir)
+            env["XDG_CONFIG_HOME"] = str(home_dir / ".config")
+
             self.process = subprocess.Popen(
                 [self.binary, "-d", str(config_dir)],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
-                cwd=str(config_dir),
+                cwd=str(project_root),
+                env=env,
             )
             logger.info(f"代理进程已启动 (PID: {self.process.pid}, 端口: {self.port})")
             atexit.register(self.stop)
@@ -214,6 +259,19 @@ proxy-providers:
     def is_running(self) -> bool:
         """检查代理进程是否运行中."""
         return self.process is not None and self.process.poll() is None
+
+    def _wait_for_proxy(self, timeout: float = 30.0) -> bool:
+        """等待代理端口可用."""
+        import socket
+
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            try:
+                with socket.create_connection(("127.0.0.1", self.port), timeout=0.5):
+                    return True
+            except OSError:
+                time.sleep(0.2)
+        return False
 
     @property
     def http_proxy(self) -> str:
@@ -246,8 +304,13 @@ def get_proxy_manager() -> ProxyManager:
 
 
 def get_proxied_client(**kwargs: Any) -> httpx.Client:
-    """获取 httpx Client（如有可用代理则自动使用）."""
+    """获取 httpx Client（如有可用代理则自动使用）.
+
+    若用户已配置 MIHOMO_SUB_URL 且代理二进制存在，会自动启动代理进程。
+    """
     mgr = get_proxy_manager()
-    # 不再自动启动代理进程，避免对普通用户造成干扰
-    # 如需代理，先运行 gold-miner proxy-install 并配置 MIHOMO_SUB_URL
+    if not mgr.is_running and mgr.binary and settings.mihomo_sub_url:
+        mgr.start(settings.mihomo_sub_url)
+        if not mgr._wait_for_proxy():
+            logger.warning("代理端口未就绪，请求将尝试直连")
     return mgr.get_client(**kwargs)
