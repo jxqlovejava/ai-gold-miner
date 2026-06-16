@@ -24,6 +24,7 @@ from gold_miner.execution.alert import PriceAlert
 from gold_miner.execution.dashboard import DashboardFormatter, TradeDecision
 from gold_miner.execution.dimensions import print_all_dimensions
 from gold_miner.execution.notifier import Notifier
+from gold_miner.experience import ExperienceLoader
 from gold_miner.improvement.tracker import PredictionRecord, PredictionTracker
 from gold_miner.llm.client import LLMClient
 from gold_miner.signals.base import Signal, SignalBundle, SignalDirection, SignalStrength
@@ -75,6 +76,7 @@ class AnalysisResult:
     trade_decision: TradeDecision | None = None
     alerts: list[Any] = field(default_factory=list)
     messages: list[str] = field(default_factory=list)
+    experience_reminders: list[str] = field(default_factory=list)
 
 
 class AnalysisPipeline:
@@ -414,6 +416,9 @@ class AnalysisPipeline:
         if not ctx.skip_doctrine:
             self._print_doctrine_check(result)
 
+        # 经验提醒
+        self._load_and_print_experience(result)
+
         # 仪表盘
         result.trade_decision = DashboardFormatter.from_analysis(
             signal_bundle=result.bundle,
@@ -522,6 +527,31 @@ class AnalysisPipeline:
 
         if result.final_decision.get("doctrine_override"):
             print(f"\n  ⚡ 军规调整: {result.final_decision['doctrine_override']}")
+
+    def _load_and_print_experience(self, result: AnalysisResult) -> None:
+        """加载并打印相关经验提醒."""
+        try:
+            loader = ExperienceLoader()
+            active_dims = [
+                d for d in ["technical", "fundamental", "news", "sentiment"]
+                if result.bundle.by_dimension(d)
+            ]
+            context = {
+                "active_dimensions": active_dims,
+                "direction": result.final_decision.get("direction", "neutral"),
+                "bundle": result.bundle,
+                "news_raw": result.news_raw,
+            }
+            reminders = loader.load_relevant(context, max_items=3)
+            result.experience_reminders = reminders
+            if reminders:
+                print(f"\n{'='*60}")
+                print("  📚 经验提醒")
+                print(f"{'='*60}")
+                for i, r in enumerate(reminders, 1):
+                    print(f"  {i}. {r}")
+        except Exception as e:
+            logger.debug(f"经验提醒加载异常: {e}")
             print(f"     调整后仓位: {result.final_decision.get('position_pct', 0):.0%}")
 
         print(f"{'='*60}")
