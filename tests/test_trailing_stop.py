@@ -66,13 +66,13 @@ def test_cost_basis_protection_in_profit():
     ts = ATRTrailingStop(
         atr_period=14,
         profit_multiplier=2.5,
-        cost_basis=1014.42,
-        hard_stop_price=710.0,
+        cost_basis=1000.0,
+        hard_stop_price=700.0,
     )
-    signal = ts.calculate(df, entry_price=1014.42)
+    signal = ts.calculate(df, entry_price=1000.0)
 
-    # 当前价 1040 > 成本价 1014.42, 处于浮盈状态
-    assert signal.cost_basis == 1014.42
+    # 当前价 1040 > 成本价 1000.0, 处于浮盈状态
+    assert signal.cost_basis == 1000.0
     assert signal.stop_price >= signal.cost_basis
     assert signal.stop_price < signal.highest_high
     assert signal.track == "profit"
@@ -87,12 +87,12 @@ def test_loss_track_not_triggered_above_hard_stop():
         atr_period=14,
         profit_multiplier=2.5,
         loss_multiplier=3.0,
-        cost_basis=1014.42,
-        hard_stop_price=710.0,
+        cost_basis=1000.0,
+        hard_stop_price=700.0,
     )
-    signal = ts.calculate(df, entry_price=1014.42)
+    signal = ts.calculate(df, entry_price=1000.0)
 
-    # 当前价 980 < 成本价 1014.42, 处于浮亏状态, 但高于浮亏轨
+    # 当前价 980 < 成本价 1000.0, 处于浮亏状态, 但高于浮亏轨
     assert signal.current_price < signal.cost_basis
     assert signal.track == "loss"
     assert signal.triggered is False
@@ -108,11 +108,11 @@ def test_loss_track_triggered():
         atr_period=14,
         profit_multiplier=2.5,
         loss_multiplier=3.0,
-        cost_basis=1014.42,
-        hard_stop_price=710.0,
+        cost_basis=1000.0,
+        hard_stop_price=700.0,
         loss_action="reduce_half",
     )
-    signal = ts.calculate(df, entry_price=1014.42)
+    signal = ts.calculate(df, entry_price=1000.0)
 
     assert signal.triggered is True
     assert signal.track == "loss"
@@ -129,10 +129,10 @@ def test_hard_stop_triggered():
         atr_period=14,
         profit_multiplier=2.5,
         loss_multiplier=3.0,
-        cost_basis=1014.42,
-        hard_stop_price=710.0,
+        cost_basis=1000.0,
+        hard_stop_price=700.0,
     )
-    signal = ts.calculate(df, entry_price=1014.42)
+    signal = ts.calculate(df, entry_price=1000.0)
 
     assert signal.triggered is True
     assert signal.track == "hard_stop"

@@ -1,8 +1,8 @@
 """持仓风险分层管理 — 核心仓 + 机动仓 + 分级止损.
 
 把单一黄金仓位拆成:
-- 核心仓: 长期持有, 只在硬止损 710 无条件离场
-- 机动仓: 用于中短线风控, 在 ATR 浮亏轨和 900 二次止损位分批减仓
+- 核心仓: 长期持有, 只在硬止损位无条件离场
+- 机动仓: 用于中短线风控, 在 ATR 浮亏轨和二次止损位分批减仓
 
 避免 1929 式崩盘中因"满仓单一品种 + 手动犹豫"导致重伤.
 """
@@ -33,15 +33,19 @@ class PositionRiskManager:
         self,
         total_grams: float,
         avg_cost: float,
+        hard_stop: float,
+        secondary_stop: float,
         core_grams: float | None = None,
         tactical_grams: float | None = None,
-        hard_stop: float = 710.0,
-        secondary_stop: float = 900.0,
     ) -> None:
         if total_grams <= 0:
             raise ValueError("total_grams 必须大于 0")
         if avg_cost <= 0:
             raise ValueError("avg_cost 必须大于 0")
+        if hard_stop <= 0:
+            raise ValueError("hard_stop 必须大于 0")
+        if secondary_stop <= 0:
+            raise ValueError("secondary_stop 必须大于 0")
 
         if core_grams is None and tactical_grams is None:
             core_grams = round(total_grams * 0.7, 4)
@@ -79,10 +83,10 @@ class PositionRiskManager:
         return cls(
             total_grams=float(pos.get("grams", 0)),
             avg_cost=float(pos.get("avg_cost", 0)),
+            hard_stop=float(pos["hard_stop"]),
+            secondary_stop=float(pos["secondary_stop"]),
             core_grams=float(split["core"]) if "core" in split else None,
             tactical_grams=float(split["tactical"]) if "tactical" in split else None,
-            hard_stop=float(pos.get("hard_stop", 710.0)),
-            secondary_stop=float(pos.get("secondary_stop", 900.0)),
         )
 
     @classmethod
@@ -97,10 +101,10 @@ class PositionRiskManager:
         return cls(
             total_grams=float(pos.get("grams", 0)),
             avg_cost=float(pos.get("avg_cost", 0)),
+            hard_stop=float(pos["hard_stop"]),
+            secondary_stop=float(pos["secondary_stop"]),
             core_grams=float(split["core"]) if "core" in split else None,
             tactical_grams=float(split["tactical"]) if "tactical" in split else None,
-            hard_stop=float(pos.get("hard_stop", 710.0)),
-            secondary_stop=float(pos.get("secondary_stop", 900.0)),
         )
 
     def staged_orders(self, signal: TrailingStopSignal | None = None) -> list[StagedOrder]:
@@ -108,8 +112,8 @@ class PositionRiskManager:
 
         顺序:
         1. ATR 浮亏轨触发: 卖出机动仓一半
-        2. 跌破 900: 卖出剩余机动仓
-        3. 跌破硬止损 710: 清仓核心仓
+        2. 跌破二次止损位: 卖出剩余机动仓
+        3. 跌破硬止损位: 清仓核心仓
         """
         orders: list[StagedOrder] = []
         atr_stop = signal.stop_price if signal else self.secondary_stop
@@ -129,7 +133,7 @@ class PositionRiskManager:
                 )
             )
 
-        # 2) 二次止损 900: 清掉剩余机动仓
+        # 2) 二次止损位: 清掉剩余机动仓
         remaining_tactical = round(self.tactical_grams - half_tactical, 4)
         if remaining_tactical > 0:
             orders.append(
