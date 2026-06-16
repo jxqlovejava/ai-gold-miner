@@ -174,7 +174,7 @@ NewsAPI、anysearch、Yahoo Finance、DuckDuckGo 等数据源失败时，必须�
 
 每次交易建议必须输出：r001-r015 判定、2-3 个 Munger 模型、投资者画像匹配。
 
-详细规范见 [CLAUDE.md](CLAUDE.md) 和 [AGENTS.md](AGENTS.md)。
+详细规范见 [CLAUDE.md](CLAUDE.md) 和 [AGENTS.md](AGENTS.md)。投资者画像从 `data/private/investor_profile.md` 注入，不在 `CLAUDE.md` 中硬编码。
 
 ---
 
@@ -346,7 +346,7 @@ polymarket_min_volume=500
 
 | 文件 | 用途 | 更新频率 |
 |------|------|----------|
-| `CLAUDE.md` | **项目级投资操作系统**：投资者画像、15 条军规、Munger 思维模型、信息验证协议 | 规则/画像变更时 |
+| `CLAUDE.md` | **项目级投资操作系统**：15 条军规、Munger 思维模型、信息验证协议、强制分析流程 | 规则/流程变更时 |
 | `data/private/personal_rules.md` | **个人自定义规则**：你自己的投资纪律、偏好、特殊约束 | 随时 |
 | `data/private/trade_log.md` | **交易实战经验**：每笔买卖记录、决策依据、复盘 | 每次交易后 |
 | `data/private/portfolio.yaml` | **持仓配置快照**：当前仓位、成本、目标、上限 | 仓位变化后 |

@@ -1,11 +1,11 @@
-# AGENTS.md — AI Gold Miner 项目级代理规范
+# AI Gold Miner — 代理执行与输出规范
 
 > 本文件面向所有使用本项目的 AI 代理（Claude Code / Copilot / Codex / 自定义 Agent）。
-> 规则与 CLAUDE.md 互补，重点约束**分析输出的完整性和可追溯性**。
+> 项目上下文、15 条军规、Munger 模型、Source Truth 层级见 [CLAUDE.md](CLAUDE.md)。
 
-## 强制输出标准
+---
 
-### 1. 金价分析必须跑 pipeline
+## 执行入口
 
 每次涉及金价分析、交易建议、持仓决策时，必须先运行：
 
@@ -14,21 +14,31 @@ source .venv/bin/activate  # Windows: .venv\Scripts\activate
 python -m gold_miner.cli scan --days 30 --news --sentiment --deep
 ```
 
-### 2. Agent 博弈必须完整披露（三方博弈）
+若命令不存在或参数变更，以 `gold-miner --help` 为准。
+
+---
+
+## 强制输出格式
+
+每次运行项目 pipeline 后，输出不能只给结论。必须完整披露以下信息：
+
+### 1. Agent 博弈必须展示三方博弈
 
 不能只写"Bull 看多、Bear 看空"。必须列出：
 
-- **BullAgent**：立场、建议仓位、信心百分比、逐条论据及对应评分
-- **BearAgent**：立场、建议仓位、信心百分比、逐条论据及对应评分
-- **PortfolioManager**：原始决策 + 军规阻断/调整后的最终决策
+| Agent | 字段 | 说明 |
+|-------|------|------|
+| BullAgent | 立场、建议仓位、信心百分比、逐条论据及对应评分 | 不能省略看多理由 |
+| BearAgent | 立场、建议仓位、信心百分比、逐条论据及对应评分 | 不能省略看空理由 |
+| PortfolioManager | 原始决策 + 军规阻断/调整后的最终决策 | 必须说明是否被军规阻断 |
 
-### 3. 信号维度必须逐项检查
+### 2. 多维度信号必须逐项说明
 
-输出中必须包含以下 8 维信号的数值和状态说明：
+以下 8 维信号（异常检测与极端情景合并计为 1 维，展开说明时分开）必须逐项给出：
 
 | 维度 | 状态要求 |
 |------|----------|
-| technical | 数值 + 0 信号原因 |
+| technical | 数值 + 0 信号原因（横盘未触发 / 数据缺失） |
 | fundamental | 数值 + 核心指标 |
 | news | 数值 + 新闻条数/情感 + API 失败说明 |
 | sentiment | 数值 + 持仓/成交量变化 |
@@ -37,11 +47,13 @@ python -m gold_miner.cli scan --days 30 --news --sentiment --deep
 | polymarket | 数值 + 无数据说明 |
 | anomaly/scenario | 数值 + 触发/未触发说明 |
 
-### 4. 数据失败必须主动披露
+### 3. API 失败必须主动披露
 
-任何 API 失败（NewsAPI 超时、anysearch 配额耗尽、Yahoo 403、DuckDuckGo 失败）必须写明，不能隐藏。
+任何 API 失败（NewsAPI 超时、anysearch 配额耗尽、Yahoo 403、DuckDuckGo 失败）必须写明，不能隐藏。示例：
 
-### 5. Source Truth 强制标注
+> "消息面因 NewsAPI 超时而失效，已用 WebSearch 补充。"
+
+### 4. Source Truth 强制标注
 
 所有外部信息标注：
 
@@ -51,7 +63,9 @@ python -m gold_miner.cli scan --days 30 --news --sentiment --deep
 - `[verified: T3]` — 聚合/自媒体
 - `[unverified]` — 无法验证
 
-### 6. 军规、Munger、画像必须出现
+详细层级定义与验证动作见 [CLAUDE.md](CLAUDE.md)「信息验证协议」。
+
+### 5. 军规、Munger、画像必须出现
 
 每次交易建议输出必须包含：
 
@@ -59,6 +73,10 @@ python -m gold_miner.cli scan --days 30 --news --sentiment --deep
 2. Munger 模型（2-3 个）
 3. 投资者画像匹配
 4. 事实 vs 解释 + 置信度
+
+军规与 Munger 模型清单见 [CLAUDE.md](CLAUDE.md)；投资者画像读取自 `data/private/investor_profile.md`。
+
+---
 
 ## 执行与回退
 
@@ -77,6 +95,11 @@ python -m gold_miner.cli scan --days 30 --news --sentiment --deep
 - 多个核心 API 失败（如 NewsAPI + Yahoo Finance 同时不可用）：**暂停给出方向性交易建议**，仅输出事实汇总和风险提示，明确告知用户"当前数据不足以支持决策"。
 - 禁止使用缓存的过期数据冒充实时分析。
 
+### 画像读取失败回退
+
+- 若 `data/private/investor_profile.md` 不存在，读取 `data/investor_profile.example.md` 作为占位画像。
+- 输出中必须说明当前使用的是示例画像，交易建议仅作演示，不针对真实持仓。
+
 ---
 
 ## 禁止行为
@@ -86,10 +109,14 @@ python -m gold_miner.cli scan --days 30 --news --sentiment --deep
 - 隐藏 API 失败
 - 用搜索摘要直接作为事实证据
 - 脱离投资者画像给出建议
+- 在 `CLAUDE.md` 或本文件中硬编码私密持仓数据
+
+---
 
 ## 快速检查清单
 
 - [ ] 是否运行了 `gold-miner scan`？
+- [ ] 是否已读取 `data/private/investor_profile.md`？
 - [ ] Bull/Bear/PortfolioManager 是否完整列出？
 - [ ] 8 维信号是否逐项说明？
 - [ ] 是否有 API 失败未披露？
