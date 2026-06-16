@@ -45,5 +45,6 @@ data/proxy/provider.yaml
 data/proxy/config.yaml
 data/proxy/cache.db
 data/proxy/*.db
+data/proxy/*.metadb
 src/gold_miner/proxy/mihomo
 docs/superpowers/specs/
