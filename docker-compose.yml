@@ -1,0 +1,11 @@
+services:
+  gold-miner:
+    build: .
+    image: ai-gold-miner:latest
+    container_name: ai-gold-miner
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - ./reports:/app/reports
+    command: ["gold-miner", "--demo", "scan"]
