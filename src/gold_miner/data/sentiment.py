@@ -20,6 +20,7 @@ class SentimentDataFetcher(DataFetcher):
                 source="上期所 AU 期货 (AKShare) / 金银比",
                 frequency="daily",
                 description="AU 期货持仓量、成交量、量价关系",
+                source_tier="T1",  # CFTC COT 原始数据经 AKShare 封装
             )
         )
 

@@ -31,6 +31,7 @@ class MacroDataFetcher(DataFetcher):
                 source="FRED / Yahoo Finance",
                 frequency="day",
                 description="美元指数、利率、通胀等宏观指标",
+                source_tier="T0",  # FRED 为美联储官方一手数据
             )
         )
         self.api_key = settings.fred_api_key

@@ -9,6 +9,8 @@ from gold_miner.signals.base import Signal, SignalDirection, SignalStrength
 class FundamentalAnalyzer:
     """基本面分析器."""
 
+    SOURCE_TIER = "T0"  # 数据源: FRED 美联储官方一手数据
+
     def __init__(
         self,
         gold_df: pd.DataFrame | None = None,
@@ -408,4 +410,6 @@ class FundamentalAnalyzer:
         signals.extend(self.analyze_gold_silver_ratio())
         signals.extend(self.analyze_inflation())
         signals.extend(self.analyze_central_bank())
+        for s in signals:
+            s.metadata.setdefault("source_tier", self.SOURCE_TIER)
         return signals

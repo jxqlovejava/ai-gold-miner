@@ -9,6 +9,8 @@ from gold_miner.signals.base import Signal, SignalDirection, SignalStrength
 class SentimentAnalyzer:
     """市场情绪分析器 — 基于国内期货数据."""
 
+    SOURCE_TIER = "T1"  # CFTC COT 原始数据经 AKShare 封装
+
     def __init__(self, au_df: pd.DataFrame | None = None) -> None:
         self.au = au_df
 
@@ -20,6 +22,8 @@ class SentimentAnalyzer:
         signals.extend(self._analyze_open_interest())
         signals.extend(self._analyze_volume_price())
         signals.extend(self._analyze_intraday_bias())
+        for s in signals:
+            s.metadata.setdefault("source_tier", self.SOURCE_TIER)
         return signals
 
     def _analyze_open_interest(self) -> list[Signal]:

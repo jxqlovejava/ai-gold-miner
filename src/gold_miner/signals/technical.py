@@ -9,6 +9,8 @@ from gold_miner.signals.base import Signal, SignalDirection, SignalStrength
 class TechnicalAnalyzer:
     """技术分析器."""
 
+    SOURCE_TIER = "T0"  # 数据源: SGE 官方交易所一手数据
+
     def __init__(self, df: pd.DataFrame) -> None:
         self.df = df.copy()
         self._ensure_sorted()
@@ -89,12 +91,14 @@ class TechnicalAnalyzer:
                 name="RSI超卖", dimension="technical", direction=SignalDirection.BULLISH,
                 strength=SignalStrength.MODERATE, score=min((30 - rsi_val) / 30, 1.0),
                 description=f"RSI={rsi_val:.1f} < 30，超卖反弹信号",
+                metadata={"source_tier": self.SOURCE_TIER},
             ))
         elif rsi_val > 70:
             signals.append(Signal(
                 name="RSI超买", dimension="technical", direction=SignalDirection.BEARISH,
                 strength=SignalStrength.MODERATE, score=-min((rsi_val - 70) / 30, 1.0),
                 description=f"RSI={rsi_val:.1f} > 70，超买回调信号",
+                metadata={"source_tier": self.SOURCE_TIER},
             ))
 
         macd_data = self.macd()
@@ -103,12 +107,14 @@ class TechnicalAnalyzer:
                 name="MACD金叉", dimension="technical", direction=SignalDirection.BULLISH,
                 strength=SignalStrength.STRONG, score=0.6,
                 description="MACD线上穿信号线",
+                metadata={"source_tier": self.SOURCE_TIER},
             ))
         elif macd_data["crossover"] == "bearish":
             signals.append(Signal(
                 name="MACD死叉", dimension="technical", direction=SignalDirection.BEARISH,
                 strength=SignalStrength.STRONG, score=-0.6,
                 description="MACD线下穿信号线",
+                metadata={"source_tier": self.SOURCE_TIER},
             ))
 
         bb = self.bollinger()
@@ -117,12 +123,14 @@ class TechnicalAnalyzer:
                 name="布林带下轨", dimension="technical", direction=SignalDirection.BULLISH,
                 strength=SignalStrength.WEAK, score=0.3,
                 description="价格触及布林带下轨",
+                metadata={"source_tier": self.SOURCE_TIER},
             ))
         elif bb["position"] > 0.9:
             signals.append(Signal(
                 name="布林带上轨", dimension="technical", direction=SignalDirection.BEARISH,
                 strength=SignalStrength.WEAK, score=-0.3,
                 description="价格触及布林带上轨",
+                metadata={"source_tier": self.SOURCE_TIER},
             ))
 
         return signals

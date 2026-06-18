@@ -15,6 +15,8 @@ from gold_miner.signals.base import Signal, SignalDirection, SignalStrength
 class EtfFlowSignalGenerator:
     """ETF资金流信号生成器 — 同时追踪黄金ETF和比特币ETF."""
 
+    SOURCE_TIER = "T1"  # yfinance 数据终端，官方授权数据
+
     def __init__(self) -> None:
         self.gold_fetcher = GoldEtfFlowFetcher()
         self.btc_fetcher = BtcEtfFlowFetcher()
@@ -27,6 +29,8 @@ class EtfFlowSignalGenerator:
         signals.extend(self._intl_gold_etf_signals())
         signals.extend(self._btc_etf_signals())
         signals.extend(self._cross_asset_signals())
+        for s in signals:
+            s.metadata.setdefault("source_tier", self.SOURCE_TIER)
         return signals
 
     # ------------------------------------------------------------------

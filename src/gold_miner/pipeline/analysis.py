@@ -300,14 +300,106 @@ class AnalysisPipeline:
     # ------------------------------------------------------------------
 
     def _step_source_truth(self, ctx: AnalysisContext, result: AnalysisResult) -> None:
-        """来源验证 — FactChecker 已在新闻信号生成时运行.
-
-        此处仅做补充验证标签应用。
-        """
+        """来源验证 — 跨维度一致性检查 + source tier 覆盖审计."""
         logger.info("[3/8] 来源验证...")
-        # NewsSignalGenerator.fetch_and_analyze() 内部已调用 FactChecker
-        # 这里可以添加跨维度一致性检查等额外验证
-        logger.info("[3/8] 来源验证完成 (已在新闻管线中执行)")
+
+        bundle = result.bundle
+        if not bundle.signals:
+            logger.info("[3/8] 无信号，跳过来源验证")
+            return
+
+        warnings: list[str] = []
+
+        # --- 1. Source tier 覆盖审计 ---
+        tier_coverage = self._audit_source_tiers(bundle)
+        for dim, tiers in tier_coverage.items():
+            if not tiers:
+                warnings.append(f"[source_tier] {dim} 维度缺少来源标注")
+            elif all(t in ("T3", "unknown") for t in tiers):
+                warnings.append(f"[source_tier] {dim} 维度全部为低可信源 (T3/unknown)")
+
+        # --- 2. 跨维度方向一致性 ---
+        inconsistencies = self._check_cross_dimension_consistency(bundle)
+        warnings.extend(inconsistencies)
+
+        # --- 3. 调整置信度 ---
+        if inconsistencies:
+            penalty = min(len(inconsistencies) * 0.05, 0.15)
+            old_conf = bundle.confidence
+            bundle.confidence = max(0.1, bundle.confidence - penalty)
+            logger.info(
+                f"[3/8] 跨维度不一致 ({len(inconsistencies)}项)，"
+                f"置信度 {old_conf:.0%} → {bundle.confidence:.0%}"
+            )
+
+        for w in warnings:
+            result.messages.append(f"[source_truth] {w}")
+            logger.info(f"  {w}")
+
+        if not warnings:
+            logger.info("[3/8] 来源验证通过，无异常")
+        else:
+            logger.info(f"[3/8] 来源验证完成 ({len(warnings)} 项提醒)")
+
+    @staticmethod
+    def _audit_source_tiers(bundle: SignalBundle) -> dict[str, set[str]]:
+        """审计各维度的 source_tier 覆盖.
+
+        Returns:
+            {dimension: set of source_tier values}
+        """
+        coverage: dict[str, set[str]] = {}
+        for sig in bundle.signals:
+            tier = sig.metadata.get("source_tier", "unknown")
+            coverage.setdefault(sig.dimension, set()).add(tier)
+        return coverage
+
+    @staticmethod
+    def _check_cross_dimension_consistency(bundle: SignalBundle) -> list[str]:
+        """检查跨维度信号方向一致性.
+
+        对比各维度的多空方向占比，发现矛盾时发出警告。
+        """
+        from gold_miner.signals.base import SignalDirection
+
+        # 按维度统计方向
+        dim_direction: dict[str, dict[str, int]] = {}
+        for sig in bundle.signals:
+            if sig.direction == SignalDirection.NEUTRAL:
+                continue
+            d = dim_direction.setdefault(sig.dimension, {"bullish": 0, "bearish": 0})
+            if sig.direction == SignalDirection.BULLISH:
+                d["bullish"] += 1
+            else:
+                d["bearish"] += 1
+
+        # 计算每个维度的主导方向
+        dim_stance: dict[str, tuple[str, float]] = {}
+        for dim, counts in dim_direction.items():
+            total = counts["bullish"] + counts["bearish"]
+            if total == 0:
+                continue
+            bull_pct = counts["bullish"] / total
+            if bull_pct >= 0.6:
+                dim_stance[dim] = ("bullish", bull_pct)
+            elif bull_pct <= 0.4:
+                dim_stance[dim] = ("bearish", 1 - bull_pct)
+            # 40-60% → 无主导方向，不参与对比
+
+        # 对比维度对
+        dims = list(dim_stance.keys())
+        warnings: list[str] = []
+        for i in range(len(dims)):
+            for j in range(i + 1, len(dims)):
+                d1, d2 = dims[i], dims[j]
+                s1, s2 = dim_stance[d1], dim_stance[d2]
+                if s1[0] != s2[0] and s1[1] > 0.6 and s2[1] > 0.6:
+                    warnings.append(
+                        f"维度矛盾: {d1}({s1[0]} {s1[1]:.0%}) vs "
+                        f"{d2}({s2[0]} {s2[1]:.0%})，信号方向相反"
+                    )
+
+        return warnings
 
     # ------------------------------------------------------------------
     # Step 4: Agent 辩论

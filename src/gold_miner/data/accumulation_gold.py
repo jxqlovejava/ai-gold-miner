@@ -36,6 +36,7 @@ class AccumulationGoldFetcher(DataFetcher):
                 source="AKShare / SGE",
                 frequency="hour",
                 description="积存金 人民币/克",
+                source_tier="T1",  # SGE 官方数据经 AKShare 封装
             )
         )
 

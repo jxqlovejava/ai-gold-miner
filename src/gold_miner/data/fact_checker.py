@@ -161,9 +161,11 @@ class FactChecker:
             confidence = 0.4 if timeline_ok else 0.2
             method = "single_source"
         else:
+            # 无交叉引用时，基于 source_tier 做静态分级 fallback
+            # 避免高质量源因 web search 不可用而被错误降级
             status = VerificationStatus.UNVERIFIED
-            confidence = 0.2 if timeline_ok else 0.1
-            method = "no_cross_reference"
+            confidence = self._static_tier_confidence(source_tier, timeline_ok)
+            method = f"static_tier_{source_tier}"
 
         return FactCheckResult(
             news_item=item,
@@ -172,6 +174,23 @@ class FactChecker:
             confidence=round(confidence, 2),
             check_method=method,
         )
+
+    @staticmethod
+    def _static_tier_confidence(source_tier: str, timeline_ok: bool) -> float:
+        """基于 source_tier 的静态置信度 fallback.
+
+        当 web search 不可用无法交叉验证时，依据源本身的可信度层级给基础分。
+        """
+        base = {
+            "T0": 0.55,
+            "T1": 0.40,
+            "T2": 0.30,
+            "T3": 0.15,
+            "unknown": 0.10,
+        }.get(source_tier, 0.10)
+        if not timeline_ok:
+            base *= 0.5
+        return base
 
     def check_batch(self, items: list[NewsItem]) -> list[FactCheckResult]:
         """批量核查新闻列表."""

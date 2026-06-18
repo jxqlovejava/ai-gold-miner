@@ -16,6 +16,7 @@ class DataSourceMeta:
     source: str
     frequency: str
     description: str = ""
+    source_tier: str = "unknown"  # T0/T1/T2/T3 per CLAUDE.md 信息验证协议
 
 
 class DataFetcher(ABC):

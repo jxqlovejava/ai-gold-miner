@@ -52,6 +52,7 @@ class SpotGoldFetcher(DataFetcher):
                 source="上海黄金交易所 + jinjia.com.cn",
                 frequency="daily + realtime",
                 description="现货黄金 Au99.99 人民币/克",
+                source_tier="T0",  # SGE 官方交易所一手数据
             )
         )
         self.symbol = settings.yahoo_symbol_spot
