@@ -17,16 +17,12 @@ from gold_miner.proxy import get_proxied_client
 
 def _is_retryable_error(e: Exception) -> bool:
     """判断异常是否值得重试."""
-    if isinstance(e, httpx.TimeoutException):
-        return True
-    if isinstance(e, httpx.ConnectError):
-        return True
-    if isinstance(e, httpx.NetworkError):
-        return True
-    if isinstance(e, httpx.RemoteProtocolError):
-        # SSL EOF / 连接被重置等传输层问题
-        return True
-    return False
+    return isinstance(e, (
+        httpx.TimeoutException,
+        httpx.ConnectError,
+        httpx.NetworkError,
+        httpx.RemoteProtocolError,  # SSL EOF / 连接被重置等传输层问题
+    ))
 
 
 def _should_retry_status(status: int) -> bool:
@@ -226,7 +222,6 @@ class SearchEngineFetcher:
     def fetch_from_duckduckgo(self, query: str, max_results: int = 10) -> list[NewsItem]:
         """从 DuckDuckGo 抓取搜索结果（带重试）."""
         url = f"https://duckduckgo.com/html/?q={query.replace(' ', '+')}"
-        last_error: Exception | None = None
         # DuckDuckGo 在本环境频繁超时，使用较短超时和较少重试
         for attempt in range(2):
             try:
@@ -239,7 +234,6 @@ class SearchEngineFetcher:
                     )
                 return self._parse_duckduckgo_html(resp.text, max_results)
             except Exception as e:
-                last_error = e
                 if not _is_retryable_error(e) and not isinstance(e, httpx.HTTPStatusError):
                     break
                 if attempt < 1:
@@ -252,7 +246,6 @@ class SearchEngineFetcher:
     def fetch_from_bing(self, query: str, max_results: int = 10) -> list[NewsItem]:
         """从 Bing 抓取搜索结果（带重试）."""
         url = f"https://www.bing.com/search?q={query.replace(' ', '+')}"
-        last_error: Exception | None = None
         for attempt in range(3):
             try:
                 with get_proxied_client(timeout=30, follow_redirects=True) as client:
@@ -264,7 +257,6 @@ class SearchEngineFetcher:
                     )
                 return self._parse_bing_html(resp.text, max_results)
             except Exception as e:
-                last_error = e
                 if not _is_retryable_error(e) and not isinstance(e, httpx.HTTPStatusError):
                     break
                 if attempt < 2:
@@ -335,7 +327,6 @@ class SearchEngineFetcher:
     def fetch_from_bing_news(self, query: str, max_results: int = 10) -> list[NewsItem]:
         """从 Bing News 抓取新闻结果（区别于通用 Bing 搜索，带重试）."""
         url = f"https://www.bing.com/news/search?q={query.replace(' ', '+')}"
-        last_error: Exception | None = None
         for attempt in range(3):
             try:
                 with get_proxied_client(timeout=30, follow_redirects=True) as client:
@@ -347,7 +338,6 @@ class SearchEngineFetcher:
                     )
                 return self._parse_bing_news_html(resp.text, max_results)
             except Exception as e:
-                last_error = e
                 if not _is_retryable_error(e) and not isinstance(e, httpx.HTTPStatusError):
                     break
                 if attempt < 2:

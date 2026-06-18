@@ -10,7 +10,6 @@ from gold_miner.config import settings
 from gold_miner.data.accumulation_gold import AccumulationGoldFetcher
 from gold_miner.data.spot_gold import SpotGoldFetcher
 
-
 st.set_page_config(page_title="AI Gold Miner", page_icon="🥇", layout="wide")
 
 st.title("🥇 AI Gold Miner 仪表盘")

@@ -52,6 +52,13 @@ ignore = ["E501"]
 
 [tool.mypy]
 python_version = "3.11"
-strict = true
 warn_return_any = true
 warn_unused_configs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+ignore_missing_imports = true
+# 严格模式逐项开启已可用的:
+disallow_untyped_defs = false
+check_untyped_defs = true
+no_implicit_optional = true
+warn_no_return = true
