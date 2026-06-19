@@ -48,11 +48,16 @@ DIRECTION_RULES: list[Rule] = [
     (["pause rate", "hold rate", "no hike"], _yes_bullish),  # 暂停加息中性偏利好
 
     # --- 宏观：高通胀利好黄金 ---
-    (["inflation above", "inflation >", "cpi above", "cpi >"], _yes_bullish),
-    (["inflation below", "inflation <", "cpi below", "cpi <", "disinflation"], _yes_bearish),
+    (["inflation above", "inflation >", "inflation exceed",
+      "cpi above", "cpi >", "cpi be above"], _yes_bullish),
+    (["inflation below", "inflation fall", "inflation <",
+      "cpi below", "cpi <", "cpi be below", "disinflation"], _yes_bearish),
 
     # --- 宏观：衰退利好黄金（避险）---
     (["recession", "economic contraction", "negative gdp"], _yes_bullish),
+    # --- 宏观：强就业/经济增长利空黄金 ---
+    (["nfp above", "nfp strong", "payroll strong", "jobs strong"], _yes_bearish),
+    (["nfp below", "nfp weak", "payroll weak", "jobs weak"], _yes_bullish),
 
     # --- 地缘：冲突/战争利好黄金 ---
     (["war", "conflict", "attack", "invasion", "strike", "sanction"], _yes_bullish),

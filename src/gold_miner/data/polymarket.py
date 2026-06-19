@@ -13,6 +13,7 @@ Polymarket 是全球最大的预测市场平台，用户用真金白银押注事
 API: https://gamma-api.polymarket.com (公开，无需认证)
 """
 
+import re as _re
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -54,12 +55,18 @@ GOLD_RELATED_KEYWORDS: dict[str, list[str]] = {
 }
 
 # 同时排除与黄金无关的热门噪音市场
+# 短关键词用 \b 防止子串误匹配 (如 "nfl" 匹配 "inflation")
 NOISE_KEYWORDS: list[str] = [
     "gta vi", "gta 6", "grand theft auto",
     "album", "rihanna", "kanye", "drake", "taylor swift",
-    "nba", "nfl", "nhl", "super bowl", "stanley cup",
-    "bitcoin", "btc", "ethereum", "eth", "crypto",
-    "oscar", "grammy", "emmy", "academy award",
+    "super bowl", "stanley cup",
+    "bitcoin", "ethereum", "crypto",
+    "oscar", "grammy", "academy award",
+]
+
+# 短关键词：单独匹配词边界，避免子串误匹配
+NOISE_KEYWORDS_SHORT: list[str] = [
+    r"\bnba\b", r"\bnfl\b", r"\bnhl\b", r"\bbtc\b", r"\beth\b", r"\bemmy\b",
 ]
 
 
@@ -271,8 +278,13 @@ class PolymarketFetcher:
         result: list[PredictionMarket] = []
         for m in markets:
             text = f"{m.question} {m.description}".lower()
-            if not any(noise in text for noise in self.noise):
-                result.append(m)
+            # 长关键词直接子串匹配
+            if any(noise in text for noise in self.noise):
+                continue
+            # 短关键词正则词边界匹配，避免 "nfl" 匹配 "inflation"
+            if any(_re.search(pattern, text) for pattern in NOISE_KEYWORDS_SHORT):
+                continue
+            result.append(m)
         return result
 
     def _filter_gold_related(

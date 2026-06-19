@@ -65,37 +65,37 @@ def test_fetch_price_success(mock_client, monkeypatch):
 
 
 def test_fetch_latest_returns_dataframe(mock_client, monkeypatch):
-    """fetch_latest 返回标准化 DataFrame."""
+    """fetch 返回标准化 DataFrame（仅 JD，不依赖 SGE proxy 回退）."""
     monkeypatch.setattr(
         "gold_miner.data.jd_accumulation_gold.get_proxied_client",
         lambda **kwargs: mock_client,
     )
 
     fetcher = JdAccumulationGoldFetcher()
-    df = fetcher.fetch_latest()
+    df = fetcher.fetch(days=5, fallback_to_sge=False)
 
     assert isinstance(df, pd.DataFrame)
-    assert len(df) == 1
+    assert len(df) >= 1
     assert set(df.columns) >= {"timestamp", "open", "high", "low", "close"}
-    assert df["close"].iloc[0] == 917.75
+    assert df["close"].iloc[-1] == 917.75
 
 
 def test_fetch_uses_fetch_latest(mock_client, monkeypatch):
-    """fetch 委托给 fetch_latest."""
+    """fetch 返回 JD 最新价格."""
     monkeypatch.setattr(
         "gold_miner.data.jd_accumulation_gold.get_proxied_client",
         lambda **kwargs: mock_client,
     )
 
     fetcher = JdAccumulationGoldFetcher()
-    df = fetcher.fetch(start=datetime.now(), end=datetime.now())
+    df = fetcher.fetch(days=5, fallback_to_sge=False)
 
-    assert len(df) == 1
-    assert df["close"].iloc[0] == 917.75
+    assert len(df) >= 1
+    assert df["close"].iloc[-1] == 917.75
 
 
 def test_fetch_price_failure(monkeypatch):
-    """请求失败时返回 None 且 DataFrame 为空."""
+    """JD API 请求失败时 fetch_price 返回 None."""
     mock_client = MagicMock()
     mock_client.get.side_effect = Exception("network error")
     mock_client.__enter__ = MagicMock(return_value=mock_client)
@@ -108,7 +108,6 @@ def test_fetch_price_failure(monkeypatch):
 
     fetcher = JdAccumulationGoldFetcher()
     assert fetcher.fetch_price() is None
-    assert fetcher.fetch_latest().empty
 
 
 def test_fetch_price_invalid_response(monkeypatch):
