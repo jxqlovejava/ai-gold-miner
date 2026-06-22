@@ -46,11 +46,12 @@ gold-miner web
 | 能力 | 说明 |
 |------|------|
 | 8 维信号 | 技术、基本面、消息面、情绪面、事件驱动、Polymarket、异常检测、极端情景 |
+| 中长期分析 | 6-36 个月视角：央行/ETF/COT 趋势 + 财政信用 + 三情景矩阵 |
 | Agent 博弈 | Bull / Bear / PortfolioManager 三方辩论 |
 | 军规审查 | 15 条硬约束自动判定 |
 | Munger 模型 | 决策时引用 2-3 个思维模型 |
 | 预测追踪 | 自动记录并结算预测准确率 |
-| 情景分析 | 14 种系统性风险压力测试 |
+| 情景分析 | 14 种系统性风险压力测试 + 牛/基/熊三情景矩阵 |
 
 ---
 
@@ -103,6 +104,12 @@ gold-miner doctrine --check
 
 # 工作流列表
 gold-miner workflow --workflow-list
+
+# 中长期金价分析（12/24/36 个月）
+gold-miner longterm --horizon 24
+
+# 中长期分析 dry-run
+gold-miner longterm --horizon 24 --dry-run
 ```
 
 ---
