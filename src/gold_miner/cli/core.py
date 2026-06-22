@@ -13,6 +13,7 @@ from .backtest import run_backtest
 from .daemon import run_daemon
 from .doctrine import run_doctrine
 from .journal import run_journal
+from .long_term import run_longterm
 from .proxy_install import run_proxy_install
 from .quote import run_quote
 from .report import run_report
@@ -42,6 +43,7 @@ def main() -> None:
             "scan", "quote", "backtest", "journal", "proxy-install",
             "track", "review", "findings", "analyze", "scenario", "doctrine", "daemon",
             "verify", "report", "advisor", "doctor", "setup", "workflow", "web",
+            "longterm",
         ],
         help="命令",
     )
@@ -70,7 +72,7 @@ def main() -> None:
     parser.add_argument("--predict", type=str, default=None, help="生成预判 (analyze --predict <id>)")
     parser.add_argument("--direction", type=str, default=None, help="预判方向 bullish|bearish|neutral")
     parser.add_argument("--confidence", type=float, default=None, help="预判置信度 0.0-1.0")
-    parser.add_argument("--horizon", type=int, default=7, help="预判时间窗口天数")
+    parser.add_argument("--horizon", type=int, default=7, help="预判时间窗口天数 / 中长期分析月数 (longterm)")
     parser.add_argument("--target-pct", type=float, default=None, help="预期涨跌幅")
     parser.add_argument("--reasoning", type=str, default=None, help="预判推理链")
     parser.add_argument("--deep", action="store_true", default=False, help="使用LLM深度分析文章 (analyze)")
@@ -179,3 +181,5 @@ def main() -> None:
         run_workflow(args)
     elif args.command == "web":
         run_web(args)
+    elif args.command == "longterm":
+        run_longterm(args)

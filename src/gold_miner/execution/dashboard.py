@@ -84,7 +84,7 @@ class DashboardFormatter:
         signal_map = {"long": "buy", "short": "sell", "neutral": "hold"}
 
         score_details: dict[str, float] = {}
-        for dim in ["technical", "fundamental", "news", "sentiment", "event", "polymarket", "anomaly", "scenario"]:
+        for dim in ["technical", "fundamental", "news", "sentiment", "hype_bias", "event", "polymarket", "anomaly", "scenario"]:
             signals = signal_bundle.by_dimension(dim)
             if signals:
                 score_details[dim] = round(sum(s.score for s in signals) / len(signals), 2)

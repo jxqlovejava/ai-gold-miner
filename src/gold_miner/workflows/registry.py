@@ -114,6 +114,7 @@ def _register_builtin(registry: WorkflowRegistry) -> None:
         PreMarketWorkflow,
         WeeklyReviewWorkflow,
     )
+    from gold_miner.workflows.long_term import LongTermWorkflow
 
     registry.register(PreMarketWorkflow())
     registry.register(IntraDayWorkflow())
@@ -121,10 +122,12 @@ def _register_builtin(registry: WorkflowRegistry) -> None:
     registry.register(DailyWorkflow())
     registry.register(PostTradeWorkflow())
     registry.register(WeeklyReviewWorkflow())
+    registry.register(LongTermWorkflow())
 
 
 # 全局注册表实例
 _default_registry: WorkflowRegistry | None = None
+"""全局注册表实例."""
 
 
 def get_registry() -> WorkflowRegistry:

@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import Any
 
 import httpx
+import pandas as pd
 from bs4 import BeautifulSoup
 from loguru import logger
 
@@ -225,6 +226,107 @@ class MonthlyCentralBankData:
     def is_significant(self) -> bool:
         """单月购金 > 10吨视为显著."""
         return self.net_purchases_tonnes > 10
+
+
+class CentralBankHistoryFetcher:
+    """央行购金历史序列获取器.
+
+    用于中长期分析，返回季度净购金量时间序列。
+    当前以已知 WGC 历史数据作为 fallback；网络解析作为最佳尝试。
+    """
+
+    # WGC 官方季度央行净购金历史数据（吨）
+    # 来源: World Gold Council Gold Demand Trends
+    KNOWN_QUARTERLY_DATA: list[dict[str, Any]] = [
+        {"quarter": "Q1 2023", "net_purchases_tonnes": 228.0},
+        {"quarter": "Q2 2023", "net_purchases_tonnes": 175.0},
+        {"quarter": "Q3 2023", "net_purchases_tonnes": 337.0},
+        {"quarter": "Q4 2023", "net_purchases_tonnes": 229.0},
+        {"quarter": "Q1 2024", "net_purchases_tonnes": 290.0},
+        {"quarter": "Q2 2024", "net_purchases_tonnes": 184.0},
+        {"quarter": "Q3 2024", "net_purchases_tonnes": 186.0},
+        {"quarter": "Q4 2024", "net_purchases_tonnes": 333.0},
+        {"quarter": "Q1 2025", "net_purchases_tonnes": 292.0},
+        {"quarter": "Q2 2025", "net_purchases_tonnes": 198.0},
+        {"quarter": "Q3 2025", "net_purchases_tonnes": 220.0},
+        {"quarter": "Q4 2025", "net_purchases_tonnes": 345.0},
+        {"quarter": "Q1 2026", "net_purchases_tonnes": 244.0},
+    ]
+
+    def fetch_quarterly_history(self) -> pd.DataFrame:
+        """获取央行季度净购金历史序列."""
+        try:
+            latest = CentralBankFetcher().fetch()
+            if latest:
+                records = list(self.KNOWN_QUARTERLY_DATA)
+                # 用最新抓取的数据覆盖/补充最后一期
+                if records[-1]["quarter"] == latest.quarter:
+                    records[-1] = {
+                        "quarter": latest.quarter,
+                        "net_purchases_tonnes": latest.net_purchases_tonnes,
+                        "yoy_change_pct": latest.yoy_change_pct,
+                        "source_url": latest.source_url,
+                    }
+                else:
+                    records.append({
+                        "quarter": latest.quarter,
+                        "net_purchases_tonnes": latest.net_purchases_tonnes,
+                        "yoy_change_pct": latest.yoy_change_pct,
+                        "source_url": latest.source_url,
+                    })
+                df = pd.DataFrame(records)
+            else:
+                df = pd.DataFrame(self.KNOWN_QUARTERLY_DATA)
+        except Exception as e:
+            logger.warning(f"央行历史数据获取失败，使用已知数据: {e}")
+            df = pd.DataFrame(self.KNOWN_QUARTERLY_DATA)
+
+        df["timestamp"] = pd.to_datetime(df["quarter"].apply(self._quarter_to_date))
+        df = df.sort_values("timestamp").reset_index(drop=True)
+        return df
+
+    def fetch_rolling_trend(self, quarters: int = 4) -> dict[str, Any]:
+        """计算最近 N 个季度滚动趋势."""
+        df = self.fetch_quarterly_history()
+        if len(df) < 2:
+            return {"status": "no_data"}
+
+        recent = df.tail(quarters)
+        total = float(recent["net_purchases_tonnes"].sum())
+        avg = float(recent["net_purchases_tonnes"].mean())
+        yoy_values = recent["net_purchases_tonnes"].pct_change(periods=4).dropna()
+        avg_yoy = float(yoy_values.mean()) if not yoy_values.empty else 0.0
+
+        if avg > 250:
+            trend = "strong_buying"
+        elif avg > 150:
+            trend = "buying"
+        elif avg > 0:
+            trend = "moderate_buying"
+        else:
+            trend = "selling"
+
+        return {
+            "status": "ok",
+            "quarters": len(recent),
+            "total_tonnes": round(total, 1),
+            "avg_quarterly_tonnes": round(avg, 1),
+            "avg_yoy_change_pct": round(avg_yoy * 100, 1),
+            "trend": trend,
+            "latest_quarter": str(recent["quarter"].iloc[-1]),
+        }
+
+    @staticmethod
+    def _quarter_to_date(quarter: str) -> datetime:
+        """将 'Q1 2026' 转为季度首月日期."""
+        match = re.match(r"Q(\d)\s+(\d{4})", quarter)
+        if not match:
+            # 解析失败时使用一个遥远的过去日期，避免污染当前数据
+            return datetime(1970, 1, 1)
+        q = int(match.group(1))
+        year = int(match.group(2))
+        month = (q - 1) * 3 + 1
+        return datetime(year, month, 1)
 
 
 class MonthlyCentralBankFetcher:

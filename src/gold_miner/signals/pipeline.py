@@ -47,6 +47,7 @@ class SignalPipeline:
         from gold_miner.signals.etf_flow_signal import EtfFlowSignalGenerator
         from gold_miner.signals.event_driven import EventDrivenSignalGenerator
         from gold_miner.signals.fundamental import FundamentalAnalyzer
+        from gold_miner.signals.hype_bias_signal import HypeBiasSignalGenerator
         from gold_miner.signals.institutional_signal import InstitutionalSignalGenerator
         from gold_miner.signals.news_signal import NewsSignalGenerator
         from gold_miner.signals.polymarket_signal import PolymarketSignalGenerator
@@ -105,6 +106,15 @@ class SignalPipeline:
                 current_spot=ctx.gold_df["close"].iloc[-1] if not ctx.gold_df.empty else 3300
             ).generate_signals(),
             depends_on=[],
+        ))
+
+        self.register(PipelineStep(
+            name="hype_bias",
+            generator=lambda ctx: HypeBiasSignalGenerator(
+                news_items=ctx.news_items,
+                current_spot=ctx.gold_df["close"].iloc[-1] if not ctx.gold_df.empty else 0.0,
+            ).generate_signals(),
+            depends_on=["news", "smart_money"],
         ))
 
         self.register(PipelineStep(

@@ -113,7 +113,7 @@ class SpotGoldFetcher(DataFetcher):
 
         return result
 
-    def fetch_international_quote(self) -> dict[str, Any] | None:
+    def fetch_international_quote(self) -> list[dict[str, Any]] | None:
         """获取国际金价实时报价."""
         return self._fetch_jinjia_international()
         try:

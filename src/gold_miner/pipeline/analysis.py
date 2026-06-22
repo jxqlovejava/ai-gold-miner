@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import re
 import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
+import yaml
 from loguru import logger
 
 from gold_miner.config import settings
@@ -18,6 +21,8 @@ from gold_miner.data.spot_gold import SpotGoldFetcher
 from gold_miner.decision.agents import AgentOpinion, BearAgent, BullAgent, PortfolioManager
 from gold_miner.decision.risk import RiskCheck, RiskManager
 from gold_miner.doctrine import DoctrineChecker
+from gold_miner.doctrine.munger_models import GOLD_MODELS, MungerModel
+from gold_miner.doctrine.rules import ALL_RULES
 from gold_miner.events.models import EventType
 from gold_miner.events.store import EventStore
 from gold_miner.execution.alert import PriceAlert
@@ -34,6 +39,10 @@ from gold_miner.signals.fundamental import FundamentalAnalyzer
 from gold_miner.signals.news_signal import NewsSignalGenerator
 from gold_miner.signals.sentiment_signal import SentimentAnalyzer
 from gold_miner.signals.technical import TechnicalAnalyzer
+from gold_miner.storage import get_store
+
+_KEYWORD_RE = re.compile(r"[a-z]+|\d+|[一-鿿]+")
+_PROJECT_DATA_DIR = Path(__file__).parents[3] / "data"
 
 
 @dataclass
@@ -64,6 +73,7 @@ class AnalysisResult:
     doctrine_result: Any = None
     prediction_id: str = ""
     current_price: float = 0.0
+    intl_price: float = 0.0  # 国际金价 (USD/oz)
     gold_df: pd.DataFrame = field(default_factory=pd.DataFrame)
     dxy_df: pd.DataFrame = field(default_factory=pd.DataFrame)
     rate_df: pd.DataFrame = field(default_factory=pd.DataFrame)
@@ -77,6 +87,8 @@ class AnalysisResult:
     alerts: list[Any] = field(default_factory=list)
     messages: list[str] = field(default_factory=list)
     experience_reminders: list[str] = field(default_factory=list)
+    investor_profile: str = ""
+    portfolio: dict[str, Any] = field(default_factory=dict)
 
 
 class AnalysisPipeline:
@@ -157,7 +169,19 @@ class AnalysisPipeline:
             return
 
         result.current_price = result.gold_df["close"].iloc[-1]
-        logger.info(f"现货黄金最新价: {result.current_price:.2f}")
+        logger.info(f"国内金价 Au99.99: {result.current_price:.2f} 元/克 (来源: SGE/jinjia)")
+
+        # 同步获取国际金价 (USD/oz)，用于跨市场对比
+        try:
+            intl_quote = gold_fetcher.fetch_international_quote()
+            if intl_quote and intl_quote[0].get("price"):
+                result.intl_price = intl_quote[0]["price"]
+                logger.info(
+                    f"国际金价 XAU/USD: {result.intl_price:.2f} 美元/盎司 "
+                    f"({intl_quote[0].get('name', '伦敦金')})"
+                )
+        except Exception as e:
+            logger.debug(f"国际金价获取失败: {e}")
 
         macro_fetcher = MacroDataFetcher()
         result.dxy_df = macro_fetcher.fetch_dxy()
@@ -507,15 +531,27 @@ class AnalysisPipeline:
         # 军规输出
         if not ctx.skip_doctrine:
             self._print_doctrine_check(result)
+            self._print_doctrine_checklist(result)
+
+        # Munger 模型
+        self._print_munger_models(result)
+
+        # 画像匹配
+        profile, portfolio, _warnings = self._load_investor_data(result)
+        self._print_profile_match(result, profile, portfolio)
 
         # 经验提醒
         self._load_and_print_experience(result)
 
         # 仪表盘
+        instrument_label = "积存金 Au99.99 (元/克)"
+        if result.intl_price > 0:
+            instrument_label += f" | 国际 ${result.intl_price:,.0f}/oz"
+
         result.trade_decision = DashboardFormatter.from_analysis(
             signal_bundle=result.bundle,
             portfolio_decision=result.final_decision,
-            instrument="现货黄金 (XAU/USD)",
+            instrument=instrument_label,
             current_price=result.current_price,
         )
         print()
@@ -647,6 +683,220 @@ class AnalysisPipeline:
             print(f"     调整后仓位: {result.final_decision.get('position_pct', 0):.0%}")
 
         print(f"{'='*60}")
+
+    def _load_investor_data(
+        self, result: AnalysisResult
+    ) -> tuple[str, dict[str, Any], list[str]]:
+        """加载投资者画像与持仓，缺失时回退到 example 文件."""
+        store = get_store()
+        warnings: list[str] = []
+
+        profile = store.load_investor_profile()
+        if not profile:
+            example_path = _PROJECT_DATA_DIR / "investor_profile.example.md"
+            if example_path.exists():
+                profile = example_path.read_text(encoding="utf-8")
+                warnings.append("使用示例投资者画像，请填写 data/private/investor_profile.md")
+        result.investor_profile = profile
+
+        portfolio = store.load_portfolio()
+        if not portfolio:
+            example_portfolio_path = _PROJECT_DATA_DIR / "portfolio.example.yaml"
+            if example_portfolio_path.exists():
+                try:
+                    portfolio = yaml.safe_load(
+                        example_portfolio_path.read_text(encoding="utf-8")
+                    ) or {}
+                    warnings.append("使用示例持仓数据，请填写 data/private/portfolio.yaml")
+                except yaml.YAMLError:
+                    portfolio = {}
+        result.portfolio = portfolio
+
+        return profile, portfolio, warnings
+
+    def _select_munger_models(
+        self, bundle: SignalBundle, count: int = 3
+    ) -> list[MungerModel]:
+        """根据信号 bundle 关键词从 GOLD_MODELS 中选择最相关模型."""
+        if not GOLD_MODELS:
+            return []
+
+        # 无信号时直接返回通用经典模型
+        if not bundle.signals:
+            return self._fallback_classic_models(count)
+
+        keywords: set[str] = set()
+        for sig in bundle.signals:
+            keywords.update(self._extract_keywords(sig.dimension))
+            keywords.update(self._extract_keywords(sig.name))
+            keywords.update(self._extract_keywords(sig.direction.value))
+            if sig.dimension == "sentiment":
+                keywords.update(["情绪", "恐惧", "贪婪", "极端", "心理"])
+            elif sig.dimension == "technical":
+                keywords.update(["技术", "趋势", "反转", "突破", "波动"])
+            elif sig.dimension == "fundamental":
+                keywords.update(["基本面", "利率", "通胀", "美元", "央行"])
+            elif sig.dimension == "news":
+                keywords.update(["消息", "新闻", "媒体", "舆论", "信息"])
+
+        # 通用兜底关键词
+        keywords.update(["黄金", "投资", "风险", "不确定"])
+
+        def score(model: MungerModel) -> int:
+            text = " ".join(
+                [
+                    model.name_cn,
+                    model.name_en,
+                    model.description,
+                    model.gold_relevance_reason,
+                    model.discipline,
+                ]
+            ).lower()
+            return sum(1 for kw in keywords if kw in text)
+
+        scored = [(m, score(m)) for m in GOLD_MODELS]
+        scored.sort(key=lambda x: x[1], reverse=True)
+        selected = [m for m, s in scored if s > 0][:count]
+
+        # 兜底：安全边际、市场先生、能力圈（优先完全匹配）
+        if len(selected) < count:
+            selected.extend(self._fallback_classic_models(count - len(selected)))
+
+        return selected[:count]
+
+    def _fallback_classic_models(self, count: int) -> list[MungerModel]:
+        """返回 Munger 通用经典模型作为兜底."""
+        fallback_names = ["安全边际", "市场先生", "能力圈"]
+        selected: list[MungerModel] = []
+        # 优先完全匹配
+        for name in fallback_names:
+            exact = next((m for m in GOLD_MODELS if m.name_cn == name), None)
+            if exact and exact not in selected:
+                selected.append(exact)
+            if len(selected) >= count:
+                return selected[:count]
+        # 完全匹配不足时再用子串匹配补齐
+        for name in fallback_names:
+            for m in GOLD_MODELS:
+                if m.name_cn != name and name in m.name_cn and m not in selected:
+                    selected.append(m)
+                    if len(selected) >= count:
+                        return selected[:count]
+        return selected[:count]
+
+    @staticmethod
+    def _extract_keywords(text: str) -> set[str]:
+        """从信号文本中提取关键词，支持中英文分词."""
+        keywords: set[str] = set()
+        text_lower = text.lower()
+        keywords.add(text_lower)
+
+        # 拆分英文单词、数字、连续中文字符
+        tokens = _KEYWORD_RE.findall(text_lower)
+        for token in tokens:
+            keywords.add(token)
+            # 对长中文词生成 2-gram，提高命中概率
+            if len(token) >= 4 and all("一" <= c <= "鿿" for c in token):
+                for i in range(len(token) - 1):
+                    keywords.add(token[i : i + 2])
+        return keywords
+
+    def _print_doctrine_checklist(self, result: AnalysisResult) -> None:
+        """逐条输出 r001-r015 军规自查清单."""
+        print(f"\n{'='*60}")
+        print("  投资军规自查 (r001-r015)")
+        print(f"{'='*60}")
+
+        doctrine = result.doctrine_result
+        if not doctrine:
+            print("  军规检查未执行")
+            return
+
+        violations = {v.rule.id: v for v in doctrine.violations}
+        checked_count = 0
+        for rule in ALL_RULES:
+            if not rule.enabled:
+                print(f"  ⏸️  {rule.id} {rule.name}: 已禁用")
+                continue
+            checked_count += 1
+            v = violations.get(rule.id)
+            if v is None or v.passed:
+                icon = "✅"
+            elif rule.severity == "block":
+                icon = "❌"
+            else:
+                icon = "⚠️"
+            print(f"  {icon} {rule.id} {rule.name}: {rule.description[:40]}")
+
+        print(f"\n  通过: {doctrine.passed_count}/{checked_count}")
+
+    def _print_munger_models(self, result: AnalysisResult) -> None:
+        """输出与当前决策最相关的 Munger 思维模型."""
+        print(f"\n{'='*60}")
+        print("  Munger 思维模型")
+        print(f"{'='*60}")
+
+        models = self._select_munger_models(result.bundle, count=3)
+        if not models:
+            print("  未匹配到相关模型")
+            return
+
+        for m in models:
+            reason = f" | {m.gold_relevance_reason}" if m.gold_relevance_reason else ""
+            print(f"  • {m.name_cn} / {m.name_en}{reason}")
+            print(f"    {m.description[:80]}...")
+
+    def _print_profile_match(
+        self, result: AnalysisResult, profile: str, portfolio: dict[str, Any]
+    ) -> None:
+        """输出投资者画像与建议仓位的匹配情况."""
+        print(f"\n{'='*60}")
+        print("  画像匹配")
+        print(f"{'='*60}")
+
+        if not portfolio:
+            print("  未找到投资者持仓数据")
+            return
+
+        limits = portfolio.get("limits", {})
+        total_funds = float(limits.get("total_funds", 200_000))
+        max_single_pct = float(limits.get("max_single_pct", 20)) / 100
+        max_gold_pct = float(limits.get("max_gold_pct", 80)) / 100
+        risk_profile = limits.get("risk_profile", "balanced")
+        investment_horizon = limits.get("investment_horizon", "1-3年")
+
+        current_price = result.current_price
+        positions = portfolio.get("positions", {})
+        current_gold_value = sum(
+            float(pos.get("grams", 0)) * current_price
+            for pos in positions.values()
+        )
+        current_gold_pct = current_gold_value / total_funds if total_funds else 0.0
+
+        suggested_pct = result.final_decision.get("position_pct", 0)
+        new_total_gold_pct = current_gold_pct + suggested_pct
+
+        print(f"  风险画像: {risk_profile}")
+        print(f"  持仓周期: {investment_horizon}")
+        print(f"  当前黄金占比: {current_gold_pct:.0%} (上限 {max_gold_pct:.0%})")
+
+        single_ok = suggested_pct <= max_single_pct
+        total_ok = new_total_gold_pct <= max_gold_pct
+
+        print(
+            f"  建议仓位: {suggested_pct:.0%} vs 单品种上限 {max_single_pct:.0%} "
+            f"— {'兼容 ✅' if single_ok else '超出 ⚠️'}"
+        )
+        print(
+            f"  总敞口: {current_gold_pct:.0%}+{suggested_pct:.0%}="
+            f"{new_total_gold_pct:.0%} vs 上限 {max_gold_pct:.0%} "
+            f"— {'兼容 ✅' if total_ok else '超出 ⚠️'}"
+        )
+
+        if single_ok and total_ok:
+            print("\n  综合: 建议符合画像约束 ✅")
+        else:
+            print("\n  综合: 建议部分超出画像约束 ⚠️")
 
     def _auto_track(self, result: AnalysisResult) -> None:
         """自动记录预测到预测追踪器."""

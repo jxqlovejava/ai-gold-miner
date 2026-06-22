@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +30,8 @@ class LocalFileStore:
         "doctrine_state": "doctrine_state.json",
         "scenarios": "scenarios.jsonl",
         "gold_history": "jd_ms_gold_history.csv",
+        "bank_target_history": "bank_target_history.jsonl",
+        "institutional_13f_history": "institutional_13f_history.jsonl",
     }
 
     def __init__(self, private_data_dir: str | Path | None = None) -> None:
@@ -207,3 +210,46 @@ class LocalFileStore:
         path = self._path("gold_history")
         with open(path, "a", encoding="utf-8") as f:
             f.write(csv_line + "\n")
+
+    # ------------------------------------------------------------------
+    # 机构历史数据
+    # ------------------------------------------------------------------
+
+    def load_bank_target_history(self) -> list[dict[str, Any]]:
+        return self._read_jsonl("bank_target_history")
+
+    def append_bank_target(self, record: dict[str, Any]) -> None:
+        """追加投行目标价记录，按 (bank, date) 去重."""
+        record.setdefault("timestamp", datetime.now().isoformat())
+        bank = record.get("bank", "")
+        date_key = record["timestamp"][:10]
+        dedup_key = (bank, date_key)
+
+        existing = self.load_bank_target_history()
+        for r in existing:
+            if (r.get("bank"), r.get("timestamp", "")[:10]) == dedup_key:
+                return
+
+        self._append_jsonl("bank_target_history", record)
+
+    def load_institutional_13f_history(self) -> list[dict[str, Any]]:
+        return self._read_jsonl("institutional_13f_history")
+
+    def append_institutional_13f(self, record: dict[str, Any]) -> None:
+        """追加 13F 持仓记录，按 (institution, ticker, quarter) 去重."""
+        record.setdefault("timestamp", datetime.now().isoformat())
+        institution = record.get("institution", "")
+        ticker = record.get("ticker", "")
+        quarter = record.get("quarter", "")
+        dedup_key = (institution, ticker, quarter)
+
+        existing = self.load_institutional_13f_history()
+        for r in existing:
+            if (
+                r.get("institution"),
+                r.get("ticker"),
+                r.get("quarter"),
+            ) == dedup_key:
+                return
+
+        self._append_jsonl("institutional_13f_history", record)
