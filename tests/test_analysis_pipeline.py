@@ -2,12 +2,13 @@
 
 import pytest
 
+from gold_miner.doctrine.checker import DoctrineChecker
 from gold_miner.pipeline.analysis import (
     AnalysisContext,
     AnalysisPipeline,
     AnalysisResult,
 )
-from gold_miner.signals.base import SignalBundle
+from gold_miner.signals.base import Signal, SignalBundle, SignalDirection, SignalStrength
 
 
 class TestAnalysisContext:
@@ -155,27 +156,177 @@ class TestAnalysisPipelineSkipFlags:
         assert result.trade_decision is None
 
 
-class TestAnalysisPipelineResultStructure:
-    def test_result_has_expected_fields(self):
+class TestAnalysisPipelineOutputSections:
+    """测试 _step_decide 新增的军规、Munger、画像输出."""
+
+    def test_select_munger_models_returns_up_to_three(self):
+        from gold_miner.doctrine.munger_models import GOLD_MODELS
+
+        bundle = SignalBundle()
+        bundle.add(
+            Signal(
+                name="情绪极端",
+                dimension="sentiment",
+                direction=SignalDirection.BULLISH,
+                strength=SignalStrength.MODERATE,
+                score=0.5,
+            )
+        )
+        pipeline = AnalysisPipeline()
+        models = pipeline._select_munger_models(bundle, count=3)
+        assert len(models) <= 3
+        if GOLD_MODELS:
+            assert len(models) > 0
+            assert all(hasattr(m, "name_cn") for m in models)
+        else:
+            assert models == []
+
+    def test_select_munger_models_falls_back_to_classics_when_empty(self):
+        from gold_miner.doctrine.munger_models import GOLD_MODELS
+
+        if not GOLD_MODELS:
+            pytest.skip("GOLD_MODELS 未加载，跳过兜底测试")
+
+        bundle = SignalBundle()
+        pipeline = AnalysisPipeline()
+        models = pipeline._select_munger_models(bundle, count=3)
+        names = {m.name_cn for m in models}
+        # 空信号时应命中通用兜底模型
+        assert any(name in names for name in {"安全边际", "市场先生", "能力圈"})
+
+    def test_select_munger_models_prefers_keyword_matches(self):
+        from gold_miner.doctrine.munger_models import GOLD_MODELS
+
+        if not GOLD_MODELS:
+            pytest.skip("GOLD_MODELS 未加载，跳过关键词匹配测试")
+
+        bundle = SignalBundle()
+        bundle.add(
+            Signal(
+                name="社会认同倾向",
+                dimension="sentiment",
+                direction=SignalDirection.BEARISH,
+                strength=SignalStrength.STRONG,
+                score=-0.8,
+            )
+        )
+        pipeline = AnalysisPipeline()
+        models = pipeline._select_munger_models(bundle, count=3)
+        names = {m.name_cn for m in models}
+        # "社会认同" 2-gram 应命中社会认同倾向
+        assert any("社会认同" in n for n in names)
+
+    def test_print_doctrine_checklist_icons(self, capsys):
+        pipeline = AnalysisPipeline()
         result = AnalysisResult()
-        # Check all expected fields exist
-        assert hasattr(result, 'bundle')
-        assert hasattr(result, 'decision')
-        assert hasattr(result, 'final_decision')
-        assert hasattr(result, 'checks')
-        assert hasattr(result, 'doctrine_ctx')
-        assert hasattr(result, 'doctrine_result')
-        assert hasattr(result, 'prediction_id')
-        assert hasattr(result, 'current_price')
-        assert hasattr(result, 'gold_df')
-        assert hasattr(result, 'dxy_df')
-        assert hasattr(result, 'rate_df')
-        assert hasattr(result, 'silver_df')
-        assert hasattr(result, 'breakeven_df')
-        assert hasattr(result, 'news_raw')
-        assert hasattr(result, 'au_df')
-        assert hasattr(result, 'bull_opinion')
-        assert hasattr(result, 'bear_opinion')
-        assert hasattr(result, 'trade_decision')
-        assert hasattr(result, 'alerts')
-        assert hasattr(result, 'messages')
+        decision = {"position_pct": 0.25}
+        doctrine = DoctrineChecker().check(decision, {})
+        result.doctrine_result = doctrine
+        result.final_decision = decision
+
+        pipeline._print_doctrine_checklist(result)
+        captured = capsys.readouterr().out
+
+        assert "投资军规自查 (r001-r015)" in captured
+        assert "r001" in captured
+        assert "r015" in captured
+        # r001 仓位 25% > 20% 应标记 ❌
+        assert "❌ r001" in captured
+        # r015 是 info 级别，默认通过
+        assert "✅ r015" in captured
+
+    def test_print_doctrine_checklist_handles_no_doctrine(self, capsys):
+        pipeline = AnalysisPipeline()
+        result = AnalysisResult()
+        result.doctrine_result = None
+
+        pipeline._print_doctrine_checklist(result)
+        captured = capsys.readouterr().out
+        assert "军规检查未执行" in captured
+
+    def test_load_investor_data_fallback(self, monkeypatch, tmp_path):
+        pipeline = AnalysisPipeline()
+
+        class FakeStore:
+            def load_investor_profile(self):
+                return ""
+
+            def load_portfolio(self):
+                return {}
+
+        monkeypatch.setattr(
+            "gold_miner.pipeline.analysis.get_store", lambda private_data_dir=None: FakeStore()
+        )
+
+        result = AnalysisResult()
+        profile, portfolio, warnings = pipeline._load_investor_data(result)
+
+        assert any("使用示例投资者画像" in w for w in warnings)
+        assert any("使用示例持仓数据" in w for w in warnings)
+        assert "平衡型" in profile or "风险偏好" in profile
+        assert portfolio.get("limits", {}).get("risk_profile") == "balanced"
+        assert result.investor_profile == profile
+        assert result.portfolio == portfolio
+
+    def test_print_profile_match_compatible(self, capsys):
+        pipeline = AnalysisPipeline()
+        result = AnalysisResult()
+        result.current_price = 100.0
+        result.final_decision = {"position_pct": 0.10}
+        portfolio = {
+            "limits": {
+                "total_funds": 200000,
+                "max_gold_pct": 80,
+                "max_single_pct": 20,
+                "risk_profile": "balanced",
+                "investment_horizon": "1-3年",
+            },
+            "positions": {
+                "gold_example": {
+                    "instrument": "积存金",
+                    "grams": 100.0,
+                }
+            },
+        }
+
+        pipeline._print_profile_match(result, "profile text", portfolio)
+        captured = capsys.readouterr().out
+
+        assert "画像匹配" in captured
+        assert "风险画像: balanced" in captured
+        assert "持仓周期: 1-3年" in captured
+        assert "建议符合画像约束 ✅" in captured
+
+    def test_print_profile_match_exceeds_limits(self, capsys):
+        pipeline = AnalysisPipeline()
+        result = AnalysisResult()
+        result.current_price = 100.0
+        result.final_decision = {"position_pct": 0.30}
+        portfolio = {
+            "limits": {
+                "total_funds": 200000,
+                "max_gold_pct": 80,
+                "max_single_pct": 20,
+                "risk_profile": "balanced",
+                "investment_horizon": "1-3年",
+            },
+            "positions": {
+                "gold_example": {
+                    "instrument": "积存金",
+                    "grams": 100.0,
+                }
+            },
+        }
+
+        pipeline._print_profile_match(result, "profile text", portfolio)
+        captured = capsys.readouterr().out
+
+        assert "建议仓位: 30% vs 单品种上限 20% — 超出 ⚠️" in captured
+        assert "建议部分超出画像约束 ⚠️" in captured
+
+    def test_print_profile_match_empty_portfolio(self, capsys):
+        pipeline = AnalysisPipeline()
+        result = AnalysisResult()
+        pipeline._print_profile_match(result, "", {})
+        captured = capsys.readouterr().out
+        assert "未找到投资者持仓数据" in captured

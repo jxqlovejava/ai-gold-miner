@@ -170,7 +170,8 @@ class TestRegistryGlobal:
         assert "daily" in names
         assert "post-trade" in names
         assert "weekly-review" in names
-        assert len(names) == 6
+        assert "long-term" in names
+        assert len(names) == 7
 
     def test_resolve_builtin_by_alias(self):
         registry = get_registry()
