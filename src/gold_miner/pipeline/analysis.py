@@ -33,6 +33,7 @@ from gold_miner.experience import ExperienceLoader
 from gold_miner.improvement.tracker import PredictionRecord, PredictionTracker
 from gold_miner.llm.client import LLMClient
 from gold_miner.signals.base import Signal, SignalBundle, SignalDirection, SignalStrength
+from gold_miner.signals.economic_calendar import EconomicCalendarSignalGenerator
 from gold_miner.signals.engine import ScoringEngine
 from gold_miner.signals.etf_flow_signal import EtfFlowSignalGenerator
 from gold_miner.signals.fundamental import FundamentalAnalyzer
@@ -276,6 +277,15 @@ class AnalysisPipeline:
                 bundle.add(sig)
         except Exception as e:
             logger.debug(f"ETF资金流信号异常: {e}")
+
+        # 经济日历事件提醒
+        try:
+            ec_gen = EconomicCalendarSignalGenerator()
+            for sig in ec_gen.generate_signals():
+                bundle.add(sig)
+            logger.info(f"经济日历事件: {len(bundle.by_dimension('event_calendar'))} 个")
+        except Exception as e:
+            logger.debug(f"经济日历信号异常: {e}")
 
         # DeepSeek 深度分析
         if ctx.deep and news_signals:

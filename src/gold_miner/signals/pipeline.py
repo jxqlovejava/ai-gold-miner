@@ -44,6 +44,7 @@ class SignalPipeline:
     def _setup_default_steps(self) -> None:
         # 占位步骤 — 实际 generator 在 execute 时注入
         from gold_miner.signals.cot_signal import CotSignalGenerator
+        from gold_miner.signals.economic_calendar import EconomicCalendarSignalGenerator
         from gold_miner.signals.etf_flow_signal import EtfFlowSignalGenerator
         from gold_miner.signals.event_driven import EventDrivenSignalGenerator
         from gold_miner.signals.fundamental import FundamentalAnalyzer
@@ -57,6 +58,12 @@ class SignalPipeline:
         self.register(PipelineStep(
             name="event_pre",
             generator=lambda ctx: EventDrivenSignalGenerator(ctx.calendar).generate_pre_event_signals(),
+            depends_on=[],
+        ))
+
+        self.register(PipelineStep(
+            name="economic_calendar",
+            generator=lambda _ctx: EconomicCalendarSignalGenerator().generate_signals(),
             depends_on=[],
         ))
 

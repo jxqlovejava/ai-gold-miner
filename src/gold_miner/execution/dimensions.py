@@ -167,6 +167,33 @@ def print_sentiment(au_df: pd.DataFrame | None, bundle: SignalBundle) -> None:
         print("  信号: 无")
 
 
+def print_economic_calendar(bundle: SignalBundle) -> None:
+    dim_name = "\U0001f4c5 经济日历"
+    sigs = bundle.by_dimension("event_calendar")
+    if not sigs:
+        return
+
+    print(f"\n{'='*60}")
+    print(f"  {dim_name}")
+    print(f"{'='*60}")
+
+    # 分离普通事件提醒与军规提醒
+    events = [s for s in sigs if s.metadata.get("event_type")]
+    warnings = [s for s in sigs if s.metadata.get("rule_id")]
+
+    if events:
+        print(f"  未来高影响事件 ({len(events)}个):")
+        for sig in events:
+            e = "!" if sig.strength == "strong" else "i"
+            print(f"    [{e}] {sig.name}: {sig.description[:60]}")
+
+    if warnings:
+        print(f"  {'-'*56}")
+        print("  军规提醒:")
+        for sig in warnings:
+            print(f"    [!] {sig.name}: {sig.description[:60]}")
+
+
 def print_all_dimensions(
     gold_df, dxy_df, rate_df, breakeven_df, silver_df,
     news_items, au_df, bundle,
@@ -175,3 +202,4 @@ def print_all_dimensions(
     print_fundamental(dxy_df, rate_df, breakeven_df, gold_df, silver_df, bundle)
     print_news(news_items, bundle)
     print_sentiment(au_df, bundle)
+    print_economic_calendar(bundle)
