@@ -165,8 +165,9 @@ class PostMarketWorkflow(Workflow):
             "[4] Agent 辩论 (多头 vs 空头)",
             "[5] 风控审查",
             "[6] 军规审查",
-            "[7] 决策输出 + 仪表盘",
-            "[8] 自动追踪 + EventStore",
+            "[7] Munger 思维模型",
+            "[8] 决策输出 + 仪表盘",
+            "[9] 自动追踪 + EventStore",
         ]
 
 

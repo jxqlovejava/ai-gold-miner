@@ -62,6 +62,7 @@ class TestAnalysisPipelineStepComposition:
             "agent_debate",
             "risk_check",
             "doctrine_check",
+            "munger_models",
             "decide",
             "track",
         ]

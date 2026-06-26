@@ -90,10 +90,11 @@ class AnalysisResult:
     experience_reminders: list[str] = field(default_factory=list)
     investor_profile: str = ""
     portfolio: dict[str, Any] = field(default_factory=dict)
+    munger_models: list[dict[str, Any]] = field(default_factory=list)
 
 
 class AnalysisPipeline:
-    """完整分析管线 — 8步流程.
+    """完整分析管线 — 9步流程.
 
     Steps:
         1. collect       — 数据采集
@@ -102,8 +103,9 @@ class AnalysisPipeline:
         4. agent_debate  — 多空辩论
         5. risk_check    — 风控审查
         6. doctrine_check — 军规审查
-        7. decide        — 决策输出
-        8. track         — 自动追踪
+        7. munger_models — Munger 思维模型
+        8. decide        — 决策输出
+        9. track         — 自动追踪
     """
 
     def __init__(self) -> None:
@@ -114,6 +116,7 @@ class AnalysisPipeline:
             "agent_debate",
             "risk_check",
             "doctrine_check",
+            "munger_models",
             "decide",
             "track",
         ]
@@ -146,11 +149,14 @@ class AnalysisPipeline:
         if not ctx.skip_doctrine:
             self._step_doctrine_check(ctx, result)
 
-        # Step 7: decide
+        # Step 7: munger_models
+        self._step_munger_models(ctx, result)
+
+        # Step 8: decide
         if not ctx.skip_dashboard:
             self._step_decide(ctx, result)
 
-        # Step 8: track
+        # Step 9: track
         if not ctx.skip_tracking:
             self._step_track(ctx, result)
 
@@ -161,7 +167,7 @@ class AnalysisPipeline:
     # ------------------------------------------------------------------
 
     def _step_collect(self, ctx: AnalysisContext, result: AnalysisResult) -> None:
-        logger.info("[1/8] 数据采集...")
+        logger.info("[1/9] 数据采集...")
 
         gold_fetcher = SpotGoldFetcher()
         result.gold_df = gold_fetcher.fetch(days=ctx.days)
@@ -211,14 +217,14 @@ class AnalysisPipeline:
             except Exception as e:
                 logger.debug(f"价格预警检查异常: {e}")
 
-        logger.info("[1/8] 数据采集完成")
+        logger.info("[1/9] 数据采集完成")
 
     # ------------------------------------------------------------------
     # Step 2: 信号生成
     # ------------------------------------------------------------------
 
     def _step_generate_signals(self, ctx: AnalysisContext, result: AnalysisResult) -> None:
-        logger.info("[2/8] 信号生成...")
+        logger.info("[2/9] 信号生成...")
 
         bundle = SignalBundle()
 
@@ -327,7 +333,7 @@ class AnalysisPipeline:
         logger.info(f"综合评分: {bundle.composite_score:+.2f} | 置信度: {bundle.confidence:.0%}")
 
         result.bundle = bundle
-        logger.info("[2/8] 信号生成完成")
+        logger.info("[2/9] 信号生成完成")
 
     # ------------------------------------------------------------------
     # Step 3: 来源验证
@@ -335,11 +341,11 @@ class AnalysisPipeline:
 
     def _step_source_truth(self, ctx: AnalysisContext, result: AnalysisResult) -> None:
         """来源验证 — 跨维度一致性检查 + source tier 覆盖审计."""
-        logger.info("[3/8] 来源验证...")
+        logger.info("[3/9] 来源验证...")
 
         bundle = result.bundle
         if not bundle.signals:
-            logger.info("[3/8] 无信号，跳过来源验证")
+            logger.info("[3/9] 无信号，跳过来源验证")
             return
 
         warnings: list[str] = []
@@ -362,7 +368,7 @@ class AnalysisPipeline:
             old_conf = bundle.confidence
             bundle.confidence = max(0.1, bundle.confidence - penalty)
             logger.info(
-                f"[3/8] 跨维度不一致 ({len(inconsistencies)}项)，"
+                f"[3/9] 跨维度不一致 ({len(inconsistencies)}项)，"
                 f"置信度 {old_conf:.0%} → {bundle.confidence:.0%}"
             )
 
@@ -371,9 +377,9 @@ class AnalysisPipeline:
             logger.info(f"  {w}")
 
         if not warnings:
-            logger.info("[3/8] 来源验证通过，无异常")
+            logger.info("[3/9] 来源验证通过，无异常")
         else:
-            logger.info(f"[3/8] 来源验证完成 ({len(warnings)} 项提醒)")
+            logger.info(f"[3/9] 来源验证完成 ({len(warnings)} 项提醒)")
 
     @staticmethod
     def _audit_source_tiers(bundle: SignalBundle) -> dict[str, set[str]]:
@@ -440,7 +446,7 @@ class AnalysisPipeline:
     # ------------------------------------------------------------------
 
     def _step_agent_debate(self, ctx: AnalysisContext, result: AnalysisResult) -> None:
-        logger.info("[4/8] Agent 辩论...")
+        logger.info("[4/9] Agent 辩论...")
 
         bull = BullAgent()
         bear = BearAgent()
@@ -455,14 +461,14 @@ class AnalysisPipeline:
             risk_profile=ctx.risk_profile or settings.risk_profile,
         )
 
-        logger.info("[4/8] Agent 辩论完成")
+        logger.info("[4/9] Agent 辩论完成")
 
     # ------------------------------------------------------------------
     # Step 5: 风控审查
     # ------------------------------------------------------------------
 
     def _step_risk_check(self, ctx: AnalysisContext, result: AnalysisResult) -> None:
-        logger.info("[5/8] 风控审查...")
+        logger.info("[5/9] 风控审查...")
 
         risk_mgr = RiskManager(max_position_pct=settings.max_position_pct)
         result.checks = risk_mgr.check(result.decision)
@@ -473,14 +479,14 @@ class AnalysisPipeline:
         else:
             logger.info(f"风控通过 ({len(result.checks)}项检查)")
 
-        logger.info("[5/8] 风控审查完成")
+        logger.info("[5/9] 风控审查完成")
 
     # ------------------------------------------------------------------
     # Step 6: 军规审查
     # ------------------------------------------------------------------
 
     def _step_doctrine_check(self, ctx: AnalysisContext, result: AnalysisResult) -> None:
-        logger.info("[6/8] 军规审查...")
+        logger.info("[6/9] 军规审查...")
 
         active_dims = [d for d in ["technical", "fundamental", "news", "sentiment"]
                        if result.bundle.by_dimension(d)]
@@ -511,14 +517,128 @@ class AnalysisPipeline:
         result.doctrine_result = doctrine_result
         result.final_decision = checker.apply_doctrine(result.final_decision, doctrine_result)
 
-        logger.info("[6/8] 军规审查完成")
+        logger.info("[6/9] 军规审查完成")
 
     # ------------------------------------------------------------------
-    # Step 7: 决策输出
+    # Step 7: Munger 思维模型
+    # ------------------------------------------------------------------
+
+    def _step_munger_models(self, ctx: AnalysisContext, result: AnalysisResult) -> None:
+        """选择与当前情景最相关的 Munger 模型并应用仓位约束.
+
+        每个匹配模型可能触发仓位调整因子（仅缩减，不放大），
+        合成因子取所有触发规则的最小值。
+        """
+        logger.info("[7/9] Munger 思维模型...")
+
+        models = self._select_munger_models(result.bundle, count=3)
+        adjustments: list[dict[str, Any]] = []
+        composite_factor = 1.0
+
+        current_pos = result.final_decision.get("position_pct", 0)
+
+        for model in models:
+            adj = self._model_adjustment(model, result)
+            if adj:
+                adjustments.append(adj)
+                composite_factor = min(composite_factor, adj["factor"])
+
+        # 存储到 result
+        result.munger_models = [
+            {
+                "name_cn": m.name_cn,
+                "name_en": m.name_en,
+                "description": m.description,
+                "gold_relevance_reason": m.gold_relevance_reason,
+                "adjustment": next(
+                    (a for a in adjustments if a["slug"] == m.slug), None
+                ),
+            }
+            for m in models
+        ]
+
+        # 应用仓位调整（仅缩减，不低于 5% 观察仓）
+        if composite_factor < 1.0 and current_pos > 0:
+            new_pos = max(round(current_pos * composite_factor, 2), 0.05)
+            result.final_decision["position_pct"] = new_pos
+            result.final_decision["munger_adjustment"] = {
+                "factor": composite_factor,
+                "adjustments": adjustments,
+                "original_position": current_pos,
+                "adjusted_position": new_pos,
+            }
+
+        logger.info(
+            f"[7/9] Munger 模型: {len(models)}个选中, "
+            f"合成因子 {composite_factor:.2f}"
+        )
+
+    @staticmethod
+    def _model_adjustment(model: MungerModel, result: AnalysisResult) -> dict[str, Any] | None:
+        """基于模型 slug 匹配仓位约束规则.
+
+        返回 {"slug": ..., "model_name": ..., "factor": ..., "reason": ...} 或 None.
+        """
+        rules: dict[str, Any] = {
+            "margin-of-safety": lambda r: {
+                "factor": 0.80,
+                "reason": "安全边际：降低仓位为判断错误留缓冲",
+            }
+            if r.final_decision.get("position_pct", 0) > 0.3
+            else None,
+            "overoptimism-tendency": lambda r: {
+                "factor": 0.85,
+                "reason": "过度乐观倾向：系统性高估好结果概率，降低仓位防范",
+            }
+            if r.final_decision.get("bull_confidence", 0.5) > 0.7
+            else None,
+            "social-proof": lambda r: {
+                "factor": 0.80,
+                "reason": "羊群行为：单方向信号过度集中，社会认同驱动时主动降仓",
+            }
+            if (
+                r.bundle.bullish_count() / max(len(r.bundle.signals), 1) > 0.8
+                or r.bundle.bearish_count() / max(len(r.bundle.signals), 1) > 0.8
+            )
+            else None,
+            "inversion": lambda r: {
+                "factor": 0.85,
+                "reason": "逆向思维：先搞清楚什么会导致失败，主动降低仓位留余地",
+            }
+            if abs(r.bundle.composite_score) > 0.5
+            else None,
+            "circle-of-competence": lambda r: {
+                "factor": 0.70,
+                "reason": "能力圈：置信度不足时缩小操作规模，不在模糊区域下重注",
+            }
+            if r.bundle.confidence < 0.4
+            else None,
+            "incentive-cause-bias": lambda r: {
+                "factor": 0.75,
+                "reason": "激励偏见：检测到机构带节奏信号，主动降低仓位防被误导",
+            }
+            if any(
+                s.dimension == "hype_bias" and s.score < -0.2
+                for s in r.bundle.signals
+            )
+            else None,
+        }
+
+        rule = rules.get(model.slug)
+        if rule:
+            adj = rule(result)
+            if adj:
+                adj["slug"] = model.slug
+                adj["model_name"] = model.name_cn
+                return adj
+        return None
+
+    # ------------------------------------------------------------------
+    # Step 8: 决策输出
     # ------------------------------------------------------------------
 
     def _step_decide(self, ctx: AnalysisContext, result: AnalysisResult) -> None:
-        logger.info("[7/8] 决策输出...")
+        logger.info("[8/9] 决策输出...")
 
         # 四维度详细输出
         print_all_dimensions(
@@ -576,14 +696,14 @@ class AnalysisPipeline:
                     f"仓位{result.trade_decision.position_pct:.0%}"
                 )
 
-        logger.info("[7/8] 决策输出完成")
+        logger.info("[8/9] 决策输出完成")
 
     # ------------------------------------------------------------------
-    # Step 8: 自动追踪
+    # Step 9: 自动追踪
     # ------------------------------------------------------------------
 
     def _step_track(self, ctx: AnalysisContext, result: AnalysisResult) -> None:
-        logger.info("[8/8] 自动追踪...")
+        logger.info("[9/9] 自动追踪...")
 
         # 自动记录预测
         if settings.enable_auto_tracking:
@@ -592,7 +712,7 @@ class AnalysisPipeline:
         # EventStore 记录
         result.prediction_id = self._record_events(result)
 
-        logger.info("[8/8] 自动追踪完成")
+        logger.info("[9/9] 自动追踪完成")
 
     # ------------------------------------------------------------------
     # 辅助方法
@@ -841,20 +961,24 @@ class AnalysisPipeline:
         print(f"\n  通过: {doctrine.passed_count}/{checked_count}")
 
     def _print_munger_models(self, result: AnalysisResult) -> None:
-        """输出与当前决策最相关的 Munger 思维模型."""
-        print(f"\n{'='*60}")
-        print("  Munger 思维模型")
-        print(f"{'='*60}")
-
-        models = self._select_munger_models(result.bundle, count=3)
+        """输出与当前决策最相关的 Munger 思维模型 (从 result 读取)."""
+        models = result.munger_models
         if not models:
-            print("  未匹配到相关模型")
             return
 
+        print(f"\n{'='*60}")
+        print("  Munger 思维模型 (Step 7)")
+        print(f"{'='*60}")
+
         for m in models:
-            reason = f" | {m.gold_relevance_reason}" if m.gold_relevance_reason else ""
-            print(f"  • {m.name_cn} / {m.name_en}{reason}")
-            print(f"    {m.description[:80]}...")
+            reason = f" | {m['gold_relevance_reason']}" if m.get("gold_relevance_reason") else ""
+            print(f"  • {m['name_cn']} / {m['name_en']}{reason}")
+            adj = m.get("adjustment")
+            if adj:
+                print(f"    ⚙️ 仓位约束: ×{adj['factor']:.0%} — {adj['reason']}")
+            else:
+                print(f"    📖 {m['description'][:80]}...")
+            print()
 
     def _print_profile_match(
         self, result: AnalysisResult, profile: str, portfolio: dict[str, Any]
