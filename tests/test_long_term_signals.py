@@ -64,9 +64,9 @@ class TestLongTermScenarioSignal:
         gen = LongTermScenarioSignal()
         signals, matrix = gen.generate_signals(base_price=3300, horizon_months=12)
         assert matrix is not None
-        assert len(matrix.scenarios) == 3
+        assert len(matrix.scenarios) == 5
         scenario_names = {s.name for s in matrix.scenarios}
-        assert scenario_names == {"bull", "base", "bear"}
+        assert scenario_names == {"bull", "base", "bear", "extreme_up", "extreme_down"}
 
     def test_scenario_probabilities_sum_to_100(self, monkeypatch):
         monkeypatch.setattr("gold_miner.config.settings.llm_api_key", "")

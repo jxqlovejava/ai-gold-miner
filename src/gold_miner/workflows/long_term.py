@@ -261,7 +261,7 @@ class LongTermWorkflow(Workflow):
 
         # 情景矩阵 → 检查清单方法 + 否证思维
         if result.scenario_matrix:
-            models.append("检查清单方法: 用三情景矩阵系统性评估极端与基准状态")
+            models.append("检查清单方法: 用五情景矩阵系统性评估极端与基准状态")
             models.append("否证思维: 主动寻找熊市情景成立的条件，而非只确认牛市叙事")
 
         # 默认模型
@@ -366,6 +366,12 @@ class LongTermWorkflow(Workflow):
                 f"情景矩阵预期: ${result.scenario_matrix.expected_price:,.0f} "
                 f"({result.scenario_matrix.weighted_expected_change_pct:+.1f}%)"
             )
+            scenario_lines = []
+            for s in result.scenario_matrix.scenarios:
+                scenario_lines.append(
+                    f"{s.name} {s.probability_pct:.0f}% (${s.gold_low:,.0f}-${s.gold_high:,.0f})"
+                )
+            result.messages.append("情景概率: " + " | ".join(scenario_lines))
 
         for warning in result.warnings:
             result.messages.append(f"注意: {warning}")

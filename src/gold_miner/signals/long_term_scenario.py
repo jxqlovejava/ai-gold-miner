@@ -56,6 +56,15 @@ class LongTermScenarioSignal:
             "基准熊市情景：美国经济强劲复苏，美联储重新加息或维持高利率更久，"
             "实际利率大幅上行，美元走强，风险资产吸引力上升，黄金承压。"
         ),
+        "extreme_up": (
+            "极端上行情景：美元信用遭遇历史性质疑（美联储财政货币化/美债拍卖危机/主权评级下调），"
+            "或全球地缘冲突全面升级导致能源与供应链断裂，全球央行和主权基金恐慌性增持黄金，"
+            "去美元化从渐进转为加速。"
+        ),
+        "extreme_down": (
+            "极端下行情景：美国经济强劲复苏且通胀粘性迫使美联储连续加息，实际利率大幅上行；"
+            "同时全球风险偏好全面回升、地缘紧张显著缓和、美元趋势性走强，黄金遭遇流动性紧缩与机会成本双重打击。"
+        ),
     }
 
     def __init__(self, analyzer: ScenarioAnalyzer | None = None) -> None:
@@ -143,6 +152,9 @@ class LongTermScenarioSignal:
             strength = SignalStrength.WEAK
             score = 0.0
 
+        prob_str = ", ".join(
+            f"{s.name} {s.probability_pct:.0f}%" for s in matrix.scenarios
+        )
         signals.append(Signal(
             name=f"{horizon_months}个月情景矩阵预期",
             dimension="long_term",
@@ -150,11 +162,9 @@ class LongTermScenarioSignal:
             strength=strength,
             score=round(score, 2),
             description=(
-                f"三情景加权预期金价变动 {expected_change:+.1f}%，"
+                f"五情景加权预期金价变动 {expected_change:+.1f}%，"
                 f"预期价格 ${matrix.expected_price:,.0f}。"
-                f"牛市概率 {matrix.scenarios[0].probability_pct:.0f}%，"
-                f"基准 {matrix.scenarios[1].probability_pct:.0f}%，"
-                f"熊市 {matrix.scenarios[2].probability_pct:.0f}%"
+                f"{prob_str}"
             ),
             metadata={
                 "source": "scenario_matrix",
@@ -174,10 +184,19 @@ class LongTermScenarioSignal:
         matrix: ScenarioMatrix,
         bundle: SignalBundle | None,
     ) -> ScenarioMatrix:
-        """基于现有长期信号调整三情景概率."""
+        """基于现有长期信号调整五情景概率.
+
+        极端上下行各保留 10% 基础尾部位，剩余 80% 按牛/熊信号强度分配。
+        """
         if bundle is None:
-            # 默认等概率
-            probs = {"bull": 33, "base": 34, "bear": 33}
+            # 无信号时：等权重牛/熊，基准占剩余，极端各占 10%
+            probs = {
+                "bull": 20,
+                "base": 40,
+                "bear": 20,
+                "extreme_up": 10,
+                "extreme_down": 10,
+            }
         else:
             long_term_signals = bundle.by_dimension("long_term")
             bullish_score = sum(s.score for s in long_term_signals if s.direction == SignalDirection.BULLISH)
@@ -185,28 +204,44 @@ class LongTermScenarioSignal:
             total = bullish_score + bearish_score
 
             if total < 0.1:
-                probs = {"bull": 30, "base": 40, "bear": 30}
+                probs = {
+                    "bull": 20,
+                    "base": 40,
+                    "bear": 20,
+                    "extreme_up": 10,
+                    "extreme_down": 10,
+                }
             else:
                 bull_ratio = bullish_score / total
                 bear_ratio = bearish_score / total
-                # 牛市/熊市概率各在 15-45% 之间，基准占剩余
-                bull_pct = round(15 + bull_ratio * 30)
-                bear_pct = round(15 + bear_ratio * 30)
-                base_pct = 100 - bull_pct - bear_pct
-                # 修复四舍五入导致概率和不等于 100 或基准为负的问题
+                # 普通牛/熊在 15-35% 之间，基准占剩余，极端各占 10%
+                bull_pct = round(15 + bull_ratio * 20)
+                bear_pct = round(15 + bear_ratio * 20)
+                base_pct = 100 - bull_pct - bear_pct - 10 - 10
+
+                # 兜底：基准概率不能为负
                 if base_pct < 0:
                     base_pct = 0
                     total_bb = bull_pct + bear_pct
                     if total_bb > 0:
-                        bull_pct = round(bull_pct * 100 / total_bb)
-                        bear_pct = 100 - bull_pct
-                prob_total = bull_pct + bear_pct + base_pct
+                        scale = 80 / total_bb  # 普通牛熊合计最多 80%
+                        bull_pct = round(bull_pct * scale)
+                        bear_pct = 80 - bull_pct
+
+                prob_total = bull_pct + bear_pct + base_pct + 10 + 10
                 if prob_total != 100:
                     base_pct += 100 - prob_total
-                probs = {"bull": bull_pct, "base": base_pct, "bear": bear_pct}
+
+                probs = {
+                    "bull": bull_pct,
+                    "base": base_pct,
+                    "bear": bear_pct,
+                    "extreme_up": 10,
+                    "extreme_down": 10,
+                }
 
         for s in matrix.scenarios:
-            s.probability_pct = probs.get(s.name, 33)
+            s.probability_pct = probs.get(s.name, 20)
 
         # 计算加权预期
         weighted = sum(
@@ -229,6 +264,8 @@ class LongTermScenarioSignal:
             "bull": (15.0, 1.05, 1.25),
             "base": (5.0, 0.95, 1.10),
             "bear": (-10.0, 0.85, 0.98),
+            "extreme_up": (40.0, 1.20, 1.80),
+            "extreme_down": (-25.0, 0.60, 0.90),
         }
         change, low_mult, high_mult = fallbacks.get(name, (0.0, 0.95, 1.05))
         return ScenarioEstimate(
