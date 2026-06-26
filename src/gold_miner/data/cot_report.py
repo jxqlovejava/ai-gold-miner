@@ -22,17 +22,10 @@ import pandas as pd
 from loguru import logger
 
 from gold_miner.data.base import DataFetcher, DataSourceMeta
+from gold_miner.proxy import get_proxied_client
 
-CFTC_COT_URL = (
-    "https://www.cftc.gov/dea/futures/deacmesf.htm"
-)
-CFTC_COT_CSV_URL = (
-    "https://www.cftc.gov/sites/default/files/files/dea/cotarchives/2026/futures/deacmesf062426.htm"
-)
-# CFTC 提供的历史数据CSV格式
-CFTC_LEGACY_CSV = (
-    "https://www.cftc.gov/dea/futures/deacmesf.htm"
-)
+# CFTC 每周发布的 comma-delimited legacy report（futures only）
+CFTC_COT_CSV_URL = "https://www.cftc.gov/dea/newcot/deafut.txt"
 
 
 @dataclass
@@ -88,7 +81,7 @@ class CotReportFetcher(DataFetcher):
     """
 
     # 黄金在CFTC报告中的市场和合约代码
-    GOLD_MARKET = "COMEX"
+    GOLD_MARKET = "CMX"
     GOLD_CONTRACT = "GOLD"
 
     def __init__(self) -> None:
@@ -98,6 +91,7 @@ class CotReportFetcher(DataFetcher):
                 source="CFTC.gov",
                 frequency="weekly",
                 description="CFTC COT报告 — 黄金期货持仓",
+                source_tier="T0",
             )
         )
 
@@ -173,18 +167,9 @@ class CotReportFetcher(DataFetcher):
         }
 
     def _fetch_from_cftc(self) -> list[CotGoldData] | None:
-        """从CFTC下载并解析COT报告.
-
-        CFTC提供两种格式的报告:
-        1. Legacy Report (仅分类为 Commercial / Non-Commercial / Non-Reportable)
-        2. Disaggregated Report (更细分)
-
-        这里使用 Legacy Report，通过 quandl/ynlad 方式或本地解析。
-        由于CFTC页面结构可能变化，优先使用 KNOWN 数据 + 增量更新策略。
-        """
+        """从CFTC下载并解析COT报告."""
         try:
-            # 尝试从 CFTC 下载最新CSV
-            records = self._parse_cftc_html()
+            records = self._parse_cftc_csv()
             if records:
                 return records
         except Exception as e:
@@ -192,74 +177,71 @@ class CotReportFetcher(DataFetcher):
 
         return None
 
-    def _parse_cftc_html(self) -> list[CotGoldData] | None:
-        """解析 CFTC HTML 报告页面.
+    def _parse_cftc_csv(self) -> list[CotGoldData] | None:
+        """解析 CFTC comma-delimited COT 报告.
 
-        CFTC 页面是 HTML 表格格式，需要解析找到 GOLD 行。
-        由于HTML结构复杂且易变，此方法作为最佳尝试，失败时回退。
+        文件为每周发布的 futures-only legacy report，无表头，按位置取值。
+        通过第一列定位 GOLD - COMMODITY EXCHANGE INC.。
         """
         try:
-            import httpx
-            from bs4 import BeautifulSoup
+            with get_proxied_client(timeout=30.0) as client:
+                resp = client.get(CFTC_COT_CSV_URL)
+                resp.raise_for_status()
+                text = resp.text
 
-            resp = httpx.get(CFTC_COT_URL, timeout=20, follow_redirects=True)
-            resp.raise_for_status()
-            soup = BeautifulSoup(resp.text, "html.parser")
-
-            # 查找包含 GOLD 的表格行
-            tables = soup.find_all("table")
-            for table in tables:
-                rows = table.find_all("tr")
-                for row in rows:
-                    cells = row.find_all(["td", "th"])
-                    if not cells:
-                        continue
-                    text = " ".join(c.get_text(strip=True) for c in cells).upper()
-                    if "GOLD" in text and "COMEX" in text:
-                        return self._parse_cot_row(cells)
-
-        except Exception as e:
-            logger.debug(f"HTML解析失败: {e}")
-
-        return None
-
-    def _parse_cot_row(self, cells: list) -> list[CotGoldData] | None:
-        """解析COT表格中的黄金行数据."""
-        try:
-            texts = [c.get_text(strip=True).replace(",", "") for c in cells]
-            if len(texts) < 10:
-                return None
-
-            # Legacy COT 格式列: Market, Long, Short, ..., Report Date
-            # 尝试提取数字
-            nums = []
-            for t in texts:
-                try:
-                    nums.append(int(t))
-                except ValueError:
-                    continue
-
-            if len(nums) < 6:
-                return None
-
-            # 典型的 Legacy 报告顺序:
-            # Non-Comm Long, Non-Comm Short, Non-Comm Spread,
-            # Comm Long, Comm Short, Total Long, Total Short
-            data = CotGoldData(
-                report_date=datetime.now(),
-                noncomm_long=nums[0],
-                noncomm_short=nums[1],
-                noncomm_spread=nums[2] if len(nums) > 2 else 0,
-                comm_long=nums[3] if len(nums) > 3 else 0,
-                comm_short=nums[4] if len(nums) > 4 else 0,
-                nonrep_long=0,
-                nonrep_short=0,
+            # CFTC 文件无表头，按列位置解析；数字含前导空格与千分位逗号
+            df = pd.read_csv(
+                pd.io.common.StringIO(text),
+                header=None,
+                thousands=",",
+                dtype=str,
             )
-            return [data]
-
         except Exception as e:
-            logger.debug(f"行解析失败: {e}")
+            logger.debug(f"CFTC CSV 下载/读取失败: {e}")
             return None
+
+        if df.empty or df.shape[1] < 17:
+            logger.debug("CFTC CSV 格式异常或列数不足")
+            return None
+
+        # 第 0 列为商品名称；排除 MICRO GOLD，只取标准 GOLD 合约 (088691)
+        name_col = df[0].str.upper()
+        gold_mask = (
+            name_col.str.contains("GOLD", case=False, na=False)
+            & name_col.str.contains("COMMODITY EXCHANGE", case=False, na=False)
+            & ~name_col.str.contains("MICRO", case=False, na=False)
+        )
+        # 优先使用标准合约代码 088691
+        code_mask = df[3].astype(str).str.strip() == "088691"
+        gold_rows = df[code_mask] if code_mask.any() else df[gold_mask]
+        if gold_rows.empty:
+            logger.debug("CFTC CSV 中未找到 GOLD 行")
+            return None
+
+        # 取最近一期（按第 2 列 YYYY-MM-DD 排序）
+        df_sorted = gold_rows.copy()
+        df_sorted["_report_date"] = pd.to_datetime(df_sorted[2], errors="coerce")
+        df_sorted = df_sorted.sort_values("_report_date", na_position="last")
+        row = df_sorted.iloc[-1]
+
+        try:
+            report_date = pd.to_datetime(str(row[2]))
+            data = CotGoldData(
+                report_date=report_date,
+                noncomm_long=int(row[8]),
+                noncomm_short=int(row[9]),
+                noncomm_spread=int(row[10]),
+                comm_long=int(row[11]),
+                comm_short=int(row[12]),
+                nonrep_long=int(row[15]),
+                nonrep_short=int(row[16]),
+            )
+        except (KeyError, ValueError, TypeError) as e:
+            logger.debug(f"CFTC GOLD 行解析失败: {e}")
+            return None
+
+        logger.info(f"CFTC COT 数据解析成功: {report_date.date()}, 非商业净多={data.noncomm_net}")
+        return [data]
 
     def _to_dataframe(self, records: list[CotGoldData]) -> pd.DataFrame:
         """将COT记录转为DataFrame."""

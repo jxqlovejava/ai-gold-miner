@@ -7,13 +7,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 import pandas as pd
 from loguru import logger
 
+from gold_miner.config import settings
 from gold_miner.data.base import DataFetcher, DataSourceMeta
+from gold_miner.proxy import get_proxied_client
 
 
 @dataclass
@@ -40,7 +42,33 @@ class FiscalDataFetcher(DataFetcher):
     3. 内置历史 fallback
     """
 
-    # 已知历史数据（季度/年度）
+    # FRED series ID 映射
+    SERIES = {
+        "federal_debt_usd_billions": "GFDEBTN",  # 联邦债务总额（百万美元，需转换）
+        "debt_to_gdp_pct": "GFDEGDQ188S",  # 债务/GDP 比率
+        "real_rate_10y_pct": "REAINTRATREARAT10Y",  # 10Y TIPS 实际利率
+        "breakeven_10y_pct": "T10YIE",  # 10Y 盈亏平衡通胀
+    }
+
+    # 美元储备份额暂无权威 FRED series，使用内置历史回填
+    DOLLAR_RESERVE_FALLBACK: dict[str, float] = {
+        "2022-12-31": 58.0,
+        "2023-03-31": 58.2,
+        "2023-06-30": 58.3,
+        "2023-09-30": 58.4,
+        "2023-12-31": 58.4,
+        "2024-03-31": 58.1,
+        "2024-06-30": 58.0,
+        "2024-09-30": 57.8,
+        "2024-12-31": 57.8,
+        "2025-03-31": 57.5,
+        "2025-06-30": 57.3,
+        "2025-09-30": 57.0,
+        "2025-12-31": 56.8,
+        "2026-03-31": 56.5,
+    }
+
+    # 已知历史数据（季度/年度），用于 API 失败或 key 未配置时兜底
     # 来源: FRED, Treasury.gov, IMF COFER
     KNOWN_FISCAL_DATA: list[dict[str, Any]] = [
         {"report_date": "2022-12-31", "federal_debt_usd_billions": 31400, "debt_to_gdp_pct": 120.0, "real_rate_10y_pct": 1.60, "dollar_reserve_share_pct": 58.0},
@@ -66,8 +94,10 @@ class FiscalDataFetcher(DataFetcher):
                 source="FRED/Treasury/IMF",
                 frequency="quarterly",
                 description="美国财政债务、实际利率、美元储备份额",
+                source_tier="T0",
             )
         )
+        self.api_key = settings.fred_api_key
 
     def fetch(
         self,
@@ -150,25 +180,114 @@ class FiscalDataFetcher(DataFetcher):
         }
 
     def _fetch_from_fred(self) -> pd.DataFrame:
-        """尝试从 FRED API 获取数据."""
-        import os
-
-        api_key = os.environ.get("FRED_API_KEY")
-        if not api_key:
+        """尝试从 FRED API 获取数据并合并为季度 DataFrame."""
+        if not self.api_key:
+            logger.debug("FRED API key 未配置，跳过财政信用数据抓取")
             return pd.DataFrame()
 
-        # FRED 数据获取需要 series ID 和日期范围
-        # 此处预留接口，未来可扩展具体 series 请求
-        logger.debug("FRED_API_KEY 存在，但未配置具体 series 请求")
-        return pd.DataFrame()
+        end = datetime.now()
+        start = end - timedelta(days=365 * 5)
+
+        merged: pd.DataFrame | None = None
+        for col, series_id in self.SERIES.items():
+            df = self._fetch_series_from_fred(series_id, start, end)
+            if df.empty:
+                logger.warning(f"FRED series {series_id} 返回空数据")
+                continue
+            df = df.rename(columns={"value": col})
+            if merged is None:
+                merged = df[["timestamp", col]].copy()
+            else:
+                merged = merged.merge(df[["timestamp", col]], on="timestamp", how="outer")
+
+        if merged is None or merged.empty:
+            return pd.DataFrame()
+
+        merged = merged.sort_values("timestamp").set_index("timestamp")
+        # 前向填充，然后按季度末重采样取最后可用值
+        merged = merged.ffill()
+        quarterly = merged.resample("QE").last().reset_index()
+
+        # 联邦债务单位转换：百万 -> 十亿
+        if "federal_debt_usd_billions" in quarterly.columns:
+            quarterly["federal_debt_usd_billions"] = quarterly["federal_debt_usd_billions"] / 1000.0
+
+        # 回填美元储备份额（无 FRED series）
+        quarterly["dollar_reserve_share_pct"] = quarterly["timestamp"].apply(self._lookup_dollar_reserve_share)
+
+        # 构建标准化 OHLCV 列
+        quarterly["open"] = quarterly["close"] = quarterly["federal_debt_usd_billions"].astype(float)
+        quarterly["high"] = quarterly["low"] = quarterly["close"]
+        quarterly["volume"] = 0.0
+        quarterly["source"] = "FRED"
+
+        return self.validate(quarterly)
+
+    def _fetch_series_from_fred(
+        self, series_id: str, start: datetime, end: datetime
+    ) -> pd.DataFrame:
+        """从 FRED 获取单个 series."""
+        url = "https://api.stlouisfed.org/fred/series/observations"
+        params: dict[str, str] = {
+            "series_id": series_id,
+            "api_key": self.api_key,
+            "file_type": "json",
+            "observation_start": start.strftime("%Y-%m-%d"),
+            "observation_end": end.strftime("%Y-%m-%d"),
+        }
+
+        try:
+            with get_proxied_client(timeout=30.0) as client:
+                resp = client.get(url, params=params)
+                resp.raise_for_status()
+                data = resp.json()
+        except Exception as e:
+            logger.warning(f"FRED API请求失败 ({series_id}): {e}")
+            return pd.DataFrame()
+
+        observations = data.get("observations", [])
+        if not observations:
+            logger.warning(f"FRED返回空数据 ({series_id})")
+            return pd.DataFrame()
+
+        df = pd.DataFrame(observations)
+        df = df.rename(columns={"date": "timestamp"})
+        df["timestamp"] = pd.to_datetime(df["timestamp"])
+        df["value"] = pd.to_numeric(df["value"], errors="coerce")
+        return df[["timestamp", "value"]].dropna(subset=["timestamp", "value"])
+
+    def _lookup_dollar_reserve_share(self, timestamp: pd.Timestamp) -> float:
+        """按季度末日期查找内置美元储备份额."""
+        date_key = timestamp.strftime("%Y-%m-%d")
+        if date_key in self.DOLLAR_RESERVE_FALLBACK:
+            return self.DOLLAR_RESERVE_FALLBACK[date_key]
+
+        # 找最近的季度末
+        for key in sorted(self.DOLLAR_RESERVE_FALLBACK.keys(), reverse=True):
+            if pd.Timestamp(key) <= timestamp:
+                return self.DOLLAR_RESERVE_FALLBACK[key]
+        return 58.0
 
     def _fallback_dataframe(self) -> pd.DataFrame:
         """返回内置历史数据."""
         logger.warning("财政信用数据使用内置 fallback")
-        df = pd.DataFrame(self.KNOWN_FISCAL_DATA)
-        df["timestamp"] = pd.to_datetime(df["report_date"])
-        df["source"] = "fallback"
-        return df
+        df = pd.DataFrame([
+            {
+                "timestamp": pd.to_datetime(item["report_date"]),
+                "federal_debt_usd_billions": item.get("federal_debt_usd_billions"),
+                "debt_to_gdp_pct": item.get("debt_to_gdp_pct"),
+                "real_rate_10y_pct": item.get("real_rate_10y_pct"),
+                "dollar_reserve_share_pct": item.get("dollar_reserve_share_pct"),
+                "open": float(item.get("federal_debt_usd_billions", 0)),
+                "high": float(item.get("federal_debt_usd_billions", 0)),
+                "low": float(item.get("federal_debt_usd_billions", 0)),
+                "close": float(item.get("federal_debt_usd_billions", 0)),
+                "volume": 0.0,
+                "source": "fallback",
+            }
+            for item in self.KNOWN_FISCAL_DATA
+        ])
+        return self.validate(df)
 
     def _fallback_snapshot(self) -> FiscalSnapshot:
         """返回最新 fallback 快照."""
