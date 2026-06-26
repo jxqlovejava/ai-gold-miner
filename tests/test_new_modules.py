@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
@@ -23,12 +24,12 @@ from gold_miner.data.fact_checker import (
     apply_fact_checks,
     filter_unverified_news,
 )
+from gold_miner.data.fiscal import FiscalDataFetcher
 from gold_miner.data.news import NewsItem
+from gold_miner.signals.base import SignalDirection, SignalStrength
 from gold_miner.signals.cot_signal import CotSignalGenerator
 from gold_miner.signals.etf_flow_signal import EtfFlowSignalGenerator
 from gold_miner.signals.news_signal import NewsSignalGenerator
-from gold_miner.signals.base import SignalDirection, SignalStrength
-
 
 # =============================================================================
 # Fact Checker Tests
@@ -209,6 +210,37 @@ class TestCotReportFetcher:
             assert result["prev_net"] == 165000
             assert result["change"] == 5000
             assert result["trend"] == "up"
+
+    def test_fetch_parses_cftc_csv(self):
+        """模拟 CFTC CSV 响应，验证能解析出标准 GOLD 持仓."""
+        fetcher = CotReportFetcher()
+        csv_text = (
+            '"GOLD - COMMODITY EXCHANGE INC.",260616,2026-06-16,088691,CMX ,01,088 ,'
+            '  339330,  211127,   30907,   26017,   58220,  265783,  295364,  322707,'
+            '   43966,   16623,  339330,  211127,   30907,   26017,   58220,  265783,'
+            '  295364,  322707,   43966,   16623\n'
+            '"MICRO GOLD - COMMODITY EXCHANGE INC.",260616,2026-06-16,088695,CMX ,01,088 ,'
+            '   57461,   16403,   39343,    2005,    7459,       0,   25867,   41348,'
+            '   31594,   16113,   57461,   16403,   39343,    2005,    7459,       0,'
+            '   25867,   41348,   31594,   16113\n'
+        )
+
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.text = csv_text
+        mock_response.raise_for_status = MagicMock()
+        mock_client.get.return_value = mock_response
+
+        with patch("gold_miner.data.cot_report.get_proxied_client") as mock_get_client:
+            mock_get_client.return_value.__enter__ = MagicMock(return_value=mock_client)
+            mock_get_client.return_value.__exit__ = MagicMock(return_value=False)
+            df = fetcher.fetch()
+
+        assert not df.empty
+        assert df.iloc[0]["timestamp"].date().isoformat() == "2026-06-16"
+        assert df.iloc[0]["close"] == 180220.0  # 211127 - 30907
+        assert df.iloc[0]["volume"] == 566037.0  # total OI
+        assert df.iloc[0]["noncomm_ratio"] == pytest.approx(6.83, rel=0.01)
 
 
 class TestCotSignalGenerator:
@@ -579,3 +611,74 @@ class TestNewsSignalGeneratorFactCheck:
                     signals = gen.fetch_and_analyze()
                     # 至少应产生情感倾向信号
                     assert any(s.dimension == "news" for s in signals)
+
+
+# =============================================================================
+# Fiscal Credit Tests
+# =============================================================================
+
+class TestFiscalDataFetcher:
+    def test_fallback_data(self):
+        fetcher = FiscalDataFetcher()
+        df = fetcher._fallback_dataframe()
+        assert not df.empty
+        assert "timestamp" in df.columns
+        assert "federal_debt_usd_billions" in df.columns
+        assert df.iloc[-1]["source"] == "fallback"
+
+    def test_fetch_uses_fred_when_key_configured(self):
+        """模拟 FRED 响应，验证优先使用真实数据而非 fallback."""
+        fetcher = FiscalDataFetcher()
+        fetcher.api_key = "test_key"
+
+        def _observations(series_id: str) -> dict[str, Any]:
+            # 为不同 series 返回两条日期一致的观测值
+            base = {
+                "GFDEBTN": [
+                    {"date": "2026-03-31", "value": "39500000"},  # 百万美元
+                    {"date": "2026-06-30", "value": "40100000"},
+                ],
+                "GFDEGDQ188S": [
+                    {"date": "2026-03-31", "value": "126.0"},
+                    {"date": "2026-06-30", "value": "127.0"},
+                ],
+                "REAINTRATREARAT10Y": [
+                    {"date": "2026-03-31", "value": "1.70"},
+                    {"date": "2026-06-30", "value": "1.75"},
+                ],
+                "T10YIE": [
+                    {"date": "2026-03-31", "value": "2.30"},
+                    {"date": "2026-06-30", "value": "2.35"},
+                ],
+            }
+            return {"observations": base.get(series_id, [])}
+
+        mock_client = MagicMock()
+
+        def mock_get(url, params=None, **kwargs):
+            response = MagicMock()
+            response.raise_for_status = MagicMock()
+            response.json = lambda: _observations(params.get("series_id", ""))
+            return response
+
+        mock_client.get.side_effect = mock_get
+
+        with patch("gold_miner.data.fiscal.get_proxied_client") as mock_get_client:
+            mock_get_client.return_value.__enter__ = MagicMock(return_value=mock_client)
+            mock_get_client.return_value.__exit__ = MagicMock(return_value=False)
+            df = fetcher.fetch()
+
+        assert not df.empty
+        assert df.iloc[-1]["source"] == "FRED"
+        # 联邦债务已从百万转换为十亿
+        assert df.iloc[-1]["federal_debt_usd_billions"] == pytest.approx(40100.0)
+        assert df.iloc[-1]["debt_to_gdp_pct"] == pytest.approx(127.0)
+        assert df.iloc[-1]["real_rate_10y_pct"] == pytest.approx(1.75)
+        assert df.iloc[-1]["breakeven_10y_pct"] == pytest.approx(2.35)
+
+    def test_fetch_falls_back_without_api_key(self):
+        fetcher = FiscalDataFetcher()
+        fetcher.api_key = ""
+        df = fetcher.fetch()
+        assert not df.empty
+        assert df.iloc[-1]["source"] == "fallback"
