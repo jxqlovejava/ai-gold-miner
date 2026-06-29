@@ -32,18 +32,19 @@ class EconomicCalendarSignalGenerator:
     def generate_signals(self) -> list[Signal]:
         """生成未来事件提醒信号."""
         signals: list[Signal] = []
+        now = datetime.now()
         try:
             if not self.calendar.events:
                 self.calendar.load_fixed_calendar()
             upcoming = self.calendar.get_upcoming(
                 days=self.config.days_ahead,
                 min_impact=self.config.min_impact,
+                reference_time=now,
             )
         except Exception as e:
             logger.debug(f"经济日历加载失败: {e}")
             return signals
 
-        now = datetime.now()
         for event in upcoming:
             delta = event.scheduled_at - now
             days_until = max(0, delta.days)

@@ -10,8 +10,6 @@ import pandas as pd
 import pytest
 
 from gold_miner.data.central_bank import (
-    CentralBankData,
-    CentralBankFetcher,
     MonthlyCentralBankData,
     MonthlyCentralBankFetcher,
 )
@@ -653,19 +651,13 @@ class TestFiscalDataFetcher:
             }
             return {"observations": base.get(series_id, [])}
 
-        mock_client = MagicMock()
+        def _fake_fallback_get(url, params=None, **kwargs):
+            resp = MagicMock()
+            resp.json.return_value = _observations(params.get("series_id", ""))
+            return resp
 
-        def mock_get(url, params=None, **kwargs):
-            response = MagicMock()
-            response.raise_for_status = MagicMock()
-            response.json = lambda: _observations(params.get("series_id", ""))
-            return response
-
-        mock_client.get.side_effect = mock_get
-
-        with patch("gold_miner.data.fiscal.get_proxied_client") as mock_get_client:
-            mock_get_client.return_value.__enter__ = MagicMock(return_value=mock_client)
-            mock_get_client.return_value.__exit__ = MagicMock(return_value=False)
+        with patch("gold_miner.data.fiscal.fallback_get") as mock_fallback_get:
+            mock_fallback_get.side_effect = _fake_fallback_get
             df = fetcher.fetch()
 
         assert not df.empty

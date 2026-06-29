@@ -217,8 +217,9 @@ class EventCalendar:
         self,
         days: int = 7,
         min_impact: EventImpact = EventImpact.MEDIUM,
+        reference_time: datetime | None = None,
     ) -> list[CalendarEvent]:
-        now = datetime.now()
+        now = reference_time or datetime.now()
         cutoff = now + timedelta(days=days)
         impact_order = {EventImpact.HIGH: 3, EventImpact.MEDIUM: 2, EventImpact.LOW: 1}
         min_level = impact_order.get(min_impact, 1)
