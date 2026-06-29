@@ -12,7 +12,7 @@ from loguru import logger
 
 from gold_miner.config import settings
 from gold_miner.data.source_tiers import get_source_tier
-from gold_miner.proxy import get_proxied_client
+from gold_miner.utils.http_fallback import fallback_get, fallback_post
 
 
 def _is_retryable_error(e: Exception) -> bool:
@@ -95,8 +95,7 @@ class AnySearchFetcher:
         last_error: Exception | None = None
         for attempt in range(3):
             try:
-                with get_proxied_client(timeout=30) as client:
-                    resp = client.post(self.ENDPOINT, json=payload, headers=headers)
+                resp = fallback_post(self.ENDPOINT, json=payload, headers=headers, timeout=30)
                 resp.raise_for_status()
                 data = resp.json()
 
@@ -225,16 +224,15 @@ class SearchEngineFetcher:
         # DuckDuckGo 在本环境频繁超时，使用较短超时和较少重试
         for attempt in range(2):
             try:
-                with get_proxied_client(timeout=10, follow_redirects=True) as client:
-                    resp = client.get(url, headers=self._HEADERS)
-                resp.raise_for_status()
+                resp = fallback_get(url, headers=self._HEADERS, timeout=10)
                 if _should_retry_status(resp.status_code):
-                    raise httpx.HTTPStatusError(
-                        f"DuckDuckGo 返回 {resp.status_code}", request=resp.request, response=resp
-                    )
+                    if attempt < 1:
+                        logger.warning(f"DuckDuckGo 返回 {resp.status_code}，即将重试")
+                        _sleep_backoff(attempt)
+                    continue
                 return self._parse_duckduckgo_html(resp.text, max_results)
             except Exception as e:
-                if not _is_retryable_error(e) and not isinstance(e, httpx.HTTPStatusError):
+                if not _is_retryable_error(e):
                     break
                 if attempt < 1:
                     logger.warning(f"DuckDuckGo抓取失败 (尝试 {attempt + 1}/2): {e}, 即将重试")
@@ -248,16 +246,15 @@ class SearchEngineFetcher:
         url = f"https://www.bing.com/search?q={query.replace(' ', '+')}"
         for attempt in range(3):
             try:
-                with get_proxied_client(timeout=30, follow_redirects=True) as client:
-                    resp = client.get(url, headers=self._HEADERS)
-                resp.raise_for_status()
+                resp = fallback_get(url, headers=self._HEADERS, timeout=30)
                 if _should_retry_status(resp.status_code):
-                    raise httpx.HTTPStatusError(
-                        f"Bing 返回 {resp.status_code}", request=resp.request, response=resp
-                    )
+                    if attempt < 2:
+                        logger.warning(f"Bing 返回 {resp.status_code}，即将重试")
+                        _sleep_backoff(attempt)
+                    continue
                 return self._parse_bing_html(resp.text, max_results)
             except Exception as e:
-                if not _is_retryable_error(e) and not isinstance(e, httpx.HTTPStatusError):
+                if not _is_retryable_error(e):
                     break
                 if attempt < 2:
                     logger.warning(f"Bing抓取失败 (尝试 {attempt + 1}/3): {e}, 即将重试")
@@ -329,16 +326,15 @@ class SearchEngineFetcher:
         url = f"https://www.bing.com/news/search?q={query.replace(' ', '+')}"
         for attempt in range(3):
             try:
-                with get_proxied_client(timeout=30, follow_redirects=True) as client:
-                    resp = client.get(url, headers=self._HEADERS)
-                resp.raise_for_status()
+                resp = fallback_get(url, headers=self._HEADERS, timeout=30)
                 if _should_retry_status(resp.status_code):
-                    raise httpx.HTTPStatusError(
-                        f"Bing News 返回 {resp.status_code}", request=resp.request, response=resp
-                    )
+                    if attempt < 2:
+                        logger.warning(f"Bing News 返回 {resp.status_code}，即将重试")
+                        _sleep_backoff(attempt)
+                    continue
                 return self._parse_bing_news_html(resp.text, max_results)
             except Exception as e:
-                if not _is_retryable_error(e) and not isinstance(e, httpx.HTTPStatusError):
+                if not _is_retryable_error(e):
                     break
                 if attempt < 2:
                     logger.warning(f"Bing News抓取失败 (尝试 {attempt + 1}/3): {e}, 即将重试")
@@ -484,13 +480,6 @@ class NewsFetcher:
         self.newsapi_key = settings.news_api_key
         self.anysearch = AnySearchFetcher()
         self.search_engine = SearchEngineFetcher()
-        self._client: httpx.Client | None = None
-
-    @property
-    def client(self) -> httpx.Client:
-        if self._client is None:
-            self._client = get_proxied_client(timeout=30)
-        return self._client
 
     def fetch_latest(
         self,
@@ -621,12 +610,7 @@ class NewsFetcher:
         last_error: Exception | None = None
         for attempt in range(3):
             try:
-                # 每次重试前刷新 client，避免连接池中的失效连接
-                if attempt > 0 and self._client is not None:
-                    self._client.close()
-                    self._client = None
-
-                response = self.client.get("https://newsapi.org/v2/everything", params=params)
+                response = fallback_get("https://newsapi.org/v2/everything", params=params, timeout=30)
                 response.raise_for_status()
                 data = response.json()
 

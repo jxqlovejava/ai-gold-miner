@@ -15,7 +15,7 @@ from loguru import logger
 
 from gold_miner.config import settings
 from gold_miner.data.base import DataFetcher, DataSourceMeta
-from gold_miner.proxy import get_proxied_client
+from gold_miner.utils.http_fallback import fallback_get
 
 
 @dataclass
@@ -237,10 +237,8 @@ class FiscalDataFetcher(DataFetcher):
         }
 
         try:
-            with get_proxied_client(timeout=30.0) as client:
-                resp = client.get(url, params=params)
-                resp.raise_for_status()
-                data = resp.json()
+            resp = fallback_get(url, params=params, timeout=30.0)
+            data = resp.json()
         except Exception as e:
             logger.warning(f"FRED API请求失败 ({series_id}): {e}")
             return pd.DataFrame()
