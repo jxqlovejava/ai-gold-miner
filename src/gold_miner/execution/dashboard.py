@@ -20,6 +20,7 @@ class TradeDecision:
     score_details: dict[str, float] = field(default_factory=dict)
     risk_assessment: dict[str, Any] = field(default_factory=dict)
     action_list: list[str] = field(default_factory=list)
+    events: list[str] = field(default_factory=list)
     timestamp: datetime = field(default_factory=datetime.now)
 
 
@@ -58,6 +59,11 @@ class DashboardFormatter:
             lines.extend(["-" * 50, "  操作清单:"])
             for i, action in enumerate(decision.action_list, 1):
                 lines.append(f"    {i}. {action}")
+
+        if decision.events:
+            lines.extend(["-" * 50, "  未来关注事件:"])
+            for event in decision.events[:5]:
+                lines.append(f"    {event}")
 
         lines.extend(["", f"  生成时间: {decision.timestamp.strftime('%Y-%m-%d %H:%M:%S')}", "=" * 50])
         return "\n".join(lines)
@@ -112,6 +118,12 @@ class DashboardFormatter:
         else:
             action_list.append("维持当前仓位，等待更明确信号")
 
+        events: list[str] = []
+        for sig in signal_bundle.by_dimension("event_calendar"):
+            if sig.metadata.get("event_type"):
+                name = sig.name.replace("未来事件: ", "")
+                events.append(f"{name}: {sig.description}")
+
         return TradeDecision(
             signal=signal_map.get(direction, "hold"),
             instrument=instrument,
@@ -127,6 +139,7 @@ class DashboardFormatter:
                 "置信度": f"{signal_bundle.confidence:.0%}",
             },
             action_list=action_list,
+            events=events,
         )
 
     @staticmethod

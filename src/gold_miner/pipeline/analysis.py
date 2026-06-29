@@ -291,7 +291,8 @@ class AnalysisPipeline:
                 bundle.add(sig)
             logger.info(f"经济日历事件: {len(bundle.by_dimension('event_calendar'))} 个")
         except Exception as e:
-            logger.debug(f"经济日历信号异常: {e}")
+            logger.warning(f"经济日历信号异常: {e}")
+            result.messages.append(f"[事件日历] 加载失败: {e}")
 
         # DeepSeek 深度分析
         if ctx.deep and news_signals:
