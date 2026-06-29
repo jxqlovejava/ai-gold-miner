@@ -22,6 +22,22 @@ from gold_miner.signals.news_signal import NewsSignalGenerator
 from gold_miner.signals.sentiment_signal import SentimentAnalyzer
 from gold_miner.signals.technical import TechnicalAnalyzer
 
+# 网络不可达时的兜底新闻占位符；必须避免写入具体价格，防止被误认为真实行情。
+_FALLBACK_NEWS_ITEMS = [
+    NewsItem(title="美国非农就业新增17.2万，远超预期", source="Trading Economics",
+             published_at=dt.now(), sentiment=-0.5, is_breaking=True,
+             summary="美国5月非农就业新增17.2万人，远超市场预期的~12万人，失业率维持4.3%。强劲的就业数据削弱了美联储降息预期，导致黄金承压下跌。"),
+    NewsItem(title="美伊和谈停滞，中东局势不确定性上升", source="CNA",
+             published_at=dt.now(), sentiment=0.2, is_breaking=True,
+             summary="美国与伊朗的和平谈判陷入僵局，市场避险情绪有所回升，但被强劲的非农数据盖过。"),
+    NewsItem(title="黄金单日大幅下跌，贵金属全线承压（示例）", source="Reuters",
+             published_at=dt.now(), sentiment=-0.4, is_breaking=True,
+             summary="网络不可达时的占位示例：金价单日大幅下跌，白银、铂金、钯金同步承压。实际价格请以实时行情为准。"),
+    NewsItem(title="全球央行Q1购金244吨，结构性支撑金价", source="世界黄金协会",
+             published_at=dt.now(), sentiment=0.5, is_breaking=False,
+             summary="全球央行Q1净购金244吨，同比增长3%。中国、波兰等国央行持续增持，为金价提供结构性支撑。"),
+]
+
 
 def run_report(args: argparse.Namespace) -> None:
     """Generate analysis report."""
@@ -52,20 +68,7 @@ def run_report(args: argparse.Namespace) -> None:
         items = []
     # 网络不可达时用已知重要新闻兜底
     if not items:
-        items = [
-            NewsItem(title="美国非农就业新增17.2万，远超预期", source="Trading Economics",
-                     published_at=dt.now(), sentiment=-0.5, is_breaking=True,
-                     summary="美国5月非农就业新增17.2万人，远超市场预期的~12万人，失业率维持4.3%。强劲的就业数据削弱了美联储降息预期，导致黄金承压下跌。"),
-            NewsItem(title="美伊和谈停滞，中东局势不确定性上升", source="CNA",
-                     published_at=dt.now(), sentiment=0.2, is_breaking=True,
-                     summary="美国与伊朗的和平谈判陷入僵局，市场避险情绪有所回升，但被强劲的非农数据盖过。"),
-            NewsItem(title="黄金单日暴跌2.76%，贵金属全线重挫", source="Reuters",
-                     published_at=dt.now(), sentiment=-0.4, is_breaking=True,
-                     summary="现货黄金单日大跌2.76%至每克947.50元，白银跌8.8%，铂金跌6.9%，钯金跌7.7%。贵金属全线遭遇系统性抛售。"),
-            NewsItem(title="全球央行Q1购金244吨，结构性支撑金价", source="世界黄金协会",
-                     published_at=dt.now(), sentiment=0.5, is_breaking=False,
-                     summary="全球央行Q1净购金244吨，同比增长3%。中国、波兰等国央行持续增持，为金价提供结构性支撑。"),
-        ]
+        items = list(_FALLBACK_NEWS_ITEMS)
         items = NewsFetcher().analyze_sentiment(items)
         for sig in NewsSignalGenerator().analyze(items):
             bundle.add(sig)
