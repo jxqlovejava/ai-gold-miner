@@ -60,12 +60,14 @@ class DashboardFormatter:
             for i, action in enumerate(decision.action_list, 1):
                 lines.append(f"    {i}. {action}")
 
+        lines.extend(["", f"  生成时间: {decision.timestamp.strftime('%Y-%m-%d %H:%M:%S')}"])
+
         if decision.events:
-            lines.extend(["-" * 50, "  未来关注事件:"])
+            lines.extend(["", "-" * 50, "  未来关注事件:"])
             for event in decision.events[:5]:
                 lines.append(f"    {event}")
 
-        lines.extend(["", f"  生成时间: {decision.timestamp.strftime('%Y-%m-%d %H:%M:%S')}", "=" * 50])
+        lines.extend(["", "=" * 50])
         return "\n".join(lines)
 
     @classmethod
