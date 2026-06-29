@@ -102,6 +102,7 @@ class TestDoctrineChecker:
             "bear_confidence": 0.30,
             "stop_loss_set": True,
             "has_decision_record": True,
+            "margin_of_safety": "仓位10%低于20%上限，止损已设，保留20%现金",
         }
         result = checker.check(decision, context)
         assert result.failed_count == 0

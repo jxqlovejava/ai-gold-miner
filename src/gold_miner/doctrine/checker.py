@@ -326,6 +326,21 @@ class DoctrineChecker:
             details={"has_record": has_record},
         )
 
+    def check_margin_of_safety(self, decision: dict, ctx: dict) -> RuleViolation:
+        rule = self._get_rule("check_margin_of_safety")
+        justification = ctx.get("margin_of_safety", "")
+        passed = bool(justification)
+        return RuleViolation(
+            rule=rule,
+            passed=passed,
+            message=(
+                f"安全边际说明: {justification}"
+                if passed
+                else "未明确安全边际；每次决策须说明估值缓冲/仓位缓冲/止损保护/现金储备至少一项"
+            ),
+            details={"margin_of_safety": justification},
+        )
+
     # ------------------------------------------------------------------
     # helper
     # ------------------------------------------------------------------

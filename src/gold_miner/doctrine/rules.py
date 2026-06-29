@@ -153,6 +153,15 @@ RULE_DECISION_RECORD = InvestmentRule(
     check_fn="check_decision_record",
 )
 
+RULE_MARGIN_OF_SAFETY = InvestmentRule(
+    id="r030",
+    name="永远给自己留安全边际",
+    description="任何决策必须明确安全边际（估值缓冲/仓位缓冲/止损保护/现金储备至少一项），禁止在没有犯错空间的位置下注",
+    severity="warn",
+    category="process",
+    check_fn="check_margin_of_safety",
+)
+
 
 # ------------------------------------------------------------------
 # 全部规则集合
@@ -174,6 +183,7 @@ ALL_RULES: list[InvestmentRule] = [
     RULE_CONFLICT_CAUTIOUS,
     RULE_MUST_SET_STOP,
     RULE_DECISION_RECORD,
+    RULE_MARGIN_OF_SAFETY,
 ]
 
 
