@@ -18,6 +18,10 @@ __pycache__/
 
 # Claude Code local config
 .claude/
+.mcp.json
+
+# CodeGraph index
+.codegraph/
 
 # Private data directory (contains real personal data)
 data/private/
