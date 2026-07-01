@@ -153,6 +153,136 @@ RULE_DECISION_RECORD = InvestmentRule(
     check_fn="check_decision_record",
 )
 
+# ------------------------------------------------------------------
+# r016-r029 补全（操作/信息/心理/趋势/建仓/估值纪律）
+# ------------------------------------------------------------------
+
+RULE_ADJUST_BEFORE_DATA = InvestmentRule(
+    id="r016",
+    name="数据前提前调整",
+    description="重大数据（非农/CPI/FOMC）公布前1-2天完成仓位调整，不赌数据方向",
+    severity="warn",
+    category="operations",
+    check_fn="check_pre_data_adjustment",
+)
+
+RULE_CONDITIONAL_ORDERS = InvestmentRule(
+    id="r017",
+    name="条件单代替盯盘",
+    description="用条件单代替盯盘手动下单，提前挂好避免盘中情绪干扰",
+    severity="warn",
+    category="operations",
+    check_fn="check_conditional_orders",
+)
+
+RULE_REDUCE_ON_RALLY = InvestmentRule(
+    id="r018",
+    name="减仓趁反弹",
+    description="减仓时趁反弹出，不追求卖在最高点——出不出比多卖几块重要100倍",
+    severity="warn",
+    category="operations",
+    check_fn="check_reduce_on_rally",
+)
+
+RULE_CONSECUTIVE_VOLATILITY = InvestmentRule(
+    id="r019",
+    name="连续高波动暂停",
+    description="连续两日单日波动>3%时，次日不操作，等待波动收敛",
+    severity="warn",
+    category="operations",
+    check_fn="check_consecutive_high_volatility",
+)
+
+RULE_ETF_FLOW_PRIORITY = InvestmentRule(
+    id="r020",
+    name="ETF资金流向优先",
+    description="ETF主力资金流向（当日）比CFTC报告（滞后8天）更及时，短期信号优先参考ETF资金流",
+    severity="info",
+    category="info_discipline",
+    check_fn="check_etf_flow_priority",
+)
+
+RULE_RETAIL_BUY_INSTITUTIONAL_SELL = InvestmentRule(
+    id="r021",
+    name="散户抄底机构出货",
+    description="散户抄底+机构出货的反弹不可持续，避免接飞刀",
+    severity="warn",
+    category="signal_discipline",
+    check_fn="check_retail_buy_institutional_sell",
+)
+
+RULE_LOSS_DECISION_QUALITY = InvestmentRule(
+    id="r022",
+    name="浮亏决策质量下降",
+    description="浮亏超10%后决策质量骤降，提前动作不要等",
+    severity="warn",
+    category="psychology",
+    check_fn="check_loss_decision_quality",
+)
+
+RULE_EMPTY_PERSPECTIVE = InvestmentRule(
+    id="r023",
+    name="空仓视角检验",
+    description="每笔操作前问：如果空仓，会在这个价格买入吗？不会就减",
+    severity="warn",
+    category="psychology",
+    check_fn="check_empty_perspective",
+)
+
+RULE_SMART_MONEY_FLOW = InvestmentRule(
+    id="r024",
+    name="聪明钱与散户流向",
+    description="买卖前先看机构/聪明钱/散户资金流向。短期上涨+散户抄底+机构出货=接飞刀",
+    severity="warn",
+    category="signal_discipline",
+    check_fn="check_smart_money_flow",
+)
+
+RULE_ATR_TRAILING_STOP = InvestmentRule(
+    id="r025",
+    name="ATR移动止盈",
+    description="日线14×ATR×2.5，从阶段高点回撤触发后减仓一半；成本价保护下止损不低于成本价",
+    severity="block",
+    category="trend",
+    check_fn="check_atr_trailing_stop",
+)
+
+RULE_MA_TREND_FILTER = InvestmentRule(
+    id="r026",
+    name="均线趋势过滤",
+    description="200日均线仅作长期过滤，不单独作为买卖信号；需60日均线+基本面/资金流向至少一个维度确认",
+    severity="warn",
+    category="trend",
+    check_fn="check_ma_trend_filter",
+)
+
+RULE_GOLD_REBALANCE = InvestmentRule(
+    id="r027",
+    name="黄金仓位再平衡",
+    description="黄金占总资产>55%预警，>60%时7个交易日内减仓至50%以下",
+    severity="warn",
+    category="position_sizing",
+    check_fn="check_gold_rebalance",
+)
+
+RULE_STAGGERED_ENTRY = InvestmentRule(
+    id="r028",
+    name="分批建仓/加仓",
+    description="新建仓或加仓须分>=2批，第二批最早5个交易日后执行，每批不超过计划量的50%",
+    severity="warn",
+    category="entry",
+    check_fn="check_staggered_entry",
+)
+
+RULE_VALUATION_MARGIN = InvestmentRule(
+    id="r029",
+    name="安全边际加仓",
+    description="加仓前须给出估值区间（DXY/实际利率/央行购金/金银比等多维度），当前价须处于估值区间下沿或回调支撑位；突破新高当日不追涨加仓",
+    severity="warn",
+    category="entry",
+    check_fn="check_valuation_margin",
+)
+
 RULE_MARGIN_OF_SAFETY = InvestmentRule(
     id="r030",
     name="永远给自己留安全边际",
@@ -183,6 +313,20 @@ ALL_RULES: list[InvestmentRule] = [
     RULE_CONFLICT_CAUTIOUS,
     RULE_MUST_SET_STOP,
     RULE_DECISION_RECORD,
+    RULE_ADJUST_BEFORE_DATA,
+    RULE_CONDITIONAL_ORDERS,
+    RULE_REDUCE_ON_RALLY,
+    RULE_CONSECUTIVE_VOLATILITY,
+    RULE_ETF_FLOW_PRIORITY,
+    RULE_RETAIL_BUY_INSTITUTIONAL_SELL,
+    RULE_LOSS_DECISION_QUALITY,
+    RULE_EMPTY_PERSPECTIVE,
+    RULE_SMART_MONEY_FLOW,
+    RULE_ATR_TRAILING_STOP,
+    RULE_MA_TREND_FILTER,
+    RULE_GOLD_REBALANCE,
+    RULE_STAGGERED_ENTRY,
+    RULE_VALUATION_MARGIN,
     RULE_MARGIN_OF_SAFETY,
 ]
 

@@ -933,9 +933,9 @@ class AnalysisPipeline:
         return keywords
 
     def _print_doctrine_checklist(self, result: AnalysisResult) -> None:
-        """逐条输出 r001-r015 军规自查清单."""
+        """逐条输出 r001-r030 军规自查清单."""
         print(f"\n{'='*60}")
-        print("  投资军规自查 (r001-r015)")
+        print("  投资军规自查 (r001-r030)")
         print(f"{'='*60}")
 
         doctrine = result.doctrine_result

@@ -342,6 +342,227 @@ class DoctrineChecker:
         )
 
     # ------------------------------------------------------------------
+    # r016-r029 补全
+    # ------------------------------------------------------------------
+
+    def check_pre_data_adjustment(self, decision: dict, ctx: dict) -> RuleViolation:
+        rule = self._get_rule("check_pre_data_adjustment")
+        near_data_event = ctx.get("near_data_event", False)
+        position = decision.get("position_pct", 0)
+        passed = not (near_data_event and position > 0.30)
+        return RuleViolation(
+            rule=rule,
+            passed=passed,
+            message=(
+                "无重大数据临近" if not near_data_event
+                else f"重大数据前仓位{position:.0%} {'≤30%可接受' if position <= 0.30 else '>30%建议提前调整'}"
+            ),
+            details={"near_data_event": near_data_event, "position_pct": position},
+        )
+
+    def check_conditional_orders(self, decision: dict, ctx: dict) -> RuleViolation:
+        rule = self._get_rule("check_conditional_orders")
+        has_conditional = ctx.get("has_conditional_orders", True)  # 默认假设已用条件单
+        passed = has_conditional or decision.get("position_pct", 0) == 0
+        return RuleViolation(
+            rule=rule,
+            passed=passed,
+            message=(
+                "已使用条件单管理仓位" if has_conditional
+                else "建议提前挂条件单，避免盘中情绪干扰"
+            ),
+            details={"has_conditional_orders": has_conditional},
+        )
+
+    def check_reduce_on_rally(self, decision: dict, ctx: dict) -> RuleViolation:
+        rule = self._get_rule("check_reduce_on_rally")
+        direction = decision.get("direction", "neutral")
+        is_reduce = decision.get("action") == "reduce"
+        daily_change = ctx.get("daily_change_pct", 0)
+        passed = not (is_reduce and daily_change < -0.5)
+        return RuleViolation(
+            rule=rule,
+            passed=passed,
+            message=(
+                "当前非减仓操作" if not is_reduce
+                else f"{'建议趁反弹时减仓，不在下跌中恐慌出手' if daily_change < -0.5 else '反弹减仓符合纪律'}"
+            ),
+            details={"direction": direction, "daily_change_pct": daily_change},
+        )
+
+    def check_consecutive_high_volatility(self, decision: dict, ctx: dict) -> RuleViolation:
+        rule = self._get_rule("check_consecutive_high_volatility")
+        consecutive_high_vol = ctx.get("consecutive_high_volatility_days", 0)
+        position = decision.get("position_pct", 0)
+        passed = not (consecutive_high_vol >= 2 and position > 0.10)
+        return RuleViolation(
+            rule=rule,
+            passed=passed,
+            message=(
+                f"连续高波动 {consecutive_high_vol} 天，"
+                f"{'波动正常' if consecutive_high_vol < 2 else '建议暂停操作等波动收敛'}"
+            ),
+            details={"consecutive_days": consecutive_high_vol},
+        )
+
+    def check_etf_flow_priority(self, decision: dict, ctx: dict) -> RuleViolation:
+        rule = self._get_rule("check_etf_flow_priority")
+        etf_flow_available = ctx.get("etf_flow_available", False)
+        return RuleViolation(
+            rule=rule,
+            passed=True,  # 信息级，不阻断
+            message=(
+                "已纳入ETF资金流向信号" if etf_flow_available
+                else "建议关注ETF资金流向作为短期信号"
+            ),
+            details={"etf_flow_available": etf_flow_available},
+        )
+
+    def check_retail_buy_institutional_sell(self, decision: dict, ctx: dict) -> RuleViolation:
+        rule = self._get_rule("check_retail_buy_institutional_sell")
+        retail_buying = ctx.get("retail_buying", False)
+        institutional_selling = ctx.get("institutional_selling", False)
+        position = decision.get("position_pct", 0)
+        is_trap = retail_buying and institutional_selling
+        passed = not (is_trap and position > 0.05)
+        return RuleViolation(
+            rule=rule,
+            passed=passed,
+            message=(
+                "机构/散户流向正常" if not is_trap
+                else f"散户抄底+机构出货信号检测到，{'仓位可控' if position <= 0.05 else '避免接飞刀'}"
+            ),
+            details={"retail_buying": retail_buying, "institutional_selling": institutional_selling},
+        )
+
+    def check_loss_decision_quality(self, decision: dict, ctx: dict) -> RuleViolation:
+        rule = self._get_rule("check_loss_decision_quality")
+        unrealized_pnl = ctx.get("unrealized_pnl_pct", 0)
+        position = decision.get("position_pct", 0)
+        passed = not (unrealized_pnl < -0.10 and position > 0.20)
+        return RuleViolation(
+            rule=rule,
+            passed=passed,
+            message=(
+                f"浮亏 {unrealized_pnl:.0%}，"
+                f"{'正常范围' if unrealized_pnl > -0.10 else '决策质量下降预警：避免情绪化加仓/补仓'}"
+            ),
+            details={"unrealized_pnl_pct": unrealized_pnl},
+        )
+
+    def check_empty_perspective(self, decision: dict, ctx: dict) -> RuleViolation:
+        rule = self._get_rule("check_empty_perspective")
+        answered = ctx.get("empty_perspective_checked", False)
+        position = decision.get("position_pct", 0)
+        passed = answered or position == 0
+        return RuleViolation(
+            rule=rule,
+            passed=passed,
+            message=(
+                "已做空仓视角检验" if answered
+                else "操作前请回答：如果空仓，会在这个价格买入吗？不会则考虑减仓"
+            ),
+            details={"empty_perspective_checked": answered},
+        )
+
+    def check_smart_money_flow(self, decision: dict, ctx: dict) -> RuleViolation:
+        rule = self._get_rule("check_smart_money_flow")
+        mm_long_change = ctx.get("managed_money_long_change", 0)
+        mm_short_change = ctx.get("managed_money_short_change", 0)
+        position = decision.get("position_pct", 0)
+        price_up = ctx.get("daily_change_pct", 0) > 0.5
+        mm_nett = mm_long_change - mm_short_change
+        is_selloff = price_up and mm_nett < 0
+        passed = not (is_selloff and position > 0.05)
+        return RuleViolation(
+            rule=rule,
+            passed=passed,
+            message=(
+                f"短期上涨+机构减仓风险: {'未检测到' if not is_selloff else '检测到！谨慎对待上涨'}"
+            ),
+            details={"mm_nett_change": mm_nett, "price_up": price_up},
+        )
+
+    def check_atr_trailing_stop(self, decision: dict, ctx: dict) -> RuleViolation:
+        rule = self._get_rule("check_atr_trailing_stop")
+        atr_active = ctx.get("atr_trailing_active", False)
+        atr_triggered = ctx.get("atr_trailing_triggered", False)
+        position = decision.get("position_pct", 0)
+        passed = not (atr_triggered and position > 0.50)
+        return RuleViolation(
+            rule=rule,
+            passed=passed,
+            message=(
+                f"ATR移动止盈{'未激活' if not atr_active else '已触发' if atr_triggered else '正常跟踪'}，"
+                f"{'仓位受控' if not atr_triggered or position <= 0.50 else '触发减仓信号！建议减仓一半'}"
+            ),
+            details={"atr_active": atr_active, "atr_triggered": atr_triggered},
+        )
+
+    def check_ma_trend_filter(self, decision: dict, ctx: dict) -> RuleViolation:
+        rule = self._get_rule("check_ma_trend_filter")
+        price_above_200ma = ctx.get("price_above_200ma", True)
+        has_fundamental_confirm = ctx.get("has_fundamental_confirm", True)
+        passed = True  # 不阻断，仅提示
+        if not price_above_200ma:
+            return RuleViolation(
+                rule=rule,
+                passed=passed,
+                message="金价低于200日均线，需60日均线+基本面双重确认才可做多",
+                details={"price_above_200ma": False, "has_fundamental_confirm": has_fundamental_confirm},
+            )
+        return RuleViolation(
+            rule=rule,
+            passed=passed,
+            message="金价位于200日均线上方，趋势过滤通过",
+            details={"price_above_200ma": True},
+        )
+
+    def check_gold_rebalance(self, decision: dict, ctx: dict) -> RuleViolation:
+        rule = self._get_rule("check_gold_rebalance")
+        gold_pct = ctx.get("gold_allocation_pct", 0)
+        passed = gold_pct <= 0.60
+        severity_text = "正常" if gold_pct <= 0.55 else "预警" if gold_pct <= 0.60 else "需减仓"
+        return RuleViolation(
+            rule=rule,
+            passed=passed,
+            message=f"黄金占比 {gold_pct:.0%} ({severity_text})，{'超60%: 7日内减仓至50%以下' if not passed else '再平衡区间内'}",
+            details={"gold_pct": gold_pct, "rebalance_threshold": 0.60},
+        )
+
+    def check_staggered_entry(self, decision: dict, ctx: dict) -> RuleViolation:
+        rule = self._get_rule("check_staggered_entry")
+        is_new_entry = decision.get("action") == "buy" or decision.get("is_new_position", False)
+        batch_plan = ctx.get("batch_entry_plan", "")
+        passed = not is_new_entry or bool(batch_plan)
+        return RuleViolation(
+            rule=rule,
+            passed=passed,
+            message=(
+                "非新建仓操作" if not is_new_entry
+                else f"分批建仓计划: {batch_plan}" if batch_plan
+                else "新建仓须制定分批计划（≥2批，间隔≥5个交易日）"
+            ),
+            details={"is_new_entry": is_new_entry, "batch_plan": batch_plan},
+        )
+
+    def check_valuation_margin(self, decision: dict, ctx: dict) -> RuleViolation:
+        rule = self._get_rule("check_valuation_margin")
+        is_adding = decision.get("action") in ("buy", "add") or decision.get("is_adding", False)
+        has_valuation = ctx.get("valuation_range", "")
+        passed = not is_adding or bool(has_valuation)
+        return RuleViolation(
+            rule=rule,
+            passed=passed,
+            message=(
+                "非加仓操作" if not is_adding
+                else f"估值区间: {has_valuation}" if has_valuation
+                else "加仓前须给出估值区间（DXY/实际利率/央行购金/金银比等多维度）"
+            ),
+            details={"is_adding": is_adding, "valuation_range": has_valuation},
+        )
+
+    # ------------------------------------------------------------------
     # helper
     # ------------------------------------------------------------------
 

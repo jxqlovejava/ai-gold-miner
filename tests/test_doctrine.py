@@ -39,7 +39,7 @@ class TestInvestmentRule:
     def test_all_rules_valid(self) -> None:
         """所有规则必须有有效的 severity 和 category."""
         valid_severities = {"block", "warn", "info"}
-        valid_categories = {"position_sizing", "timing", "emotion", "process"}
+        valid_categories = {"position_sizing", "timing", "emotion", "process", "operations", "info_discipline", "signal_discipline", "psychology", "trend", "entry"}
         for r in ALL_RULES:
             assert r.id.startswith("r"), f"Rule {r.id} id must start with 'r'"
             assert r.severity in valid_severities, f"Rule {r.id} bad severity: {r.severity}"
@@ -103,6 +103,7 @@ class TestDoctrineChecker:
             "stop_loss_set": True,
             "has_decision_record": True,
             "margin_of_safety": "仓位10%低于20%上限，止损已设，保留20%现金",
+            "empty_perspective_checked": True,
         }
         result = checker.check(decision, context)
         assert result.failed_count == 0
