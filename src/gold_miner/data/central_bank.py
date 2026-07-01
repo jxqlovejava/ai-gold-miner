@@ -14,6 +14,7 @@ import pandas as pd
 from bs4 import BeautifulSoup
 from loguru import logger
 
+from gold_miner.data.economic_data import EconomicDataPoint, EconomicDataRecorder
 from gold_miner.proxy import get_proxied_client
 
 WGC_GDT_URL = "https://www.gold.org/goldhub/research/gold-demand-trends/gold-demand-trends-q1-2026"
@@ -59,8 +60,9 @@ class CentralBankFetcher:
         print(f"Q1 2026 央行净购金: {data.net_purchases_tonnes}t")
     """
 
-    def __init__(self, url: str = WGC_GDT_URL) -> None:
+    def __init__(self, url: str = WGC_GDT_URL, recorder: EconomicDataRecorder | None = None) -> None:
         self.url = url
+        self._recorder = recorder or EconomicDataRecorder()
 
     def fetch(self) -> CentralBankData | None:
         """从WGC页面抓取最新央行购金数据."""
@@ -152,7 +154,7 @@ class CentralBankFetcher:
             f"(同比 {yoy_pct:+.0%})"
         )
 
-        return CentralBankData(
+        data = CentralBankData(
             quarter=quarter,
             net_purchases_tonnes=net_tonnes,
             yoy_change_pct=yoy_pct,
@@ -163,6 +165,40 @@ class CentralBankFetcher:
             source_url=self.url,
             fetched_at=datetime.now(),
         )
+        self._persist(data)
+        return data
+
+    def _persist(self, data: CentralBankData) -> None:
+        """将央行购金数据持久化到经济数据库."""
+        try:
+            observation_date = self._quarter_to_observation_date(data.quarter)
+            point = EconomicDataPoint(
+                indicator="central_bank_net_purchases",
+                release_date=datetime.now().strftime("%Y-%m-%d"),
+                observation_date=observation_date,
+                period=data.quarter,
+                actual=data.net_purchases_tonnes,
+                previous=None,
+                unit="吨",
+                source="World Gold Council (WGC)",
+                source_tier="T0",
+                impact="high",
+                notes=f"全球央行季度净购金 {data.net_purchases_tonnes}t，同比 {data.yoy_change_pct:+.0%}",
+            )
+            self._recorder.save(point)
+        except Exception as e:
+            logger.warning(f"持久化央行购金数据失败: {e}")
+
+    @staticmethod
+    def _quarter_to_observation_date(quarter: str) -> str:
+        """将季度字符串映射为季度末日期."""
+        import re as _re
+        match = _re.search(r"Q([1-4])\s*(\d{4})", quarter)
+        if not match:
+            return ""
+        q, year = int(match.group(1)), match.group(2)
+        month_day = {1: ("03", "31"), 2: ("06", "30"), 3: ("09", "30"), 4: ("12", "31")}[q]
+        return f"{year}-{month_day[0]}-{month_day[1]}"
 
     def _get_html(self, url: str) -> str | None:
         """获取页面HTML."""
@@ -184,12 +220,11 @@ class CentralBankFetcher:
 
         return resp.content.decode("utf-8", errors="replace")
 
-    @staticmethod
-    def _fallback_data() -> CentralBankData | None:
+    def _fallback_data(self) -> CentralBankData | None:
         """当网络不可用时返回已知的最新数据."""
         logger.warning("无法获取最新WGC数据，使用已知数据")
         # Q1 2026 known data from WGC
-        return CentralBankData(
+        data = CentralBankData(
             quarter="Q1 2026",
             net_purchases_tonnes=244.0,
             yoy_change_pct=0.03,
@@ -200,6 +235,8 @@ class CentralBankFetcher:
             source_url="fallback (cached Q1 2026 data)",
             fetched_at=datetime.now(),
         )
+        self._persist(data)
+        return data
 
 
 # ---------------------------------------------------------------------------

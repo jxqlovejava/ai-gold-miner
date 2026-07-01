@@ -8,6 +8,7 @@ from loguru import logger
 
 from gold_miner.config import settings
 from gold_miner.data.base import DataFetcher, DataSourceMeta
+from gold_miner.data.economic_data import EconomicDataPoint, EconomicDataRecorder
 from gold_miner.proxy import get_proxied_client
 
 
@@ -19,12 +20,64 @@ class MacroDataFetcher(DataFetcher):
         "real_rate_10y": "REAINTRATREARAT10Y",
         "breakeven_10y": "T10YIE",
         "fed_rate": "DFF",
-        "cpi_yoy": "CPIAUCSL",
-        "ppi": "PPIACO",
-        "unemployment": "UNRATE",
+        "cpi_index": "CPIAUCSL",
+        "ppi_index": "PPIACO",
+        "unemployment_rate": "UNRATE",
     }
 
-    def __init__(self) -> None:
+    SERIES_META: dict[str, dict[str, str]] = {
+        "DTWEXBGS": {
+            "indicator": "dxy",
+            "name": "美元指数",
+            "unit": "index",
+            "impact": "high",
+            "frequency": "daily",
+        },
+        "REAINTRATREARAT10Y": {
+            "indicator": "real_rate_10y",
+            "name": "美国10年期TIPS实际利率",
+            "unit": "%",
+            "impact": "high",
+            "frequency": "daily",
+        },
+        "T10YIE": {
+            "indicator": "breakeven_10y",
+            "name": "美国10年期盈亏平衡通胀率",
+            "unit": "%",
+            "impact": "medium",
+            "frequency": "daily",
+        },
+        "DFF": {
+            "indicator": "fed_rate",
+            "name": "美国联邦基金利率",
+            "unit": "%",
+            "impact": "high",
+            "frequency": "daily",
+        },
+        "CPIAUCSL": {
+            "indicator": "cpi_index",
+            "name": "美国CPI指数",
+            "unit": "index",
+            "impact": "high",
+            "frequency": "monthly",
+        },
+        "PPIACO": {
+            "indicator": "ppi_index",
+            "name": "美国PPI指数",
+            "unit": "index",
+            "impact": "high",
+            "frequency": "monthly",
+        },
+        "UNRATE": {
+            "indicator": "unemployment_rate",
+            "name": "美国失业率",
+            "unit": "%",
+            "impact": "high",
+            "frequency": "monthly",
+        },
+    }
+
+    def __init__(self, recorder: EconomicDataRecorder | None = None) -> None:
         super().__init__(
             DataSourceMeta(
                 name="macro",
@@ -35,6 +88,7 @@ class MacroDataFetcher(DataFetcher):
             )
         )
         self.api_key = settings.fred_api_key
+        self._recorder = recorder or EconomicDataRecorder()
 
     def fetch(
         self,
@@ -86,20 +140,67 @@ class MacroDataFetcher(DataFetcher):
         df["timestamp"] = pd.to_datetime(df["timestamp"])
         df["value"] = pd.to_numeric(df["value"], errors="coerce")
         df["series_id"] = series_id
-        return df[["timestamp", "value", "series_id"]].dropna(subset=["timestamp", "value"])
+        df = df[["timestamp", "value", "series_id"]].dropna(subset=["timestamp", "value"])
+
+        # 自动持久化到经济数据库（仅限已知宏观经济指标）
+        if not df.empty and series_id in self.SERIES_META:
+            self._persist_series(df, series_id)
+
+        return df
 
     def fetch_latest(self) -> pd.DataFrame:
-        """抓取最新一条宏观数据."""
+        """抓取最新一条宏观数据.
+
+        实际抓取由 fetch() 完成，fetch() 会自动持久化已知宏观经济指标。
+        """
         end = datetime.now()
-        start = end - timedelta(days=7)
-        results = []
+        results: list[pd.DataFrame] = []
         for series_id in self.SERIES.values():
+            meta = self.SERIES_META.get(series_id, {})
+            frequency = meta.get("frequency", "daily")
+            lookback_days = 90 if frequency == "monthly" else 7
+            start = end - timedelta(days=lookback_days)
+
             df = self.fetch(start=start, end=end, series_id=series_id)
             if not df.empty:
                 results.append(df.tail(1))
         if not results:
             return pd.DataFrame(columns=["timestamp", "value", "series_id"])
         return pd.concat(results, ignore_index=True)
+
+    def _persist_series(self, df: pd.DataFrame, series_id: str) -> None:
+        """将 FRED 时间序列的最新值持久化为 EconomicDataPoint."""
+        if df.empty or len(df) < 1:
+            return
+
+        meta = self.SERIES_META.get(series_id)
+        if not meta:
+            return
+
+        latest = df.iloc[-1]
+        previous_value = df.iloc[-2]["value"] if len(df) >= 2 else None
+        observation_date = pd.Timestamp(latest["timestamp"]).strftime("%Y-%m-%d")
+        release_date = datetime.now().strftime("%Y-%m-%d")
+        frequency = meta.get("frequency", "daily")
+        period = observation_date[:7] if frequency == "monthly" else observation_date
+
+        try:
+            point = EconomicDataPoint(
+                indicator=meta["indicator"],
+                release_date=release_date,
+                observation_date=observation_date,
+                period=period,
+                actual=float(latest["value"]),
+                previous=float(previous_value) if previous_value is not None else None,
+                unit=meta["unit"],
+                source="FRED / Federal Reserve Economic Data",
+                source_tier="T0",
+                impact=meta.get("impact", "high"),
+                notes=f"自动抓取自 FRED series {series_id}，观测日期 {observation_date}",
+            )
+            self._recorder.save(point)
+        except Exception as e:
+            logger.warning(f"持久化宏观数据失败 ({series_id}): {e}")
 
     def fetch_dxy(self) -> pd.DataFrame:
         """抓取美元指数历史数据 — 通过 FRED API."""
