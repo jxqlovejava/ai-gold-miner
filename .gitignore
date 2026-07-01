@@ -29,6 +29,8 @@ data/private/*
 
 # JSONL data files (personal predictions, events, scenarios)
 data/*.jsonl
+# 事件日历是公开数据，允许提交
+!data/calendar_events.jsonl
 
 # Reports (generated, may contain personal data)
 data/reports/

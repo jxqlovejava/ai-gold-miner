@@ -1,0 +1,206 @@
+{"name": "FOMC利率决议", "event_type": "fed_rate", "scheduled_at": "2024-01-31T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储联邦公开市场委员会利率决议"}
+{"name": "FOMC利率决议", "event_type": "fed_rate", "scheduled_at": "2024-03-20T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储联邦公开市场委员会利率决议"}
+{"name": "FOMC利率决议", "event_type": "fed_rate", "scheduled_at": "2024-05-01T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储联邦公开市场委员会利率决议"}
+{"name": "FOMC利率决议", "event_type": "fed_rate", "scheduled_at": "2024-06-12T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储联邦公开市场委员会利率决议"}
+{"name": "FOMC利率决议", "event_type": "fed_rate", "scheduled_at": "2024-07-31T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储联邦公开市场委员会利率决议"}
+{"name": "FOMC利率决议", "event_type": "fed_rate", "scheduled_at": "2024-09-18T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储联邦公开市场委员会利率决议"}
+{"name": "FOMC利率决议", "event_type": "fed_rate", "scheduled_at": "2024-11-07T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储联邦公开市场委员会利率决议"}
+{"name": "FOMC利率决议", "event_type": "fed_rate", "scheduled_at": "2024-12-18T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储联邦公开市场委员会利率决议"}
+{"name": "FOMC利率决议", "event_type": "fed_rate", "scheduled_at": "2025-01-29T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储联邦公开市场委员会利率决议"}
+{"name": "FOMC利率决议", "event_type": "fed_rate", "scheduled_at": "2025-03-19T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储联邦公开市场委员会利率决议"}
+{"name": "FOMC利率决议", "event_type": "fed_rate", "scheduled_at": "2025-05-07T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储联邦公开市场委员会利率决议"}
+{"name": "FOMC利率决议", "event_type": "fed_rate", "scheduled_at": "2025-06-18T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储联邦公开市场委员会利率决议"}
+{"name": "FOMC利率决议", "event_type": "fed_rate", "scheduled_at": "2025-07-30T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储联邦公开市场委员会利率决议"}
+{"name": "FOMC利率决议", "event_type": "fed_rate", "scheduled_at": "2025-09-17T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储联邦公开市场委员会利率决议"}
+{"name": "FOMC利率决议", "event_type": "fed_rate", "scheduled_at": "2025-11-05T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储联邦公开市场委员会利率决议"}
+{"name": "FOMC利率决议", "event_type": "fed_rate", "scheduled_at": "2025-12-17T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储联邦公开市场委员会利率决议"}
+{"name": "FOMC利率决议", "event_type": "fed_rate", "scheduled_at": "2026-01-28T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储联邦公开市场委员会利率决议"}
+{"name": "FOMC利率决议", "event_type": "fed_rate", "scheduled_at": "2026-03-18T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储联邦公开市场委员会利率决议"}
+{"name": "FOMC利率决议", "event_type": "fed_rate", "scheduled_at": "2026-05-06T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储联邦公开市场委员会利率决议"}
+{"name": "FOMC利率决议", "event_type": "fed_rate", "scheduled_at": "2026-06-17T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储联邦公开市场委员会利率决议"}
+{"name": "FOMC利率决议", "event_type": "fed_rate", "scheduled_at": "2026-07-29T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储联邦公开市场委员会利率决议"}
+{"name": "FOMC利率决议", "event_type": "fed_rate", "scheduled_at": "2026-09-16T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储联邦公开市场委员会利率决议"}
+{"name": "FOMC利率决议", "event_type": "fed_rate", "scheduled_at": "2026-11-04T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储联邦公开市场委员会利率决议"}
+{"name": "FOMC利率决议", "event_type": "fed_rate", "scheduled_at": "2026-12-16T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储联邦公开市场委员会利率决议"}
+{"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2024-01-02T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
+{"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2024-02-01T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
+{"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2024-03-01T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
+{"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2024-04-01T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
+{"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2024-05-01T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
+{"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2024-06-03T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
+{"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2024-07-01T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
+{"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2024-08-02T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
+{"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2024-09-02T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
+{"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2024-10-01T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
+{"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2024-11-01T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
+{"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2024-12-02T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
+{"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2025-01-02T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
+{"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2025-02-03T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
+{"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2025-03-03T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
+{"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2025-04-01T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
+{"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2025-05-01T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
+{"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2025-06-02T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
+{"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2025-07-01T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
+{"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2025-08-04T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
+{"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2025-09-02T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
+{"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2025-10-01T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
+{"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2025-11-03T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
+{"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2025-12-01T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
+{"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2026-01-05T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
+{"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2026-02-02T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
+{"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2026-03-02T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
+{"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2026-04-01T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
+{"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2026-05-01T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
+{"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2026-06-01T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
+{"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2026-07-02T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
+{"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2026-08-03T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
+{"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2026-09-01T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
+{"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2026-10-01T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
+{"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2026-11-02T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
+{"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2026-12-01T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
+{"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2024-01-03T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
+{"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2024-02-05T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
+{"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2024-03-04T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
+{"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2024-04-03T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
+{"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2024-05-06T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
+{"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2024-06-03T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
+{"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2024-07-02T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
+{"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2024-08-05T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
+{"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2024-09-03T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
+{"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2024-10-02T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
+{"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2024-11-04T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
+{"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2024-12-03T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
+{"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2025-01-03T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
+{"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2025-02-04T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
+{"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2025-03-04T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
+{"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2025-04-02T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
+{"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2025-05-05T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
+{"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2025-06-03T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
+{"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2025-07-02T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
+{"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2025-08-05T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
+{"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2025-09-03T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
+{"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2025-10-02T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
+{"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2025-11-04T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
+{"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2025-12-02T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
+{"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2026-01-06T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
+{"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2026-02-03T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
+{"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2026-03-03T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
+{"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2026-04-02T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
+{"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2026-05-04T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
+{"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2026-06-02T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
+{"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2026-07-03T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
+{"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2026-08-04T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
+{"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2026-09-02T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
+{"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2026-10-02T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
+{"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2026-11-03T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
+{"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2026-12-02T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
+{"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2024-01-25T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
+{"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2024-02-28T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
+{"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2024-03-28T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
+{"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2024-04-26T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
+{"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2024-05-30T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
+{"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2024-06-27T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
+{"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2024-07-25T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
+{"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2024-08-29T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
+{"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2024-09-26T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
+{"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2024-10-31T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
+{"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2024-11-28T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
+{"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2024-12-24T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
+{"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2025-01-30T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
+{"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2025-02-27T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
+{"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2025-03-27T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
+{"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2025-04-30T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
+{"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2025-05-29T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
+{"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2025-06-26T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
+{"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2025-07-31T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
+{"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2025-08-28T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
+{"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2025-09-26T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
+{"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2025-10-30T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
+{"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2025-11-27T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
+{"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2025-12-23T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
+{"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2026-01-31T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
+{"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2026-02-26T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
+{"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2026-03-26T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
+{"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2026-04-29T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
+{"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2026-05-28T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
+{"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2026-06-25T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
+{"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2026-07-30T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
+{"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2026-08-27T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
+{"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2026-09-25T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
+{"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2026-10-29T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
+{"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2026-11-26T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
+{"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2026-12-22T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
+{"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2024-01-11T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
+{"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2024-02-13T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
+{"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2024-03-12T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
+{"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2024-04-10T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
+{"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2024-05-15T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
+{"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2024-06-12T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
+{"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2024-07-11T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
+{"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2024-08-13T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
+{"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2024-09-12T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
+{"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2024-10-11T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
+{"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2024-11-13T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
+{"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2024-12-11T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
+{"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2025-01-13T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
+{"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2025-02-12T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
+{"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2025-03-12T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
+{"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2025-04-15T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
+{"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2025-05-13T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
+{"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2025-06-11T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
+{"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2025-07-15T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
+{"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2025-08-12T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
+{"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2025-09-15T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
+{"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2025-10-14T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
+{"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2025-11-13T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
+{"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2025-12-10T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
+{"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2026-01-14T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
+{"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2026-02-11T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
+{"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2026-03-12T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
+{"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2026-04-14T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
+{"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2026-05-13T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
+{"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2026-06-10T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
+{"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2026-07-14T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
+{"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2026-08-12T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
+{"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2026-09-15T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
+{"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2026-10-14T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
+{"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2026-11-13T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
+{"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2026-12-10T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
+{"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2024-01-16T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
+{"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2024-02-15T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
+{"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2024-03-12T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
+{"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2024-04-10T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
+{"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2024-05-14T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
+{"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2024-06-12T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
+{"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2024-07-11T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
+{"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2024-08-13T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
+{"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2024-09-11T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
+{"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2024-10-14T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
+{"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2024-11-12T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
+{"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2024-12-10T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
+{"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2025-01-15T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
+{"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2025-02-14T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
+{"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2025-03-12T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
+{"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2025-04-14T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
+{"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2025-05-14T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
+{"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2025-06-11T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
+{"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2025-07-15T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
+{"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2025-08-12T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
+{"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2025-09-15T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
+{"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2025-10-14T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
+{"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2025-11-12T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
+{"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2025-12-10T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
+{"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2026-01-15T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
+{"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2026-02-12T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
+{"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2026-03-13T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
+{"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2026-04-11T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
+{"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2026-05-15T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
+{"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2026-06-11T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
+{"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2026-07-12T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
+{"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2026-08-14T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
+{"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2026-09-12T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
+{"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2026-10-15T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
+{"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2026-11-13T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
+{"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2026-12-11T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
+{"name": "美联储主席沃什 ECB全球央行论坛讲话", "event_type": "fed_speech", "scheduled_at": "2026-07-01T21:00:00", "impact": "high", "source": "ECB Forum on Central Banking (Sintra, Portugal)", "description": "沃什就任后首次国际公开露面，与拉加德、贝利、麦克勒姆同台参加政策小组讨论"}
+{"name": "美联储主席沃什 众议院金融服务委员会听证会", "event_type": "fed_speech", "scheduled_at": "2026-07-14T22:00:00", "impact": "high", "source": "U.S. House Financial Services Committee", "description": "就任美联储主席后首次国会听证，评估货币政策方向"}
