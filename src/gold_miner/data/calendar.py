@@ -41,6 +41,7 @@ class EventType(StrEnum):
     BOE = "boe"
     GEO_POLITICAL = "geo"
     GOLD_RESERVE = "gold_reserve"
+    FED_SPEECH = "fed_speech"
 
 
 @dataclass
@@ -144,6 +145,20 @@ class EventCalendar:
         2026: [
             (1, 28), (3, 18), (5, 6), (6, 17),
             (7, 29), (9, 16), (11, 4), (12, 16),
+        ],
+    }
+
+    # 美联储重要讲话/听证/全球央行论坛 (不影响利率决策但影响市场预期)
+    FED_SPEECH_SCHEDULE: dict[int, list[tuple[int, int, str, str, str]]] = {
+        2026: [
+            (7, 1, 21, 0,
+             "美联储主席沃什 ECB全球央行论坛讲话",
+             "沃什就任后首次国际公开露面，与拉加德、贝利、麦克勒姆同台参加政策小组讨论",
+             "ECB Forum on Central Banking (Sintra, Portugal)"),
+            (7, 14, 22, 0,
+             "美联储主席沃什 众议院金融服务委员会听证会",
+             "就任美联储主席后首次国会听证，评估货币政策方向",
+             "U.S. House Financial Services Committee"),
         ],
     }
 
@@ -257,6 +272,18 @@ class EventCalendar:
                     impact=EventImpact.HIGH,
                     source="Federal Reserve",
                     description="美联储联邦公开市场委员会利率决议",
+                ))
+
+        # 美联储重要讲话/听证
+        if year in self.FED_SPEECH_SCHEDULE:
+            for month, day, hour, minute, name, desc, source in self.FED_SPEECH_SCHEDULE[year]:
+                events.append(CalendarEvent(
+                    name=name,
+                    event_type=EventType.FED_SPEECH,
+                    scheduled_at=datetime(year, month, day, hour, minute),
+                    impact=EventImpact.HIGH,
+                    source=source,
+                    description=desc,
                 ))
 
         # CPI
