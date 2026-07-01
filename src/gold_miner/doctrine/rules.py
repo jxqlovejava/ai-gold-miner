@@ -292,6 +292,15 @@ RULE_MARGIN_OF_SAFETY = InvestmentRule(
     check_fn="check_margin_of_safety",
 )
 
+RULE_KELLY_POSITION = InvestmentRule(
+    id="r031",
+    name="凯利仓位参考",
+    description="使用1/4 Kelly公式量化仓位上限，信号弱时自动缩仓，避免过度自信下注",
+    severity="warn",
+    category="position_sizing",
+    check_fn="check_kelly_position",
+)
+
 
 # ------------------------------------------------------------------
 # 全部规则集合
@@ -328,6 +337,7 @@ ALL_RULES: list[InvestmentRule] = [
     RULE_STAGGERED_ENTRY,
     RULE_VALUATION_MARGIN,
     RULE_MARGIN_OF_SAFETY,
+    RULE_KELLY_POSITION,
 ]
 
 

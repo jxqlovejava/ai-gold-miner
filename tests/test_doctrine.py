@@ -84,7 +84,7 @@ class TestMentalModel:
 class TestDoctrineChecker:
     def test_all_passed_with_safe_decision(self) -> None:
         checker = DoctrineChecker()
-        decision = {"direction": "long", "position_pct": 0.10}
+        decision = {"direction": "long", "position_pct": 0.10, "kelly": {"suggested": 0.10}}
         context = {
             "current_exposure": 0.2,
             "gold_allocation_pct": 0.3,

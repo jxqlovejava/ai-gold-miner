@@ -562,6 +562,29 @@ class DoctrineChecker:
             details={"is_adding": is_adding, "valuation_range": has_valuation},
         )
 
+    def check_kelly_position(self, decision: dict, ctx: dict) -> RuleViolation:
+        rule = self._get_rule("check_kelly_position")
+        kelly_info = decision.get("kelly", {})
+        kelly_suggested = kelly_info.get("suggested", 0)
+        actual_position = decision.get("position_pct", 0)
+        passed = actual_position <= max(kelly_suggested, 0.05)
+        if kelly_suggested <= 0.01:
+            return RuleViolation(
+                rule=rule,
+                passed=passed,
+                message=f"Kelly 建议仓位 {kelly_suggested:.1%} — 信号不足以支持加仓，维持轻仓或观望",
+                details={"kelly_suggested": kelly_suggested, "actual_position": actual_position},
+            )
+        return RuleViolation(
+            rule=rule,
+            passed=passed,
+            message=(
+                f"Kelly 建议 {kelly_suggested:.1%}，实际 {actual_position:.0%}，"
+                f"{'仓位在 Kelly 范围内' if passed else '仓位超出 Kelly 建议，考虑缩仓'}"
+            ),
+            details={"kelly_suggested": kelly_suggested, "actual_position": actual_position},
+        )
+
     # ------------------------------------------------------------------
     # helper
     # ------------------------------------------------------------------

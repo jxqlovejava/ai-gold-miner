@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from gold_miner.signals.base import SignalBundle
+from gold_miner.strategy.kelly import kelly_position
 
 
 @dataclass
@@ -114,6 +115,14 @@ class PortfolioManager:
         else:
             signal_type = "无信号"
 
+        # Kelly 仓位参考
+        kelly = kelly_position(
+            composite_score=bundle.composite_score,
+            confidence=bundle.confidence,
+        )
+        original_pos = position_pct
+        position_pct = min(position_pct, kelly.suggested_pct) if kelly.is_actionable() else min(position_pct, 0.05)
+
         result = {
             "direction": direction,
             "position_pct": round(position_pct, 2),
@@ -122,11 +131,22 @@ class PortfolioManager:
             "bull_confidence": round(bull.confidence, 2),
             "bear_confidence": round(bear.confidence, 2),
             "composite_score": round(bundle.composite_score, 2),
+            "kelly": {
+                "raw": kelly.raw_kelly,
+                "quarter": kelly.quarter_kelly,
+                "suggested": kelly.suggested_pct,
+                "edge": kelly.edge,
+                "rationale": kelly.rationale,
+            },
             "debate_summary": {
                 "bull_args": bull.arguments,
                 "bear_args": bear.arguments,
             },
         }
+        if kelly.is_actionable() and kelly.suggested_pct < original_pos:
+            result["kelly_override"] = (
+                f"Kelly 压降: {original_pos:.0%} → {kelly.suggested_pct:.0%}"
+            )
 
         # 策略目标覆盖
         if strategy_decision is not None and strategy_decision.position_pct > 0:
