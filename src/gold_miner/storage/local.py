@@ -32,6 +32,7 @@ class LocalFileStore:
         "gold_history": "jd_ms_gold_history.csv",
         "bank_target_history": "bank_target_history.jsonl",
         "institutional_13f_history": "institutional_13f_history.jsonl",
+        "economic_data": "economic_data.jsonl",
     }
 
     def __init__(self, private_data_dir: str | Path | None = None) -> None:
@@ -253,3 +254,22 @@ class LocalFileStore:
                 return
 
         self._append_jsonl("institutional_13f_history", record)
+
+    # ------------------------------------------------------------------
+    # 经济数据
+    # ------------------------------------------------------------------
+
+    def load_economic_data(self) -> list[dict[str, Any]]:
+        return self._read_jsonl("economic_data")
+
+    def append_economic_data(self, record: dict[str, Any]) -> None:
+        """追加经济数据发布记录.
+
+        去重逻辑由调用方（EconomicDataRecorder）负责，此处仅做追加写入。
+        """
+        record.setdefault("fetched_at", datetime.now().isoformat())
+        self._append_jsonl("economic_data", record)
+
+    def save_economic_data(self, records: list[dict[str, Any]]) -> None:
+        """覆盖写入全部经济数据记录（用于去重/修正后重写）."""
+        self._write_jsonl("economic_data", records)
