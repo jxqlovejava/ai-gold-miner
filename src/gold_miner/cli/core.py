@@ -15,6 +15,7 @@ from .doctrine import run_doctrine
 from .journal import run_journal
 from .long_term import run_longterm
 from .proxy_install import run_proxy_install
+from .record import run_record
 from .quote import run_quote
 from .report import run_report
 from .scan import run_scan
@@ -43,7 +44,7 @@ def main() -> None:
             "scan", "quote", "backtest", "journal", "proxy-install",
             "track", "review", "findings", "analyze", "scenario", "doctrine", "daemon",
             "verify", "report", "advisor", "doctor", "setup", "workflow", "web",
-            "longterm",
+            "longterm", "record",
         ],
         help="命令",
     )
@@ -109,7 +110,7 @@ def main() -> None:
     parser.add_argument("--dry-run", action="store_true", default=False, help="测试运行 advisor watch")
     # setup command parameters
     parser.add_argument("--non-interactive", action="store_true", default=False, help="非交互模式 setup")
-    args = parser.parse_args()
+    args, unknown = parser.parse_known_args()
 
     setup_logging()
 
@@ -183,3 +184,5 @@ def main() -> None:
         run_web(args)
     elif args.command == "longterm":
         run_longterm(args)
+    elif args.command == "record":
+        run_record(args)
