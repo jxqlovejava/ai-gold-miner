@@ -27,7 +27,12 @@ from gold_miner.data.news import NewsItem
 from gold_miner.signals.base import SignalDirection, SignalStrength
 from gold_miner.signals.cot_signal import CotSignalGenerator
 from gold_miner.signals.etf_flow_signal import EtfFlowSignalGenerator
-from gold_miner.signals.news_signal import NewsSignalGenerator
+from gold_miner.signals.news_signal import (
+    NewsSignalGenerator,
+    _geopolitical_boost,
+    _is_geopolitical,
+    _news_text,
+)
 
 # =============================================================================
 # Fact Checker Tests
@@ -603,12 +608,180 @@ class TestNewsSignalGeneratorFactCheck:
             )
             for it in items
         ]
-        with patch.object(gen.fetcher, "fetch_latest", return_value=items):
-            with patch.object(gen.fetcher, "analyze_sentiment", return_value=items):
-                with patch.object(gen.fact_checker, "check_batch", return_value=mock_results):
-                    signals = gen.fetch_and_analyze()
-                    # 至少应产生情感倾向信号
-                    assert any(s.dimension == "news" for s in signals)
+        with (
+            patch.object(gen.fetcher, "fetch_latest", return_value=items),
+            patch.object(gen.fetcher, "analyze_sentiment", return_value=items),
+            patch.object(gen.fact_checker, "check_batch", return_value=mock_results),
+        ):
+            signals = gen.fetch_and_analyze()
+            # 至少应产生情感倾向信号
+            assert any(s.dimension == "news" for s in signals)
+
+    def test_geopolitical_news_generates_risk_premium_signal(self):
+        """中性报道的地缘新闻应产生独立的看涨地缘风险溢价信号."""
+        gen = NewsSignalGenerator()
+        item = NewsItem(
+            title="Iran war: Vance confirms US plan to expand forces in Middle East",
+            source="Al Jazeera",
+            published_at=datetime.now(),
+            sentiment=0.0,
+            is_breaking=True,
+            metadata={"verification_status": "unverified"},
+        )
+        mock_result = FactCheckResult(
+            news_item=item, status=VerificationStatus.UNVERIFIED,
+            confidence=0.2, check_method="test",
+        )
+        with patch.object(gen.fact_checker, "check_batch", return_value=[mock_result]):
+            signals = gen.analyze([item])
+
+        geo_signals = [s for s in signals if s.name == "地缘风险溢价"]
+        assert len(geo_signals) == 1
+        assert geo_signals[0].direction == SignalDirection.BULLISH
+        assert geo_signals[0].score > 0.0
+        assert "地缘风险升温" in geo_signals[0].description
+
+    def test_geopolitical_oil_link_boosts_score(self):
+        """涉及油价/霍尔木兹海峡的地缘新闻应获得更高加分."""
+        iran_oil = NewsItem(
+            title="Iran attacks force oil tankers to avoid Strait of Hormuz",
+            source="Reuters",
+            published_at=datetime.now(),
+            sentiment=0.0,
+            is_breaking=True,
+            metadata={"verification_status": "unverified"},
+        )
+        iran_only = NewsItem(
+            title="Iran confirms diplomatic talks with US",
+            source="Reuters",
+            published_at=datetime.now(),
+            sentiment=0.0,
+            is_breaking=True,
+            metadata={"verification_status": "unverified"},
+        )
+
+        boost_oil = _geopolitical_boost(iran_oil)
+        boost_only = _geopolitical_boost(iran_only)
+        assert boost_oil > boost_only
+        assert "hormuz" in _news_text(iran_oil)
+
+    def test_geopolitical_de_escalation_turns_bearish(self):
+        """地缘新闻明确显示缓和进展时，风险溢价信号应为看空."""
+        gen = NewsSignalGenerator()
+        item = NewsItem(
+            title="US and Iran reach peace deal and ceasefire deal, oil prices tumble",
+            source="Reuters",
+            published_at=datetime.now(),
+            sentiment=0.0,
+            is_breaking=True,
+            metadata={"verification_status": "confirmed"},
+        )
+        mock_result = FactCheckResult(
+            news_item=item, status=VerificationStatus.CONFIRMED,
+            confidence=0.8, check_method="test",
+        )
+        with patch.object(gen.fact_checker, "check_batch", return_value=[mock_result]):
+            signals = gen.analyze([item])
+
+        geo_signals = [s for s in signals if s.name == "地缘风险溢价"]
+        assert len(geo_signals) == 1
+        assert geo_signals[0].direction == SignalDirection.BEARISH
+
+    def test_non_geopolitical_words_not_false_positive(self):
+        """普通词汇包含地缘子串时不应误判为地缘新闻."""
+        warren = NewsItem(
+            title="Warren Buffett sees no recession, forward guidance strong",
+            source="Reuters",
+            published_at=datetime.now(),
+            sentiment=0.3,
+            metadata={"verification_status": "confirmed"},
+        )
+        assert not _is_geopolitical(warren)
+        assert _geopolitical_boost(warren) == 0.0
+
+    def test_geopolitical_boost_cap(self):
+        """地缘新闻加分不超过 0.4."""
+        item = NewsItem(
+            title="Iran war threat closes Strait of Hormuz, gold safe haven demand surges",
+            source="Reuters",
+            published_at=datetime.now(),
+            sentiment=0.0,
+            metadata={"verification_status": "confirmed"},
+        )
+        boost = _geopolitical_boost(item)
+        assert boost == pytest.approx(0.4, abs=0.01)
+
+    def test_geopolitical_direction_from_adjusted_score(self):
+        """当情感偏空但地缘加分转正时，方向应与最终得分一致."""
+        gen = NewsSignalGenerator()
+        item = NewsItem(
+            title="Iran war threat closes Strait of Hormuz, oil tankers halted",
+            source="Al Jazeera",
+            published_at=datetime.now(),
+            sentiment=-0.1,
+            is_breaking=True,
+            metadata={"verification_status": "unverified"},
+        )
+        mock_result = FactCheckResult(
+            news_item=item, status=VerificationStatus.UNVERIFIED,
+            confidence=0.2, check_method="test",
+        )
+        with patch.object(gen.fact_checker, "check_batch", return_value=[mock_result]):
+            signals = gen.analyze([item])
+
+        event_signals = [s for s in signals if "重大事件" in s.name]
+        assert len(event_signals) >= 1
+        # -0.1 * 1.0 + 0.3(geo: primary + oil_link + hormuz) = 0.2 > 0
+        assert event_signals[0].direction == SignalDirection.BULLISH
+        assert event_signals[0].score > 0.0
+
+    def test_breaking_geopolitical_news_avoids_excessive_downweight(self):
+        """突发性地缘新闻即使未确认，也不应被事实核查大幅降权."""
+        gen = NewsSignalGenerator()
+        item = NewsItem(
+            title="Houthi attack closes Strait of Hormuz shipping lane",
+            source="Breaking News Wire",
+            published_at=datetime.now(),
+            sentiment=0.0,
+            is_breaking=True,
+            metadata={"verification_status": "unverified"},
+        )
+        mock_result = FactCheckResult(
+            news_item=item, status=VerificationStatus.UNVERIFIED,
+            confidence=0.1, check_method="test",
+        )
+        with patch.object(gen.fact_checker, "check_batch", return_value=[mock_result]):
+            signals = gen.analyze([item])
+
+        event_signals = [s for s in signals if "重大事件" in s.name]
+        assert len(event_signals) >= 1
+        # 突发性地缘新闻应使用 1.0 乘数 + 地缘加分，不应接近 0
+        assert event_signals[0].score > 0.15
+        assert event_signals[0].metadata.get("geopolitical") is True
+
+    def test_non_geopolitical_news_unchanged(self):
+        """非地缘新闻仍按原有规则打分."""
+        gen = NewsSignalGenerator()
+        item = NewsItem(
+            title="Gold rises as US payrolls miss expectations",
+            source="Reuters",
+            published_at=datetime.now(),
+            sentiment=0.5,
+            is_breaking=True,
+            metadata={"verification_status": "unverified"},
+        )
+        mock_result = FactCheckResult(
+            news_item=item, status=VerificationStatus.UNVERIFIED,
+            confidence=0.2, check_method="test",
+        )
+        with patch.object(gen.fact_checker, "check_batch", return_value=[mock_result]):
+            signals = gen.analyze([item])
+
+        event_signals = [s for s in signals if "重大事件" in s.name]
+        assert len(event_signals) == 1
+        # 原有规则：0.5 * 0.8 = 0.4
+        assert event_signals[0].score == pytest.approx(0.4, abs=0.01)
+        assert not event_signals[0].metadata.get("geopolitical")
 
 
 # =============================================================================
