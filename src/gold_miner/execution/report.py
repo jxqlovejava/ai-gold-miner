@@ -1,6 +1,7 @@
 """报告生成器 — 支持小白版(默认)和专家版(--expert)."""
 
 from datetime import datetime
+from html import escape
 from pathlib import Path
 from typing import Any
 
@@ -429,29 +430,38 @@ class ReportGenerator:
         breaking = [s for s in sigs if "重大事件" in s.name][:3]
         findings = ""
         for b in breaking:
-            title = self._cn_signal_name(b.name.replace("重大事件: ", ""))[:60]
+            title = self._cn_signal_name(b.name.replace("重大事件: ", ""))[:70]
             if self.expert:
-                findings += f'<div class="key-finding"><div class="title">📌 {title}</div></div>'
+                # 专家版展示更完整的新闻摘要、来源与链接
+                desc = self._cn_signal_name(b.description[:200])
+                findings += f'<div class="key-finding"><div class="title">📌 {title}</div><p style="font-size:13px">{desc}</p></div>'
             else:
                 # 小白版：用翻译后的简洁描述
-                desc = self._cn_signal_name(b.description[:120])
+                desc = self._cn_signal_name(b.description[:150])
                 findings += f'<div class="key-finding"><div class="title">{title}</div><p style="font-size:13px">{desc}</p></div>'
 
-        news_list = ""
-        if news_items:
-            for item in news_items[:6]:
-                s = item.sentiment
+        # 最近新闻资讯信号：把具体资讯列表展示出来
+        recent_news_sig = next((s for s in sigs if s.name == "最近新闻资讯"), None)
+        recent_news_html = ""
+        if recent_news_sig and recent_news_sig.metadata.get("news_list"):
+            recent_news_html += '<p><span class="bold">新闻资讯:</span></p><ul class="signal-list">'
+            for it in recent_news_sig.metadata["news_list"][:5]:
+                s = it.get("sentiment", 0.0)
                 e = "+" if s > 0.1 else "-" if s < -0.1 else "o"
-                title = getattr(item, "title", "")[:60]
-                source = getattr(item, "source", "?")[:10]
-                news_list += f'<li><span class="{"green" if s>0.1 else "red" if s<-0.1 else ""} bold">[{e}]</span> [{source}] {title}</li>'
+                color = "green" if s > 0.1 else "red" if s < -0.1 else ""
+                title = self._cn_news(str(it.get("title", "")))[:70]
+                source = str(it.get("source", "?"))[:12]
+                url = it.get("url", "")
+                link = f' <a href="{escape(url)}" target="_blank" style="font-size:12px">[原文]</a>' if url else ""
+                recent_news_html += f'<li><span class="{color} bold">[{e}]</span> [{source}] {title}{link}</li>'
+            recent_news_html += '</ul>'
 
         return f"""
 <h3>📰 消息面{'<span class="muted"> — 市场在讨论什么</span>' if not self.expert else ''}</h3>
 {findings}
 <ul class="signal-list">{signals_html}</ul>
 {self._maybe_explain('消息面搜集最近24小时的新闻，提取对金价有影响的事件。非农、美联储、地缘冲突是最重要的三类消息。') if not self.expert else ''}
-{'<p><span class="bold">最近新闻:</span></p><ul class="signal-list">'+news_list+'</ul>' if news_list else ''}
+{recent_news_html}
 """
 
     def _section_sentiment(self, au_df, bundle: SignalBundle) -> str:

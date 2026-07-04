@@ -190,13 +190,23 @@ class NewsSignalGenerator:
 
                 tag = format_verification_tag(news)
 
+                # 输出具体资讯：保留完整标题、摘要、来源与链接
+                title_display = news.title.strip()
+                summary_display = (news.summary or news.title).strip()
+                desc_parts = [summary_display]
+                if news.source:
+                    desc_parts.append(f"来源: {news.source}")
+                if news.url:
+                    desc_parts.append(f"链接: {news.url}")
+                description = " | ".join(desc_parts)
+
                 signals.append(Signal(
-                    name=f"重大事件{tag}: {news.title[:30]}...",
+                    name=f"重大事件{tag}: {title_display[:80]}{'...' if len(title_display) > 80 else ''}",
                     dimension="news",
                     direction=direction,
                     strength=strength,
                     score=round(adjusted_score, 2),
-                    description=news.summary[:100] if news.summary else news.title,
+                    description=description[:250],
                     metadata={
                         "source": news.source,
                         "url": news.url,
@@ -205,6 +215,8 @@ class NewsSignalGenerator:
                         "source_tier": v_tier,
                         "geopolitical": _is_geopolitical(news),
                         "geopolitical_boost": round(geo_boost, 2),
+                        "full_title": news.title,
+                        "full_summary": news.summary,
                     },
                 ))
 
@@ -229,6 +241,41 @@ class NewsSignalGenerator:
                     "unverified_ratio": len(unverified) / len(items),
                     "dominant_tier": dominant_tier,
                     "tier_breakdown": tier_counts,
+                },
+            ))
+
+        # 汇总具体资讯列表，方便下游直接展示新闻标题/来源/情感
+        if items:
+            top_items = items[:5]
+            news_lines = []
+            for it in top_items:
+                s = it.sentiment
+                e = "+" if s > 0.1 else "-" if s < -0.1 else "o"
+                line = f"[{e}] [{it.source}] {it.title}"
+                news_lines.append(line)
+            signals.append(Signal(
+                name="最近新闻资讯",
+                dimension="news",
+                direction=SignalDirection.NEUTRAL,
+                strength=SignalStrength.WEAK,
+                score=0.0,
+                description="; ".join(news_lines[:3]),
+                metadata={
+                    "news_list": [
+                        {
+                            "title": it.title,
+                            "source": it.source,
+                            "url": it.url,
+                            "sentiment": it.sentiment,
+                            "verification_status": it.metadata.get("verification_status", "unverified"),
+                            "published_at": (
+                                it.published_at.isoformat()
+                                if it.published_at is not None and hasattr(it.published_at, "isoformat")
+                                else ""
+                            ),
+                        }
+                        for it in top_items
+                    ],
                 },
             ))
 
