@@ -196,7 +196,7 @@
 {"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2026-04-11T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
 {"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2026-05-15T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
 {"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2026-06-11T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
-{"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2026-07-12T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
+{"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2026-07-15T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
 {"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2026-08-14T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
 {"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2026-09-12T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
 {"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2026-10-15T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
