@@ -1,5 +1,8 @@
 """Tests for AnalysisPipeline."""
 
+from datetime import datetime
+
+import pandas as pd
 import pytest
 
 from gold_miner.doctrine.checker import DoctrineChecker
@@ -331,3 +334,105 @@ class TestAnalysisPipelineOutputSections:
         pipeline._print_profile_match(result, "", {})
         captured = capsys.readouterr().out
         assert "未找到投资者持仓数据" in captured
+
+
+class TestMinshengAccumulationPrice:
+    """测试民生银行积存金价格在数据采集步骤中被抓取并记录."""
+
+    def test_fetch_minsheng_price_success(self, monkeypatch):
+        from gold_miner.data.jd_accumulation_gold import JdGoldPrice
+
+        class FakeFetcher:
+            def __init__(self, bank: str) -> None:
+                self.bank = bank
+
+            def fetch_price(self):
+                return JdGoldPrice(
+                    timestamp=datetime.now(),
+                    product_name="民生积存金",
+                    price=918.50,
+                    change_pct="+0.30%",
+                    source="jd.com",
+                )
+
+        monkeypatch.setattr(
+            "gold_miner.pipeline.analysis.JdAccumulationGoldFetcher", FakeFetcher
+        )
+        pipeline = AnalysisPipeline()
+        price = pipeline._fetch_minsheng_accumulation_price()
+
+        assert price is not None
+        assert price.price == 918.50
+        assert price.change_pct == "+0.30%"
+
+    def test_fetch_minsheng_price_failure_returns_none(self, monkeypatch):
+        class FakeFetcher:
+            def __init__(self, bank: str) -> None:
+                pass
+
+            def fetch_price(self):
+                raise RuntimeError("network")
+
+        monkeypatch.setattr(
+            "gold_miner.pipeline.analysis.JdAccumulationGoldFetcher", FakeFetcher
+        )
+        pipeline = AnalysisPipeline()
+        assert pipeline._fetch_minsheng_accumulation_price() is None
+
+    def test_step_collect_records_minsheng_price(self, monkeypatch):
+        pipeline = AnalysisPipeline()
+
+        # Mock 现货黄金数据
+        class FakeSpotFetcher:
+            def fetch(self, **kwargs):
+                return pd.DataFrame({"close": [800.0]})
+
+            def fetch_international_quote(self):
+                return [{"price": 3300.0, "name": "伦敦金"}]
+
+        class FakeMacroFetcher:
+            def fetch_dxy(self):
+                return pd.DataFrame()
+
+            def fetch_real_rate(self):
+                return pd.DataFrame()
+
+            def fetch_silver(self):
+                return pd.DataFrame()
+
+            def fetch_breakeven(self):
+                return pd.DataFrame()
+
+        class FakeAlert:
+            def check_all(self, **kwargs):
+                return []
+
+        monkeypatch.setattr(
+            "gold_miner.pipeline.analysis.SpotGoldFetcher", FakeSpotFetcher
+        )
+        monkeypatch.setattr(
+            "gold_miner.pipeline.analysis.MacroDataFetcher", FakeMacroFetcher
+        )
+        monkeypatch.setattr("gold_miner.pipeline.analysis.PriceAlert", FakeAlert)
+
+        def mock_fetch_minsheng(self):
+            from gold_miner.data.jd_accumulation_gold import JdGoldPrice
+
+            return JdGoldPrice(
+                timestamp=datetime.now(),
+                product_name="民生积存金",
+                price=920.0,
+                change_pct="+0.10%",
+                source="jd.com",
+            )
+
+        monkeypatch.setattr(
+            AnalysisPipeline, "_fetch_minsheng_accumulation_price", mock_fetch_minsheng
+        )
+
+        ctx = AnalysisContext()
+        result = AnalysisResult()
+        pipeline._step_collect(ctx, result)
+
+        assert result.minsheng_accumulation_price == 920.0
+        assert result.minsheng_accumulation_change_pct == "+0.10%"
