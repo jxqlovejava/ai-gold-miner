@@ -60,6 +60,8 @@ def main() -> None:
                         default=None, help="风险偏好")
     parser.add_argument("--capital", type=float, default=None, help="初始资金（回测用）")
     parser.add_argument("--output", type=str, default=None, help="权益曲线CSV输出路径（回测用）")
+    parser.add_argument("--behavior", action="store_true", default=False,
+                        help="行为回测模式：对比 AI 建议 vs 实际交易 (backtest)")
     parser.add_argument("--price", type=float, default=None, help="当前/实际价格 (track 命令)")
     parser.add_argument("--resolve-id", type=str, default=None, help="要结算的预测ID (track 命令)")
     parser.add_argument("--list", action="store_true", default=False, help="列出预测记录 (track --list)")

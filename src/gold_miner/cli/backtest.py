@@ -8,6 +8,11 @@ from pathlib import Path
 import pandas as pd
 from loguru import logger
 
+from gold_miner.backtest.behavior import (
+    BehavioralBacktestEngine,
+    print_behavioral_report,
+    save_behavioral_report,
+)
 from gold_miner.backtest.engine import BacktestEngine
 from gold_miner.config import settings
 from gold_miner.data.macro import MacroDataFetcher
@@ -20,6 +25,12 @@ from gold_miner.signals.technical import TechnicalAnalyzer
 
 def run_backtest(args: argparse.Namespace) -> None:
     """运行历史回测."""
+
+    # 行为回测分支
+    if getattr(args, "behavior", False):
+        _run_behavioral_backtest(args)
+        return
+
     logger.info("=" * 50)
     logger.info("开始历史回测")
     logger.info("=" * 50)
@@ -89,3 +100,19 @@ def run_backtest(args: argparse.Namespace) -> None:
             for ts, eq in result.equity_curve:
                 f.write(f"{ts.isoformat()},{eq:.2f}\n")
         logger.info(f"权益曲线已保存至: {path}")
+
+
+def _run_behavioral_backtest(args: argparse.Namespace) -> None:
+    """运行行为回测: AI 建议 vs 实际交易."""
+    logger.info("=" * 50)
+    logger.info("开始行为回测 — AI建议 vs 实际交易")
+    logger.info("=" * 50)
+
+    capital = args.capital or settings.initial_capital_usd
+    engine = BehavioralBacktestEngine(initial_capital=capital)
+    result = engine.run()
+
+    print_behavioral_report(result)
+
+    if args.output:
+        save_behavioral_report(result, args.output)
