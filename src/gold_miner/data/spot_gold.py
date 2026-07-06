@@ -18,6 +18,7 @@ from loguru import logger
 
 from gold_miner.config import settings
 from gold_miner.data.base import DataFetcher, DataSourceMeta
+from gold_miner.data.jd_accumulation_gold import JdAccumulationGoldFetcher
 from gold_miner.proxy import get_proxied_client
 
 JINJIA_URL = "https://www.jinjia.com.cn/"
@@ -110,6 +111,20 @@ class SpotGoldFetcher(DataFetcher):
                     result["source"] = "上海黄金交易所 (最新收盘)"
             except Exception:
                 pass
+
+        # 同步获取民生银行积存金参考价，用于与现货价格交叉对照
+        try:
+            ms_price = JdAccumulationGoldFetcher(bank="MS").fetch_price()
+            if ms_price:
+                result["accumulation_gold"] = {
+                    "bank": "民生银行",
+                    "price": ms_price.price,
+                    "change_pct": ms_price.change_pct,
+                    "unit": "人民币/克",
+                    "source": ms_price.source,
+                }
+        except Exception as e:
+            logger.debug(f"民生银行积存金价格获取失败: {e}")
 
         return result
 

@@ -14,6 +14,7 @@ import yaml
 from loguru import logger
 
 from gold_miner.config import settings
+from gold_miner.data.jd_accumulation_gold import JdAccumulationGoldFetcher, JdGoldPrice
 from gold_miner.data.macro import MacroDataFetcher
 from gold_miner.data.news import NewsFetcher, NewsItem
 from gold_miner.data.sentiment import SentimentDataFetcher
@@ -75,6 +76,8 @@ class AnalysisResult:
     prediction_id: str = ""
     current_price: float = 0.0
     intl_price: float = 0.0  # 国际金价 (USD/oz)
+    minsheng_accumulation_price: float = 0.0
+    minsheng_accumulation_change_pct: str = ""
     gold_df: pd.DataFrame = field(default_factory=pd.DataFrame)
     dxy_df: pd.DataFrame = field(default_factory=pd.DataFrame)
     rate_df: pd.DataFrame = field(default_factory=pd.DataFrame)
@@ -190,6 +193,16 @@ class AnalysisPipeline:
         except Exception as e:
             logger.debug(f"国际金价获取失败: {e}")
 
+        # 同步获取民生银行积存金价格，用于与 Au99.99 现货价格交叉对照
+        ms_price = self._fetch_minsheng_accumulation_price()
+        if ms_price:
+            result.minsheng_accumulation_price = ms_price.price
+            result.minsheng_accumulation_change_pct = ms_price.change_pct
+            logger.info(
+                f"民生银行积存金: {result.minsheng_accumulation_price:.2f} 元/克 "
+                f"({result.minsheng_accumulation_change_pct})"
+            )
+
         macro_fetcher = MacroDataFetcher()
         result.dxy_df = macro_fetcher.fetch_dxy()
         result.rate_df = macro_fetcher.fetch_real_rate()
@@ -218,6 +231,14 @@ class AnalysisPipeline:
                 logger.debug(f"价格预警检查异常: {e}")
 
         logger.info("[1/9] 数据采集完成")
+
+    def _fetch_minsheng_accumulation_price(self) -> JdGoldPrice | None:
+        """抓取民生银行积存金当前价格."""
+        try:
+            return JdAccumulationGoldFetcher(bank="MS").fetch_price()
+        except Exception as e:
+            logger.debug(f"民生银行积存金价格获取失败: {e}")
+            return None
 
     # ------------------------------------------------------------------
     # Step 2: 信号生成
