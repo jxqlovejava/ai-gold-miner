@@ -314,6 +314,31 @@ def _try_curl(url: str, headers: dict[str, str] | None, timeout: float) -> dict[
     return _run_with_curl(url, headers, timeout)
 
 
+def _try_mihomo(url: str, params: dict[str, Any] | None, headers: dict[str, str] | None, timeout: float) -> dict[str, Any] | None:
+    """Try request through project mihomo proxy (port 17890).
+
+    Returns dict with ok/status_code/text/headers on success, None if
+    mihomo is not running or the request fails.
+    Bypasses the system VPN proxy (port 7897) which has TLS issues.
+    """
+    try:
+        from gold_miner.proxy.manager import get_proxy_manager
+    except Exception:
+        return None
+
+    mgr = get_proxy_manager()
+    if not mgr.is_running:
+        return None
+
+    try:
+        with mgr.get_client(timeout=timeout, follow_redirects=True, http1=True) as client:
+            resp = client.get(url, params=params, headers=headers)
+            resp.raise_for_status()
+            return {"ok": True, "status_code": resp.status_code, "text": resp.text, "headers": dict(resp.headers)}
+    except Exception:
+        return None
+
+
 def fallback_get(
     url: str,
     *,
@@ -322,22 +347,28 @@ def fallback_get(
     timeout: float = 30.0,
     retries: int = 2,
 ) -> _FallbackResponse:
-    """GET with httpx, falling back to curl/system-python/Node.js on transport errors.
+    """GET with multi-layer fallback: mihomo → direct → curl → system-python → node.
 
-    Args:
-        retries: Number of extra attempts after the first failure. This helps
-            when the OpenSSL 3.x EOF bug is intermittent.
+    Strategy:
+    1. Primary: mihomo proxy (port 17890) — routes through VPN nodes, works for
+       sites blocked in China (e.g. newsapi.org).
+    2. Fallback: direct connection (proxy=None, trust_env=False) — works for
+       non-blocked sites; bypasses broken system VPN proxy (port 7897).
+    3. Last resort: curl → system-python → node (clean env, no proxies).
     """
     full_url = _build_url(url, params)
     last_error: Exception | None = None
 
+    # Phase 1: try mihomo proxy first (handles blocked sites)
+    result = _try_mihomo(full_url, params, headers, timeout)
+    if result and result.get("ok"):
+        return _FallbackResponse(
+            result["status_code"], result["text"], result["headers"]
+        )
+
+    # Phase 2: direct connection (works for non-blocked sites)
     for attempt in range(retries + 1):
         try:
-            # HTTP/2 handshakes trigger the OpenSSL 3.x EOF bug more often;
-            # force HTTP/1.1 to keep the venv httpx path stable.
-            # proxy=None + trust_env=False 强制直连，绕过系统代理
-            # (如 VPN 代理 127.0.0.1:7897)，避免代理 SSL 中间人导致
-            # UNEXPECTED_EOF 错误。
             with httpx.Client(
                 timeout=timeout, follow_redirects=True, http1=True,
                 proxy=None, trust_env=False,
@@ -354,7 +385,7 @@ def fallback_get(
 
             logger.debug(f"HTTP transport error (attempt {attempt + 1}/{retries + 1}): {e}")
 
-            # Fallback chain: curl is usually the most reliable on macOS.
+            # Phase 3: fallback chain — curl → system-python → node
             result = _try_curl(full_url, headers, timeout)
             if result.get("ok"):
                 return _FallbackResponse(
