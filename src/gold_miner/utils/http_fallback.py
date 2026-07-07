@@ -15,6 +15,7 @@ If all fallbacks fail, the original exception is propagated.
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -43,6 +44,18 @@ def _node() -> str | None:
 def _curl() -> str | None:
     """Return a curl binary if available."""
     return shutil.which("curl")
+
+
+def _clean_env() -> dict[str, str]:
+    """Return os.environ with proxy variables removed.
+
+    避免子进程（curl / system-python / node）继承系统代理配置，
+    导致请求走 VPN 代理时产生 SSL 中间人错误。
+    """
+    clean = os.environ.copy()
+    for key in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy", "ALL_PROXY", "all_proxy", "NO_PROXY", "no_proxy"):
+        clean.pop(key, None)
+    return clean
 
 
 def _sleep_backoff(attempt: int, base: float = 1.0) -> None:
@@ -80,6 +93,7 @@ except Exception as e:
         input=json.dumps(payload).encode("utf-8"),
         capture_output=True,
         timeout=timeout + 5,
+        env=_clean_env(),
     )
     if proc.returncode != 0 and not proc.stdout:
         raise RuntimeError(f"system-python fallback crashed: {proc.stderr.decode('utf-8', 'replace')}")
@@ -147,6 +161,7 @@ request(target, timeoutMs).then((r) => console.log(JSON.stringify(r)));
         [node, "-e", script, "--", url, str(int(timeout * 1000))],
         capture_output=True,
         timeout=timeout + 5,
+        env=_clean_env(),
     )
     if proc.returncode != 0 and not proc.stdout:
         raise RuntimeError(f"node fallback crashed: {proc.stderr.decode('utf-8', 'replace')}")
@@ -170,6 +185,7 @@ def _run_with_curl(url: str, headers: dict[str, str] | None, timeout: float) -> 
         "--max-time", str(int(timeout)),
         "--retry", "0",
         "-i",  # include headers
+        "--noproxy", "*",  # 绕过系统代理（VPN 代理会导致 SSL 错误）
     ]
     if headers:
         for key, value in headers.items():
@@ -181,6 +197,7 @@ def _run_with_curl(url: str, headers: dict[str, str] | None, timeout: float) -> 
             cmd,
             capture_output=True,
             timeout=timeout + 5,
+            env=_clean_env(),
         )
     except Exception as e:
         return {"ok": False, "error": f"curl crashed: {e}"}
@@ -318,8 +335,12 @@ def fallback_get(
         try:
             # HTTP/2 handshakes trigger the OpenSSL 3.x EOF bug more often;
             # force HTTP/1.1 to keep the venv httpx path stable.
+            # proxy=None + trust_env=False 强制直连，绕过系统代理
+            # (如 VPN 代理 127.0.0.1:7897)，避免代理 SSL 中间人导致
+            # UNEXPECTED_EOF 错误。
             with httpx.Client(
-                timeout=timeout, follow_redirects=True, http1=True
+                timeout=timeout, follow_redirects=True, http1=True,
+                proxy=None, trust_env=False,
             ) as client:
                 resp = client.get(url, params=params, headers=headers)
                 resp.raise_for_status()
@@ -375,8 +396,10 @@ def fallback_post(
 ) -> _FallbackResponse:
     """POST with httpx, falling back to system-python requests on transport errors."""
     try:
+        # proxy=None + trust_env=False 强制直连，绕过系统代理
         with httpx.Client(
-            timeout=timeout, follow_redirects=True, http1=True
+            timeout=timeout, follow_redirects=True, http1=True,
+            proxy=None, trust_env=False,
         ) as client:
             resp = client.post(url, json=json, headers=headers)
             resp.raise_for_status()
