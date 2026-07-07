@@ -22,6 +22,28 @@
 {"name": "FOMC利率决议", "event_type": "fed_rate", "scheduled_at": "2026-09-16T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储联邦公开市场委员会利率决议"}
 {"name": "FOMC利率决议", "event_type": "fed_rate", "scheduled_at": "2026-11-04T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储联邦公开市场委员会利率决议"}
 {"name": "FOMC利率决议", "event_type": "fed_rate", "scheduled_at": "2026-12-16T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储联邦公开市场委员会利率决议"}
+{"name": "FOMC会议纪要", "event_type": "fomc_minutes", "scheduled_at": "2024-02-21T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储1月FOMC会议纪要"}
+{"name": "FOMC会议纪要", "event_type": "fomc_minutes", "scheduled_at": "2024-04-10T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储3月FOMC会议纪要"}
+{"name": "FOMC会议纪要", "event_type": "fomc_minutes", "scheduled_at": "2024-05-22T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储5月FOMC会议纪要"}
+{"name": "FOMC会议纪要", "event_type": "fomc_minutes", "scheduled_at": "2024-07-03T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储6月FOMC会议纪要"}
+{"name": "FOMC会议纪要", "event_type": "fomc_minutes", "scheduled_at": "2024-08-21T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储7月FOMC会议纪要"}
+{"name": "FOMC会议纪要", "event_type": "fomc_minutes", "scheduled_at": "2024-10-09T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储9月FOMC会议纪要"}
+{"name": "FOMC会议纪要", "event_type": "fomc_minutes", "scheduled_at": "2024-11-27T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储11月FOMC会议纪要"}
+{"name": "FOMC会议纪要", "event_type": "fomc_minutes", "scheduled_at": "2025-01-08T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储2024年12月FOMC会议纪要"}
+{"name": "FOMC会议纪要", "event_type": "fomc_minutes", "scheduled_at": "2025-02-19T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储1月FOMC会议纪要"}
+{"name": "FOMC会议纪要", "event_type": "fomc_minutes", "scheduled_at": "2025-04-09T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储3月FOMC会议纪要"}
+{"name": "FOMC会议纪要", "event_type": "fomc_minutes", "scheduled_at": "2025-05-28T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储5月FOMC会议纪要"}
+{"name": "FOMC会议纪要", "event_type": "fomc_minutes", "scheduled_at": "2025-07-09T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储6月FOMC会议纪要"}
+{"name": "FOMC会议纪要", "event_type": "fomc_minutes", "scheduled_at": "2025-08-20T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储7月FOMC会议纪要"}
+{"name": "FOMC会议纪要", "event_type": "fomc_minutes", "scheduled_at": "2025-10-08T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储9月FOMC会议纪要"}
+{"name": "FOMC会议纪要", "event_type": "fomc_minutes", "scheduled_at": "2025-11-26T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储11月FOMC会议纪要"}
+{"name": "FOMC会议纪要", "event_type": "fomc_minutes", "scheduled_at": "2026-01-07T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储2025年12月FOMC会议纪要"}
+{"name": "FOMC会议纪要", "event_type": "fomc_minutes", "scheduled_at": "2026-02-18T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储1月FOMC会议纪要"}
+{"name": "FOMC会议纪要", "event_type": "fomc_minutes", "scheduled_at": "2026-04-08T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储3月FOMC会议纪要"}
+{"name": "FOMC会议纪要", "event_type": "fomc_minutes", "scheduled_at": "2026-05-27T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储5月FOMC会议纪要"}
+{"name": "FOMC会议纪要", "event_type": "fomc_minutes", "scheduled_at": "2026-07-08T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储6月FOMC会议纪要（Warsh首次主持）"}
+{"name": "FOMC会议纪要", "event_type": "fomc_minutes", "scheduled_at": "2026-08-19T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储7月FOMC会议纪要"}
+{"name": "FOMC会议纪要", "event_type": "fomc_minutes", "scheduled_at": "2026-10-07T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储9月FOMC会议纪要"}
 {"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2024-01-02T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
 {"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2024-02-01T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
 {"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2024-03-01T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}

@@ -2,15 +2,33 @@
 
 不输出交易方向，只作为风险提醒注入 scan 报告，
 用于触发 r004「数据前不重仓」等军规。
+
+所有事件的 scheduled_at 存储为美东时间（US Eastern）。
+输出时自动转换为北京时间（UTC+8）。
 """
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from loguru import logger
 
 from gold_miner.data.calendar import EventCalendar, EventImpact
 from gold_miner.signals.base import Signal, SignalDirection, SignalStrength
+
+# 北京时间 = UTC+8
+_BEIJING_TZ = timezone(timedelta(hours=8))
+
+
+def _is_us_dst(dt: datetime) -> bool:
+    """美东夏令时 (EDT, UTC-4): 3月第二个周日 – 11月第一个周日."""
+    import calendar
+    # 3月第二个周日
+    mar_first = datetime(dt.year, 3, 1)
+    mar_second_sun = mar_first + timedelta(days=(6 - mar_first.weekday() + 7) % 7 + 7)
+    # 11月第一个周日
+    nov_first = datetime(dt.year, 11, 1)
+    nov_first_sun = nov_first + timedelta(days=(6 - nov_first.weekday() + 7) % 7)
+    return mar_second_sun <= dt < nov_first_sun
 
 
 @dataclass
@@ -23,11 +41,31 @@ class EconomicCalendarConfig:
 
 
 class EconomicCalendarSignalGenerator:
-    """未来高影响经济事件提醒生成器."""
+    """未来高影响经济事件提醒生成器.
+
+    存储时间 = 美东时间 (UTC-5)，展示时间 = 北京时间 (UTC+8)。
+    """
 
     def __init__(self, config: EconomicCalendarConfig | None = None) -> None:
         self.config = config or EconomicCalendarConfig()
         self.calendar = EventCalendar()
+
+    @staticmethod
+    def _to_beijing(et_dt: datetime) -> datetime:
+        """美东时间 → 北京时间.
+
+        自动检测夏令时：EDT(UTC-4) 或 EST(UTC-5)。
+        """
+        offset_hours = -4 if _is_us_dst(et_dt) else -5
+        et_tz = timezone(timedelta(hours=offset_hours))
+        return et_dt.replace(tzinfo=et_tz).astimezone(_BEIJING_TZ)
+
+    @staticmethod
+    def _fmt_beijing(et_dt: datetime) -> str:
+        """美东时间 → 北京时间字符串，如 '07-09 02:00 (周四)'."""
+        bj = EconomicCalendarSignalGenerator._to_beijing(et_dt)
+        weekdays = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+        return f"{bj.strftime('%m-%d %H:%M')} ({weekdays[bj.weekday()]})"
 
     def generate_signals(self) -> list[Signal]:
         """生成未来事件提醒信号."""
@@ -56,6 +94,7 @@ class EconomicCalendarSignalGenerator:
                 else "明天" if days_until == 1
                 else f"{days_until}天后"
             )
+            beijing_time = self._fmt_beijing(event.scheduled_at)
 
             signals.append(
                 Signal(
@@ -65,13 +104,14 @@ class EconomicCalendarSignalGenerator:
                     strength=strength,
                     score=0.0,
                     description=(
-                        f"{when_desc} {event.scheduled_at.strftime('%m-%d %H:%M')} "
+                        f"{when_desc} {beijing_time} 北京时间 "
                         f"| 来源: {event.source}"
                     ),
                     metadata={
                         "event_type": event.event_type.value,
                         "impact": event.impact.value,
                         "scheduled_at": event.scheduled_at.isoformat(),
+                        "scheduled_at_beijing": self._to_beijing(event.scheduled_at).isoformat(),
                         "days_until": days_until,
                         "hours_until": round(hours_until, 1),
                         "source": event.source,
