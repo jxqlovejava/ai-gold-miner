@@ -25,6 +25,7 @@ from gold_miner.advisor.core import (
     AdvisorReport,
     PositionSize,
 )
+from gold_miner.config import settings
 from gold_miner.data.macro import MacroDataFetcher
 from gold_miner.data.sentiment import SentimentDataFetcher
 from gold_miner.data.spot_gold import SpotGoldFetcher
@@ -366,11 +367,27 @@ class ActionGuide:
         }
         action = action_map.get(decision.direction, ActionType.HOLD)
 
+        # 信号共识覆盖：多维度一致但 composite_score 未达阈值时，
+        # 避免仓位轻+信号强时惰性输出 HOLD
+        consensus_override = False
+        consensus = bundle.dimensional_consensus(
+            min_active_dimensions=settings.consensus_min_active_dimensions,
+            consensus_ratio_threshold=settings.consensus_ratio_threshold,
+        )
+        if decision.direction == "neutral" and consensus.has_consensus:
+            light_threshold = settings.consensus_light_position_threshold
+            if consensus.consensus_direction == "bearish" and current_position > 0 and current_position < light_threshold:
+                action = ActionType.REDUCE
+                consensus_override = True
+            elif consensus.consensus_direction == "bullish" and current_position == 0:
+                action = ActionType.WATCH
+                consensus_override = True
+
         # 仓位映射
         position = self._pct_to_position_size(decision.position_pct)
 
         # 构建理由
-        reason = self._build_reason(decision, bundle)
+        reason = self._build_reason(decision, bundle, consensus if consensus_override else None)
 
         # 风险说明
         risk_note = self._build_risk_note(doctrine, risk_checks)
@@ -407,7 +424,11 @@ class ActionGuide:
         return PositionSize.EMPTY
 
     @staticmethod
-    def _build_reason(decision: StrategyDecision, bundle: SignalBundle) -> str:
+    def _build_reason(
+        decision: StrategyDecision,
+        bundle: SignalBundle,
+        consensus: Any = None,
+    ) -> str:
         """构建操作理由."""
         parts: list[str] = []
         parts.append(f"策略: {decision.objective.value}")
@@ -418,6 +439,21 @@ class ActionGuide:
         bear = bundle.bearish_count()
         if bull + bear > 0:
             parts.append(f"信号分布: {bull}多/{bear}空")
+
+        # 共识覆盖说明
+        if consensus is not None:
+            direction_cn = "偏空" if consensus.consensus_direction == "bearish" else "偏多"
+            majority = (
+                consensus.bearish_dimensions
+                if consensus.consensus_direction == "bearish"
+                else consensus.bullish_dimensions
+            )
+            parts.append(
+                f"[共识覆盖] {consensus.active_dimensions}维信号中"
+                f"{majority}维一致{direction_cn}"
+                f"（共识率{consensus.consensus_ratio:.0%}），"
+                f"覆盖综合评分neutral判定"
+            )
 
         if decision.reason:
             parts.append(decision.reason)

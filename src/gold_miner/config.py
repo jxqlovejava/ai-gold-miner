@@ -69,6 +69,11 @@ class Settings(BaseSettings):
     trust_decay_days: int = 30
     trust_min_score: float = 0.2
 
+    # Signal Consensus Override — 多维度信号共识覆盖
+    consensus_min_active_dimensions: int = 4       # 最少活跃维度数
+    consensus_ratio_threshold: float = 0.75        # 同向比例阈值（≥75%）
+    consensus_light_position_threshold: float = 0.2  # 轻仓阈值（<20%触发覆盖）
+
     # Proxy
     mihomo_sub_url: str = ""  # mihomo/clash 订阅链接
 
