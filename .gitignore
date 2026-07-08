@@ -31,6 +31,8 @@ data/private/*
 data/*.jsonl
 # 事件日历是公开数据，允许提交
 !data/calendar_events.jsonl
+# 条件单示例文件是公开的字段定义，允许提交
+!data/conditional_orders.example.jsonl
 
 # Reports (generated, may contain personal data)
 data/reports/

@@ -1,0 +1,45 @@
+# 条件单追踪格式说明
+# 复制为 data/private/conditional_orders.jsonl 并填入实际数据
+# 每行一条 JSON 记录，字段定义如下：
+#
+# === 通用字段（所有类型必填） ===
+# id               : string   — 唯一标识，格式 co_YYYYMMDD_NNN
+# status           : string   — active | triggered | cancelled | expired
+# type             : string   — limit_buy | limit_sell | stop_loss | oco | trailing_stop
+# instrument       : string   — 产品名称，如"积存金"
+# platform         : string   — 交易平台，如"京东金融"
+# bank             : string   — 银行代码，如"MS"(民生)
+# direction        : string   — 买入 | 卖出
+# trigger_price    : number   — 触发价格（元/克），oco 类型可省略
+# quantity_g       : number   — 克数，oco 类型可省略
+# reason           : string   — 挂单原因
+# created_at       : string   — ISO 8601 创建时间
+# source_analysis  : string   — 来源分析日期或标识
+# cancelled_at     : string|null — ISO 8601 撤销时间
+# triggered_at     : string|null — ISO 8601 触发时间
+# note             : string   — 补充说明
+#
+# === OCO 类型额外字段 ===
+# oco.take_profit.price      : number — 止盈价
+# oco.take_profit.quantity_g : number — 止盈克数
+# oco.take_profit.note       : string — 止盈说明
+# oco.stop_loss.price        : number — 止损价
+# oco.stop_loss.quantity_g   : number — 止损克数
+# oco.stop_loss.note         : string — 止损说明
+#
+# === 触发后补充字段 ===
+# fill_price       : number   — 实际成交价（触发后填写）
+
+# --- 示例记录 ---
+
+# 示例 1: 限价买入（已触发）
+{"id":"co_20260708_001","status":"triggered","type":"limit_buy","instrument":"积存金","platform":"京东金融","bank":"MS","direction":"买入","trigger_price":890,"quantity_g":11,"fill_price":889.50,"reason":"技术面支撑位附近分批建仓","created_at":"2026-07-08T10:00:00+08:00","source_analysis":"2026-07-08-analysis","cancelled_at":null,"triggered_at":"2026-07-08T14:30:00+08:00","note":"第二批建仓，触发后持仓增至xx g"}
+
+# 示例 2: OCO 止盈止损（活跃）
+{"id":"co_20260708_002","status":"active","type":"oco","instrument":"积存金","platform":"京东金融","bank":"MS","direction":"卖出","oco":{"take_profit":{"price":950,"quantity_g":10,"note":"盈利约5%"},"stop_loss":{"price":850,"quantity_g":10,"note":"亏损约6%"}},"created_at":"2026-07-08T10:00:00+08:00","source_analysis":"2026-07-08-analysis","cancelled_at":null,"triggered_at":null,"note":"OCO 条件单：止盈/止损任一触发自动取消另一方"}
+
+# 示例 3: 限价卖出（已撤销）
+{"id":"co_20260708_003","status":"cancelled","type":"limit_sell","instrument":"积存金","platform":"京东金融","bank":"MS","direction":"卖出","trigger_price":960,"quantity_g":5,"reason":"阻力位获利了结","created_at":"2026-07-08T10:00:00+08:00","source_analysis":"2026-07-08-analysis","cancelled_at":"2026-07-09T09:00:00+08:00","triggered_at":null,"note":"分析更新后撤销，新目标价更高"}
+
+# 示例 4: 止损单（活跃）
+{"id":"co_20260708_004","status":"active","type":"stop_loss","instrument":"积存金","platform":"京东金融","bank":"MS","direction":"卖出","trigger_price":830,"quantity_g":20,"reason":"硬止损保护：跌破830无条件清仓","created_at":"2026-07-08T10:00:00+08:00","source_analysis":"2026-07-08-analysis","cancelled_at":null,"triggered_at":null,"note":"覆盖全部持仓"}

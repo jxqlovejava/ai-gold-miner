@@ -73,7 +73,7 @@
 
 **在开始任何市场分析之前**，必须先检查当前是否有已挂出的活跃条件单：
 
-1. 读取 `data/private/conditional_orders.jsonl`
+1. 读取 `data/private/conditional_orders.jsonl`（字段定义见 `data/conditional_orders.example.jsonl`）
 2. 筛选 `status = "active"` 的所有条件单
 3. 逐条判断：
    - **保留** — 条件单方向与当前持仓策略一致，触发价位仍合理
