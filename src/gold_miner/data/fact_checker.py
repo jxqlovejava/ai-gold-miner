@@ -508,7 +508,7 @@ class FactChecker:
         - 未来日期的新闻 → 可疑
         - 超过30天前的突发新闻 → 可能是旧闻重发
         """
-        now = datetime.now()
+        now = datetime.now(tz=timezone.utc)
         age_days = (now - item.published_at).days
 
         return age_days >= 0 and not (item.is_breaking and age_days > 7)

@@ -23,13 +23,15 @@ _BEIJING_TZ = timezone(timedelta(hours=8))
 def _is_us_dst(dt: datetime) -> bool:
     """美东夏令时 (EDT, UTC-4): 3月第二个周日 – 11月第一个周日."""
     import calendar
+    # 若传入 aware datetime，先转为 naive 再比较（月/日边界用本地时间即可）
+    naive_dt = dt.replace(tzinfo=None) if dt.tzinfo is not None else dt
     # 3月第二个周日
-    mar_first = datetime(dt.year, 3, 1)
+    mar_first = datetime(naive_dt.year, 3, 1)
     mar_second_sun = mar_first + timedelta(days=(6 - mar_first.weekday() + 7) % 7 + 7)
     # 11月第一个周日
-    nov_first = datetime(dt.year, 11, 1)
+    nov_first = datetime(naive_dt.year, 11, 1)
     nov_first_sun = nov_first + timedelta(days=(6 - nov_first.weekday() + 7) % 7)
-    return mar_second_sun <= dt < nov_first_sun
+    return mar_second_sun <= naive_dt < nov_first_sun
 
 
 @dataclass
@@ -71,7 +73,7 @@ class EconomicCalendarSignalGenerator:
     def generate_signals(self) -> list[Signal]:
         """生成未来事件提醒信号."""
         signals: list[Signal] = []
-        now = datetime.now()
+        now = datetime.now(tz=timezone.utc)
         try:
             if not self.calendar.events:
                 self.calendar.load_fixed_calendar()

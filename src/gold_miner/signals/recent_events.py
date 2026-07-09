@@ -134,7 +134,7 @@ class RecentEventSignalGenerator:
             return []
 
         signals: list[Signal] = []
-        now = datetime.now()
+        now = datetime.now(tz=timezone.utc)
 
         for event in events:
             hours_ago = (now - event.scheduled_at).total_seconds() / 3600
