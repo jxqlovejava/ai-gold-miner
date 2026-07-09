@@ -229,7 +229,9 @@ class EarlyWarningEngine:
         level = self._impact_level(event.impact, impact)
 
         # 距离事件天数
-        days_until = (event.scheduled_at - datetime.now()).days
+        from datetime import timezone as _tz
+        now = datetime.now(tz=_tz.utc)
+        days_until = (event.scheduled_at - now).days
         # 临近事件提高影响等级
         if days_until <= 1:
             level = self._escalate_level(level)
@@ -240,7 +242,7 @@ class EarlyWarningEngine:
         return EventForecast(
             event_name=event.name,
             event_type=event.event_type.value,
-            scheduled_at=event.scheduled_at,
+            scheduled_at=event.beijing_time,  # 输出北京时间
             impact_level=level,
             gold_direction=direction,
             expected_move_pct=impact.typical_range_pct,

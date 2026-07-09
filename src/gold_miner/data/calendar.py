@@ -3,7 +3,13 @@
 事件数据存储于 data/calendar_events.jsonl，每条一行 JSON。
 代码只负责加载/查询/追加，不包含硬编码日期。
 
-数据来源：
+时区约定:
+  - 存储: scheduled_at 为 ISO 8601 带时区偏移的美东时间
+    例: 2026-07-14T08:30:00-04:00 (EDT) 或 2026-01-13T08:30:00-05:00 (EST)
+  - 旧格式(无时区): 视为美东时间，自动检测夏令时补充偏移
+  - 展示: 统一通过 beijing_time 属性转换为北京时间 (UTC+8)
+
+数据来源:
   - BLS (劳工统计局): CPI/PPI/NFP 官方发布日程
     https://www.bls.gov/schedules/
   - BEA (经济分析局): PCE 官方发布日程
@@ -14,14 +20,73 @@
 
 from __future__ import annotations
 
+import calendar as _calendar_mod
 import json
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from gold_miner.compat import StrEnum
 from pathlib import Path
 from typing import Any
 
 from loguru import logger
+
+# 北京时间 = UTC+8
+_BEIJING_TZ = timezone(timedelta(hours=8))
+
+
+def _is_us_dst(dt: datetime) -> bool:
+    """美东夏令时 (EDT, UTC-4): 3月第二个周日 – 11月第一个周日."""
+    # 3月第二个周日
+    mar_first = datetime(dt.year, 3, 1)
+    mar_second_sun = mar_first + timedelta(
+        days=(6 - mar_first.weekday() + 7) % 7 + 7
+    )
+    # 11月第一个周日
+    nov_first = datetime(dt.year, 11, 1)
+    nov_first_sun = nov_first + timedelta(
+        days=(6 - nov_first.weekday() + 7) % 7
+    )
+    return mar_second_sun <= dt.replace(tzinfo=None) < nov_first_sun
+
+
+def _et_offset(dt: datetime) -> timezone:
+    """返回美东时区: EDT(UTC-4) 或 EST(UTC-5)."""
+    return timezone(timedelta(hours=-4 if _is_us_dst(dt) else -5))
+
+
+def _parse_et_datetime(iso_str: str) -> datetime:
+    """解析 ISO 字符串为美东时间 aware datetime.
+
+    兼容两种格式:
+      - 带时区: 2026-07-14T08:30:00-04:00 → 直接解析
+      - 无时区(旧格式): 2026-07-14T08:30:00 → 视为美东时间, 自动检测 DST
+    """
+    dt = datetime.fromisoformat(iso_str)
+    if dt.tzinfo is None:
+        # 旧格式: 无时区 → 自动附加美东时区
+        dt = dt.replace(tzinfo=_et_offset(dt))
+    return dt
+
+
+def _fmt_et_iso(dt: datetime) -> str:
+    """将 aware datetime 格式化为美东时间 ISO 字符串 (含时区偏移)."""
+    et_tz = _et_offset(dt)
+    et_dt = dt.astimezone(et_tz)
+    return et_dt.isoformat()
+
+
+def _to_beijing(et_dt: datetime) -> datetime:
+    """美东时间 → 北京时间."""
+    if et_dt.tzinfo is None:
+        et_dt = et_dt.replace(tzinfo=_et_offset(et_dt))
+    return et_dt.astimezone(_BEIJING_TZ)
+
+
+def _fmt_beijing(et_dt: datetime) -> str:
+    """美东时间 → 北京时间字符串, 如 '07-14 20:30 (周二)'."""
+    bj = _to_beijing(et_dt)
+    weekdays = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+    return f"{bj.strftime('%m-%d %H:%M')} ({weekdays[bj.weekday()]})"
 
 
 class EventImpact(StrEnum):
@@ -76,6 +141,16 @@ class CalendarEvent:
     def is_active_monitor(self) -> bool:
         return self.is_monitor and self.status == "active"
 
+    @property
+    def beijing_time(self) -> datetime:
+        """scheduled_at 对应的北京时间 (aware datetime)."""
+        return _to_beijing(self.scheduled_at)
+
+    @property
+    def beijing_time_str(self) -> str:
+        """北京时间格式化字符串, 如 '07-14 20:30 (周二)'."""
+        return _fmt_beijing(self.scheduled_at)
+
 
 # 项目根目录下的日历数据文件
 _CALENDAR_PATH = Path(__file__).parents[3] / "data" / "calendar_events.jsonl"
@@ -98,7 +173,7 @@ class EventCalendar:
 
     def load_fixed_calendar(self, year: int | None = None) -> list[CalendarEvent]:
         """从 JSONL 文件加载已知事件，叠加算法生成事件."""
-        target = year or datetime.now().year
+        target = year or datetime.now(tz=timezone.utc).year
         jsonl_events = self._load_from_jsonl(year=target)
 
         # JSONL 无该年份数据时回退到推算
@@ -127,7 +202,7 @@ class EventCalendar:
         min_impact: EventImpact = EventImpact.MEDIUM,
         reference_time: datetime | None = None,
     ) -> list[CalendarEvent]:
-        now = reference_time or datetime.now()
+        now = (reference_time or datetime.now(tz=timezone.utc))
         cutoff = now + timedelta(days=days)
         impact_order = {EventImpact.HIGH: 3, EventImpact.MEDIUM: 2, EventImpact.LOW: 1}
         min_level = impact_order.get(min_impact, 1)
@@ -138,7 +213,7 @@ class EventCalendar:
         ]
 
     def get_today(self) -> list[CalendarEvent]:
-        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        today = datetime.now(tz=timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
         tomorrow = today + timedelta(days=1)
         return [e for e in self.events if today <= e.scheduled_at < tomorrow]
 
@@ -152,7 +227,7 @@ class EventCalendar:
         用于分析前自动拉取事件结果：scheduled_at 已过但 actual 为空的事件，
         按时间倒序排列。
         """
-        now = reference_time or datetime.now()
+        now = reference_time or datetime.now(tz=timezone.utc)
         cutoff = now - timedelta(days=lookback_days)
         candidates = [
             e for e in self.events
@@ -174,7 +249,7 @@ class EventCalendar:
 
         只返回非 monitor 类型的普通事件（monitor 由独立机制处理）。
         """
-        now = reference_time or datetime.now()
+        now = reference_time or datetime.now(tz=timezone.utc)
         cutoff = now - timedelta(days=lookback_days)
         candidates = [
             e for e in self.events
@@ -198,6 +273,10 @@ class EventCalendar:
         Returns:
             True 如果找到并更新了事件，False 如果未找到匹配事件.
         """
+        # 确保 scheduled_at 是 aware datetime（兼容旧调用方传入 naive）
+        if scheduled_at.tzinfo is None:
+            scheduled_at = scheduled_at.replace(tzinfo=_et_offset(scheduled_at))
+
         updated = False
         for e in self.events:
             if e.name == name and e.scheduled_at == scheduled_at:
@@ -250,7 +329,7 @@ class EventCalendar:
             True 如果找到并更新了事件
         """
         updated = False
-        now_iso = datetime.now().isoformat()
+        now_iso = datetime.now(tz=timezone.utc).isoformat()
         for e in self.events:
             if e.name == name and e.is_active_monitor:
                 e.status = new_status
@@ -281,7 +360,7 @@ class EventCalendar:
         Returns:
             最近触发的 monitor 事件列表
         """
-        now = reference_time or datetime.now()
+        now = reference_time or datetime.now(tz=timezone.utc)
         cutoff = now - timedelta(days=lookback_days)
         candidates = [
             e for e in self.events
@@ -314,20 +393,26 @@ class EventCalendar:
         except (OSError, FileNotFoundError):
             return
 
-        # 构建 (name, scheduled_at) → 原行 的映射
+        # 构建 (name, scheduled_at_naive) → 原行 的映射
+        # 用无时区的本地时间做 key，兼容新旧格式
+        def _naive_key(iso_str: str) -> str:
+            """从 ISO 字符串提取无时区的本地时间部分."""
+            dt = _parse_et_datetime(iso_str)
+            return dt.strftime("%Y-%m-%dT%H:%M:%S")
+
         line_map: dict[tuple[str, str], str] = {}
         for line in current_lines:
             try:
                 data = json.loads(line)
-                key = (data["name"], data["scheduled_at"])
+                key = (data["name"], _naive_key(data["scheduled_at"]))
                 line_map[key] = line
             except (json.JSONDecodeError, KeyError):
                 continue
 
-        # 构建 (name, scheduled_at) → 更新后的 JSON 的映射
+        # 构建 (name, scheduled_at_naive) → 更新后的 JSON 的映射
         updated_map: dict[tuple[str, str], str] = {}
         for event in self.events:
-            key = (event.name, event.scheduled_at.isoformat())
+            key = (event.name, event.scheduled_at.strftime("%Y-%m-%dT%H:%M:%S"))
             if key in line_map:
                 updated_map[key] = json.dumps(
                     self._to_dict(event), ensure_ascii=False
@@ -382,7 +467,7 @@ class EventCalendar:
         return CalendarEvent(
             name=obj.get("name", ""),
             event_type=EventType(obj.get("event_type", "")),
-            scheduled_at=datetime.fromisoformat(obj["scheduled_at"]),
+            scheduled_at=_parse_et_datetime(obj["scheduled_at"]),
             impact=EventImpact(obj.get("impact", "medium")),
             actual=obj.get("actual"),
             forecast=obj.get("forecast"),
@@ -411,7 +496,7 @@ class EventCalendar:
         d: dict[str, Any] = {
             "name": event.name,
             "event_type": event.event_type.value,
-            "scheduled_at": event.scheduled_at.isoformat(),
+            "scheduled_at": _fmt_et_iso(event.scheduled_at),
             "impact": event.impact.value,
             "source": event.source,
             "description": event.description,
@@ -441,10 +526,12 @@ class EventCalendar:
             first_day = datetime(year, month, 1)
             days_until_fri = (4 - first_day.weekday()) % 7
             nfp_day = 1 + days_until_fri
+            dt = datetime(year, month, nfp_day, 8, 30)
+            dt = dt.replace(tzinfo=_et_offset(dt))
             events.append(CalendarEvent(
                 name="非农就业",
                 event_type=EventType.NFP,
-                scheduled_at=datetime(year, month, nfp_day, 8, 30),
+                scheduled_at=dt,
                 impact=EventImpact.HIGH,
                 source="BLS",
                 description="美国非农就业数据",
@@ -463,12 +550,16 @@ class EventCalendar:
         """
         events: list[CalendarEvent] = []
 
+        def _mk_dt(month: int, day: int, hour: int, minute: int) -> datetime:
+            dt = datetime(year, month, day, hour, minute)
+            return dt.replace(tzinfo=_et_offset(dt))
+
         # FOMC: 全年8次，约6周一次，大致在每月中旬
         for month in (1, 3, 5, 6, 7, 9, 11, 12):
             events.append(CalendarEvent(
                 name="FOMC利率决议",
                 event_type=EventType.FED_RATE,
-                scheduled_at=datetime(year, month, 12, 14, 0),
+                scheduled_at=_mk_dt(month, 12, 14, 0),
                 impact=EventImpact.HIGH,
                 source="Federal Reserve (approx.)",
                 description="美联储联邦公开市场委员会利率决议（推算日期）",
@@ -479,7 +570,7 @@ class EventCalendar:
             events.append(CalendarEvent(
                 name="美国CPI",
                 event_type=EventType.CPI,
-                scheduled_at=datetime(year, month, 13, 8, 30),
+                scheduled_at=_mk_dt(month, 13, 8, 30),
                 impact=EventImpact.HIGH,
                 source="BLS (approx.)",
                 description="美国消费者物价指数（推算）",
@@ -490,7 +581,7 @@ class EventCalendar:
             events.append(CalendarEvent(
                 name="美国PPI",
                 event_type=EventType.PPI,
-                scheduled_at=datetime(year, month, 14, 8, 30),
+                scheduled_at=_mk_dt(month, 14, 8, 30),
                 impact=EventImpact.HIGH,
                 source="BLS (approx.)",
                 description="美国生产者价格指数（推算）",
@@ -501,7 +592,7 @@ class EventCalendar:
             events.append(CalendarEvent(
                 name="核心PCE物价指数",
                 event_type=EventType.PCE,
-                scheduled_at=datetime(year, month, 28, 8, 30),
+                scheduled_at=_mk_dt(month, 28, 8, 30),
                 impact=EventImpact.HIGH,
                 source="BEA (approx.)",
                 description="核心个人消费支出物价指数（推算）",
@@ -518,7 +609,7 @@ class EventCalendar:
             events.append(CalendarEvent(
                 name="ISM制造业PMI",
                 event_type=EventType.PMI,
-                scheduled_at=datetime(year, month, pmi_day, 10, 0),
+                scheduled_at=_mk_dt(month, pmi_day, 10, 0),
                 impact=EventImpact.HIGH,
                 source="S&P Global / ISM (approx.)",
                 description="制造业景气度指标（推算日期）",
@@ -526,7 +617,7 @@ class EventCalendar:
             events.append(CalendarEvent(
                 name="ISM服务业PMI",
                 event_type=EventType.PMI,
-                scheduled_at=datetime(year, month, min(pmi_day + 1, 28), 10, 0),
+                scheduled_at=_mk_dt(month, min(pmi_day + 1, 28), 10, 0),
                 impact=EventImpact.HIGH,
                 source="S&P Global / ISM (approx.)",
                 description="服务业景气度指标（推算日期）",

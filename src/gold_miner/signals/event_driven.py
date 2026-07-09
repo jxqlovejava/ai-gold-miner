@@ -118,7 +118,8 @@ class EventDrivenSignalGenerator:
             if direction == SignalDirection.NEUTRAL:
                 continue
 
-            days_until = (event.scheduled_at - datetime.now()).days
+            now = datetime.now(tz=event.scheduled_at.tzinfo) if event.scheduled_at.tzinfo else datetime.now()
+            days_until = (event.scheduled_at - now).days
             urgency_bonus = max(0, (7 - days_until) / 7 * 0.15)
             score = base_score + urgency_bonus
 

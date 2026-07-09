@@ -122,8 +122,8 @@ class TestEventCalendar2026:
 
         class MockDatetime(dt):
             @staticmethod
-            def now():
-                return dt(2026, 6, 8, 12, 0)
+            def now(tz=None):
+                return dt(2026, 6, 8, 12, 0, tzinfo=tz)
 
         # patch
         import gold_miner.data.calendar as mod

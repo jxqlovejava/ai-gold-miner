@@ -290,7 +290,8 @@ class Consultant:
     ) -> str:
         if sub_report and sub_report.alerts:
             alert = sub_report.alerts[0]
-            days_until = (alert.scheduled_at - datetime.now()).days
+            now = datetime.now(tz=alert.scheduled_at.tzinfo) if alert.scheduled_at.tzinfo else datetime.now()
+            days_until = (alert.scheduled_at - now).days
             return (
                 f"**{alert.event_name}** 将在约{days_until}天后发生。"
                 f"\n\n历史数据显示此类事件通常导致黄金{alert.gold_direction} "
