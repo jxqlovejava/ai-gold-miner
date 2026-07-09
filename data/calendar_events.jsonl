@@ -41,7 +41,7 @@
 {"name": "FOMC会议纪要", "event_type": "fomc_minutes", "scheduled_at": "2026-02-18T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储1月FOMC会议纪要"}
 {"name": "FOMC会议纪要", "event_type": "fomc_minutes", "scheduled_at": "2026-04-08T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储3月FOMC会议纪要"}
 {"name": "FOMC会议纪要", "event_type": "fomc_minutes", "scheduled_at": "2026-05-27T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储5月FOMC会议纪要"}
-{"name": "FOMC会议纪要", "event_type": "fomc_minutes", "scheduled_at": "2026-07-08T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储6月FOMC会议纪要（Warsh首次主持）"}
+{"name": "FOMC会议纪要", "event_type": "fomc_minutes", "scheduled_at": "2026-07-08T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储6月FOMC会议纪要（Warsh首次主持）", "actual": "9/18官员支持年底前加息(3月为0人)；少数认为6月已有理由加息；全员一致维持3.50-3.75%不变；删除降息暗示措辞；AI投资+中东油价+关税为三大通胀上行风险", "forecast": "鹰派", "previous": "5月纪要偏中性"}
 {"name": "FOMC会议纪要", "event_type": "fomc_minutes", "scheduled_at": "2026-08-19T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储7月FOMC会议纪要"}
 {"name": "FOMC会议纪要", "event_type": "fomc_minutes", "scheduled_at": "2026-10-07T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "美联储9月FOMC会议纪要"}
 {"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2024-01-02T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
@@ -74,7 +74,7 @@
 {"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2026-04-01T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
 {"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2026-05-01T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
 {"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2026-06-01T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
-{"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2026-07-02T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
+{"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2026-07-02T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩", "actual": "53.3", "forecast": "53.8", "previous": "54.0"}
 {"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2026-08-03T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
 {"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2026-09-01T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
 {"name": "ISM制造业PMI", "event_type": "pmi", "scheduled_at": "2026-10-01T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "制造业景气度指标，<50表示收缩"}
@@ -110,7 +110,7 @@
 {"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2026-04-02T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
 {"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2026-05-04T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
 {"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2026-06-02T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
-{"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2026-07-03T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
+{"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2026-07-03T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%（实际7/6发布，因独立日假期延迟）", "actual": "54.0", "forecast": "54.2", "previous": "54.5"}
 {"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2026-08-04T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
 {"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2026-09-02T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
 {"name": "ISM服务业PMI", "event_type": "pmi", "scheduled_at": "2026-10-02T10:00:00", "impact": "high", "source": "S&P Global / ISM", "description": "服务业景气度指标，服务业占美国GDP约70%"}
@@ -182,7 +182,7 @@
 {"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2026-04-14T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
 {"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2026-05-13T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
 {"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2026-06-10T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
-{"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2026-07-14T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
+{"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2026-07-10T08:30:00", "impact": "high", "source": "BLS", "description": "美国6月消费者物价指数（BLS官方发布日期2026-07-10）"}
 {"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2026-08-12T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
 {"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2026-09-15T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
 {"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2026-10-14T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
@@ -229,3 +229,6 @@
 {"name":"美伊60天临时停火到期","event_type":"geo","scheduled_at":"2026-08-18T00:00:00","impact":"high","source":"Al Jazeera / Qatar Mediation","description":"美伊6月19日达成的60天临时停火协议到期日。若未续签或达成持久和平，霍尔木兹海峡军事冲突风险将急剧上升，油价可能暴涨。"}
 {"name":"美伊下一轮间接谈判（多哈）","event_type":"geo","scheduled_at":"2026-07-16T00:00:00","impact":"medium","source":"Qatar Foreign Ministry (推定)","description":"7月2日技术谈判未取得进展，双方同意建立沟通渠道解决争端。下一轮谈判日期待官方确认，暂按两周间隔推定。谈判进展直接影响油价→通胀预期→金价。"}
 {"name":"美伊技术谈判（多哈，已完成）","event_type":"geo","scheduled_at":"2026-07-02T00:00:00","impact":"medium","source":"Al Jazeera","description":"【已发生】美伊在多哈举行间接技术谈判，讨论美方履约争议和60亿美元冻结伊朗资金解冻。未取得持久和平进展。伊朗仅派副外长出席，信号消极。"}
+{"name":"美国6月零售销售","event_type":"pmi","scheduled_at":"2026-07-17T08:30:00","impact":"medium","source":"U.S. Census Bureau","description":"6月零售销售月率，衡量消费者支出强度。若低于预期→消费走弱→经济放缓→利好黄金"}
+{"name":"初请失业金人数","event_type":"nfp","scheduled_at":"2026-07-17T08:30:00","impact":"medium","source":"U.S. Department of Labor","description":"周度初请失业金人数，高频劳动力市场指标。持续上升→就业恶化→降息预期→利好黄金"}
+{"name":"密歇根大学消费者信心指数(7月初值)","event_type":"pmi","scheduled_at":"2026-07-18T10:00:00","impact":"medium","source":"University of Michigan","description":"消费者信心+通胀预期。通胀预期走高→利空黄金；信心走低→衰退担忧→利好黄金"}

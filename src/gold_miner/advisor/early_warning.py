@@ -177,6 +177,25 @@ class EarlyWarningEngine:
             warnings=[f"⚠️ 今日有重大事件: {', '.join(e.name for e in today_events)} — 建议减少操作"],
         )
 
+    def check_recent_results(
+        self,
+        lookback_days: int = 7,
+    ) -> list[CalendarEvent]:
+        """查询最近已发布但尚未记录实际结果的事件.
+
+        用于分析前自动发现需要拉取结果的已发生事件。
+        应在 scan() 之前调用，以便将结果纳入分析。
+
+        Args:
+            lookback_days: 回溯天数，默认7天
+
+        Returns:
+            需要查询结果的事件列表（按时间倒序）
+        """
+        return self.calendar.get_recently_published_without_result(
+            lookback_days=lookback_days,
+        )
+
     # ------------------------------------------------------------------
     # 内部逻辑
     # ------------------------------------------------------------------

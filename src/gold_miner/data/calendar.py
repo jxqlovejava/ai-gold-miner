@@ -124,6 +124,52 @@ class EventCalendar:
         tomorrow = today + timedelta(days=1)
         return [e for e in self.events if today <= e.scheduled_at < tomorrow]
 
+    def get_recently_published_without_result(
+        self,
+        lookback_days: int = 7,
+        reference_time: datetime | None = None,
+    ) -> list[CalendarEvent]:
+        """返回最近已发布但尚未记录实际结果的事件.
+
+        用于分析前自动拉取事件结果：scheduled_at 已过但 actual 为空的事件，
+        按时间倒序排列。
+        """
+        now = reference_time or datetime.now()
+        cutoff = now - timedelta(days=lookback_days)
+        candidates = [
+            e for e in self.events
+            if cutoff <= e.scheduled_at <= now and e.actual is None
+        ]
+        candidates.sort(key=lambda e: e.scheduled_at, reverse=True)
+        return candidates
+
+    def update_event_result(
+        self,
+        name: str,
+        scheduled_at: datetime,
+        actual: str,
+        forecast: str | None = None,
+        previous: str | None = None,
+    ) -> bool:
+        """更新事件的实际结果（内存 + 重写 JSONL 文件）.
+
+        Returns:
+            True 如果找到并更新了事件，False 如果未找到匹配事件.
+        """
+        updated = False
+        for e in self.events:
+            if e.name == name and e.scheduled_at == scheduled_at:
+                e.actual = actual
+                if forecast is not None:
+                    e.forecast = forecast
+                if previous is not None:
+                    e.previous = previous
+                updated = True
+
+        if updated:
+            self._rewrite_jsonl()
+        return updated
+
     def add_event(self, event: CalendarEvent) -> None:
         """添加事件（内存+追加到 JSONL 文件）."""
         self.events.append(event)
@@ -133,6 +179,15 @@ class EventCalendar:
                 f.write(json.dumps(self._to_dict(event), ensure_ascii=False) + "\n")
         except OSError as e:
             logger.warning(f"写入日历文件失败: {e}")
+
+    def _rewrite_jsonl(self) -> None:
+        """全量重写 JSONL 文件（用于更新事件字段后持久化）."""
+        try:
+            with open(self._data_path, "w", encoding="utf-8") as f:
+                for event in self.events:
+                    f.write(json.dumps(self._to_dict(event), ensure_ascii=False) + "\n")
+        except OSError as e:
+            logger.warning(f"重写日历文件失败: {e}")
 
     # ------------------------------------------------------------------
     # JSONL 读写
@@ -169,13 +224,16 @@ class EventCalendar:
             event_type=EventType(obj.get("event_type", "")),
             scheduled_at=datetime.fromisoformat(obj["scheduled_at"]),
             impact=EventImpact(obj.get("impact", "medium")),
+            actual=obj.get("actual"),
+            forecast=obj.get("forecast"),
+            previous=obj.get("previous"),
             source=obj.get("source", ""),
             description=obj.get("description", ""),
         )
 
     @staticmethod
     def _to_dict(event: CalendarEvent) -> dict[str, Any]:
-        return {
+        d: dict[str, Any] = {
             "name": event.name,
             "event_type": event.event_type.value,
             "scheduled_at": event.scheduled_at.isoformat(),
@@ -183,6 +241,13 @@ class EventCalendar:
             "source": event.source,
             "description": event.description,
         }
+        if event.actual is not None:
+            d["actual"] = event.actual
+        if event.forecast is not None:
+            d["forecast"] = event.forecast
+        if event.previous is not None:
+            d["previous"] = event.previous
+        return d
 
     # ------------------------------------------------------------------
     # 算法生成事件 (不依赖外部数据)
