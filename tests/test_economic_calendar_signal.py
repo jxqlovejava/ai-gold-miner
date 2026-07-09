@@ -1,7 +1,8 @@
 """经济日历信号生成器测试."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime as RealDatetime
+from datetime import timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -9,6 +10,30 @@ import pytest
 from gold_miner.data.calendar import CalendarEvent, EventCalendar, EventImpact, EventType
 from gold_miner.signals.base import SignalDirection
 from gold_miner.signals.economic_calendar import EconomicCalendarSignalGenerator
+
+_UTC = timezone.utc
+
+
+# ---------------------------------------------------------------------------
+# helpers
+# ---------------------------------------------------------------------------
+
+
+def _setup_mock_dt(mock_dt: MagicMock, frozen_now: RealDatetime) -> None:
+    """配置 mock datetime：仅拦截 now()，构造器委托给真实 datetime."""
+    mock_dt.now.return_value = frozen_now
+    mock_dt.side_effect = lambda *a, **kw: RealDatetime(*a, **kw)
+    mock_dt.strptime = RealDatetime.strptime
+    mock_dt.fromisoformat = RealDatetime.fromisoformat
+    mock_dt.timedelta = timedelta
+    mock_dt.timezone = timezone
+
+
+_FROZEN = RealDatetime(2026, 6, 23, 12, 0, 0, tzinfo=_UTC)
+
+# ---------------------------------------------------------------------------
+# fixtures
+# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -18,9 +43,9 @@ def generator() -> EconomicCalendarSignalGenerator:
 
 @pytest.fixture
 def fixed_calendar() -> EventCalendar:
-    """返回包含已知未来事件的日历."""
+    """返回包含已知未来事件的日历（使用 aware UTC 时间以匹配 production 行为）."""
     cal = EventCalendar()
-    base = datetime(2026, 6, 23, 12, 0, 0)
+    base = _FROZEN
     cal.events = [
         CalendarEvent(
             name="核心PCE物价指数",
@@ -47,13 +72,18 @@ def fixed_calendar() -> EventCalendar:
     return cal
 
 
+# ---------------------------------------------------------------------------
+# tests
+# ---------------------------------------------------------------------------
+
+
 @patch("gold_miner.signals.economic_calendar.datetime")
 def test_generate_signals_returns_upcoming_events(
     mock_dt: MagicMock,
     generator: EconomicCalendarSignalGenerator,
     fixed_calendar: EventCalendar,
 ) -> None:
-    mock_dt.now.return_value = datetime(2026, 6, 23, 12, 0, 0)
+    _setup_mock_dt(mock_dt, _FROZEN)
 
     # 绕过真实日历加载
     generator.calendar = fixed_calendar
@@ -72,7 +102,7 @@ def test_warn_within_48_hours(
     generator: EconomicCalendarSignalGenerator,
     fixed_calendar: EventCalendar,
 ) -> None:
-    mock_dt.now.return_value = datetime(2026, 6, 23, 12, 0, 0)
+    _setup_mock_dt(mock_dt, _FROZEN)
 
     generator.calendar = fixed_calendar
     signals = generator.generate_signals()
@@ -89,7 +119,7 @@ def test_no_warning_for_events_outside_window(
     generator: EconomicCalendarSignalGenerator,
     fixed_calendar: EventCalendar,
 ) -> None:
-    mock_dt.now.return_value = datetime(2026, 6, 23, 12, 0, 0)
+    _setup_mock_dt(mock_dt, _FROZEN)
 
     # 把 48h 窗口改小，只有 PCE 在窗口内，非农/PMI 不在
     generator.config.warn_within_hours = 1
@@ -106,7 +136,7 @@ def test_no_events_outside_ahead_window(
     generator: EconomicCalendarSignalGenerator,
     fixed_calendar: EventCalendar,
 ) -> None:
-    mock_dt.now.return_value = datetime(2026, 6, 23, 12, 0, 0)
+    _setup_mock_dt(mock_dt, _FROZEN)
 
     generator.config.days_ahead = 7
     generator.calendar = fixed_calendar
@@ -124,14 +154,15 @@ def test_event_same_day_triggers_r004_by_hours(
     generator: EconomicCalendarSignalGenerator,
 ) -> None:
     """当天但 <48h 的事件仍应触发 r004 提醒."""
-    mock_dt.now.return_value = datetime(2026, 6, 23, 14, 0, 0)
+    frozen = RealDatetime(2026, 6, 23, 14, 0, 0, tzinfo=_UTC)
+    _setup_mock_dt(mock_dt, frozen)
 
     cal = EventCalendar()
     cal.events = [
         CalendarEvent(
             name="FOMC利率决议",
             event_type=EventType.FED_RATE,
-            scheduled_at=datetime(2026, 6, 23, 20, 0, 0),
+            scheduled_at=RealDatetime(2026, 6, 23, 20, 0, 0, tzinfo=_UTC),
             impact=EventImpact.HIGH,
             source="Federal Reserve",
         ),
@@ -150,7 +181,7 @@ def test_event_metadata(
     generator: EconomicCalendarSignalGenerator,
     fixed_calendar: EventCalendar,
 ) -> None:
-    mock_dt.now.return_value = datetime(2026, 6, 23, 12, 0, 0)
+    _setup_mock_dt(mock_dt, _FROZEN)
 
     generator.config.days_ahead = 7
     generator.calendar = fixed_calendar

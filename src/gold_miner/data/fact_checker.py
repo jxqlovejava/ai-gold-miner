@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from gold_miner.compat import StrEnum
 
 from loguru import logger
@@ -308,7 +308,7 @@ class FactChecker:
                 html = resp.text
 
             import re as _re
-            from datetime import datetime as _dt
+            from datetime import datetime, timezone as _dt
 
             # 从标题中提取声称的日期：如 "June 16-17, 2026" 或 "June 17, 2026"
             claimed_dates: list[_dt] = []

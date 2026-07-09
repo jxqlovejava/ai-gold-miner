@@ -10,7 +10,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from loguru import logger
 
@@ -107,7 +107,7 @@ class MonitorSignalGenerator:
             return []
 
         signals: list[Signal] = []
-        now = datetime.now()
+        now = datetime.now(tz=timezone.utc)
 
         for monitor in triggered:
             triggered_dt = self._parse_triggered_at(monitor.triggered_at)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -141,7 +141,7 @@ class TestFactChecker:
         item = NewsItem(
             title="Test",
             source="Reuters",
-            published_at=datetime.now() + timedelta(days=1),
+            published_at=datetime.now(tz=timezone.utc) + timedelta(days=1),
         )
         assert checker._check_timeline(item) is False
 
@@ -150,7 +150,7 @@ class TestFactChecker:
         item = NewsItem(
             title="Test",
             source="Reuters",
-            published_at=datetime.now() - timedelta(days=10),
+            published_at=datetime.now(tz=timezone.utc) - timedelta(days=10),
             is_breaking=True,
         )
         assert checker._check_timeline(item) is False
