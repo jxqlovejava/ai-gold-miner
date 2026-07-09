@@ -263,12 +263,89 @@ class EventCalendar:
             self._rewrite_jsonl()
         return updated
 
+    def get_recently_triggered_monitors(
+        self,
+        lookback_days: int = 7,
+        reference_time: datetime | None = None,
+    ) -> list[CalendarEvent]:
+        """返回最近触发的 monitor 事件（供信号管线消费）.
+
+        第〇步调用 close_monitor() 将 monitor 标记为 triggered 后，
+        本方法使 Step 2 的 MonitorSignalGenerator 能自动读取触发结果，
+        生成方向信号。
+
+        Args:
+            lookback_days: 回溯天数
+            reference_time: 参考时间，默认当前时间
+
+        Returns:
+            最近触发的 monitor 事件列表
+        """
+        now = reference_time or datetime.now()
+        cutoff = now - timedelta(days=lookback_days)
+        candidates = [
+            e for e in self.events
+            if e.event_type == EventType.MONITOR and e.status == "triggered"
+        ]
+        result: list[CalendarEvent] = []
+        for e in candidates:
+            if e.triggered_at is None:
+                continue
+            try:
+                triggered_dt = datetime.fromisoformat(e.triggered_at)
+                if triggered_dt >= cutoff:
+                    result.append(e)
+            except (ValueError, TypeError):
+                # 无法解析日期时保守纳入
+                result.append(e)
+        result.sort(key=lambda e: e.triggered_at or "", reverse=True)
+        return result
+
     def _rewrite_jsonl(self) -> None:
-        """全量重写 JSONL 文件（用于更新事件字段后持久化）."""
+        """更新 JSONL 文件中的已有事件（保留未改动行原样）.
+
+        只更新 self.events 中在 JSONL 文件里已有对应条目的事件。
+        不新增行（由 add_event() 负责追加），不删除行。
+        避免将 load_fixed_calendar() 程序化生成的事件写入文件。
+        """
+        try:
+            with open(self._data_path, encoding="utf-8") as f:
+                current_lines = [line.rstrip("\n") for line in f if line.strip()]
+        except (OSError, FileNotFoundError):
+            return
+
+        # 构建 (name, scheduled_at) → 原行 的映射
+        line_map: dict[tuple[str, str], str] = {}
+        for line in current_lines:
+            try:
+                data = json.loads(line)
+                key = (data["name"], data["scheduled_at"])
+                line_map[key] = line
+            except (json.JSONDecodeError, KeyError):
+                continue
+
+        # 构建 (name, scheduled_at) → 更新后的 JSON 的映射
+        updated_map: dict[tuple[str, str], str] = {}
+        for event in self.events:
+            key = (event.name, event.scheduled_at.isoformat())
+            if key in line_map:
+                updated_map[key] = json.dumps(
+                    self._to_dict(event), ensure_ascii=False
+                )
+
+        if not updated_map:
+            return  # 没有需要更新的行
+
+        # 逐行重写：有更新的用新版，无更新的保留原样
         try:
             with open(self._data_path, "w", encoding="utf-8") as f:
-                for event in self.events:
-                    f.write(json.dumps(self._to_dict(event), ensure_ascii=False) + "\n")
+                for line in current_lines:
+                    try:
+                        data = json.loads(line)
+                        key = (data["name"], data["scheduled_at"])
+                        f.write(updated_map.get(key, line) + "\n")
+                    except json.JSONDecodeError:
+                        f.write(line + "\n")
         except OSError as e:
             logger.warning(f"重写日历文件失败: {e}")
 

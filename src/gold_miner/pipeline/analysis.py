@@ -333,6 +333,32 @@ class AnalysisPipeline:
         except Exception as e:
             logger.warning(f"事件结果信号异常: {e}")
 
+        # 近期事件时效性加权（第〇步同步的事件结果，按时间衰减注入）
+        try:
+            from gold_miner.signals.recent_events import RecentEventSignalGenerator
+
+            recent_gen = RecentEventSignalGenerator()
+            for sig in recent_gen.generate_signals():
+                bundle.add(sig)
+            logger.info(
+                f"近期事件信号: {len(bundle.by_dimension('recent_events'))} 个"
+            )
+        except Exception as e:
+            logger.warning(f"近期事件信号异常: {e}")
+
+        # Monitor 触发结果（第〇步 monitor 检查结果注入）
+        try:
+            from gold_miner.signals.monitor_signal import MonitorSignalGenerator
+
+            monitor_gen = MonitorSignalGenerator()
+            for sig in monitor_gen.generate_signals():
+                bundle.add(sig)
+            logger.info(
+                f"Monitor信号: {len(bundle.by_dimension('monitor'))} 个"
+            )
+        except Exception as e:
+            logger.warning(f"Monitor信号异常: {e}")
+
         # DeepSeek 深度分析
         if ctx.deep and news_signals:
             try:
