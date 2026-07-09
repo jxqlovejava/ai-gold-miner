@@ -196,6 +196,17 @@ class EarlyWarningEngine:
             lookback_days=lookback_days,
         )
 
+    def get_active_monitors(self) -> list[CalendarEvent]:
+        """查询所有活跃的 monitor 事件.
+
+        用于第〇步检查：分析前评估上次分析创建的观测条件是否已满足。
+        应在 scan() 之前调用，以便将触发结果纳入分析。
+
+        Returns:
+            active 状态的 monitor 事件列表
+        """
+        return self.calendar.get_active_monitors()
+
     # ------------------------------------------------------------------
     # 内部逻辑
     # ------------------------------------------------------------------

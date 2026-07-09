@@ -44,6 +44,7 @@ class EventType(StrEnum):
     GEO_POLITICAL = "geo"
     GOLD_RESERVE = "gold_reserve"
     FED_SPEECH = "fed_speech"
+    MONITOR = "monitor"  # 持续性观测事件，带有触发条件和检查周期
 
 
 @dataclass
@@ -57,6 +58,23 @@ class CalendarEvent:
     previous: str | None = None
     source: str = ""
     description: str = ""
+    # monitor 事件专用字段
+    status: str | None = None              # "active" | "triggered" | "expired"
+    trigger_condition: str | None = None   # 触发条件（自然语言描述，AI 在分析时评估）
+    check_frequency: str | None = None     # "on_analysis" | "daily" | "weekly"
+    action_on_trigger: str | None = None   # 条件触发后的建议动作
+    triggered_at: str | None = None        # 触发时间 ISO 格式
+    trigger_result: str | None = None      # 触发时的实际结果
+    parent_analysis: str | None = None     # 创建该 monitor 的分析 session id
+    expires_at: str | None = None          # 过期时间 ISO 格式
+
+    @property
+    def is_monitor(self) -> bool:
+        return self.event_type == EventType.MONITOR
+
+    @property
+    def is_active_monitor(self) -> bool:
+        return self.is_monitor and self.status == "active"
 
 
 # 项目根目录下的日历数据文件
@@ -180,6 +198,47 @@ class EventCalendar:
         except OSError as e:
             logger.warning(f"写入日历文件失败: {e}")
 
+    # ------------------------------------------------------------------
+    # Monitor 事件管理
+    # ------------------------------------------------------------------
+
+    def get_active_monitors(self) -> list[CalendarEvent]:
+        """返回所有 status="active" 的 monitor 事件."""
+        return [
+            e for e in self.events
+            if e.event_type == EventType.MONITOR and e.status == "active"
+        ]
+
+    def close_monitor(
+        self,
+        name: str,
+        result: str,
+        new_status: str = "triggered",
+    ) -> bool:
+        """关闭 monitor 事件，记录触发结果（内存 + 重写 JSONL）.
+
+        Args:
+            name: monitor 事件名称（精确匹配）
+            result: 触发时的实际结果描述
+            new_status: 新状态，"triggered" 或 "expired"
+
+        Returns:
+            True 如果找到并更新了事件
+        """
+        updated = False
+        now_iso = datetime.now().isoformat()
+        for e in self.events:
+            if e.name == name and e.is_active_monitor:
+                e.status = new_status
+                e.trigger_result = result
+                e.triggered_at = now_iso
+                updated = True
+                break
+
+        if updated:
+            self._rewrite_jsonl()
+        return updated
+
     def _rewrite_jsonl(self) -> None:
         """全量重写 JSONL 文件（用于更新事件字段后持久化）."""
         try:
@@ -229,7 +288,22 @@ class EventCalendar:
             previous=obj.get("previous"),
             source=obj.get("source", ""),
             description=obj.get("description", ""),
+            # monitor 字段
+            status=obj.get("status"),
+            trigger_condition=obj.get("trigger_condition"),
+            check_frequency=obj.get("check_frequency"),
+            action_on_trigger=obj.get("action_on_trigger"),
+            triggered_at=obj.get("triggered_at"),
+            trigger_result=obj.get("trigger_result"),
+            parent_analysis=obj.get("parent_analysis"),
+            expires_at=obj.get("expires_at"),
         )
+
+    _MONITOR_KEYS = (
+        "status", "trigger_condition", "check_frequency",
+        "action_on_trigger", "triggered_at", "trigger_result",
+        "parent_analysis", "expires_at",
+    )
 
     @staticmethod
     def _to_dict(event: CalendarEvent) -> dict[str, Any]:
@@ -247,6 +321,11 @@ class EventCalendar:
             d["forecast"] = event.forecast
         if event.previous is not None:
             d["previous"] = event.previous
+        # monitor 字段 — 仅非 None 时写入
+        for key in EventCalendar._MONITOR_KEYS:
+            val = getattr(event, key, None)
+            if val is not None:
+                d[key] = val
         return d
 
     # ------------------------------------------------------------------
