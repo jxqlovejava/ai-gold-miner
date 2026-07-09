@@ -140,7 +140,7 @@
 {"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2025-10-30T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
 {"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2025-11-27T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
 {"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2025-12-23T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
-{"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2026-01-31T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
+{"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2026-01-30T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数（1月最后工作日周五）"}
 {"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2026-02-26T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
 {"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2026-03-26T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
 {"name": "核心PCE物价指数", "event_type": "pce", "scheduled_at": "2026-04-29T08:30:00", "impact": "high", "source": "BEA", "description": "核心个人消费支出物价指数"}
@@ -182,7 +182,7 @@
 {"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2026-04-14T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
 {"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2026-05-13T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
 {"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2026-06-10T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
-{"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2026-07-10T08:30:00", "impact": "high", "source": "BLS", "description": "美国6月消费者物价指数（BLS官方发布日期2026-07-10）"}
+{"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2026-07-14T08:30:00", "impact": "high", "source": "BLS", "description": "美国6月消费者物价指数（BLS官方发布日期2026-07-14周二）"}
 {"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2026-08-12T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
 {"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2026-09-15T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
 {"name": "美国CPI", "event_type": "cpi", "scheduled_at": "2026-10-14T08:30:00", "impact": "high", "source": "BLS", "description": "美国消费者物价指数"}
@@ -215,12 +215,12 @@
 {"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2026-01-15T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
 {"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2026-02-12T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
 {"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2026-03-13T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
-{"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2026-04-11T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
+{"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2026-04-13T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力（CPI 4/10周五，PPI顺延至周一）"}
 {"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2026-05-15T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
 {"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2026-06-11T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
 {"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2026-07-15T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
 {"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2026-08-14T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
-{"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2026-09-12T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
+{"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2026-09-14T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力（CPI 9/11周五，PPI顺延至周一）"}
 {"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2026-10-15T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
 {"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2026-11-13T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
 {"name": "美国PPI", "event_type": "ppi", "scheduled_at": "2026-12-11T08:30:00", "impact": "high", "source": "BLS", "description": "美国生产者价格指数，反映上游通胀压力"}
@@ -230,8 +230,8 @@
 {"name": "美伊下一轮间接谈判（多哈）", "event_type": "geo", "scheduled_at": "2026-07-16T00:00:00", "impact": "medium", "source": "Qatar Foreign Ministry (推定)", "description": "【存疑】原定7/16多哈谈判。因7/7停火破裂+伊朗攻击美军基地，此轮谈判大概率取消或降级。需关注替代外交渠道。"}
 {"name": "美伊技术谈判（多哈，已完成）", "event_type": "geo", "scheduled_at": "2026-07-02T00:00:00", "impact": "medium", "source": "Al Jazeera", "description": "【已发生】美伊在多哈举行间接技术谈判，讨论美方履约争议和60亿美元冻结伊朗资金解冻。未取得持久和平进展。伊朗仅派副外长出席，信号消极。"}
 {"name": "美国6月零售销售", "event_type": "pmi", "scheduled_at": "2026-07-17T08:30:00", "impact": "medium", "source": "U.S. Census Bureau", "description": "6月零售销售月率，衡量消费者支出强度。若低于预期→消费走弱→经济放缓→利好黄金"}
-{"name": "初请失业金人数", "event_type": "nfp", "scheduled_at": "2026-07-17T08:30:00", "impact": "medium", "source": "U.S. Department of Labor", "description": "周度初请失业金人数，高频劳动力市场指标。持续上升→就业恶化→降息预期→利好黄金"}
-{"name": "密歇根大学消费者信心指数(7月初值)", "event_type": "pmi", "scheduled_at": "2026-07-18T10:00:00", "impact": "medium", "source": "University of Michigan", "description": "消费者信心+通胀预期。通胀预期走高→利空黄金；信心走低→衰退担忧→利好黄金"}
+{"name": "初请失业金人数", "event_type": "nfp", "scheduled_at": "2026-07-16T08:30:00", "impact": "medium", "source": "U.S. Department of Labor", "description": "周度初请失业金人数，高频劳动力市场指标。持续上升→就业恶化→降息预期→利好黄金（每周四发布）"}
+{"name": "密歇根大学消费者信心指数(7月初值)", "event_type": "pmi", "scheduled_at": "2026-07-17T10:00:00", "impact": "medium", "source": "University of Michigan", "description": "消费者信心+通胀预期。通胀预期走高→利空黄金；信心走低→衰退担忧→利好黄金（通常月中周五发布）"}
 {"name": "非农就业", "event_type": "nfp", "scheduled_at": "2026-07-02T08:30:00", "impact": "high", "source": "BLS", "description": "6月非农就业大幅不及预期，劳动力市场明显走弱。ISM制造业PMI 53.3, ISM价格支付73.0(2022年7月以来最大降幅)。因独立日假期提前至周四发布。", "actual": "+5.7万 (预期+11.3万, 前值+12.9万), 失业率4.2%", "forecast": "+11.3万", "previous": "+12.9万 (修正后)"}
 {"name": "美伊60天临时停火破裂", "event_type": "geo", "scheduled_at": "2026-07-07T12:00:00", "impact": "high", "source": "Reuters / Al Jazeera / White House", "description": "美伊6/19达成的60天临时停火提前破裂。特朗普单方面宣布协议失效，伊朗随后对伊拉克美军基地发动攻击。油价当日涨5%，避险情绪推升美元，金价承压但地缘溢价回升。原定8/18停火到期已无意义。", "actual": "特朗普宣布停火over，伊朗攻击美军基地，油价飙涨5%，霍尔木兹海峡局势急剧恶化", "forecast": "停火持续（6/19达成）"}
 {"name": "FOMC会议纪要(6月)", "event_type": "fomc_minutes", "scheduled_at": "2026-07-08T14:00:00", "impact": "high", "source": "Federal Reserve", "description": "6月FOMC会议纪要——Warsh首次主持会议", "actual": "鹰派：9/18官员支持年内至少加息一次；PCE通胀预测大幅上调至3.6%（3月预测2.7%）；维持利率5.25-5.50%不变；市场定价12月前紧缩约35bp", "status": "closed"}
