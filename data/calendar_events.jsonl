@@ -232,3 +232,4 @@
 {"name": "美国6月零售销售", "event_type": "pmi", "scheduled_at": "2026-07-17T08:30:00", "impact": "medium", "source": "U.S. Census Bureau", "description": "6月零售销售月率，衡量消费者支出强度。若低于预期→消费走弱→经济放缓→利好黄金"}
 {"name": "初请失业金人数", "event_type": "nfp", "scheduled_at": "2026-07-17T08:30:00", "impact": "medium", "source": "U.S. Department of Labor", "description": "周度初请失业金人数，高频劳动力市场指标。持续上升→就业恶化→降息预期→利好黄金"}
 {"name": "密歇根大学消费者信心指数(7月初值)", "event_type": "pmi", "scheduled_at": "2026-07-18T10:00:00", "impact": "medium", "source": "University of Michigan", "description": "消费者信心+通胀预期。通胀预期走高→利空黄金；信心走低→衰退担忧→利好黄金"}
+{"name": "非农就业", "event_type": "nfp", "scheduled_at": "2026-07-02T08:30:00", "impact": "high", "actual": "+5.7万 (预期+11.3万, 前值+12.9万), 失业率4.2%", "forecast": "+11.3万", "previous": "+12.9万 (修正后)", "source": "BLS", "description": "6月非农就业大幅不及预期，劳动力市场明显走弱。ISM制造业PMI 53.3, ISM价格支付73.0(2022年7月以来最大降幅)。因独立日假期提前至周四发布。"}
