@@ -1,4 +1,5 @@
 """持仓风险分层管理测试."""
+from __future__ import annotations
 
 import pytest
 

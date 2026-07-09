@@ -3,6 +3,7 @@
 数据来源: https://www.gold.org/goldhub/research/gold-demand-trends/
 每季度更新，从HTML页面提取央行净购金量等关键数据。
 """
+from __future__ import annotations
 
 import re
 from dataclasses import dataclass

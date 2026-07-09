@@ -1,4 +1,5 @@
 """价格预警 — 大波动、关键位突破、DXY异动检测."""
+from __future__ import annotations
 
 from dataclasses import dataclass
 

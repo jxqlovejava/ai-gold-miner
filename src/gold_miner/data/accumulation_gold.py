@@ -1,4 +1,5 @@
 """积存金数据抓取 -- 上海黄金交易所 / AKShare."""
+from __future__ import annotations
 
 from datetime import datetime, timedelta
 from time import sleep

@@ -1,4 +1,5 @@
 """推送通知模块 — 微信等."""
+from __future__ import annotations
 
 import httpx
 

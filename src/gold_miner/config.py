@@ -1,4 +1,5 @@
 """全局配置管理."""
+from __future__ import annotations
 
 from pathlib import Path
 

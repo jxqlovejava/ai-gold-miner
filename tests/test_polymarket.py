@@ -1,4 +1,5 @@
 """Polymarket 数据采集与信号生成测试."""
+from __future__ import annotations
 
 from datetime import datetime
 

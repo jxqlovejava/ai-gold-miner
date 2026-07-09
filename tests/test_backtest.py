@@ -1,4 +1,5 @@
 """Tests for backtest/engine.py — BacktestEngine and BacktestResult."""
+from __future__ import annotations
 
 from datetime import datetime, timedelta
 

@@ -1,4 +1,5 @@
 """AutoResolver — 自动结算到期预测."""
+from __future__ import annotations
 
 from datetime import datetime
 from typing import Any

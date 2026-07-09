@@ -1,4 +1,5 @@
 """测试宏观数据抓取与自动持久化."""
+from __future__ import annotations
 
 from datetime import datetime, timedelta
 from tempfile import TemporaryDirectory

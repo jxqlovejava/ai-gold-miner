@@ -1,4 +1,5 @@
 """极端情景分析 — 系统性风险情景定义与黄金影响评估."""
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime

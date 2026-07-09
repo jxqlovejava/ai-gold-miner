@@ -1,4 +1,5 @@
 """反带节奏信号测试."""
+from __future__ import annotations
 
 from datetime import datetime, timedelta
 from unittest.mock import patch

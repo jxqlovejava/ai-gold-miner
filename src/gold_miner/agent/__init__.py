@@ -1,1 +1,2 @@
 """主动式 Agent — 定时调度、简报生成、API服务."""
+from __future__ import annotations

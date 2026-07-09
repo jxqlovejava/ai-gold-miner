@@ -1,4 +1,5 @@
 """Workflows 包入口."""
+from __future__ import annotations
 
 from gold_miner.workflows.base import Workflow, WorkflowContext, WorkflowResult
 from gold_miner.workflows.builtin import (

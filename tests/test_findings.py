@@ -1,4 +1,5 @@
 """测试改进建议生成器."""
+from __future__ import annotations
 
 from datetime import datetime
 

@@ -1,4 +1,5 @@
 """测试 PBOC 黄金储备数据."""
+from __future__ import annotations
 
 from gold_miner.data.pboc_reserves import PbocReservesFetcher
 

@@ -1,4 +1,5 @@
 """时间序列机构信号分析测试."""
+from __future__ import annotations
 
 from datetime import datetime, timedelta
 

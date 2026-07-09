@@ -1,4 +1,5 @@
 """投资思维模型 — 10个经典投资思维框架."""
+from __future__ import annotations
 
 from gold_miner.doctrine.models import MentalModel
 

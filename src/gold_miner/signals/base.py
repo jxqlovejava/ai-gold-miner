@@ -1,9 +1,10 @@
 """信号基类与通用类型."""
+from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import StrEnum
+from gold_miner.compat import StrEnum
 from typing import Any
 
 

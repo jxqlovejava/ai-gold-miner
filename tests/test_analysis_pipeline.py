@@ -1,4 +1,5 @@
 """Tests for AnalysisPipeline."""
+from __future__ import annotations
 
 from datetime import datetime
 
@@ -231,9 +232,9 @@ class TestAnalysisPipelineOutputSections:
         pipeline._print_doctrine_checklist(result)
         captured = capsys.readouterr().out
 
-        assert "投资军规自查 (r001-r015)" in captured
+        assert "投资军规自查 (r001-r030)" in captured
         assert "r001" in captured
-        assert "r015" in captured
+        assert "r030" in captured
         # r001 仓位 25% > 20% 应标记 ❌
         assert "❌ r001" in captured
         # r015 是 info 级别，默认通过

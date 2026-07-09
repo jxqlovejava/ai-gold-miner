@@ -1,4 +1,5 @@
 """ATR 双轨移动止损/止盈模块测试."""
+from __future__ import annotations
 
 from datetime import datetime, timedelta
 

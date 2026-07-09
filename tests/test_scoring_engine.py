@@ -1,4 +1,5 @@
 """Tests for signals/engine.py — ScoringEngine and DimensionWeights."""
+from __future__ import annotations
 
 import pytest
 

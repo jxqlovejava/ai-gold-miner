@@ -1,4 +1,5 @@
 """投资军规、策略与思维模型数据模型."""
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any

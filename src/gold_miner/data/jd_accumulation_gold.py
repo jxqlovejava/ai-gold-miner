@@ -1,5 +1,6 @@
 """京东金融积存金价格抓取."""
 
+from __future__ import annotations
 import json
 import urllib.parse
 from dataclasses import dataclass

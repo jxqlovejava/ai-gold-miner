@@ -1,4 +1,5 @@
 """Tests for signals/base.py — Signal, SignalBundle, and enums."""
+from __future__ import annotations
 
 from datetime import datetime
 

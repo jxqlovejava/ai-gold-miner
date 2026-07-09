@@ -1,4 +1,5 @@
 """测试价格预警."""
+from __future__ import annotations
 
 from datetime import datetime, timedelta
 

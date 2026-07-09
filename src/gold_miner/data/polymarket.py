@@ -12,6 +12,7 @@ Polymarket 是全球最大的预测市场平台，用户用真金白银押注事
 
 API: https://gamma-api.polymarket.com (公开，无需认证)
 """
+from __future__ import annotations
 
 import re as _re
 from dataclasses import dataclass, field

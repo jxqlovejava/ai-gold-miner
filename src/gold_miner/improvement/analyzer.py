@@ -1,4 +1,5 @@
 """效能分析器 — 按维度和信号统计预测准确率."""
+from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass, field

@@ -1,4 +1,5 @@
 """情绪面信号 — 上期所 AU 期货持仓 + 量价关系."""
+from __future__ import annotations
 
 import pandas as pd
 from loguru import logger

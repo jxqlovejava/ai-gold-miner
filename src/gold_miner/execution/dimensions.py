@@ -1,4 +1,5 @@
 """四维度详细输出 — 技术面/基本面/消息面/情绪面."""
+from __future__ import annotations
 
 import pandas as pd
 

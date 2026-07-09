@@ -1,4 +1,5 @@
 """EventStore — JSONL 只追加事件存储 + 状态重放."""
+from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path

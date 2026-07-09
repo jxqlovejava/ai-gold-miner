@@ -1,4 +1,5 @@
 """测试经济日历 — 确保日期准确性."""
+from __future__ import annotations
 
 from datetime import datetime
 

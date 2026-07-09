@@ -3,6 +3,7 @@
 模式: 每次 scan 后自动保存 PredictionRecord (JSONL)，
 后续手动结算 (resolve) 实际价格后生成准确率数据。
 """
+from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from datetime import datetime

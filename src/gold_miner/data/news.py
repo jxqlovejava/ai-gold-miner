@@ -1,4 +1,5 @@
 """新闻数据抓取 — 多源聚合: NewsAPI / anysearch / 搜索引擎."""
+from __future__ import annotations
 
 import json
 import time

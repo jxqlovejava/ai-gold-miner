@@ -1,4 +1,5 @@
 """信息源可信度评分 — 基于历史预测准确率的动态权重."""
+from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field

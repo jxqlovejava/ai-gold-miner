@@ -1,4 +1,5 @@
 """测试预测追踪器."""
+from __future__ import annotations
 
 import json
 import tempfile

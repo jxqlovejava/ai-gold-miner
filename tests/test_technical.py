@@ -1,4 +1,5 @@
 """Tests for signals/technical.py — TechnicalAnalyzer."""
+from __future__ import annotations
 
 from datetime import datetime, timedelta
 

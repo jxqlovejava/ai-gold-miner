@@ -1,4 +1,5 @@
 """投资军规 — 15条不可协商的硬约束."""
+from __future__ import annotations
 
 from gold_miner.doctrine.models import InvestmentRule
 

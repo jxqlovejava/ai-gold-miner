@@ -1,4 +1,5 @@
 """验证 CLI — verify 命令实现."""
+from __future__ import annotations
 
 import argparse
 

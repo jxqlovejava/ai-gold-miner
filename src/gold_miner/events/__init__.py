@@ -1,4 +1,5 @@
 """事件溯源模块 — EventStore + 自动结算 + 证据快照."""
+from __future__ import annotations
 
 from gold_miner.events.models import (
     Event,

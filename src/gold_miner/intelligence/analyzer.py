@@ -1,4 +1,5 @@
 """文章分析器 — 情感打分 + 操纵话术检测 + 关键主张提取."""
+from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field

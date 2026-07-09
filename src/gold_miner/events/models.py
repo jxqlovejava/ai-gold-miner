@@ -1,9 +1,10 @@
 """事件溯源模型 — 不可变事件类型、证据快照、预测状态."""
+from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import StrEnum
+from gold_miner.compat import StrEnum
 from typing import Any
 
 

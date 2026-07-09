@@ -6,6 +6,7 @@
 - 价格创新高, 浮盈轨跟随上移
 - 价格持续下跌, 浮亏轨限制亏损扩大
 """
+from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime

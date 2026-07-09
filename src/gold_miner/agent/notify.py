@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import StrEnum
+from gold_miner.compat import StrEnum
 
 from loguru import logger
 

@@ -42,7 +42,7 @@ class DoctorReport:
 class Doctor:
     """环境诊断器 — 检查 Python 版本、配置、API key、网络连通性."""
 
-    MIN_PYTHON_VERSION = (3, 11)
+    MIN_PYTHON_VERSION = (3, 9)
     NETWORK_TIMEOUT = 5  # seconds
 
     def __init__(self) -> None:

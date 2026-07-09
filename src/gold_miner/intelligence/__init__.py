@@ -1,4 +1,5 @@
 """情报分析模块 — 文章分析、可信度评估、价格预判."""
+from __future__ import annotations
 
 from gold_miner.intelligence.analyzer import ArticleAnalysis, ArticleAnalyzer
 from gold_miner.intelligence.forecaster import PriceForecast, PriceForecaster

@@ -1,4 +1,5 @@
 """测试经济数据持久化模块."""
+from __future__ import annotations
 
 from tempfile import TemporaryDirectory
 

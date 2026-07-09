@@ -8,6 +8,7 @@ Polymarket 的价格是用户用真实资金押注的结果，比调查、社交
 - "Will USD strengthen?" YES = 美元走强 → 黄金 BEARISH
 - "Will gold price exceed $2500?" YES = 金价涨 → 黄金 BULLISH
 """
+from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass

@@ -1,4 +1,5 @@
 """代理管理器 — 自动发现/启动 mihomo 或 clash，为 HTTP 请求提供代理."""
+from __future__ import annotations
 
 import atexit
 import os

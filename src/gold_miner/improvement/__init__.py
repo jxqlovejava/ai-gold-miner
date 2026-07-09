@@ -1,4 +1,5 @@
 """自改进反馈闭环 — 信号预测追踪、效能分析、改进建议."""
+from __future__ import annotations
 
 from gold_miner.improvement.analyzer import PerformanceAnalyzer
 from gold_miner.improvement.findings import Finding, FindingGenerator

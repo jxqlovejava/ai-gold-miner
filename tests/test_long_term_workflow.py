@@ -1,4 +1,5 @@
 """中长期工作流测试."""
+from __future__ import annotations
 
 
 from gold_miner.workflows.base import WorkflowContext

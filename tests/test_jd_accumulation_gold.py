@@ -1,4 +1,5 @@
 """京东金融积存金价格抓取测试."""
+from __future__ import annotations
 
 from datetime import datetime
 from unittest.mock import MagicMock

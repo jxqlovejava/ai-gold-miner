@@ -1,4 +1,5 @@
 """基本面信号 — 美元指数、利率、通胀预期."""
+from __future__ import annotations
 
 import pandas as pd
 from loguru import logger

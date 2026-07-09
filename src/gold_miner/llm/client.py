@@ -1,5 +1,6 @@
 """LLM 客户端 — DeepSeek API (Anthropic Messages API 兼容)."""
 
+from __future__ import annotations
 from typing import Any
 
 import httpx

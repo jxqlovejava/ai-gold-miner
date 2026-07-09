@@ -1,4 +1,5 @@
 """EventStore + 事件模型 + 状态重放 测试."""
+from __future__ import annotations
 
 import tempfile
 from datetime import datetime, timedelta

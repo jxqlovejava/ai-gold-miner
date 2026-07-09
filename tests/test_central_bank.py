@@ -1,4 +1,5 @@
 """测试央行购金数据自动持久化."""
+from __future__ import annotations
 
 from datetime import datetime
 from tempfile import TemporaryDirectory

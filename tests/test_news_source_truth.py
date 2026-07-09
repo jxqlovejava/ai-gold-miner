@@ -1,4 +1,5 @@
 """测试新闻来源可信度与事实核查增强."""
+from __future__ import annotations
 
 from datetime import datetime
 

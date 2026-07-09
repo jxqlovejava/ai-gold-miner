@@ -1,4 +1,5 @@
 """Tests for decision/agents.py — BullAgent, BearAgent, PortfolioManager."""
+from __future__ import annotations
 
 from gold_miner.decision.agents import AgentOpinion, BearAgent, BullAgent, PortfolioManager
 from gold_miner.signals.base import Signal, SignalBundle, SignalDirection, SignalStrength

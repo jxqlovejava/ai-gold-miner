@@ -1,4 +1,5 @@
 """测试新增的基本面信号 — 金银比 + 实际利率."""
+from __future__ import annotations
 
 from datetime import datetime, timedelta
 

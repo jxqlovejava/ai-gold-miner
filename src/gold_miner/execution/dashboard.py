@@ -1,4 +1,5 @@
 """决策仪表盘 — 格式化输出交易决策."""
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime

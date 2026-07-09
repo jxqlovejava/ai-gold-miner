@@ -1,4 +1,5 @@
 """多因子打分引擎."""
+from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any

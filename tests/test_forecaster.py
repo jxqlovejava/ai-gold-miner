@@ -1,4 +1,5 @@
 """测试价格预判生成器."""
+from __future__ import annotations
 
 import pytest
 

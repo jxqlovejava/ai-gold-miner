@@ -1,4 +1,5 @@
 """技术面信号 — RSI、MACD、布林带、支撑阻力."""
+from __future__ import annotations
 
 
 import pandas as pd

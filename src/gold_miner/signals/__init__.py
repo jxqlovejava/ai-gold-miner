@@ -1,4 +1,5 @@
 """信号处理层：技术面、基本面、消息面、情绪面、事件驱动、异常检测、情景分析信号生成."""
+from __future__ import annotations
 
 from gold_miner.signals.anomaly import AnomalyDetector, AnomalyReport
 from gold_miner.signals.base import DimensionConsensus, Signal, SignalBundle

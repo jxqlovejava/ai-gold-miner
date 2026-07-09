@@ -4,6 +4,7 @@
 实时报价: jinjia.com.cn (静态HTML, 3分钟更新)
 备用: Yahoo Finance XAU/USD
 """
+from __future__ import annotations
 
 import contextlib
 from datetime import datetime, timedelta

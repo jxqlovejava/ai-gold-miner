@@ -1,4 +1,5 @@
 """异常信号检测 — 机构带节奏、异常交易量、信息源可信度."""
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime

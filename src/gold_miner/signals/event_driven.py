@@ -1,5 +1,6 @@
 """明确信号管线 — 重大事件→结构化交易信号."""
 
+from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 

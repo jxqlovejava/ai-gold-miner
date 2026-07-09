@@ -1,4 +1,5 @@
 """人工判断接口 — 异常信号的人工审核."""
+from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field

@@ -1,4 +1,5 @@
 """投资军规、策略与思维模型模块."""
+from __future__ import annotations
 
 from gold_miner.doctrine.checker import DoctrineChecker
 from gold_miner.doctrine.mental_models import ALL_MODELS, get_model_by_id

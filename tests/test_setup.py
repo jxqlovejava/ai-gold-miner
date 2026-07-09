@@ -1,4 +1,5 @@
 """Tests for setup_cli module."""
+from __future__ import annotations
 
 from pathlib import Path
 

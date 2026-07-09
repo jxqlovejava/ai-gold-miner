@@ -1,4 +1,5 @@
 """消息面信号 — 事件检测+NLP摘要."""
+from __future__ import annotations
 
 import math
 import re

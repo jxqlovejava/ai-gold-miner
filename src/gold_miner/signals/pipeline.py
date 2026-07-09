@@ -1,4 +1,5 @@
 """信号管线 — 统一协调各维度信号生成顺序."""
+from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field

@@ -1,4 +1,5 @@
 """测试 GLD 持仓数据抓取与持久化."""
+from __future__ import annotations
 
 from datetime import datetime
 from tempfile import TemporaryDirectory

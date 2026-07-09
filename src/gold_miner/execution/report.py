@@ -1,4 +1,5 @@
 """报告生成器 — 支持小白版(默认)和专家版(--expert)."""
+from __future__ import annotations
 
 from datetime import datetime
 from html import escape

@@ -1,4 +1,5 @@
 """中长期信号生成器测试."""
+from __future__ import annotations
 
 from datetime import datetime, timedelta
 

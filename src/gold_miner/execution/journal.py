@@ -1,4 +1,5 @@
 """交易日记 — 记录决策与回测迭代."""
+from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass, field

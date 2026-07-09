@@ -1,4 +1,5 @@
 """价格预判生成器 — 基于文章分析推演黄金走势."""
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta

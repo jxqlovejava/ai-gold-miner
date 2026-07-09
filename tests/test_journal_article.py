@@ -1,4 +1,5 @@
 """测试文章分析日志."""
+from __future__ import annotations
 
 import tempfile
 from pathlib import Path

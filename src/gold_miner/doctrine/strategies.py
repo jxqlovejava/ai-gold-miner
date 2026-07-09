@@ -1,4 +1,5 @@
 """投资策略模板 — 8种适用于不同市场状态的策略."""
+from __future__ import annotations
 
 from gold_miner.doctrine.models import InvestmentStrategy
 

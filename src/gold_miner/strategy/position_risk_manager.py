@@ -6,6 +6,7 @@
 
 避免 1929 式崩盘中因"满仓单一品种 + 手动犹豫"导致重伤.
 """
+from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path

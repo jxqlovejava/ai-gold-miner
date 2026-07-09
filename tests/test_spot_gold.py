@@ -1,4 +1,5 @@
 """现货黄金实时报价测试."""
+from __future__ import annotations
 
 from datetime import datetime
 

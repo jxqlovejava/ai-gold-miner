@@ -20,6 +20,7 @@
     # 检查预警
     alerts = advisor.check_alerts()
 """
+from __future__ import annotations
 
 from gold_miner.advisor.action_guide import ActionGuide
 from gold_miner.advisor.consultant import Consultant

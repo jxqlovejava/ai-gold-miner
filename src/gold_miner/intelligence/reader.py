@@ -1,5 +1,6 @@
 """文章读取器 — URL 抓取 + 文本提取."""
 
+from __future__ import annotations
 
 import httpx
 from bs4 import BeautifulSoup

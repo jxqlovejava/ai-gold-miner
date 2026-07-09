@@ -1,7 +1,8 @@
 """策略目标与配置 — 四种策略目标的不同参数."""
 
+from __future__ import annotations
 from dataclasses import dataclass, field
-from enum import StrEnum
+from gold_miner.compat import StrEnum
 from typing import Any
 
 

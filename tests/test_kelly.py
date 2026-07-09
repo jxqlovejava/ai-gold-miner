@@ -1,4 +1,5 @@
 """测试凯利公式仓位计算."""
+from __future__ import annotations
 
 
 from gold_miner.strategy.kelly import kelly_position

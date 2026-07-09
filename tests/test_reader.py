@@ -1,4 +1,5 @@
 """测试文章读取器."""
+from __future__ import annotations
 
 from gold_miner.intelligence.reader import ArticleReader
 

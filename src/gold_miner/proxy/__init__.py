@@ -1,4 +1,5 @@
 """代理管理模块 — mihomo / Clash 集成."""
+from __future__ import annotations
 
 from gold_miner.proxy.manager import ProxyManager, get_proxied_client, get_proxy_manager
 

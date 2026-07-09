@@ -6,6 +6,7 @@
 所有事件的 scheduled_at 存储为美东时间（US Eastern）。
 输出时自动转换为北京时间（UTC+8）。
 """
+from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone

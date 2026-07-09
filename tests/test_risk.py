@@ -1,4 +1,5 @@
 """Tests for decision/risk.py — RiskManager."""
+from __future__ import annotations
 
 from gold_miner.decision.risk import RiskCheck, RiskManager
 

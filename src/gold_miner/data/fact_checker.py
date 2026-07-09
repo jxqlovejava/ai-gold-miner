@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import StrEnum
+from gold_miner.compat import StrEnum
 
 from loguru import logger
 
