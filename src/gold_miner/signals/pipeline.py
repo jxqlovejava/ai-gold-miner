@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -180,6 +181,65 @@ class SignalPipeline:
             self._steps[name].enabled = False
 
     def execute(self, context: PipelineContext) -> SignalBundle:
+        """执行管线 — 拓扑排序 + 并行批次 (同一依赖级别的步骤并行执行)."""
+        bundle = SignalBundle()
+        enabled = {s.name: s for s in self._steps.values() if s.enabled}
+        if not enabled:
+            return bundle
+
+        executed: set[str] = set()
+        all_names = set(enabled.keys())
+
+        while len(executed) < len(all_names):
+            # 找出所有依赖已满足的步骤
+            ready = [
+                step for name, step in enabled.items()
+                if name not in executed
+                and all(dep in executed for dep in step.depends_on)
+            ]
+
+            if not ready:
+                # 循环依赖或配置错误 — 安全退出
+                remaining = all_names - executed
+                logger.error(
+                    f"Pipeline: 无法继续 — 剩余步骤依赖未满足: {remaining}"
+                )
+                break
+
+            # 同一批次并行执行
+            if len(ready) == 1:
+                step = ready[0]
+                try:
+                    signals = step.generator(context)
+                    for s in signals:
+                        bundle.add(s)
+                    executed.add(step.name)
+                    logger.debug(f"Pipeline: {step.name} → {len(signals)}个信号")
+                except Exception:
+                    logger.exception(f"Pipeline步骤 [{step.name}] 执行失败")
+                    executed.add(step.name)
+            else:
+                with ThreadPoolExecutor(max_workers=len(ready)) as pool:
+                    futures: dict[Future, str] = {}
+                    for step in ready:
+                        futures[pool.submit(step.generator, context)] = step.name
+
+                    for future in as_completed(futures):
+                        name = futures[future]
+                        try:
+                            signals = future.result()
+                            for s in signals:
+                                bundle.add(s)
+                            executed.add(name)
+                            logger.debug(f"Pipeline: {name} → {len(signals)}个信号")
+                        except Exception:
+                            logger.exception(f"Pipeline步骤 [{name}] 执行失败")
+                            executed.add(name)
+
+        return bundle
+
+    def execute_sequential(self, context: PipelineContext) -> SignalBundle:
+        """串行执行管线 (原始实现,用于调试/对比)."""
         bundle = SignalBundle()
         executed: set[str] = set()
 

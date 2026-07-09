@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import uuid
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -38,7 +39,9 @@ from gold_miner.signals.economic_calendar import EconomicCalendarSignalGenerator
 from gold_miner.signals.engine import ScoringEngine
 from gold_miner.signals.etf_flow_signal import EtfFlowSignalGenerator
 from gold_miner.signals.fundamental import FundamentalAnalyzer
+from gold_miner.signals.monitor_signal import MonitorSignalGenerator
 from gold_miner.signals.news_signal import NewsSignalGenerator
+from gold_miner.signals.recent_events import RecentEventSignalGenerator
 from gold_miner.signals.sentiment_signal import SentimentAnalyzer
 from gold_miner.signals.technical import TechnicalAnalyzer
 from gold_miner.storage import get_store
@@ -139,11 +142,8 @@ class AnalysisPipeline:
         # Step 2: generate_signals
         self._step_generate_signals(ctx, result)
 
-        # Step 3: source_truth (FactChecker already runs in news pipeline)
-        self._step_source_truth(ctx, result)
-
-        # Step 4: agent_debate
-        self._step_agent_debate(ctx, result)
+        # Step 3+4: source_truth + agent_debate 并行 (都只读 bundle,写不同字段)
+        self._step_source_truth_and_debate(ctx, result)
 
         # Step 5: risk_check
         self._step_risk_check(ctx, result)
@@ -170,31 +170,60 @@ class AnalysisPipeline:
     # ------------------------------------------------------------------
 
     def _step_collect(self, ctx: AnalysisContext, result: AnalysisResult) -> None:
-        logger.info("[1/9] 数据采集...")
+        """Step 1: 数据采集 — 7 路并行获取 (gold/intl/minsheng/dxy/rate/silver/breakeven)."""
+        logger.info("[1/9] 数据采集 (并行)...")
 
+        # 独立 fetcher 实例确保线程安全
         gold_fetcher = SpotGoldFetcher()
-        result.gold_df = gold_fetcher.fetch(days=ctx.days)
-        if result.gold_df.empty:
+        intl_fetcher = SpotGoldFetcher()
+        dxy_fetcher = MacroDataFetcher()
+        rate_fetcher = MacroDataFetcher()
+        silver_fetcher = MacroDataFetcher()
+        be_fetcher = MacroDataFetcher()
+
+        with ThreadPoolExecutor(max_workers=7) as pool:
+            futures: dict[Future, str] = {
+                pool.submit(gold_fetcher.fetch, days=ctx.days): "gold",
+                pool.submit(intl_fetcher.fetch_international_quote): "intl",
+                pool.submit(self._fetch_minsheng_accumulation_price): "minsheng",
+                pool.submit(dxy_fetcher.fetch_dxy): "dxy",
+                pool.submit(rate_fetcher.fetch_real_rate): "rate",
+                pool.submit(silver_fetcher.fetch_silver): "silver",
+                pool.submit(be_fetcher.fetch_breakeven): "breakeven",
+            }
+
+            raw: dict[str, Any] = {}
+            for future in as_completed(futures):
+                key = futures[future]
+                try:
+                    raw[key] = future.result()
+                except Exception as e:
+                    logger.debug(f"[collect] {key} 获取失败: {e}")
+                    raw[key] = None
+
+        # --- gold_df (必须成功) ---
+        gold_df = raw.get("gold")
+        if gold_df is None or gold_df.empty:
             logger.error("现货黄金数据获取失败")
             return
-
-        result.current_price = result.gold_df["close"].iloc[-1]
+        result.gold_df = gold_df
+        result.current_price = gold_df["close"].iloc[-1]
         logger.info(f"国内金价 Au99.99: {result.current_price:.2f} 元/克 (来源: SGE/jinjia)")
 
-        # 同步获取国际金价 (USD/oz)，用于跨市场对比
+        # --- 国际金价 ---
         try:
-            intl_quote = gold_fetcher.fetch_international_quote()
-            if intl_quote and intl_quote[0].get("price"):
+            intl_quote = raw.get("intl")
+            if intl_quote and isinstance(intl_quote, list) and intl_quote[0].get("price"):
                 result.intl_price = intl_quote[0]["price"]
                 logger.info(
                     f"国际金价 XAU/USD: {result.intl_price:.2f} 美元/盎司 "
                     f"({intl_quote[0].get('name', '伦敦金')})"
                 )
         except Exception as e:
-            logger.debug(f"国际金价获取失败: {e}")
+            logger.debug(f"国际金价解析失败: {e}")
 
-        # 同步获取民生银行积存金价格，用于与 Au99.99 现货价格交叉对照
-        ms_price = self._fetch_minsheng_accumulation_price()
+        # --- 积存金 ---
+        ms_price = raw.get("minsheng")
         if ms_price:
             result.minsheng_accumulation_price = ms_price.price
             result.minsheng_accumulation_change_pct = ms_price.change_pct
@@ -203,25 +232,27 @@ class AnalysisPipeline:
                 f"({result.minsheng_accumulation_change_pct})"
             )
 
-        macro_fetcher = MacroDataFetcher()
-        result.dxy_df = macro_fetcher.fetch_dxy()
-        result.rate_df = macro_fetcher.fetch_real_rate()
-        result.silver_df = macro_fetcher.fetch_silver()
-        result.breakeven_df = macro_fetcher.fetch_breakeven()
+        # --- 宏观数据 ---
+        result.dxy_df = raw.get("dxy") if raw.get("dxy") is not None else pd.DataFrame()
+        result.rate_df = raw.get("rate") if raw.get("rate") is not None else pd.DataFrame()
+        result.silver_df = raw.get("silver") if raw.get("silver") is not None else pd.DataFrame()
+        result.breakeven_df = raw.get("breakeven") if raw.get("breakeven") is not None else pd.DataFrame()
 
         if not result.rate_df.empty:
             logger.info(f"实际利率最新: {result.rate_df['value'].iloc[-1]:.2f}%")
         if not result.breakeven_df.empty:
             logger.info(f"通胀预期最新: {result.breakeven_df['value'].iloc[-1]:.2f}%")
         if not result.silver_df.empty:
-            silver_price = result.silver_df["value"].iloc[-1]
-            logger.info(f"白银最新价: {silver_price:.2f}")
+            logger.info(f"白银最新价: {result.silver_df['value'].iloc[-1]:.2f}")
 
         # 价格预警 (可选)
         if not ctx.skip_alerts:
             try:
                 alert_mgr = PriceAlert()
-                silver_price = result.silver_df["value"].iloc[-1] if not result.silver_df.empty else None
+                silver_price = (
+                    result.silver_df["value"].iloc[-1]
+                    if not result.silver_df.empty else None
+                )
                 result.alerts = alert_mgr.check_all(
                     gold_df=result.gold_df,
                     dxy_df=result.dxy_df,
@@ -245,121 +276,109 @@ class AnalysisPipeline:
     # ------------------------------------------------------------------
 
     def _step_generate_signals(self, ctx: AnalysisContext, result: AnalysisResult) -> None:
-        logger.info("[2/9] 信号生成...")
+        """Step 2: 信号生成 — 独立维度并行采集,分两批执行."""
+        logger.info("[2/9] 信号生成 (并行)...")
 
         bundle = SignalBundle()
 
-        # 技术面
-        tech = TechnicalAnalyzer(result.gold_df)
-        for sig in tech.generate_signals():
-            bundle.add(sig)
-        logger.info(f"技术信号: {len(bundle.by_dimension('technical'))} 个")
-
-        # 基本面
-        fundamental = FundamentalAnalyzer(
-            gold_df=result.gold_df,
-            dxy_df=result.dxy_df,
-            rate_df=result.rate_df,
-            silver_df=result.silver_df,
-            breakeven_df=result.breakeven_df,
-        )
-        for sig in fundamental.generate_signals():
-            bundle.add(sig)
-        logger.info(f"基本面信号: {len(bundle.by_dimension('fundamental'))} 个")
-
-        # 消息面
+        # ---- Batch 1: 所有独立信号生成器并行 ----
         news_signals: list[Signal] = []
+
+        with ThreadPoolExecutor(max_workers=10) as pool:
+            futures: dict[Future, str] = {}
+
+            # 技术面
+            futures[pool.submit(
+                lambda: TechnicalAnalyzer(result.gold_df).generate_signals()
+            )] = "technical"
+
+            # 基本面
+            futures[pool.submit(
+                lambda: FundamentalAnalyzer(
+                    gold_df=result.gold_df,
+                    dxy_df=result.dxy_df,
+                    rate_df=result.rate_df,
+                    silver_df=result.silver_df,
+                    breakeven_df=result.breakeven_df,
+                ).generate_signals()
+            )] = "fundamental"
+
+            # 消息面
+            if ctx.with_news:
+                futures[pool.submit(
+                    lambda: NewsSignalGenerator().fetch_and_analyze(hours=24)
+                )] = "news"
+
+            # 情绪面
+            if ctx.with_sentiment:
+                futures[pool.submit(self._fetch_and_generate_sentiment)] = "sentiment"
+
+            # ETF 资金流
+            futures[pool.submit(
+                lambda: EtfFlowSignalGenerator().generate_signals()
+            )] = "etf"
+
+            # 经济日历
+            futures[pool.submit(
+                lambda: EconomicCalendarSignalGenerator().generate_signals()
+            )] = "economic_calendar"
+
+            # 事件结果驱动
+            futures[pool.submit(self._generate_event_driven_signals)] = "event_driven"
+
+            # 近期事件时效性加权
+            futures[pool.submit(
+                lambda: RecentEventSignalGenerator().generate_signals()
+            )] = "recent_events"
+
+            # Monitor 触发结果
+            futures[pool.submit(
+                lambda: MonitorSignalGenerator().generate_signals()
+            )] = "monitor"
+
+            # ---- 收集 Batch 1 结果 ----
+            batch_results: dict[str, list[Signal]] = {}
+            for future in as_completed(futures):
+                key = futures[future]
+                try:
+                    sigs = future.result()
+                    if key == "sentiment":
+                        # sentiment future returns (signals, au_df) tuple
+                        sigs, au_df = sigs if isinstance(sigs, tuple) else (sigs, None)
+                        if au_df is not None:
+                            result.au_df = au_df
+                    batch_results[key] = sigs or []
+                    logger.debug(f"[2/9] {key}: {len(batch_results[key])} 个信号")
+                except Exception as e:
+                    logger.warning(f"[2/9] {key} 信号生成异常: {e}")
+                    batch_results[key] = []
+
+        # ---- 注入所有 Batch 1 信号 ----
+        for key, sigs in batch_results.items():
+            for sig in sigs:
+                bundle.add(sig)
+            if key != "sentiment":  # sentiment already logged in the worker
+                logger.info(f"{key}信号: {len(sigs)} 个")
+
+        # 消息面信号单独记录 (用于 DeepSeek)
+        news_signals = batch_results.get("news", [])
+        logger.info(f"消息面信号: {len(news_signals)} 个")
+
+        # 情绪面日志
+        sentiment_sigs = batch_results.get("sentiment", [])
+        logger.info(f"情绪面信号: {len(sentiment_sigs)} 个")
+
+        # ---- 消息面补充: 新闻原文抓取 (轻量,主线程) ----
         result.news_raw = []
         if ctx.with_news:
-            news_gen = NewsSignalGenerator()
-            news_signals = news_gen.fetch_and_analyze(hours=24)
             try:
                 nf = NewsFetcher()
                 result.news_raw = nf.fetch_latest(max_results=6)
                 result.news_raw = nf.analyze_sentiment(result.news_raw)
             except Exception:
                 pass
-            logger.info(f"新闻信号: {len(news_signals)} 个")
 
-        for sig in news_signals:
-            bundle.add(sig)
-        logger.info(f"消息面信号: {len(bundle.by_dimension('news'))} 个")
-
-        # 情绪面
-        if ctx.with_sentiment:
-            try:
-                sentiment_fetcher = SentimentDataFetcher()
-                result.au_df = sentiment_fetcher.fetch_au_futures(lookback=60)
-                sentiment_analyzer = SentimentAnalyzer(au_df=result.au_df)
-                for sig in sentiment_analyzer.generate_signals():
-                    bundle.add(sig)
-            except Exception as e:
-                logger.warning(f"情绪面数据获取异常，跳过: {e}")
-        logger.info(f"情绪面信号: {len(bundle.by_dimension('sentiment'))} 个")
-
-        # ETF 资金流
-        try:
-            etf_gen = EtfFlowSignalGenerator()
-            for sig in etf_gen.generate_signals():
-                bundle.add(sig)
-        except Exception as e:
-            logger.debug(f"ETF资金流信号异常: {e}")
-
-        # 经济日历事件提醒
-        try:
-            ec_gen = EconomicCalendarSignalGenerator()
-            for sig in ec_gen.generate_signals():
-                bundle.add(sig)
-            logger.info(f"经济日历事件: {len(bundle.by_dimension('event_calendar'))} 个")
-        except Exception as e:
-            logger.warning(f"经济日历信号异常: {e}")
-            result.messages.append(f"[事件日历] 加载失败: {e}")
-
-        # 事件结果驱动信号（已发布事件的实际 vs 预期偏差）
-        try:
-            from gold_miner.signals.event_driven import EventDrivenSignalGenerator
-
-            event_driven_gen = EventDrivenSignalGenerator()
-            post_event_signals = (
-                event_driven_gen.generate_post_event_signals_from_calendar(
-                    lookback_days=7,
-                )
-            )
-            for sig in post_event_signals:
-                bundle.add(sig)
-            logger.info(
-                f"事件结果信号: {len(bundle.by_dimension('event'))} 个"
-            )
-        except Exception as e:
-            logger.warning(f"事件结果信号异常: {e}")
-
-        # 近期事件时效性加权（第〇步同步的事件结果，按时间衰减注入）
-        try:
-            from gold_miner.signals.recent_events import RecentEventSignalGenerator
-
-            recent_gen = RecentEventSignalGenerator()
-            for sig in recent_gen.generate_signals():
-                bundle.add(sig)
-            logger.info(
-                f"近期事件信号: {len(bundle.by_dimension('recent_events'))} 个"
-            )
-        except Exception as e:
-            logger.warning(f"近期事件信号异常: {e}")
-
-        # Monitor 触发结果（第〇步 monitor 检查结果注入）
-        try:
-            from gold_miner.signals.monitor_signal import MonitorSignalGenerator
-
-            monitor_gen = MonitorSignalGenerator()
-            for sig in monitor_gen.generate_signals():
-                bundle.add(sig)
-            logger.info(
-                f"Monitor信号: {len(bundle.by_dimension('monitor'))} 个"
-            )
-        except Exception as e:
-            logger.warning(f"Monitor信号异常: {e}")
-
-        # DeepSeek 深度分析
+        # ---- Batch 2: DeepSeek 深度分析 (依赖 news_signals + composite_score) ----
         if ctx.deep and news_signals:
             try:
                 logger.info("[DeepSeek] 深度分析新闻...")
@@ -368,14 +387,18 @@ class AnalysisPipeline:
                     f"- [{s.metadata.get('source', '?')}] {s.description}"
                     for s in news_signals
                 )[:3000]
+                # 基于已收集信号计算初步方向
+                bullish = sum(1 for s in bundle.signals if s.direction == SignalDirection.BULLISH)
+                bearish = sum(1 for s in bundle.signals if s.direction == SignalDirection.BEARISH)
+                pre_score = (bullish - bearish) / max(len(bundle.signals), 1)
                 llm_result = llm.analyze_article(
                     text=news_text,
                     rule_sentiment=(
-                        "bullish" if bundle.composite_score > 0.1
-                        else "bearish" if bundle.composite_score < -0.1
+                        "bullish" if pre_score > 0.1
+                        else "bearish" if pre_score < -0.1
                         else "neutral"
                     ),
-                    rule_score=bundle.composite_score,
+                    rule_score=pre_score,
                 )
                 if llm_result and not llm_result.get("parse_error"):
                     direction = llm_result.get("sentiment", "neutral")
@@ -384,7 +407,11 @@ class AnalysisPipeline:
                     bundle.add(Signal(
                         name="DeepSeek 新闻深度分析",
                         dimension="news",
-                        direction=SignalDirection.BULLISH if direction == "bullish" else SignalDirection.BEARISH if direction == "bearish" else SignalDirection.NEUTRAL,
+                        direction=(
+                            SignalDirection.BULLISH if direction == "bullish"
+                            else SignalDirection.BEARISH if direction == "bearish"
+                            else SignalDirection.NEUTRAL
+                        ),
                         strength=SignalStrength.MODERATE if conf > 0.6 else SignalStrength.WEAK,
                         score=round(score_impact, 2),
                         description=llm_result.get("reasoning", "")[:150],
@@ -393,13 +420,36 @@ class AnalysisPipeline:
             except Exception as e:
                 logger.warning(f"DeepSeek分析异常: {e}")
 
-        # 打分
+        # ---- 打分 ----
         engine = ScoringEngine()
         engine.score(bundle)
         logger.info(f"综合评分: {bundle.composite_score:+.2f} | 置信度: {bundle.confidence:.0%}")
 
         result.bundle = bundle
         logger.info("[2/9] 信号生成完成")
+
+    # ---- 信号生成辅助方法 (线程池中执行) ----
+
+    @staticmethod
+    def _generate_event_driven_signals() -> list[Signal]:
+        """事件结果驱动信号 (线程安全)."""
+        from gold_miner.signals.event_driven import EventDrivenSignalGenerator
+
+        return EventDrivenSignalGenerator().generate_post_event_signals_from_calendar(
+            lookback_days=7,
+        )
+
+    @staticmethod
+    def _fetch_and_generate_sentiment() -> tuple[list[Signal], pd.DataFrame | None]:
+        """情绪面: 获取 AU 期货数据 + 生成信号 (线程安全)."""
+        try:
+            sentiment_fetcher = SentimentDataFetcher()
+            au_df = sentiment_fetcher.fetch_au_futures(lookback=60)
+            analyzer = SentimentAnalyzer(au_df=au_df)
+            return analyzer.generate_signals(), au_df
+        except Exception as e:
+            logger.warning(f"情绪面数据获取异常，跳过: {e}")
+            return [], None
 
     # ------------------------------------------------------------------
     # Step 3: 来源验证
@@ -528,6 +578,31 @@ class AnalysisPipeline:
         )
 
         logger.info("[4/9] Agent 辩论完成")
+
+    # ------------------------------------------------------------------
+    # Step 3+4: 来源验证 + Agent 辩论 (并行)
+    # ------------------------------------------------------------------
+
+    def _step_source_truth_and_debate(
+        self, ctx: AnalysisContext, result: AnalysisResult
+    ) -> None:
+        """并行执行来源验证和 Agent 辩论 — 二者只读 bundle,写不同字段."""
+        logger.info("[3+4/9] 来源验证 + Agent 辩论 (并行)...")
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            f_source = pool.submit(self._step_source_truth, ctx, result)
+            f_debate = pool.submit(self._step_agent_debate, ctx, result)
+
+            # 等待双方完成
+            try:
+                f_source.result()
+            except Exception as e:
+                logger.warning(f"来源验证异常: {e}")
+
+            try:
+                f_debate.result()
+            except Exception as e:
+                logger.warning(f"Agent 辩论异常: {e}")
 
     # ------------------------------------------------------------------
     # Step 5: 风控审查
