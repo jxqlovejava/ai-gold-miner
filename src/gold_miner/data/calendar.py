@@ -23,7 +23,7 @@ from __future__ import annotations
 import calendar as _calendar_mod
 import json
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from gold_miner.compat import StrEnum
 from pathlib import Path
 from typing import Any
@@ -151,6 +151,30 @@ class CalendarEvent:
         """北京时间格式化字符串, 如 '07-14 20:30 (周二)'."""
         return _fmt_beijing(self.scheduled_at)
 
+    @property
+    def date(self) -> date:
+        """scheduled_at 的日期部分 (date 对象)."""
+        return self.scheduled_at.date()
+
+    def to_dict(self) -> dict[str, object]:
+        """转为字典，便于表格展示与序列化."""
+        return {
+            "name": self.name,
+            "event_type": self.event_type.value,
+            "scheduled_at": self.scheduled_at.isoformat(),
+            "beijing_time": self.beijing_time_str,
+            "impact": self.impact.value,
+            "actual": self.actual,
+            "forecast": self.forecast,
+            "previous": self.previous,
+            "source": self.source,
+            "description": self.description,
+            "status": self.status,
+            "trigger_condition": self.trigger_condition,
+            "action_on_trigger": self.action_on_trigger,
+            "expires_at": self.expires_at,
+        }
+
 
 # 项目根目录下的日历数据文件
 _CALENDAR_PATH = Path(__file__).parents[3] / "data" / "calendar_events.jsonl"
@@ -182,7 +206,15 @@ class EventCalendar:
             events = self._load_approximate_calendar(target)
         else:
             events = list(jsonl_events)
-            events.extend(self._generate_nfp_events(target))
+            # 收集 JSONL 中已有的 NFP 月份，避免 _generate_nfp_events 生成重复事件
+            nfp_months_in_jsonl = {
+                e.scheduled_at.month
+                for e in jsonl_events
+                if e.event_type == EventType.NFP
+            }
+            events.extend(self._generate_nfp_events(
+                target, skip_months=nfp_months_in_jsonl,
+            ))
 
         self.events.extend(events)
         self.events.sort(key=lambda e: e.scheduled_at)
@@ -519,10 +551,22 @@ class EventCalendar:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _generate_nfp_events(year: int) -> list[CalendarEvent]:
-        """非农就业 — 每月第一个周五 (算法固定)."""
+    def _generate_nfp_events(
+        year: int,
+        skip_months: set[int] | None = None,
+    ) -> list[CalendarEvent]:
+        """非农就业 — 每月第一个周五 (算法固定).
+
+        Args:
+            year: 目标年份
+            skip_months: 要跳过的月份集合（JSONL 中已有该月 NFP 事件时传入，
+                         避免生成重复事件导致 actual 被覆盖为空）
+        """
+        skip = skip_months or set()
         events: list[CalendarEvent] = []
         for month in range(1, 13):
+            if month in skip:
+                continue
             first_day = datetime(year, month, 1)
             days_until_fri = (4 - first_day.weekday()) % 7
             nfp_day = 1 + days_until_fri

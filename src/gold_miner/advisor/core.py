@@ -129,6 +129,10 @@ class AdvisorReport:
     confidence: float = 0.5
     warnings: list[str] = field(default_factory=list)
 
+    def __iter__(self):
+        """迭代预警列表 — 支持 for alert in report."""
+        return iter(self.alerts)
+
     def to_markdown(self) -> str:
         """渲染为 Markdown 格式."""
         lines: list[str] = []
