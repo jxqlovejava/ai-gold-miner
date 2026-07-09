@@ -52,6 +52,7 @@ class SignalPipeline:
         from gold_miner.signals.institutional_signal import InstitutionalSignalGenerator
         from gold_miner.signals.news_signal import NewsSignalGenerator
         from gold_miner.signals.polymarket_signal import PolymarketSignalGenerator
+        from gold_miner.signals.recent_events import RecentEventSignalGenerator
         from gold_miner.signals.sentiment_signal import SentimentAnalyzer
         from gold_miner.signals.technical import TechnicalAnalyzer
 
@@ -64,6 +65,14 @@ class SignalPipeline:
         self.register(PipelineStep(
             name="economic_calendar",
             generator=lambda _ctx: EconomicCalendarSignalGenerator().generate_signals(),
+            depends_on=[],
+        ))
+
+        self.register(PipelineStep(
+            name="recent_events",
+            generator=lambda ctx: RecentEventSignalGenerator(
+                calendar=ctx.calendar,
+            ).generate_signals(),
             depends_on=[],
         ))
 
