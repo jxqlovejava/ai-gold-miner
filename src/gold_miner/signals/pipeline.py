@@ -126,7 +126,9 @@ class SignalPipeline:
 
         self.register(PipelineStep(
             name="event_post",
-            generator=lambda _ctx: [],  # 无已完成事件时为空
+            generator=lambda ctx: EventDrivenSignalGenerator(
+                ctx.calendar
+            ).generate_post_event_signals_from_calendar(lookback_days=7),
             depends_on=[],
         ))
 

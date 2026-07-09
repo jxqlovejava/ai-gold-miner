@@ -191,6 +191,35 @@ class EventDrivenSignalGenerator:
 
         return signals
 
+    def generate_post_event_signals_from_calendar(
+        self,
+        lookback_days: int = 7,
+    ) -> list[Signal]:
+        """从日历中自动发现已出结果的事件，生成 post-event 信号.
+
+        与 generate_post_event_signals 的区别：
+        - 前者需要调用方手动传入 (event, actual, forecast) 元组列表
+        - 本方法自动从 EventCalendar 中查询有 actual 值的近期事件
+
+        用于管线自动注入：第〇步同步事件结果后，本方法自动将
+        「预期 vs 实际偏差」转化为方向信号。
+        """
+        events_with_results = self.calendar.get_recent_events_with_results(
+            lookback_days=lookback_days,
+        )
+        if not events_with_results:
+            return []
+
+        tuples: list[tuple[CalendarEvent, str, str]] = []
+        for event in events_with_results:
+            actual = event.actual or ""
+            forecast = event.forecast or ""
+            if not actual:
+                continue
+            tuples.append((event, actual, forecast))
+
+        return self.generate_post_event_signals(tuples)
+
     # ------------------------------------------------------------------
     # 内部方法
     # ------------------------------------------------------------------

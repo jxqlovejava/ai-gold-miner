@@ -161,6 +161,30 @@ class EventCalendar:
         candidates.sort(key=lambda e: e.scheduled_at, reverse=True)
         return candidates
 
+    def get_recent_events_with_results(
+        self,
+        lookback_days: int = 7,
+        reference_time: datetime | None = None,
+    ) -> list[CalendarEvent]:
+        """返回最近已发布且已记录实际结果的事件.
+
+        与 get_recently_published_without_result 互补：
+        用于事件结果同步后，将有 actual 值的事件注入到信号管线中，
+        生成「预期 vs 实际偏差」信号。
+
+        只返回非 monitor 类型的普通事件（monitor 由独立机制处理）。
+        """
+        now = reference_time or datetime.now()
+        cutoff = now - timedelta(days=lookback_days)
+        candidates = [
+            e for e in self.events
+            if cutoff <= e.scheduled_at <= now
+            and e.actual is not None
+            and e.event_type != EventType.MONITOR
+        ]
+        candidates.sort(key=lambda e: e.scheduled_at, reverse=True)
+        return candidates
+
     def update_event_result(
         self,
         name: str,

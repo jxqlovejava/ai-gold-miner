@@ -315,6 +315,24 @@ class AnalysisPipeline:
             logger.warning(f"经济日历信号异常: {e}")
             result.messages.append(f"[事件日历] 加载失败: {e}")
 
+        # 事件结果驱动信号（已发布事件的实际 vs 预期偏差）
+        try:
+            from gold_miner.signals.event_driven import EventDrivenSignalGenerator
+
+            event_driven_gen = EventDrivenSignalGenerator()
+            post_event_signals = (
+                event_driven_gen.generate_post_event_signals_from_calendar(
+                    lookback_days=7,
+                )
+            )
+            for sig in post_event_signals:
+                bundle.add(sig)
+            logger.info(
+                f"事件结果信号: {len(bundle.by_dimension('event'))} 个"
+            )
+        except Exception as e:
+            logger.warning(f"事件结果信号异常: {e}")
+
         # DeepSeek 深度分析
         if ctx.deep and news_signals:
             try:

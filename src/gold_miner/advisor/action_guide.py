@@ -247,6 +247,18 @@ class ActionGuide:
         except Exception as e:
             logger.debug(f"ETF 信号异常: {e}")
 
+        # 事件结果驱动信号（已发布事件的实际 vs 预期偏差）
+        try:
+            from gold_miner.signals.event_driven import EventDrivenSignalGenerator
+
+            event_driven_gen = EventDrivenSignalGenerator()
+            for sig in event_driven_gen.generate_post_event_signals_from_calendar(
+                lookback_days=7,
+            ):
+                bundle.add(sig)
+        except Exception as e:
+            logger.debug(f"事件结果信号异常: {e}")
+
         return bundle
 
     def _agent_debate(self, bundle: SignalBundle) -> list[Any]:
