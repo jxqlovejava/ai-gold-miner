@@ -270,3 +270,24 @@ class MacroDataFetcher(DataFetcher):
         except Exception as e:
             logger.warning(f"白银数据获取失败: {e}")
             return pd.DataFrame(columns=["timestamp", "value"])
+
+
+# 便捷别名
+MacroFetcher = MacroDataFetcher
+
+
+def fetch_macro_data(lookback_days: int = 365) -> dict[str, pd.DataFrame]:
+    """便捷函数：一次性获取所有宏观指标.
+
+    Args:
+        lookback_days: 回溯天数
+
+    Returns:
+        dict with keys: dxy, yield_curve, real_rate, breakeven, silver
+    """
+    fetcher = MacroDataFetcher()
+    result = fetcher.fetch_all_macro()
+    result["real_rate"] = fetcher.fetch_real_rate(lookback_days)
+    result["breakeven"] = fetcher.fetch_breakeven(lookback_days)
+    result["silver"] = fetcher.fetch_silver()
+    return result
