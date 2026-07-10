@@ -17,6 +17,8 @@ from gold_miner.advisor.action_guide import ActionGuide
 from gold_miner.advisor.consultant import Consultant
 from gold_miner.advisor.core import (
     AdvisorReport,
+    AlertLevel,
+    EventForecast,
     UserProfile,
 )
 from gold_miner.advisor.early_warning import EarlyWarningEngine
@@ -119,6 +121,68 @@ class Advisor:
         self.state.last_early_warning = report
         return report
 
+    def sync_events_and_monitors(self) -> AdvisorReport:
+        """第〇步: 同步近期事件结果 + 检查 monitor 触发.
+
+        每次分析前必须执行，确保:
+        1. 已发生但 actual 为空的事件被标记
+        2. 上次分析创建的 monitor 观测条件被评估
+
+        Returns:
+            事件同步 + monitor 检查报告
+        """
+        logger.info("[Advisor] 第〇步: 同步事件结果 & 检查 monitor...")
+
+        warnings: list[str] = []
+        alerts: list[EventForecast] = []
+
+        # 1. 查近期已发布但未记录结果的事件（排除 monitor，monitor 无 actual 概念）
+        recent = [
+            e for e in self.early_warning.check_recent_results(lookback_days=7)
+            if not e.is_monitor
+        ]
+        if recent:
+            missing = [e.name for e in recent]
+            logger.warning(
+                f"[Advisor] 发现 {len(recent)} 个事件 actual 为空，需手动同步: {missing}"
+            )
+            warnings.append(
+                f"⚠️ {len(recent)} 个近期事件 actual 为空，需搜索权威来源同步: "
+                + ", ".join(missing)
+            )
+
+        # 2. 查活跃 monitor 事件
+        monitors = self.early_warning.get_active_monitors()
+        if monitors:
+            logger.info(f"[Advisor] 发现 {len(monitors)} 个活跃 monitor，逐一评估触发条件")
+            for m in monitors:
+                alerts.append(EventForecast(
+                    event_name=f"[Monitor] {m.name}",
+                    event_type="monitor",
+                    scheduled_at=m.scheduled_at,
+                    impact_level=AlertLevel(m.impact if m.impact in ("high", "medium", "low", "critical") else "high"),
+                    gold_direction="uncertain",
+                    expected_move_pct=0.0,
+                    confidence=0.5,
+                    advice_summary=(
+                        f"触发条件: {m.trigger_condition}\n"
+                        f"触发后动作: {m.action_on_trigger}\n"
+                        f"状态: {m.status} | 过期: {m.expires_at}"
+                    ),
+                ))
+            warnings.append(
+                f"📡 {len(monitors)} 个 monitor 事件待评估触发条件，"
+                "需对照当前市场数据逐条判断"
+            )
+
+        return AdvisorReport(
+            report_type="event_sync",
+            alerts=alerts,
+            confidence=1.0,
+            sources=["EventCalendar"],
+            warnings=warnings or [],
+        )
+
     def check_today_events(self) -> AdvisorReport:
         """检查今日是否有重大事件.
 
@@ -198,7 +262,12 @@ class Advisor:
 
         reports: list[AdvisorReport] = []
 
-        # 1. 今日事件（最高优先级）
+        # 0. 事件同步 + monitor 检查（最高优先级，必须在分析前执行）
+        sync = self.sync_events_and_monitors()
+        if sync.alerts or sync.warnings:
+            reports.append(sync)
+
+        # 1. 今日事件
         today = self.check_today_events()
         if today.alerts or today.warnings:
             reports.append(today)
@@ -237,6 +306,13 @@ class Advisor:
 
         while True:
             try:
+                # 0. 事件同步 + monitor 检查
+                sync = self.sync_events_and_monitors()
+                if sync.warnings:
+                    print("\n" + "=" * 50)
+                    print(sync.to_markdown())
+                    print("=" * 50 + "\n")
+
                 # 检查今日事件
                 today = self.check_today_events()
                 if today.warnings:
