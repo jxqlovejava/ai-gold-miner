@@ -4,10 +4,14 @@
 代码只负责加载/查询/追加，不包含硬编码日期。
 
 时区约定:
-  - 存储: scheduled_at 为 ISO 8601 带时区偏移的美东时间
+  - 存储: scheduled_at 为 ISO 8601 带时区偏移的 **美东墙上钟点**
     例: 2026-07-14T08:30:00-04:00 (EDT) 或 2026-01-13T08:30:00-05:00 (EST)
   - 旧格式(无时区): 视为美东时间，自动检测夏令时补充偏移
-  - 展示: 统一通过 beijing_time 属性转换为北京时间 (UTC+8)
+  - 展示: 统一通过 beijing_time / dual_clock 转为北京时间 (UTC+8)
+  - 禁止双重换算: 不可先换成北京钟点再把该小时数写回 scheduled_at
+    (事故: 听证 10:00 ET 误存 22:00 ET → 显示成北京次日 10:00)
+  - 写入校验: add_event 调用 calendar_time_rules; 分析前跑
+    scripts/validate_calendar_dates.py
 
 数据来源:
   - BLS (劳工统计局): CPI/PPI/NFP 官方发布日程
@@ -152,6 +156,13 @@ class CalendarEvent:
         return _fmt_beijing(self.scheduled_at)
 
     @property
+    def dual_clock_str(self) -> str:
+        """ET | 北京 双列, 防只看北京误判."""
+        from gold_miner.data.calendar_time_rules import dual_clock_str as _dual
+
+        return _dual(self.scheduled_at)
+
+    @property
     def date(self) -> date:
         """scheduled_at 的日期部分 (date 对象)."""
         return self.scheduled_at.date()
@@ -163,6 +174,7 @@ class CalendarEvent:
             "event_type": self.event_type.value,
             "scheduled_at": self.scheduled_at.isoformat(),
             "beijing_time": self.beijing_time_str,
+            "dual_clock": self.dual_clock_str,
             "impact": self.impact.value,
             "actual": self.actual,
             "forecast": self.forecast,
@@ -323,8 +335,33 @@ class EventCalendar:
             self._rewrite_jsonl()
         return updated
 
-    def add_event(self, event: CalendarEvent) -> None:
-        """添加事件（内存+追加到 JSONL 文件）."""
+    def add_event(self, event: CalendarEvent, *, force: bool = False) -> None:
+        """添加事件（内存+追加到 JSONL 文件）.
+
+        写入前跑钟点硬规则 (calendar_time_rules)。国会听证晚间 ET 等
+        双重换算形态默认 raise ValueError; force=True 仅用于历史回填。
+        """
+        from gold_miner.data.calendar_time_rules import check_event_clock, dual_clock_str
+
+        findings = check_event_clock(
+            name=event.name,
+            event_type=event.event_type.value,
+            scheduled_at=event.scheduled_at,
+        )
+        errors = [f for f in findings if f.severity == "error"]
+        for f in findings:
+            if f.severity == "warning":
+                logger.warning(f"[日历钟点] {f.message}")
+        if errors and not force:
+            detail = "; ".join(e.message for e in errors)
+            raise ValueError(
+                f"拒绝写入日历 (钟点校验失败): {detail} | "
+                f"{dual_clock_str(event.scheduled_at) if event.scheduled_at.tzinfo else event.scheduled_at}"
+            )
+        if errors and force:
+            for e in errors:
+                logger.error(f"[日历钟点 force 写入] {e.message}")
+
         self.events.append(event)
         self.events.sort(key=lambda e: e.scheduled_at)
         try:

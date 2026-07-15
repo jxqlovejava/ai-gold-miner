@@ -97,7 +97,10 @@ class EconomicCalendarSignalGenerator:
                 else "明天" if days_until == 1
                 else f"{days_until}天后"
             )
-            beijing_time = self._fmt_beijing(event.scheduled_at)
+            # 双列钟点: 禁止只展示北京 (2026-07-15 听证误判事故)
+            from gold_miner.data.calendar_time_rules import dual_clock_str
+
+            clock = dual_clock_str(event.scheduled_at)
 
             signals.append(
                 Signal(
@@ -107,7 +110,7 @@ class EconomicCalendarSignalGenerator:
                     strength=strength,
                     score=0.0,
                     description=(
-                        f"{when_desc} {beijing_time} 北京时间 "
+                        f"{when_desc} {clock} "
                         f"| 来源: {event.source}"
                     ),
                     metadata={
@@ -115,6 +118,7 @@ class EconomicCalendarSignalGenerator:
                         "impact": event.impact.value,
                         "scheduled_at": event.scheduled_at.isoformat(),
                         "scheduled_at_beijing": self._to_beijing(event.scheduled_at).isoformat(),
+                        "dual_clock": clock,
                         "days_until": days_until,
                         "hours_until": round(hours_until, 1),
                         "source": event.source,
