@@ -121,20 +121,62 @@ class RecentEventSignalGenerator:
     def generate_signals(self) -> list[Signal]:
         """生成时效性加权信号.
 
-        从日历中读取最近 lookback_days 内有 actual 的事件，
-        按发布时间衰减产生权重，注入第一步信号采集。
+        1. 从日历中读取最近 lookback_days 内有 actual 的事件，按时效性衰减加权。
+        2. 同时检查已发布但 actual 为空的事件（24h 内），生成「待查结果」警告信号，
+           避免关键数据发布后被静默忽略。
         """
         self._ensure_loaded()
+        now = datetime.now(tz=timezone.utc)
+
         events = self.calendar.get_recent_events_with_results(
             lookback_days=self.config.lookback_days,
         )
 
+        signals: list[Signal] = []
+
+        # ── 已发布但 actual 为空的事件（24h 内）──
+        # 这些是"刚发布还没人填结果"的关键数据，必须提醒用户去查
+        pending_events = self.calendar.get_recently_published_without_result(
+            lookback_days=1,  # 只看 24h 内的，超过 24h 还没填的优先级降低
+        )
+        # 过滤掉 monitor 类型（monitor 本身不需要 actual）
+        pending_data_events = [
+            e for e in pending_events
+            if e.event_type.value not in ("monitor",)
+        ]
+        if pending_data_events:
+            event_names = "、".join(e.name for e in pending_data_events)
+            signals.append(
+                Signal(
+                    name=f"⚠️ 待查结果: {event_names}",
+                    dimension="recent_events",
+                    direction=SignalDirection.NEUTRAL,
+                    strength=SignalStrength.STRONG,
+                    score=0.0,
+                    description=(
+                        f"{len(pending_data_events)}个事件已发布但未同步实际结果，"
+                        f"请立即搜索权威来源获取结果并更新日历"
+                    ),
+                    metadata={
+                        "event_type": "pending_result_sync",
+                        "pending_count": len(pending_data_events),
+                        "pending_events": [
+                            {
+                                "name": e.name,
+                                "scheduled_at": e.scheduled_at.isoformat(),
+                                "forecast": e.forecast,
+                                "source": e.source,
+                            }
+                            for e in pending_data_events
+                        ],
+                        "source_tier": "system",
+                    },
+                )
+            )
+
         if not events:
             logger.debug("近期无已发布事件结果")
-            return []
-
-        signals: list[Signal] = []
-        now = datetime.now(tz=timezone.utc)
+            return signals
 
         for event in events:
             hours_ago = (now - event.scheduled_at).total_seconds() / 3600
