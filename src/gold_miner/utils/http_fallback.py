@@ -27,6 +27,23 @@ import httpx
 from loguru import logger
 
 
+def _httpx_proxy_kwargs(proxy_url: str | None = None, **kwargs: Any) -> dict[str, Any]:
+    """Return httpx.Client kwargs with the correct proxy parameter name.
+
+    httpx 0.25.x uses `proxies`, 0.27+ uses `proxy`. This project pins
+    httpx>=0.27 in pyproject.toml, but some environments still run 0.25.x.
+    """
+    try:
+        major, minor = map(int, httpx.__version__.split(".")[:2])
+    except Exception:
+        major, minor = 0, 27
+    if (major, minor) >= (0, 27):
+        kwargs["proxy"] = proxy_url
+    else:
+        kwargs["proxies"] = proxy_url
+    return kwargs
+
+
 def _system_python() -> str:
     """Return a system Python interpreter."""
     for name in ("python3", "python"):
@@ -371,7 +388,7 @@ def fallback_get(
         try:
             with httpx.Client(
                 timeout=timeout, follow_redirects=True, http1=True,
-                proxy=None, trust_env=False,
+                **_httpx_proxy_kwargs(None), trust_env=False,
             ) as client:
                 resp = client.get(url, params=params, headers=headers)
                 resp.raise_for_status()
@@ -430,7 +447,7 @@ def fallback_post(
         # proxy=None + trust_env=False 强制直连，绕过系统代理
         with httpx.Client(
             timeout=timeout, follow_redirects=True, http1=True,
-            proxy=None, trust_env=False,
+            **_httpx_proxy_kwargs(None), trust_env=False,
         ) as client:
             resp = client.post(url, json=json, headers=headers)
             resp.raise_for_status()

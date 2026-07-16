@@ -286,8 +286,9 @@ rules:
 
     def get_client(self, **kwargs: Any) -> httpx.Client:
         """获取配置了代理的 httpx Client."""
+        from gold_miner.utils.http_fallback import _httpx_proxy_kwargs
         if self.is_running:
-            kwargs.setdefault("proxy", self.http_proxy)
+            kwargs = _httpx_proxy_kwargs(self.http_proxy, **kwargs)
             logger.debug(f"httpx 使用代理: {self.http_proxy}")
         return httpx.Client(**kwargs)
 
