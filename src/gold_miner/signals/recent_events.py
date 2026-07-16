@@ -27,6 +27,7 @@ class RecencyWeightConfig:
     """时效性衰减配置."""
 
     lookback_days: int = 7
+    staleness_penalty: float = 0.5   # fast-evolving 事件过时权重乘数
     weights: list[tuple[float, float]] = None  # type: ignore[assignment]
 
     def __post_init__(self) -> None:
@@ -185,6 +186,13 @@ class RecentEventSignalGenerator:
             if weight <= 0:
                 continue
 
+            # 对 fast-evolving 事件应用过时惩罚
+            staleness_risk = event.needs_reverify
+            if staleness_risk:
+                weight *= self.config.staleness_penalty
+                if weight <= 0:
+                    continue
+
             direction = _infer_direction_from_event(
                 event.name,
                 event.actual or "",
@@ -222,6 +230,7 @@ class RecentEventSignalGenerator:
                         "forecast": event.forecast,
                         "scheduled_at": event.scheduled_at.isoformat(),
                         "source": event.source,
+                        "staleness_risk": staleness_risk,
                     },
                 )
             )

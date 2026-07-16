@@ -116,6 +116,27 @@ class EventType(StrEnum):
     MONITOR = "monitor"  # 持续性观测事件，带有触发条件和检查周期
 
 
+# 快速演变事件类型 — 这些类型的事件可能在发布后数小时/数天内发生逆转或更新，
+# 而非像 CPI/PPI/NFP 那样一次性发布即为最终结果。
+# 包含这些类型的事件在 analysis 前需重新验证 actual 是否仍为最新状态。
+FAST_EVOLVING_TYPES: frozenset[str] = frozenset({
+    "geo",              # 地缘冲突 — 24h 内可逆转 (cf. 7/13 Hormuz 费→7/14 撤销)
+    "policy_shift",     # 政策突变 — 多日演变
+    "trade_war",        # 贸易战 — 逐轮升级/缓和
+    "fed_emergency",    # 联储紧急声明 — 后续澄清/修正常见
+    "monitor",          # monitor 本身追踪的事件可能演变
+})
+
+# 默认过时阈值 (小时) — 超过此时间未更新 actual 则标记为需重新验证
+_STALENESS_DEFAULT_HOURS: dict[str, int] = {
+    "geo": 12,           # 地缘最激进: 12h 内可能有新进展
+    "policy_shift": 24,
+    "trade_war": 24,
+    "fed_emergency": 24,
+    "monitor": 48,       # monitor 检查频率较低
+}
+
+
 @dataclass
 class CalendarEvent:
     name: str
@@ -136,6 +157,11 @@ class CalendarEvent:
     trigger_result: str | None = None      # 触发时的实际结果
     parent_analysis: str | None = None     # 创建该 monitor 的分析 session id
     expires_at: str | None = None          # 过期时间 ISO 格式
+    # --- 过时检测 (staleness detection) ---
+    actual_updated_at: str | None = None    # 上次更新 actual 的 ISO 时间戳
+    actual_history: str | None = None       # JSON 数组: [{"value":"...","updated_at":"...","superseded_at":"..."}]
+    source_verified_at: str | None = None   # 上次来源验证时间 ISO
+    staleness_check_hours: int | None = None # 每个事件可覆盖默认检查间隔
 
     @property
     def is_monitor(self) -> bool:
@@ -144,6 +170,38 @@ class CalendarEvent:
     @property
     def is_active_monitor(self) -> bool:
         return self.is_monitor and self.status == "active"
+
+    @property
+    def needs_reverify(self) -> bool:
+        """快速演变事件是否可能需要重新验证 actual 数据.
+
+        仅对 FAST_EVOLVING_TYPES 中的事件类型生效。
+        返回 True 当:
+        - actual 不为空 (已有值才可能过时)
+        - 事件类型在 FAST_EVOLVING_TYPES 中
+        - actual_updated_at 不存在 (旧事件, 保守假定过时)
+          或距今超过 staleness_check_hours / 类型默认阈值
+        """
+        if self.actual is None:
+            return False
+        if self.event_type.value not in FAST_EVOLVING_TYPES:
+            return False
+
+        check_hours = (
+            self.staleness_check_hours
+            or _STALENESS_DEFAULT_HOURS.get(self.event_type.value, 24)
+        )
+
+        if self.actual_updated_at is None:
+            # 旧事件: actual 已设但无时间戳 → 保守假定过时
+            return True
+
+        try:
+            updated = datetime.fromisoformat(self.actual_updated_at)
+            hours_since = (datetime.now(tz=timezone.utc) - updated).total_seconds() / 3600
+            return hours_since > check_hours
+        except (ValueError, TypeError):
+            return True  # 时间戳不可解析 → 保守
 
     @property
     def beijing_time(self) -> datetime:
@@ -311,8 +369,20 @@ class EventCalendar:
         actual: str,
         forecast: str | None = None,
         previous: str | None = None,
+        source_verified: bool = True,
     ) -> bool:
         """更新事件的实际结果（内存 + 重写 JSONL 文件）.
+
+        对 fast-evolving 事件，旧值会被追加到 actual_history 而非丢弃。
+        actual_updated_at 和 source_verified_at 自动更新。
+
+        Args:
+            name: 事件名称
+            scheduled_at: 事件预定时间
+            actual: 新的实际结果
+            forecast: 预期值
+            previous: 前值
+            source_verified: 是否经过来源验证 (默认 True)
 
         Returns:
             True 如果找到并更新了事件，False 如果未找到匹配事件.
@@ -321,14 +391,38 @@ class EventCalendar:
         if scheduled_at.tzinfo is None:
             scheduled_at = scheduled_at.replace(tzinfo=_et_offset(scheduled_at))
 
+        now_iso = datetime.now(tz=timezone.utc).isoformat()
         updated = False
+
         for e in self.events:
             if e.name == name and e.scheduled_at == scheduled_at:
+                # 保存历史: 对 fast-evolving 事件，旧值推入 actual_history
+                if (
+                    e.actual is not None
+                    and e.actual != actual
+                    and e.event_type.value in FAST_EVOLVING_TYPES
+                ):
+                    history: list[dict[str, str]] = []
+                    if e.actual_history:
+                        try:
+                            history = json.loads(e.actual_history)
+                        except (json.JSONDecodeError, TypeError):
+                            history = []
+                    history.append({
+                        "value": e.actual,
+                        "updated_at": e.actual_updated_at or "unknown",
+                        "superseded_at": now_iso,
+                    })
+                    e.actual_history = json.dumps(history, ensure_ascii=False)
+
                 e.actual = actual
+                e.actual_updated_at = now_iso
                 if forecast is not None:
                     e.forecast = forecast
                 if previous is not None:
                     e.previous = previous
+                if source_verified:
+                    e.source_verified_at = now_iso
                 updated = True
 
         if updated:
@@ -449,6 +543,42 @@ class EventCalendar:
         result.sort(key=lambda e: e.triggered_at or "", reverse=True)
         return result
 
+    def get_events_needing_reverify(
+        self,
+        lookback_days: int = 7,
+        reference_time: datetime | None = None,
+    ) -> list[CalendarEvent]:
+        """返回可能需要重新验证 actual 的 fast-evolving 事件。
+
+        筛选条件:
+        1. 事件类型在 FAST_EVOLVING_TYPES 中 (geo/policy_shift/trade_war/...)
+        2. actual 不为空 (已有值才可能过时)
+        3. needs_reverify property 返回 True
+
+        第〇步工作流应在同步普通事件结果后调用此方法，
+        将返回的事件逐一用时间约束搜索检查最新状态。
+
+        Returns:
+            按过时程度排序 (无时间戳 / 最久未更新的在前)
+        """
+        now = reference_time or datetime.now(tz=timezone.utc)
+        cutoff = now - timedelta(days=lookback_days)
+
+        candidates = [
+            e for e in self.events
+            if e.scheduled_at >= cutoff
+            and e.actual is not None
+            and e.needs_reverify
+        ]
+
+        def _staleness_key(e: CalendarEvent) -> tuple[int, str]:
+            if e.actual_updated_at is None:
+                return (0, "")  # 无时间戳——最优先检查
+            return (1, e.actual_updated_at)
+
+        candidates.sort(key=_staleness_key)
+        return candidates
+
     def _rewrite_jsonl(self) -> None:
         """更新 JSONL 文件中的已有事件（保留未改动行原样）.
 
@@ -481,7 +611,9 @@ class EventCalendar:
         # 构建 (name, scheduled_at_naive) → 更新后的 JSON 的映射
         updated_map: dict[tuple[str, str], str] = {}
         for event in self.events:
-            key = (event.name, event.scheduled_at.strftime("%Y-%m-%dT%H:%M:%S"))
+            # 转为美东墙上钟点再取无时区字符串，与 line_map 的 key 保持一致
+            et_dt = event.scheduled_at.astimezone(_et_offset(event.scheduled_at))
+            key = (event.name, et_dt.strftime("%Y-%m-%dT%H:%M:%S"))
             if key in line_map:
                 updated_map[key] = json.dumps(
                     self._to_dict(event), ensure_ascii=False
@@ -497,7 +629,9 @@ class EventCalendar:
                     try:
                         data = json.loads(line)
                         key = (data["name"], data["scheduled_at"])
-                        f.write(updated_map.get(key, line) + "\n")
+                        # ponytail: _naive_key strips tz, updated_map keys also strip tz
+                        naive_key = (data["name"], _naive_key(data["scheduled_at"]))
+                        f.write(updated_map.get(naive_key, line) + "\n")
                     except json.JSONDecodeError:
                         f.write(line + "\n")
         except OSError as e:
@@ -552,12 +686,21 @@ class EventCalendar:
             trigger_result=obj.get("trigger_result"),
             parent_analysis=obj.get("parent_analysis"),
             expires_at=obj.get("expires_at"),
+            # staleness detection 字段
+            actual_updated_at=obj.get("actual_updated_at"),
+            actual_history=obj.get("actual_history"),
+            source_verified_at=obj.get("source_verified_at"),
+            staleness_check_hours=obj.get("staleness_check_hours"),
         )
 
     _MONITOR_KEYS = (
         "status", "trigger_condition", "check_frequency",
         "action_on_trigger", "triggered_at", "trigger_result",
         "parent_analysis", "expires_at",
+    )
+    _STALENESS_KEYS = (
+        "actual_updated_at", "actual_history",
+        "source_verified_at", "staleness_check_hours",
     )
 
     @staticmethod
@@ -578,6 +721,11 @@ class EventCalendar:
             d["previous"] = event.previous
         # monitor 字段 — 仅非 None 时写入
         for key in EventCalendar._MONITOR_KEYS:
+            val = getattr(event, key, None)
+            if val is not None:
+                d[key] = val
+        # staleness detection 字段 — 仅非 None 时写入
+        for key in EventCalendar._STALENESS_KEYS:
             val = getattr(event, key, None)
             if val is not None:
                 d[key] = val

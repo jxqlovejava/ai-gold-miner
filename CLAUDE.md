@@ -41,6 +41,31 @@
 
 > 背景：曾因忽略系统年份（2026）而用 2025 年关键词搜索，叠加未校验星期，导致 PCE 日期输出错误（周五 vs 实际周四）。
 
+### 快速演变事件搜索规则
+
+**geo/policy_shift/trade_war/fed_emergency 等持续演变事件**，不能按"搜索一次→写入 actual→永久有效"处理。标准三步校验（DOW/官网/交叉确认）不足以应对状态变化。
+
+**铁律**：
+
+1. **时间约束搜索** — 搜索必须限定时间范围，不搜不带日期约束的查询：
+   - 正确: `"美伊谈判" after:2026-07-14 site:reuters.com`
+   - 错误: `美伊谈判最新进展`（按 SEO 排序，"大新闻"压制逆转报道）
+2. **逆转/修正优先搜索** — 主动搜索事件被逆转/撤销/修正的信号：
+   - `"Hormuz fee" reversal OR backtrack OR withdraw OR cancel OR 撤销`
+   - `"Iran policy" update OR latest OR "as of"`
+3. **多时点交叉验证** — 对比三个时间点的报道：
+   - 初始公告报道 → 中间状态 → 最新报道
+   - 若三者在 72h 内不一致，以最新 T0/T1 来源为准
+4. **搜索排序意识** — 搜索引擎偏向"大新闻"（初始公告），压制"小更新"（逆转）。
+   不要仅依赖搜索结果第一页或摘要位置判断重要性。**主动向下翻页**或使用不同查询找更新。
+5. **每次第〇步都重新验证** — 对于 event_type 在 `FAST_EVOLVING_TYPES` 中且 `actual_updated_at` 超过阈值的
+   事件，调用 `EarlyWarningEngine().check_stale_events(lookback_days=7)` 自动发现，
+   然后对每个 stale 事件用上述规则重新搜索验证。
+
+> 背景：2026-07-16 分析中美伊冲突使用 7/13 的过时信息（Trump 征收 20% Hormuz 费），
+> 未发现 7/14 已撤销收费改为海湾投资协议。根因：搜索引擎返回初始大新闻压制逆转报道 +
+> 无 staleness 检测机制。
+
 ## 输出规则
 
 每次输出交易建议或决策分析时，必须包含以下三个板块，并**使用中文方向术语（看多/看空/观望），不直接使用 long/short/neutral**：
@@ -140,14 +165,33 @@ Monitor:  观测: 美伊局势后续演变
 4. 调用 `EarlyWarningEngine().get_active_monitors()` 查询所有活跃的 monitor 事件
 5. 逐一评估每个 active monitor 的 `trigger_condition` 是否已满足（对照当前市场数据）
 6. 对已触发的 monitor：调用 `calendar.close_monitor()` → 记录结果到日历
-7. 输出两张表：
+6.5 **检查 fast-evolving 事件的 staleness（新增）**:
+    调用 `EarlyWarningEngine().check_stale_events(lookback_days=7)` 查询需要重新验证的事件。
+    对每个返回的事件：
+      a. 确认事件类型是否为持续演变的（geo/policy_shift/trade_war/fed_emergency）
+      b. 使用**时间约束搜索**获取最新状态（参见「快速演变事件搜索规则」）
+      c. 主动搜索逆转/修正/撤销报道（reversal/backtrack/withdraw/cancel）
+      d. 必须从 ≥2 个独立来源交叉确认
+      e. 如果最新状态与 `actual` 不同：
+         - 调用 `calendar.update_event_result()` 更新（自动保存历史到 `actual_history`）
+         - 在同步表中标注 `📝已更新 (旧值→新值)`
+      f. 如果最新状态与 `actual` 一致：无需操作（`actual_updated_at` 已在之前更新）
+7. 输出三张表：
 
-**事件日历同步表**:
+**事件日历同步表**（含修订记录）:
 
-| 事件名称 | 发布日期 | 实际结果 | 对金价影响 | 来源 |
-|----------|----------|----------|-----------|------|
-| FOMC会议纪要 | 7/9凌晨 | 9/18官员支持加息，鹰派 | 利空 | [T0] Federal Reserve |
-| ISM服务业PMI | 7/6 | 54.0 vs 预期54.2 | 略利空 | [T0] ISM |
+| 事件名称 | 发布日期 | 实际结果 | 修订记录 | 对金价影响 | 来源 |
+|----------|----------|----------|----------|-----------|------|
+| FOMC会议纪要 | 7/9凌晨 | 9/18官员支持加息，鹰派 | — | 利空 | [T0] Federal Reserve |
+| ISM服务业PMI | 7/6 | 54.0 vs 预期54.2 | — | 略利空 | [T0] ISM |
+
+**Staleness 重新验证表**（新增，仅针对 fast-evolving 事件）:
+
+| 事件名称 | 原记录结果 | 最新状态 | 变更 | 最新来源 |
+|----------|-----------|---------|------|---------|
+| 美伊冲突: Trump Hormuz 费 | 7/13 征收 20% Hormuz 费+封锁 | 7/14 撤销 20% 费, 改为海湾投资协议 | 📝 逆转（费用取消） | [T1] Reuters/Bloomberg |
+
+> 若 `check_stale_events()` 返回空列表或所有事件已验证无变化，此表可标注「✅ 所有 fast-evolving 事件均为最新状态」。
 
 **Monitor 事件检查表**:
 
@@ -155,7 +199,8 @@ Monitor:  观测: 美伊局势后续演变
 |-------------|----------|----------|----------|------|
 | 观测: ETF资金流回正 | 国际黄金ETF转为净流入 | 仍净流出 | ❌ 未触发 | 保持 active |
 
-8. 同步完成后，将已发生事件结果 + monitor 触发结果按时效性衰减权重注入第一步信号采集
+8. 同步完成后，将已发生事件结果 + monitor 触发结果 + staleness 重新验证结果按时效性衰减权重注入第一步信号采集
+    （注：fast-evolving 事件若 `needs_reverify=True` 且未完成重新验证，其信号权重会自动被 `staleness_penalty` 减半）
 
 #### 时效性衰减权重规则
 

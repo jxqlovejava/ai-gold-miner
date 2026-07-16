@@ -205,6 +205,8 @@ class EventDrivenSignalGenerator:
 
         用于管线自动注入：第〇步同步事件结果后，本方法自动将
         「预期 vs 实际偏差」转化为方向信号。
+
+        对 fast-evolving 事件的过时数据自动降级处理。
         """
         events_with_results = self.calendar.get_recent_events_with_results(
             lookback_days=lookback_days,
@@ -220,7 +222,25 @@ class EventDrivenSignalGenerator:
                 continue
             tuples.append((event, actual, forecast))
 
-        return self.generate_post_event_signals(tuples)
+        signals = self.generate_post_event_signals(tuples)
+
+        # 对 fast-evolving 过时事件降级: STRONG→MODERATE→WEAK
+        # 信号索引与 events 一一对应 (generate_post_event_signals 保持顺序)
+        for i, sig in enumerate(signals):
+            event = events_with_results[i] if i < len(events_with_results) else None
+            if event and event.needs_reverify:
+                signals[i] = Signal(
+                    name=sig.name,
+                    dimension=sig.dimension,
+                    direction=sig.direction,
+                    strength=SignalStrength.WEAK,
+                    score=sig.score * 0.5,
+                    description=sig.description + " (数据可能已过时, 待重新验证)",
+                    timestamp=sig.timestamp,
+                    metadata={**sig.metadata, "staleness_risk": True},
+                )
+
+        return signals
 
     # ------------------------------------------------------------------
     # 内部方法

@@ -207,6 +207,28 @@ class EarlyWarningEngine:
         """
         return self.calendar.get_active_monitors()
 
+    def check_stale_events(
+        self,
+        lookback_days: int = 7,
+    ) -> list[CalendarEvent]:
+        """查询可能需要重新验证 actual 的 fast-evolving 事件.
+
+        用于第〇步：在同步普通事件结果之后检查哪些 geo/policy/monitor
+        事件的 actual 值可能已过时（如 24h 内发生的逆转/更新）。
+
+        应在 check_recent_results() 和 get_active_monitors() 之后调用，
+        在输出同步表之前完成，以便将更新后的 actual 纳入信号管线。
+
+        Args:
+            lookback_days: 回溯天数，默认7天
+
+        Returns:
+            需要重新验证的事件列表（按过时程度排序，最需检查的在前）
+        """
+        return self.calendar.get_events_needing_reverify(
+            lookback_days=lookback_days,
+        )
+
     # ------------------------------------------------------------------
     # 内部逻辑
     # ------------------------------------------------------------------
