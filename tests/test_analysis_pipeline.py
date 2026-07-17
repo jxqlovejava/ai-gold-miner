@@ -72,6 +72,27 @@ class TestAnalysisPipelineStepComposition:
         ]
         assert pipeline._steps == expected
 
+    def test_generate_signals_wires_cot_and_smart_money(self):
+        """主 scan 信号步必须强制注册 COT / 聪明钱合成."""
+        import inspect
+
+        from gold_miner.pipeline import analysis as analysis_mod
+
+        src = inspect.getsource(analysis_mod.AnalysisPipeline._step_generate_signals)
+        assert "CotSignalGenerator" in src
+        assert "InstitutionalSignalGenerator" in src
+        assert '"cot"' in src or "'cot'" in src
+        assert "smart_money" in src
+
+    def test_risk_check_applies_institutional_gate(self):
+        import inspect
+
+        from gold_miner.pipeline import analysis as analysis_mod
+
+        src = inspect.getsource(analysis_mod.AnalysisPipeline._step_risk_check)
+        assert "assess_institutional_flow" in src
+        assert "apply_institutional_outflow_gate" in src
+
     def test_run_with_empty_data_returns_early(self, monkeypatch):
         """当 gold_df 为空时，run() 应提前返回."""
         pipeline = AnalysisPipeline()

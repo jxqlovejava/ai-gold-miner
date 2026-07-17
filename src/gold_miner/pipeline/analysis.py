@@ -21,6 +21,12 @@ from gold_miner.data.news import NewsFetcher, NewsItem
 from gold_miner.data.sentiment import SentimentDataFetcher
 from gold_miner.data.spot_gold import SpotGoldFetcher
 from gold_miner.decision.agents import AgentOpinion, BearAgent, BullAgent, PortfolioManager
+from gold_miner.decision.institutional_flow import (
+    apply_institutional_outflow_gate,
+    assess_institutional_flow,
+    signals_indicate_etf_flow_available,
+    signals_indicate_institutional_selling,
+)
 from gold_miner.decision.position_state import resolve_position_state
 from gold_miner.decision.risk import RiskCheck, RiskManager
 from gold_miner.doctrine import DoctrineChecker
@@ -36,10 +42,12 @@ from gold_miner.experience import ExperienceLoader
 from gold_miner.improvement.tracker import PredictionRecord, PredictionTracker
 from gold_miner.llm.client import LLMClient
 from gold_miner.signals.base import Signal, SignalBundle, SignalDirection, SignalStrength
+from gold_miner.signals.cot_signal import CotSignalGenerator
 from gold_miner.signals.economic_calendar import EconomicCalendarSignalGenerator
 from gold_miner.signals.engine import ScoringEngine
 from gold_miner.signals.etf_flow_signal import EtfFlowSignalGenerator
 from gold_miner.signals.fundamental import FundamentalAnalyzer
+from gold_miner.signals.institutional_signal import InstitutionalSignalGenerator
 from gold_miner.signals.monitor_signal import MonitorSignalGenerator
 from gold_miner.signals.news_signal import NewsSignalGenerator
 from gold_miner.signals.recent_events import RecentEventSignalGenerator
@@ -97,6 +105,7 @@ class AnalysisResult:
     experience_reminders: list[str] = field(default_factory=list)
     investor_profile: str = ""
     portfolio: dict[str, Any] = field(default_factory=dict)
+    institutional_flow: dict[str, Any] = field(default_factory=dict)
     munger_models: list[dict[str, Any]] = field(default_factory=list)
 
 
@@ -346,7 +355,7 @@ class AnalysisPipeline:
         # ---- Batch 1: 所有独立信号生成器并行 ----
         news_signals: list[Signal] = []
 
-        with ThreadPoolExecutor(max_workers=10) as pool:
+        with ThreadPoolExecutor(max_workers=12) as pool:
             futures: dict[Future, str] = {}
 
             # 技术面
@@ -379,6 +388,25 @@ class AnalysisPipeline:
             futures[pool.submit(
                 lambda: EtfFlowSignalGenerator().generate_signals()
             )] = "etf"
+
+            # COT 聪明钱（强制接入 scan）
+            futures[pool.submit(
+                lambda: CotSignalGenerator().generate_signals()
+            )] = "cot"
+
+            # 聪明钱合成：13F / 投行 / COMEX 大户 / 综合（强制接入 scan）
+            spot_for_inst = float(result.current_price or 0) or 3300.0
+            # InstitutionalSignal 用美元现货更合理；无国际价时用国内价兜底
+            try:
+                if result.intl_price and float(result.intl_price) > 0:
+                    spot_for_inst = float(result.intl_price)
+            except Exception:
+                pass
+            futures[pool.submit(
+                lambda s=spot_for_inst: InstitutionalSignalGenerator(
+                    current_spot=s
+                ).generate_signals()
+            )] = "smart_money"
 
             # 经济日历
             futures[pool.submit(
@@ -719,8 +747,61 @@ class AnalysisPipeline:
             )
             result.final_decision["position_pct"] = 0.0
 
+        # 机构净流出 → 禁止加仓闸门（持有/减仓不受强制）
+        pre_gate_action = str(result.final_decision.get("action") or "")
+        flow = assess_institutional_flow(result.bundle.signals)
+        result.institutional_flow = flow.to_dict()
+        result.final_decision = apply_institutional_outflow_gate(
+            result.final_decision, flow
+        )
+        post_gate_action = str(result.final_decision.get("action") or "")
+        action_changed = post_gate_action != pre_gate_action
+
+        if flow.block_add and (pre_gate_action == "add" or action_changed):
+            result.checks.append(RiskCheck(
+                name="机构净流出禁加仓",
+                passed=False,
+                message="；".join(flow.reasons) or "机构资金净流出",
+                severity="block",
+            ))
+            logger.warning(
+                f"机构资金闸门触发: status={flow.status} net={flow.net_score:+.2f} "
+                f"action {pre_gate_action}→{post_gate_action} | "
+                f"{'; '.join(flow.reasons)}"
+            )
+        elif flow.block_add:
+            result.checks.append(RiskCheck(
+                name="机构净流出禁加仓",
+                passed=True,
+                message=(
+                    f"机构净流出(net={flow.net_score:+.2f})，当前无加仓动作；"
+                    f"若后续加仓将被拦截"
+                ),
+                severity="warn",
+            ))
+            logger.info(
+                f"机构资金净流出待命: status={flow.status} net={flow.net_score:+.2f} "
+                f"(当前动作={post_gate_action})"
+            )
+        else:
+            result.checks.append(RiskCheck(
+                name="机构净流出禁加仓",
+                passed=True,
+                message=(
+                    f"机构流={flow.status} net={flow.net_score:+.2f}"
+                    if flow.has_real_data
+                    else "机构流数据不足，闸门未触发（不禁止）"
+                ),
+                severity="info",
+            ))
+            logger.info(
+                f"机构资金评估: status={flow.status} net={flow.net_score:+.2f} "
+                f"block_add={flow.block_add} conf={flow.confidence:.0%}"
+            )
+
         logger.info(
-            f"持仓状态: {pos_state['action_cn']} | 浮盈亏 {pos_state['unrealized_pnl_pct']:+.1%} | "
+            f"持仓状态: {result.final_decision.get('action_cn', pos_state['action_cn'])} | "
+            f"浮盈亏 {pos_state['unrealized_pnl_pct']:+.1%} | "
             f"现仓 {pos_state['current_gold_pct']:.0%}"
         )
 
@@ -772,6 +853,14 @@ class AnalysisPipeline:
         else:
             exposure_for_rules = current_gold_pct
 
+        flow_info = result.institutional_flow or result.final_decision.get("institutional_flow") or {}
+        inst_selling = bool(flow_info.get("status") == "outflow" and flow_info.get("has_real_data"))
+        if not flow_info and result.bundle.signals:
+            # 兜底：从信号再评估一次
+            _flow = assess_institutional_flow(result.bundle.signals)
+            flow_info = _flow.to_dict()
+            inst_selling = signals_indicate_institutional_selling(_flow)
+
         result.doctrine_ctx = {
             "current_exposure": current_gold_pct,
             "gold_allocation_pct": current_gold_pct,
@@ -794,6 +883,12 @@ class AnalysisPipeline:
             "stop_loss_set": stop_loss_set,
             "has_decision_record": True,
             "proposed_new_position_pct": exposure_for_rules,
+            # 机构资金流 → 军规 r020/r021/r024
+            "etf_flow_available": signals_indicate_etf_flow_available(result.bundle.signals),
+            "institutional_selling": inst_selling,
+            "retail_buying": action == "add",  # 建议加仓时视为散户买意
+            "institutional_flow_status": flow_info.get("status", "unknown"),
+            "institutional_flow_score": flow_info.get("net_score", 0.0),
         }
 
         checker = DoctrineChecker()
@@ -1050,6 +1145,18 @@ class AnalysisPipeline:
             print(f"\n  ⚠️ 风控干预: {result.final_decision['risk_override']}")
         else:
             print(f"\n  ✅ 风控通过 ({len(result.checks)}项检查)")
+
+        flow = result.institutional_flow or result.final_decision.get("institutional_flow") or {}
+        if flow:
+            status = flow.get("status", "unknown")
+            net = flow.get("net_score", 0.0)
+            block = flow.get("block_add", False)
+            flag = "🚫 禁止加仓" if block else "✅ 允许加仓评估"
+            print(f"\n  🏦 机构资金流: {status} | net={net:+.2f} | {flag}")
+            for r in (flow.get("reasons") or [])[:3]:
+                print(f"     · {r}")
+            if result.final_decision.get("institutional_gate"):
+                print(f"     → {result.final_decision['institutional_gate']}")
 
     def _print_doctrine_check(self, result: AnalysisResult) -> None:
         if result.doctrine_result is None:
