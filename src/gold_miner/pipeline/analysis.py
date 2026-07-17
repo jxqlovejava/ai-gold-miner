@@ -21,6 +21,7 @@ from gold_miner.data.news import NewsFetcher, NewsItem
 from gold_miner.data.sentiment import SentimentDataFetcher
 from gold_miner.data.spot_gold import SpotGoldFetcher
 from gold_miner.decision.agents import AgentOpinion, BearAgent, BullAgent, PortfolioManager
+from gold_miner.decision.position_state import resolve_position_state
 from gold_miner.decision.risk import RiskCheck, RiskManager
 from gold_miner.doctrine import DoctrineChecker
 from gold_miner.doctrine.munger_models import GOLD_MODELS, MungerModel
@@ -270,6 +271,67 @@ class AnalysisPipeline:
         except Exception as e:
             logger.debug(f"民生银行积存金价格获取失败: {e}")
             return None
+
+    @staticmethod
+    def _portfolio_gold_pct(portfolio: dict[str, Any] | None, current_price: float) -> float:
+        """当前黄金市值 / total_funds."""
+        if not portfolio or current_price <= 0:
+            return 0.0
+        limits = portfolio.get("limits") or {}
+        total_funds = float(limits.get("total_funds") or 0)
+        if total_funds <= 0:
+            return 0.0
+        grams = 0.0
+        for pos in (portfolio.get("positions") or {}).values():
+            if isinstance(pos, dict):
+                grams += float(pos.get("grams") or 0)
+        return (grams * current_price) / total_funds
+
+    @staticmethod
+    def _has_active_stop_order() -> bool:
+        """是否存在 active 的 OCO/止损类条件单."""
+        path = _PROJECT_DATA_DIR / "private" / "conditional_orders.jsonl"
+        if not path.exists():
+            return False
+        try:
+            for line in path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                import json as _json
+                row = _json.loads(line)
+                if row.get("status") != "active":
+                    continue
+                if row.get("type") == "oco" or row.get("direction") in ("卖出", "sell"):
+                    return True
+                oco = row.get("oco") or {}
+                if oco.get("stop_loss"):
+                    return True
+        except Exception as e:
+            logger.debug(f"读取条件单失败: {e}")
+        return False
+
+    @staticmethod
+    def _near_high_impact_event(days: int = 2) -> bool:
+        """未来 days 天内是否有中高影响宏观事件（FOMC/CPI/PCE/NFP 等）."""
+        try:
+            from gold_miner.data.calendar import EventCalendar, EventImpact
+
+            cal = EventCalendar()
+            upcoming = cal.get_upcoming(days=days, min_impact=EventImpact.MEDIUM)
+            high_types = {
+                "fed_rate", "cpi", "pce", "nfp", "fomc", "ppi",
+            }
+            for e in upcoming:
+                et = getattr(e.event_type, "value", str(e.event_type)).lower()
+                if et in high_types or e.impact in (EventImpact.HIGH, EventImpact.CRITICAL):
+                    return True
+                name = (e.name or "").upper()
+                if any(k in name for k in ("FOMC", "CPI", "PCE", "非农", "利率决议")):
+                    return True
+        except Exception as e:
+            logger.debug(f"near_data_event 检查失败: {e}")
+        return False
 
     # ------------------------------------------------------------------
     # Step 2: 信号生成
@@ -575,7 +637,10 @@ class AnalysisPipeline:
             result.bear_opinion,
             result.bundle,
             risk_profile=ctx.risk_profile or settings.risk_profile,
+            long_only=True,
         )
+        # 透传 bundle 置信度，供持仓状态机弱信号判定
+        result.decision["confidence"] = result.bundle.confidence
 
         logger.info("[4/9] Agent 辩论完成")
 
@@ -611,9 +676,53 @@ class AnalysisPipeline:
     def _step_risk_check(self, ctx: AnalysisContext, result: AnalysisResult) -> None:
         logger.info("[5/9] 风控审查...")
 
+        # 尽早加载持仓，供集中度检查与后续状态机
+        if not result.portfolio:
+            _, portfolio, _ = self._load_investor_data(result)
+        else:
+            portfolio = result.portfolio
+
+        current_gold_pct = self._portfolio_gold_pct(portfolio, result.current_price)
+
         risk_mgr = RiskManager(max_position_pct=settings.max_position_pct)
-        result.checks = risk_mgr.check(result.decision)
+        result.checks = risk_mgr.check(
+            result.decision,
+            current_position_pct=current_gold_pct,
+        )
         result.final_decision = risk_mgr.apply_risk_controls(result.decision, result.checks)
+
+        # 持仓状态机：空仓开新仓 → hold/add/reduce/stop/stand_aside
+        pos_state = resolve_position_state(
+            portfolio or {},
+            result.current_price,
+            {
+                **result.final_decision,
+                "confidence": result.bundle.confidence,
+                "composite_score": result.bundle.composite_score,
+            },
+            long_only=True,
+        )
+        result.final_decision["action"] = pos_state["action"]
+        result.final_decision["action_cn"] = pos_state["action_cn"]
+        result.final_decision["position_state"] = pos_state
+        result.final_decision["unrealized_pnl_pct"] = pos_state["unrealized_pnl_pct"]
+        result.final_decision["current_gold_pct"] = pos_state["current_gold_pct"]
+        result.final_decision["target_gold_pct"] = pos_state["target_gold_pct"]
+        # 用户可见方向：仅做多；动作优先
+        result.final_decision["direction"] = pos_state["direction"]
+        result.final_decision["position_pct"] = pos_state["position_pct"]
+        result.final_decision["signal_type"] = pos_state["signal_type"]
+        if pos_state["action"] in ("hold", "stand_aside"):
+            # 禁止再展示“买入/做多开仓”
+            result.final_decision["direction"] = (
+                "long" if pos_state["action"] == "hold" and pos_state["grams"] > 0 else "neutral"
+            )
+            result.final_decision["position_pct"] = 0.0
+
+        logger.info(
+            f"持仓状态: {pos_state['action_cn']} | 浮盈亏 {pos_state['unrealized_pnl_pct']:+.1%} | "
+            f"现仓 {pos_state['current_gold_pct']:.0%}"
+        )
 
         if result.final_decision.get("risk_override"):
             logger.info(f"风控干预: {result.final_decision['risk_override']}")
@@ -631,26 +740,60 @@ class AnalysisPipeline:
 
         active_dims = [d for d in ["technical", "fundamental", "news", "sentiment"]
                        if result.bundle.by_dimension(d)]
+        pos_state = result.final_decision.get("position_state") or {}
+        current_gold_pct = float(
+            result.final_decision.get("current_gold_pct")
+            or pos_state.get("current_gold_pct")
+            or 0.0
+        )
+        unrealized = float(
+            result.final_decision.get("unrealized_pnl_pct")
+            or pos_state.get("unrealized_pnl_pct")
+            or 0.0
+        )
+        # 条件单止损：读 private conditional_orders；否则用 portfolio secondary/hard stop
+        stop_loss_set = self._has_active_stop_order() or bool(
+            pos_state.get("avg_cost") and (pos_state.get("near_hard_stop") is not None)
+        )
+        # portfolio.yaml 有 hard_stop/secondary_stop 即视为已设止损规则
+        if result.portfolio:
+            for pos in (result.portfolio.get("positions") or {}).values():
+                if isinstance(pos, dict) and (
+                    pos.get("hard_stop") is not None or pos.get("secondary_stop") is not None
+                ):
+                    stop_loss_set = True
+                    break
+
+        near_data = self._near_high_impact_event(days=2)
+        action = result.final_decision.get("action", "")
+        # 军规仓位：加仓用建议增量；持有用现仓；减仓用现仓
+        if action == "add":
+            exposure_for_rules = result.final_decision.get("position_pct", 0)
+        else:
+            exposure_for_rules = current_gold_pct
+
         result.doctrine_ctx = {
-            "current_exposure": result.final_decision.get("position_pct", 0) * 0.5,
-            "gold_allocation_pct": result.final_decision.get("position_pct", 0),
+            "current_exposure": current_gold_pct,
+            "gold_allocation_pct": current_gold_pct,
             "daily_change_pct": (
                 abs(result.gold_df["close"].iloc[-1] / result.gold_df["close"].iloc[-2] - 1) * 100
                 if len(result.gold_df) >= 2 else 0
             ),
-            "near_data_event": False,
-            "consecutive_stops": 0,
+            "near_data_event": near_data,
+            "consecutive_stops": 0,  # 尚无自动统计 trade_log；保留字段
             "vix": 0,
             "fear_greed_index": 50,
-            "unrealized_pnl_pct": 0.0,
-            "has_trailing_stop": result.final_decision.get("position_pct", 0) > 0,
+            # 小数形式：-0.028 = -2.8%（与 checker 中 0.20/-0.10 阈值一致）
+            "unrealized_pnl_pct": unrealized if abs(unrealized) <= 2 else unrealized / 100.0,
+            "has_trailing_stop": stop_loss_set,
             "bullish_signal_count": result.bundle.bullish_count(),
             "bearish_signal_count": result.bundle.bearish_count(),
             "active_dimensions": active_dims,
             "bull_confidence": result.decision.get("bull_confidence", 0),
             "bear_confidence": result.decision.get("bear_confidence", 0),
-            "stop_loss_set": result.final_decision.get("position_pct", 0) > 0,
+            "stop_loss_set": stop_loss_set,
             "has_decision_record": True,
+            "proposed_new_position_pct": exposure_for_rules,
         }
 
         checker = DoctrineChecker()
@@ -885,8 +1028,22 @@ class AnalysisPipeline:
             print("      (无强看跌信号)")
 
         pm_name = "投资经理"
-        print(f"\n  🏛️ {pm_name}: {direction_cn.get(result.decision.get('direction', 'neutral'), '观望')} "
-              f"| 仓位 {result.decision.get('position_pct', 0):.0%} | {result.decision.get('signal_type', '')}")
+        raw_dir = direction_cn.get(result.decision.get("direction", "neutral"), "观望")
+        final = result.final_decision or {}
+        action_cn = final.get("action_cn") or ""
+        print(
+            f"\n  🏛️ {pm_name}: 原始 {raw_dir} | 仓位 {result.decision.get('position_pct', 0):.0%} "
+            f"| {result.decision.get('signal_type', '')}"
+        )
+        if action_cn:
+            pos = final.get("position_state") or {}
+            print(
+                f"     → 持仓动作: **{action_cn}** | 执行方向={direction_cn.get(final.get('direction'), final.get('direction'))} "
+                f"| 建议变动仓位 {final.get('position_pct', 0):.0%} | "
+                f"浮盈亏 {float(pos.get('unrealized_pnl_pct') or final.get('unrealized_pnl_pct') or 0):+.1%}"
+            )
+            if final.get("position_state", {}).get("reason"):
+                print(f"     原因: {final['position_state']['reason']}")
 
     def _print_risk_check(self, result: AnalysisResult) -> None:
         if result.final_decision.get("risk_override"):
@@ -902,8 +1059,12 @@ class AnalysisPipeline:
         print(f"\n{'='*60}")
         print("  投资军规审查")
         print(f"{'='*60}")
-        print(f"  决策: 方向={result.final_decision.get('direction', '?')} | "
-              f"仓位={result.final_decision.get('position_pct', 0):.0%}")
+        action_cn = result.final_decision.get("action_cn", "")
+        print(
+            f"  决策: 动作={action_cn or result.final_decision.get('action', '?')} | "
+            f"方向={result.final_decision.get('direction', '?')} | "
+            f"仓位={result.final_decision.get('position_pct', 0):.0%}"
+        )
         print(f"  通过: {dr.passed_count}/{len(dr.violations)}")
 
         if dr.blocks:
@@ -1148,23 +1309,34 @@ class AnalysisPipeline:
         )
         current_gold_pct = current_gold_value / total_funds if total_funds else 0.0
 
+        action = result.final_decision.get("action", "")
         suggested_pct = result.final_decision.get("position_pct", 0)
-        new_total_gold_pct = current_gold_pct + suggested_pct
+        # add = 新增敞口；hold/stand_aside = 0；reduce = 不增加
+        add_pct = suggested_pct if action == "add" else 0.0
+        new_total_gold_pct = float(
+            result.final_decision.get("target_gold_pct")
+            or (current_gold_pct + add_pct)
+        )
+        unrealized = float(result.final_decision.get("unrealized_pnl_pct") or 0)
 
         print(f"  风险画像: {risk_profile}")
         print(f"  持仓周期: {investment_horizon}")
         print(f"  当前黄金占比: {current_gold_pct:.0%} (上限 {max_gold_pct:.0%})")
+        print(f"  浮盈亏: {unrealized:+.1%}")
+        print(f"  建议动作: {result.final_decision.get('action_cn', action or '—')}")
 
-        single_ok = suggested_pct <= max_single_pct
+        single_ok = add_pct <= max_single_pct
         total_ok = new_total_gold_pct <= max_gold_pct
 
         print(
-            f"  建议仓位: {suggested_pct:.0%} vs 单品种上限 {max_single_pct:.0%} "
+            f"  建议新开/加仓: {add_pct:.0%} vs 单品种上限 {max_single_pct:.0%} "
             f"— {'兼容 ✅' if single_ok else '超出 ⚠️'}"
         )
         print(
-            f"  总敞口: {current_gold_pct:.0%}+{suggested_pct:.0%}="
-            f"{new_total_gold_pct:.0%} vs 上限 {max_gold_pct:.0%} "
+            f"  目标总敞口: {new_total_gold_pct:.0%} "
+            f"(现 {current_gold_pct:.0%}"
+            f"{f'+{add_pct:.0%}' if add_pct else ''}) "
+            f"vs 上限 {max_gold_pct:.0%} "
             f"— {'兼容 ✅' if total_ok else '超出 ⚠️'}"
         )
 
@@ -1174,7 +1346,7 @@ class AnalysisPipeline:
             print("\n  综合: 建议部分超出画像约束 ⚠️")
 
     def _auto_track(self, result: AnalysisResult) -> None:
-        """自动记录预测到预测追踪器."""
+        """自动记录预测到预测追踪器，并结算过期未决预测."""
         dim_scores: dict[str, float] = {}
         for dim in ["technical", "fundamental", "news", "sentiment"]:
             signals = result.bundle.by_dimension(dim)
@@ -1189,6 +1361,31 @@ class AnalysisPipeline:
             sd["timestamp"] = sd["timestamp"].isoformat()
             serialized_signals.append(sd)
 
+        # 方向：优先 action 映射，便于结算 long/neutral
+        action = result.final_decision.get("action", "")
+        if action == "add":
+            track_direction = "long"
+        elif action in ("reduce", "stop"):
+            track_direction = "short"  # 结算语义：预期价格下跌侧有利
+        elif action == "hold":
+            track_direction = "neutral"
+        else:
+            track_direction = result.final_decision.get("direction", "neutral")
+
+        tracker = PredictionTracker()
+        if result.current_price > 0:
+            resolved = tracker.auto_resolve_stale(
+                current_price=result.current_price,
+                min_age_hours=24,
+            )
+            if resolved:
+                stats = tracker.stats()
+                logger.info(
+                    f"自动结算 {len(resolved)} 条过期预测 | "
+                    f"ex_test准确率 {stats.get('accuracy_ex_test', 0):.0%} "
+                    f"({stats.get('resolved_ex_test', 0)}条)"
+                )
+
         record = PredictionRecord(
             id=uuid.uuid4().hex[:12],
             timestamp=datetime.now(),
@@ -1196,11 +1393,11 @@ class AnalysisPipeline:
             signals=serialized_signals,
             composite_score=result.bundle.composite_score,
             confidence=result.bundle.confidence,
-            direction=result.final_decision.get("direction", "neutral"),
+            direction=track_direction,
             position_pct=result.final_decision.get("position_pct", 0),
             dimension_scores=dim_scores,
         )
-        PredictionTracker().record_prediction(record)
+        tracker.record_prediction(record)
 
     def _record_events(self, result: AnalysisResult) -> str:
         """向 EventStore 写入 prediction_made + evidence_attached."""

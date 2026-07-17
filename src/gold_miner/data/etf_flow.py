@@ -240,14 +240,12 @@ class BtcEtfFlowFetcher(DataFetcher):
 class IntlGoldEtfFlowFetcher(DataFetcher):
     """国际黄金ETF资金流数据获取器.
 
-    追踪全球最大黄金ETF日频资金流:
-    - GLD (SPDR Gold Shares) — 全球最大, 管理资产超800亿美元
-    - IAU (iShares Gold Trust)
-    - GLDM (SPDR Gold MiniShares)
-    - PHYS (Sprott Physical Gold Trust)
-    - SGOL (abrdn Physical Gold Shares)
+    主信号: GLD 官方持仓(吨)日变化 — 真实资金流代理 (T0)
+    辅信号: yfinance 成交量异动 — 仅作弱 proxy，不可当作资金流
 
-    数据源: yfinance (日频OHLCV)
+    追踪:
+    - GLD (SPDR Gold Shares) 持仓吨数 — 全球最大
+    - IAU / GLDM / PHYS / SGOL 成交量 (secondary)
     """
 
     INTL_GOLD_ETFS = {
@@ -258,19 +256,24 @@ class IntlGoldEtfFlowFetcher(DataFetcher):
         "SGOL": "abrdn Physical Gold Shares",
     }
 
-    # 资金流判断阈值
+    # 成交量异动阈值（secondary proxy）
     VOLUME_SURGE_THRESHOLD = 1.5  # 成交量相对20日均值倍数
-    PRICE_CHANGE_THRESHOLD = 0.5  # 价格变化%阈值
+
+    # 持仓变化阈值（tonnes %）— 日频通常很小
+    HOLDINGS_STRONG_PCT = 0.30  # ≥0.3% 视为大幅
+    HOLDINGS_MODERATE_PCT = 0.05  # ≥0.05% 视为有方向
 
     def __init__(self) -> None:
         super().__init__(
             DataSourceMeta(
                 name="intl_gold_etf_flow",
-                source="yfinance",
+                source="SPDR GLD holdings (T0) + yfinance volume proxy",
                 frequency="daily",
-                description="国际黄金ETF日频资金流 (GLD/IAU/GLDM/PHYS/SGOL)",
+                description="国际黄金ETF资金流: GLD持仓(吨)为主，成交量异动为辅",
+                source_tier="T0",
             )
         )
+        self._holdings_fetcher = None  # lazy import GldHoldingsFetcher
 
     def fetch(
         self,
@@ -324,61 +327,133 @@ class IntlGoldEtfFlowFetcher(DataFetcher):
         """抓取最新数据."""
         return self.fetch()
 
+    def _get_holdings_fetcher(self):
+        """Lazy-load GldHoldingsFetcher to avoid circular imports at module load."""
+        if self._holdings_fetcher is None:
+            from gold_miner.data.gld_holdings import GldHoldingsFetcher
+            self._holdings_fetcher = GldHoldingsFetcher()
+        return self._holdings_fetcher
+
+    def fetch_holdings_flow(self, holdings_df: pd.DataFrame | None = None) -> dict[str, Any]:
+        """基于 GLD 官方持仓(吨)日变化计算真实资金流方向.
+
+        Args:
+            holdings_df: 可选预取的 GldHoldingsFetcher DataFrame
+                         (列: timestamp, value 吨). 未提供则自行抓取.
+
+        Returns:
+            dict with status, flow_direction, flow_score, tonnes deltas, source_tier=T0
+        """
+        try:
+            if holdings_df is None:
+                holdings_df = self._get_holdings_fetcher().fetch()
+            if holdings_df is None or holdings_df.empty or len(holdings_df) < 2:
+                return {"status": "no_data"}
+
+            df = holdings_df.sort_values("timestamp").reset_index(drop=True)
+            latest = float(df["value"].iloc[-1])
+            prev = float(df["value"].iloc[-2])
+            if prev <= 0:
+                return {"status": "no_data"}
+
+            tonnes_delta = latest - prev
+            pct_change = (tonnes_delta / prev) * 100.0
+
+            # 分数与 % 变化成正比，|score|≤0.8
+            # 日变化 0.4% ≈ 满分 0.8
+            raw_score = pct_change * 2.0
+            score = max(-0.8, min(0.8, raw_score))
+
+            abs_pct = abs(pct_change)
+            if pct_change >= self.HOLDINGS_STRONG_PCT:
+                direction = "strong_inflow"
+            elif pct_change >= self.HOLDINGS_MODERATE_PCT:
+                direction = "inflow"
+            elif pct_change <= -self.HOLDINGS_STRONG_PCT:
+                direction = "strong_outflow"
+            elif pct_change <= -self.HOLDINGS_MODERATE_PCT:
+                direction = "outflow"
+            else:
+                direction = "neutral"
+                score = 0.0
+
+            latest_ts = df["timestamp"].iloc[-1]
+            if hasattr(latest_ts, "isoformat"):
+                as_of = latest_ts.isoformat()
+            else:
+                as_of = str(latest_ts)
+
+            return {
+                "status": "ok",
+                "timestamp": datetime.now().isoformat(),
+                "as_of": as_of,
+                "holdings_tonnes": round(latest, 4),
+                "prev_holdings_tonnes": round(prev, 4),
+                "tonnes_delta": round(tonnes_delta, 4),
+                "holdings_change_pct": round(pct_change, 4),
+                "flow_direction": direction,
+                "flow_score": round(score, 2),
+                "source": "gld_holdings_tonnes",
+                "source_tier": "T0",
+            }
+        except Exception as e:
+            logger.warning(f"GLD 持仓资金流计算失败: {e}")
+            return {"status": "error", "message": str(e)}
+
     def fetch_flow_summary(self) -> dict[str, Any]:
         """获取国际黄金ETF资金流摘要.
 
+        主信号: GLD 持仓(吨)日变化 (T0)
+        辅字段: yfinance 价格/成交量 proxy（不可当作真实资金流）
+
         Returns:
-            dict with: total_aum_proxy, flow_direction, flow_score,
-                       volume_surge_count, avg_change_pct, leader_symbol
+            dict with holdings-based flow_direction/flow_score, plus secondary
+            volume/price fields labeled as proxy.
         """
-        df = self.fetch()
-        if df.empty:
-            return {"status": "no_data"}
+        holdings = self.fetch_holdings_flow()
+        if holdings.get("status") != "ok":
+            # 持仓不可用时不回退到价格当资金流，只返回 no_data
+            return {"status": "no_data", "reason": "gld_holdings_unavailable"}
 
-        total_volume = int(df["volume"].sum())
-        avg_change = float(df["change_pct"].mean())
-        vol_surge_count = int((df["volume_ratio"] > self.VOLUME_SURGE_THRESHOLD).sum())
-
-        # GLD 权重最高
-        gld_row = df[df["symbol"] == "GLD"]
-        gld_change = float(gld_row["change_pct"].iloc[0]) if not gld_row.empty else avg_change
-        gld_vol_ratio = float(gld_row["volume_ratio"].iloc[0]) if not gld_row.empty else 1.0
-
-        # 综合资金流方向
-        inflow_score = 0.0
-        for _, row in df.iterrows():
-            symbol = row["symbol"]
-            weight = 0.5 if symbol == "GLD" else 0.125  # GLD 权重50%
-            inflow_score += row["change_pct"] * weight
-
-        # 量价配合判断
-        if inflow_score > 0.8 and vol_surge_count >= 2:
-            direction = "strong_inflow"
-            score = min(inflow_score / 2, 1.0)
-        elif inflow_score > 0.3:
-            direction = "inflow"
-            score = min(inflow_score / 2, 0.5)
-        elif inflow_score < -0.8 and vol_surge_count >= 2:
-            direction = "strong_outflow"
-            score = max(inflow_score / 2, -1.0)
-        elif inflow_score < -0.3:
-            direction = "outflow"
-            score = max(inflow_score / 2, -0.5)
-        else:
-            direction = "neutral"
-            score = 0.0
+        # Secondary: volume proxy (optional, never used as primary flow)
+        vol_surge_count = 0
+        gld_vol_ratio = 1.0
+        gld_change = 0.0
+        total_volume = 0
+        avg_change = 0.0
+        etf_count = 0
+        try:
+            df = self.fetch()
+            if not df.empty:
+                total_volume = int(df["volume"].sum())
+                avg_change = float(df["change_pct"].mean())
+                vol_surge_count = int((df["volume_ratio"] > self.VOLUME_SURGE_THRESHOLD).sum())
+                gld_row = df[df["symbol"] == "GLD"]
+                gld_change = float(gld_row["change_pct"].iloc[0]) if not gld_row.empty else avg_change
+                gld_vol_ratio = float(gld_row["volume_ratio"].iloc[0]) if not gld_row.empty else 1.0
+                etf_count = len(df)
+        except Exception as e:
+            logger.debug(f"国际ETF价格/成交量 proxy 获取失败(非致命): {e}")
 
         return {
             "status": "ok",
             "timestamp": datetime.now().isoformat(),
+            "as_of": holdings.get("as_of"),
+            "holdings_tonnes": holdings["holdings_tonnes"],
+            "prev_holdings_tonnes": holdings["prev_holdings_tonnes"],
+            "tonnes_delta": holdings["tonnes_delta"],
+            "holdings_change_pct": holdings["holdings_change_pct"],
+            "flow_direction": holdings["flow_direction"],
+            "flow_score": holdings["flow_score"],
+            "source": "gld_holdings_tonnes",
+            "source_tier": "T0",
+            # secondary price/volume proxy fields (NOT real flow)
             "total_volume": total_volume,
             "avg_change_pct": round(avg_change, 2),
             "gld_change_pct": round(gld_change, 2),
             "gld_volume_ratio": round(gld_vol_ratio, 2),
             "volume_surge_count": vol_surge_count,
-            "flow_direction": direction,
-            "flow_score": round(score, 2),
-            "etf_count": len(df),
+            "etf_count": etf_count,
         }
 
     def fetch_weekly_trend(self, weeks: int = 4) -> dict[str, Any]:

@@ -27,10 +27,13 @@ class FundamentalAnalyzer:
         self.breakeven = breakeven_df
 
     def analyze_dxy(self) -> list[Signal]:
-        """分析美元指数对黄金的影响.
+        """分析 ICE 美元指数 (DXY) 对黄金的影响.
 
         美元走弱 → 黄金走强 (负相关)
-        判断逻辑: DXY 5日均线 vs 20日均线
+        判断逻辑: DXY(ICE) 5日均线 vs 20日均线
+
+        输入应为 ICE Dollar Index（水平约 100），而非 FRED 贸易加权美元指数
+        DTWEXBGS（水平约 120）。
         """
         signals: list[Signal] = []
         if self.dxy is None or self.dxy.empty or len(self.dxy) < 20:
@@ -51,7 +54,7 @@ class FundamentalAnalyzer:
                         direction=SignalDirection.BULLISH,
                         strength=SignalStrength.MODERATE,
                         score=score,
-                        description=f"DXY MA5({ma5:.2f}) < MA20({ma20:.2f})，利好黄金",
+                        description=f"DXY(ICE) MA5({ma5:.2f}) < MA20({ma20:.2f})，利好黄金",
                     )
                 )
             elif ma5 > ma20 * 1.005:  # 美元短期走强
@@ -63,7 +66,7 @@ class FundamentalAnalyzer:
                         direction=SignalDirection.BEARISH,
                         strength=SignalStrength.MODERATE,
                         score=score,
-                        description=f"DXY MA5({ma5:.2f}) > MA20({ma20:.2f})，利空黄金",
+                        description=f"DXY(ICE) MA5({ma5:.2f}) > MA20({ma20:.2f})，利空黄金",
                     )
                 )
         except Exception as e:

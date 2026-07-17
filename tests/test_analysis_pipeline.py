@@ -306,7 +306,13 @@ class TestAnalysisPipelineOutputSections:
         pipeline = AnalysisPipeline()
         result = AnalysisResult()
         result.current_price = 100.0
-        result.final_decision = {"position_pct": 0.30}
+        # action=add 时 position_pct 才计为新开/加仓增量
+        result.final_decision = {
+            "position_pct": 0.30,
+            "action": "add",
+            "action_cn": "加仓",
+            "target_gold_pct": 0.35,
+        }
         portfolio = {
             "limits": {
                 "total_funds": 200000,
@@ -326,7 +332,7 @@ class TestAnalysisPipelineOutputSections:
         pipeline._print_profile_match(result, "profile text", portfolio)
         captured = capsys.readouterr().out
 
-        assert "建议仓位: 30% vs 单品种上限 20% — 超出 ⚠️" in captured
+        assert "建议新开/加仓: 30% vs 单品种上限 20% — 超出 ⚠️" in captured
         assert "建议部分超出画像约束 ⚠️" in captured
 
     def test_print_profile_match_empty_portfolio(self, capsys):

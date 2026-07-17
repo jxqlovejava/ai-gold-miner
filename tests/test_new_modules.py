@@ -324,49 +324,65 @@ class TestCotSignalGenerator:
 
 class TestIntlGoldEtfFlowFetcher:
     def test_fetch_flow_summary_empty(self):
+        """持仓不可用时返回 no_data（不再用价格冒充资金流）."""
         fetcher = IntlGoldEtfFlowFetcher()
-        with patch.object(fetcher, "fetch", return_value=pd.DataFrame()):
+        with patch.object(fetcher, "fetch_holdings_flow", return_value={"status": "no_data"}):
             result = fetcher.fetch_flow_summary()
             assert result["status"] == "no_data"
 
     def test_fetch_flow_summary_strong_inflow(self):
+        """主信号来自 GLD 持仓(吨)上升."""
         fetcher = IntlGoldEtfFlowFetcher()
-        df = pd.DataFrame({
-            "symbol": ["GLD", "IAU", "GLDM", "PHYS", "SGOL"],
-            "close": [200.0, 40.0, 50.0, 15.0, 25.0],
-            "volume": [10000000, 5000000, 3000000, 1000000, 800000],
-            "change_pct": [1.5, 1.2, 1.0, 0.8, 1.1],
-            "volume_ratio": [2.0, 1.8, 1.6, 1.5, 1.7],
-            "price_vs_ma20": [2.0, 1.5, 1.2, 0.8, 1.0],
-            "open": [198.0, 39.5, 49.5, 14.8, 24.7],
-            "high": [201.0, 40.5, 50.5, 15.2, 25.3],
-            "low": [197.0, 39.0, 49.0, 14.5, 24.5],
+        holdings_ok = {
+            "status": "ok",
+            "flow_direction": "strong_inflow",
+            "flow_score": 0.7,
+            "holdings_tonnes": 910.0,
+            "prev_holdings_tonnes": 900.0,
+            "tonnes_delta": 10.0,
+            "holdings_change_pct": 1.11,
+            "source": "gld_holdings_tonnes",
+            "source_tier": "T0",
+        }
+        price_df = pd.DataFrame({
+            "symbol": ["GLD", "IAU"],
+            "close": [200.0, 40.0],
+            "volume": [10000000, 5000000],
+            "change_pct": [1.5, 1.2],
+            "volume_ratio": [2.0, 1.8],
+            "price_vs_ma20": [2.0, 1.5],
+            "open": [198.0, 39.5],
+            "high": [201.0, 40.5],
+            "low": [197.0, 39.0],
         })
-        with patch.object(fetcher, "fetch", return_value=df):
-            result = fetcher.fetch_flow_summary()
-            assert result["status"] == "ok"
-            assert result["flow_direction"] == "strong_inflow"
-            assert result["flow_score"] > 0
-            assert result["volume_surge_count"] >= 2
+        with patch.object(fetcher, "fetch_holdings_flow", return_value=holdings_ok):
+            with patch.object(fetcher, "fetch", return_value=price_df):
+                result = fetcher.fetch_flow_summary()
+                assert result["status"] == "ok"
+                assert result["flow_direction"] == "strong_inflow"
+                assert result["flow_score"] > 0
+                assert result.get("source_tier") == "T0" or result.get("source") == "gld_holdings_tonnes"
 
     def test_fetch_flow_summary_outflow(self):
+        """主信号来自 GLD 持仓(吨)下降."""
         fetcher = IntlGoldEtfFlowFetcher()
-        df = pd.DataFrame({
-            "symbol": ["GLD", "IAU", "GLDM", "PHYS", "SGOL"],
-            "close": [198.0, 39.0, 49.0, 14.5, 24.0],
-            "volume": [10000000, 5000000, 3000000, 1000000, 800000],
-            "change_pct": [-1.5, -1.2, -1.0, -0.8, -1.1],
-            "volume_ratio": [2.0, 1.8, 1.6, 1.5, 1.7],
-            "price_vs_ma20": [-2.0, -1.5, -1.2, -0.8, -1.0],
-            "open": [200.0, 39.5, 49.5, 14.8, 24.5],
-            "high": [200.5, 39.8, 49.8, 14.9, 24.8],
-            "low": [197.0, 38.5, 48.5, 14.2, 23.8],
-        })
-        with patch.object(fetcher, "fetch", return_value=df):
-            result = fetcher.fetch_flow_summary()
-            assert result["status"] == "ok"
-            assert result["flow_direction"] == "strong_outflow"
-            assert result["flow_score"] < 0
+        holdings_ok = {
+            "status": "ok",
+            "flow_direction": "strong_outflow",
+            "flow_score": -0.7,
+            "holdings_tonnes": 890.0,
+            "prev_holdings_tonnes": 900.0,
+            "tonnes_delta": -10.0,
+            "holdings_change_pct": -1.11,
+            "source": "gld_holdings_tonnes",
+            "source_tier": "T0",
+        }
+        with patch.object(fetcher, "fetch_holdings_flow", return_value=holdings_ok):
+            with patch.object(fetcher, "fetch", return_value=pd.DataFrame()):
+                result = fetcher.fetch_flow_summary()
+                assert result["status"] == "ok"
+                assert result["flow_direction"] == "strong_outflow"
+                assert result["flow_score"] < 0
 
 
 class TestEtfFlowSignalGeneratorIntl:

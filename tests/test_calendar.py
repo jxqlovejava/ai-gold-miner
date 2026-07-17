@@ -6,6 +6,43 @@ from datetime import datetime
 from gold_miner.data.calendar import EventCalendar, EventImpact
 
 
+class TestEventCalendarAutoload:
+    """EventCalendar.__init__ 默认 autoload，避免直接用户拿到 n=0."""
+
+    def test_autoload_populates_events(self):
+        cal = EventCalendar()
+        assert len(cal.events) > 0
+
+    def test_autoload_false_starts_empty(self):
+        cal = EventCalendar(autoload=False)
+        assert cal.events == []
+        assert cal._loaded_years == set()
+
+    def test_load_fixed_calendar_idempotent_same_year(self):
+        cal = EventCalendar()
+        n = len(cal.events)
+        assert n > 0
+        year = datetime.now().year
+        again = cal.load_fixed_calendar(year)
+        assert len(cal.events) == n
+        assert len(again) == n
+        # 再次加载仍不翻倍
+        cal.load_fixed_calendar(year)
+        assert len(cal.events) == n
+
+    def test_load_different_year_extends_without_doubling(self):
+        cal = EventCalendar(autoload=False)
+        e2026 = cal.load_fixed_calendar(2026)
+        n1 = len(cal.events)
+        assert len(e2026) == n1
+        e2025 = cal.load_fixed_calendar(2025)
+        assert len(e2025) > 0
+        assert len(cal.events) == n1 + len(e2025)
+        # 重复加载 2026 不增加
+        cal.load_fixed_calendar(2026)
+        assert len(cal.events) == n1 + len(e2025)
+
+
 class TestEventCalendar2026:
     """2026 年日历日期验证.
 
@@ -84,7 +121,12 @@ class TestEventCalendar2026:
         assert len(events) == 8
 
     def test_all_events_have_source(self):
+        from gold_miner.data.calendar import EventType
+
         for e in self.events:
+            # monitor 可由分析流程追加，source 允许为空；固定宏观日历必须有来源
+            if e.event_type == EventType.MONITOR:
+                continue
             assert e.source != "", f"Event {e.name} has no source"
 
     # --- 2025 年日历验证 ---

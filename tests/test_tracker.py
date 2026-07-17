@@ -5,11 +5,15 @@ import json
 import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
-import os
 
 import pytest
 
-from gold_miner.improvement.tracker import PredictionRecord, PredictionTracker
+from gold_miner.improvement.tracker import (
+    PredictionRecord,
+    PredictionTracker,
+    determine_correctness,
+    normalize_direction,
+)
 
 
 def _make_record(
@@ -37,6 +41,49 @@ def _make_record(
     )
 
 
+class TestNormalizeDirection:
+    def test_bullish_aliases(self):
+        for d in ("long", "buy", "BUY", "bullish", "做多", "看多", "买入"):
+            assert normalize_direction(d) == "long"
+
+    def test_bearish_aliases(self):
+        for d in ("short", "sell", "SELL", "bearish", "做空", "看空", "卖出"):
+            assert normalize_direction(d) == "short"
+
+    def test_neutral_aliases(self):
+        for d in ("neutral", "hold", "HOLD", "观望", "中性", "持有"):
+            assert normalize_direction(d) == "neutral"
+
+    def test_unknown_defaults_neutral(self):
+        assert normalize_direction("whatever") == "neutral"
+        assert normalize_direction("") == "neutral"
+
+
+class TestDetermineCorrectness:
+    def test_long_correct_on_up(self):
+        assert determine_correctness("long", 0.01) is True
+        assert determine_correctness("buy", 0.05) is True
+
+    def test_long_incorrect_on_down(self):
+        assert determine_correctness("long", -0.01) is False
+
+    def test_short_correct_on_down(self):
+        assert determine_correctness("short", -0.02) is True
+        assert determine_correctness("sell", -0.05) is True
+
+    def test_short_incorrect_on_up(self):
+        assert determine_correctness("short", 0.01) is False
+
+    def test_neutral_within_band(self):
+        # 1.4% still within 1.5% band
+        assert determine_correctness("neutral", 0.014) is True
+        assert determine_correctness("hold", -0.01) is True
+
+    def test_neutral_outside_band(self):
+        assert determine_correctness("neutral", 0.02) is False
+        assert determine_correctness("观望", -0.02) is False
+
+
 class TestPredictionRecord:
     def test_create_record(self):
         r = _make_record()
@@ -56,7 +103,19 @@ class TestPredictionTracker:
             loaded = tracker.load_all()
             assert len(loaded) == 1
             assert loaded[0].id == "abc123"
-            assert loaded[0].direction == "buy"
+            # buy is normalized to long on record
+            assert loaded[0].direction == "long"
+
+    def test_record_normalizes_direction(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tracker = PredictionTracker(data_dir=Path(tmpdir))
+            tracker.record_prediction(_make_record(id="a", direction="做多"))
+            tracker.record_prediction(_make_record(id="b", direction="sell"))
+            tracker.record_prediction(_make_record(id="c", direction="hold"))
+            by_id = {r.id: r.direction for r in tracker.load_all()}
+            assert by_id["a"] == "long"
+            assert by_id["b"] == "short"
+            assert by_id["c"] == "neutral"
 
     def test_resolve_prediction_correct_buy(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -69,6 +128,7 @@ class TestPredictionTracker:
             assert resolved.was_correct is True
             assert resolved.actual_return == pytest.approx(0.05)
             assert resolved.actual_price == 2100.0
+            assert resolved.direction == "long"
 
     def test_resolve_prediction_incorrect_buy(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -88,6 +148,7 @@ class TestPredictionTracker:
 
             resolved = tracker.resolve_prediction("abc123", 1900.0)
             assert resolved.was_correct is True
+            assert resolved.direction == "short"
 
     def test_resolve_prediction_incorrect_sell(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -98,14 +159,57 @@ class TestPredictionTracker:
             resolved = tracker.resolve_prediction("abc123", 2100.0)
             assert resolved.was_correct is False
 
+    def test_resolve_prediction_long_correct(self):
+        """Regression: long must NOT fall into hold/neutral branch."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tracker = PredictionTracker(data_dir=Path(tmpdir))
+            tracker.record_prediction(
+                _make_record(direction="long", current_price=900.0)
+            )
+            # +2% — would fail under old |ret|<1% hold logic if long misclassified
+            resolved = tracker.resolve_prediction("abc123", 918.0)
+            assert resolved is not None
+            assert resolved.was_correct is True
+            assert resolved.actual_return == pytest.approx(0.02)
+
+    def test_resolve_prediction_long_incorrect(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tracker = PredictionTracker(data_dir=Path(tmpdir))
+            tracker.record_prediction(
+                _make_record(direction="long", current_price=900.0)
+            )
+            resolved = tracker.resolve_prediction("abc123", 882.0)
+            assert resolved.was_correct is False
+            assert resolved.actual_return == pytest.approx(-0.02)
+
+    def test_resolve_prediction_short_correct(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tracker = PredictionTracker(data_dir=Path(tmpdir))
+            tracker.record_prediction(
+                _make_record(direction="short", current_price=900.0)
+            )
+            resolved = tracker.resolve_prediction("abc123", 882.0)
+            assert resolved.was_correct is True
+
+    def test_resolve_prediction_short_incorrect(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tracker = PredictionTracker(data_dir=Path(tmpdir))
+            tracker.record_prediction(
+                _make_record(direction="short", current_price=900.0)
+            )
+            resolved = tracker.resolve_prediction("abc123", 918.0)
+            assert resolved.was_correct is False
+
     def test_resolve_prediction_hold_correct(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             tracker = PredictionTracker(data_dir=Path(tmpdir))
             r = _make_record(direction="hold", current_price=2000.0)
             tracker.record_prediction(r)
 
+            # 0.5% < 1.5% neutral band
             resolved = tracker.resolve_prediction("abc123", 2010.0)
-            assert resolved.was_correct is True  # < 1% change
+            assert resolved.was_correct is True
+            assert resolved.direction == "neutral"
 
     def test_resolve_prediction_hold_incorrect(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -113,8 +217,26 @@ class TestPredictionTracker:
             r = _make_record(direction="hold", current_price=2000.0)
             tracker.record_prediction(r)
 
+            # 2.5% > 1.5% neutral band
             resolved = tracker.resolve_prediction("abc123", 2050.0)
-            assert resolved.was_correct is False  # > 1% change
+            assert resolved.was_correct is False
+
+    def test_resolve_prediction_neutral_band_edge(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tracker = PredictionTracker(data_dir=Path(tmpdir))
+            tracker.record_prediction(
+                _make_record(id="n1", direction="neutral", current_price=1000.0)
+            )
+            # exactly 1.4% — within band
+            r1 = tracker.resolve_prediction("n1", 1014.0)
+            assert r1.was_correct is True
+
+            tracker.record_prediction(
+                _make_record(id="n2", direction="neutral", current_price=1000.0)
+            )
+            # 1.6% — outside band
+            r2 = tracker.resolve_prediction("n2", 1016.0)
+            assert r2.was_correct is False
 
     def test_list_unresolved(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -152,6 +274,9 @@ class TestPredictionTracker:
             assert stats["unresolved"] == 0
             assert stats["correct"] == 1
             assert stats["accuracy"] == 0.5
+            # fixture prices 2000 excluded from accuracy_ex_test
+            assert stats["accuracy_ex_test"] == 0.0
+            assert stats["resolved_ex_test"] == 0
 
     def test_resolve_nonexistent_returns_none(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -180,6 +305,79 @@ class TestPredictionTracker:
             recent = tracker.recent(2)
             assert len(recent) == 2
             assert recent[0].id == "new"
+
+    def test_auto_resolve_stale(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tracker = PredictionTracker(data_dir=Path(tmpdir))
+            old = _make_record(
+                id="stale1",
+                direction="long",
+                current_price=900.0,
+                timestamp=datetime.now() - timedelta(hours=48),
+            )
+            fresh = _make_record(
+                id="fresh1",
+                direction="long",
+                current_price=900.0,
+                timestamp=datetime.now() - timedelta(hours=2),
+            )
+            tracker.record_prediction(old)
+            tracker.record_prediction(fresh)
+
+            newly = tracker.auto_resolve_stale(current_price=945.0, min_age_hours=24)
+            assert len(newly) == 1
+            assert newly[0].id == "stale1"
+            assert newly[0].actual_price == 945.0
+            assert newly[0].was_correct is True  # +5%
+            assert newly[0].actual_return == pytest.approx(0.05)
+
+            # fresh still unresolved
+            assert tracker.list_unresolved()[0].id == "fresh1"
+            assert len(tracker.list_resolved()) == 1
+
+    def test_auto_resolve_skips_invalidated_and_already_resolved(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tracker = PredictionTracker(data_dir=Path(tmpdir))
+            tracker.record_prediction(
+                _make_record(
+                    id="done",
+                    direction="long",
+                    current_price=900.0,
+                    timestamp=datetime.now() - timedelta(hours=72),
+                )
+            )
+            tracker.record_prediction(
+                _make_record(
+                    id="bad",
+                    direction="long",
+                    current_price=900.0,
+                    timestamp=datetime.now() - timedelta(hours=72),
+                )
+            )
+            tracker.resolve_prediction("done", 910.0)
+            tracker.invalidate_prediction("bad", reason="test")
+
+            newly = tracker.auto_resolve_stale(current_price=950.0, min_age_hours=24)
+            assert newly == []
+
+    def test_auto_resolve_with_horizons_hours(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tracker = PredictionTracker(data_dir=Path(tmpdir))
+            tracker.record_prediction(
+                _make_record(
+                    id="h1",
+                    direction="short",
+                    current_price=1000.0,
+                    timestamp=datetime.now() - timedelta(hours=30),
+                )
+            )
+            newly = tracker.auto_resolve_stale(
+                current_price=980.0,
+                min_age_hours=24,
+                horizons_hours=[24, 120],
+            )
+            assert len(newly) == 1
+            assert newly[0].was_correct is True  # short + down 2%
 
     def test_corrupted_jsonl_skipped(self):
         with tempfile.TemporaryDirectory() as tmpdir:

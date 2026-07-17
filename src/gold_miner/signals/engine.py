@@ -111,7 +111,22 @@ class ScoringEngine:
 
         return bundle
 
-    def recommend(self, bundle: SignalBundle, threshold_buy: float = 0.3, threshold_sell: float = -0.3) -> dict[str, str]:
+    def recommend(
+        self,
+        bundle: SignalBundle,
+        threshold_buy: float = 0.3,
+        threshold_sell: float = -0.3,
+    ) -> dict[str, str]:
+        """用户可见动作建议（pipeline 展示层应优先用此结果，勿把弱分当 buy）.
+
+        阈值（与 PortfolioManager.SCORE_THRESHOLD 对齐）：
+        - buy:  composite_score >= 0.3 且 confidence > 0.4
+        - sell: composite_score <= -0.3 且 confidence > 0.4
+        - 其余: hold（含弱分 +0.07 等，不得展示为买入）
+
+        注意：仅做多积存金场景下 sell 表示减仓/止盈参考，不是开空。
+        持仓感知动作（加仓/持有/减仓）见 decision.position_state。
+        """
         score = bundle.composite_score
         conf = bundle.confidence
 

@@ -90,7 +90,21 @@ class DashboardFormatter:
         current_price: float = 0.0,
     ) -> TradeDecision:
         direction = portfolio_decision.get("direction", "neutral")
-        signal_map = {"long": "buy", "short": "sell", "neutral": "hold"}
+        action = portfolio_decision.get("action") or ""
+        action_cn = portfolio_decision.get("action_cn") or ""
+        pos_state = portfolio_decision.get("position_state") or {}
+
+        # 仪表盘信号：优先动作，避免 hold 时仍显示「买入」
+        if action == "add":
+            signal = "buy"
+        elif action in ("reduce", "stop"):
+            signal = "sell"
+        elif action in ("hold", "stand_aside"):
+            signal = "hold"
+        else:
+            signal = {"long": "buy", "short": "sell", "neutral": "hold"}.get(
+                direction, "hold"
+            )
 
         score_details: dict[str, float] = {}
         for dim in ["technical", "fundamental", "news", "sentiment", "hype_bias", "event", "polymarket", "anomaly", "scenario"]:
@@ -103,21 +117,39 @@ class DashboardFormatter:
         position_pct = portfolio_decision.get("position_pct", 0)
         stop_loss = 0.0
         take_profit = 0.0
-        if direction == "long" and current_price > 0:
+        if action == "add" and current_price > 0:
             stop_loss = current_price * 0.97
             take_profit = current_price * 1.06
-        elif direction == "short" and current_price > 0:
+        elif action in ("reduce", "stop") and current_price > 0:
             stop_loss = current_price * 1.03
             take_profit = current_price * 0.94
+        elif direction == "long" and current_price > 0 and action not in ("hold", "stand_aside"):
+            stop_loss = current_price * 0.97
+            take_profit = current_price * 1.06
 
         action_list: list[str] = []
-        if direction == "long":
+        if action_cn:
+            action_list.append(f"持仓动作: {action_cn}")
+        if pos_state.get("reason"):
+            action_list.append(str(pos_state["reason"]))
+        if action == "add":
+            action_list.append(f"以 {current_price:.2f} 附近分批加仓/建仓（建议增量 {position_pct:.0%}）")
+            if stop_loss:
+                action_list.append(f"设置止损 {stop_loss:.2f}")
+            if take_profit:
+                action_list.append(f"设置止盈 {take_profit:.2f}")
+        elif action == "reduce":
+            action_list.append(f"减仓约 {position_pct:.0%} 持仓，勿市价恐慌清仓")
+        elif action == "stop":
+            action_list.append("触及止损规则：按预设条件单/止损离场")
+        elif action == "hold":
+            action_list.append("维持当前仓位；保留已有条件单（止损/低吸）")
+        elif action == "stand_aside":
+            action_list.append("空仓观望，等待 score≥0.3 且多维确认后再建仓")
+        elif direction == "long":
             action_list.append(f"以 {current_price:.2f} 附近开仓买入")
             action_list.append(f"设置止损 {stop_loss:.2f}")
             action_list.append(f"设置止盈 {take_profit:.2f}")
-        elif direction == "short":
-            action_list.append(f"以 {current_price:.2f} 附近平仓或做空")
-            action_list.append(f"设置止损 {stop_loss:.2f}")
         else:
             action_list.append("维持当前仓位，等待更明确信号")
 
@@ -127,8 +159,19 @@ class DashboardFormatter:
                 name = sig.name.replace("未来事件: ", "")
                 events.append(f"{name}: {sig.description}")
 
+        risk: dict[str, Any] = {
+            "综合评分": f"{signal_bundle.composite_score:+.2f}",
+            "置信度": f"{signal_bundle.confidence:.0%}",
+        }
+        if pos_state:
+            risk["浮盈亏"] = f"{float(pos_state.get('unrealized_pnl_pct') or 0):+.1%}"
+            risk["当前黄金占比"] = f"{float(pos_state.get('current_gold_pct') or 0):.0%}"
+            risk["目标黄金占比"] = f"{float(pos_state.get('target_gold_pct') or 0):.0%}"
+        if action == "add":
+            risk["最大回撤预期"] = f"{position_pct * 3:.1f}%"
+
         return TradeDecision(
-            signal=signal_map.get(direction, "hold"),
+            signal=signal,
             instrument=instrument,
             position_pct=position_pct,
             entry_price=current_price,
@@ -136,11 +179,7 @@ class DashboardFormatter:
             stop_loss=stop_loss,
             take_profit=take_profit,
             score_details=score_details,
-            risk_assessment={
-                "最大回撤预期": f"{position_pct * 3:.1f}%",
-                "综合评分": f"{signal_bundle.composite_score:+.2f}",
-                "置信度": f"{signal_bundle.confidence:.0%}",
-            },
+            risk_assessment=risk,
             action_list=action_list,
             events=events,
         )

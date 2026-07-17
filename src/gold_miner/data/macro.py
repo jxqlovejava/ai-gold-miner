@@ -17,7 +17,8 @@ class MacroDataFetcher(DataFetcher):
     """宏观数据获取器 — FRED + Yahoo Finance."""
 
     SERIES = {
-        "dxy": "DTWEXBGS",
+        # FRED DTWEXBGS 是贸易加权美元指数(广义)，水平约 120，不是 ICE DXY(~100)
+        "trade_weighted_usd": "DTWEXBGS",
         "real_rate_10y": "REAINTRATREARAT10Y",
         "breakeven_10y": "T10YIE",
         "fed_rate": "DFF",
@@ -28,8 +29,8 @@ class MacroDataFetcher(DataFetcher):
 
     SERIES_META: dict[str, dict[str, str]] = {
         "DTWEXBGS": {
-            "indicator": "dxy",
-            "name": "美元指数",
+            "indicator": "trade_weighted_usd",
+            "name": "贸易加权美元指数(广义)",
             "unit": "index",
             "impact": "high",
             "frequency": "daily",
@@ -101,7 +102,7 @@ class MacroDataFetcher(DataFetcher):
         """从FRED获取宏观数据.
 
         Args:
-            series_id: FRED series ID，如 'DTWEXBGS' (美元指数)
+            series_id: FRED series ID，如 'DTWEXBGS' (贸易加权美元指数)
         """
         if not self.api_key:
             logger.warning("FRED API key未配置，跳过宏观数据抓取")
@@ -204,7 +205,43 @@ class MacroDataFetcher(DataFetcher):
             logger.warning(f"持久化宏观数据失败 ({series_id}): {e}")
 
     def fetch_dxy(self) -> pd.DataFrame:
-        """抓取美元指数历史数据 — 通过 FRED API."""
+        """抓取 ICE 美元指数 (DXY) 历史数据 — Yahoo Finance ``DX-Y.NYB``.
+
+        注意: 不要与 FRED ``DTWEXBGS``（贸易加权美元指数，水平约 120）混淆。
+        交易者口中的 DXY 指 ICE Dollar Index，水平约 100。
+        """
+        symbol = settings.yahoo_symbol_dxy
+        try:
+            import yfinance as yf
+
+            ticker = yf.Ticker(symbol)
+            hist = ticker.history(period="1y")
+            if hist is None or hist.empty:
+                logger.warning(f"Yahoo Finance 返回空 DXY 数据 ({symbol})")
+                return pd.DataFrame(columns=["timestamp", "value"])
+
+            df = hist.reset_index()
+            # yfinance 索引列可能是 Date 或 Datetime
+            date_col = "Date" if "Date" in df.columns else "Datetime"
+            if date_col not in df.columns:
+                # 已是普通列名场景
+                date_col = df.columns[0]
+            df = df.rename(columns={date_col: "timestamp", "Close": "value"})
+            df["timestamp"] = pd.to_datetime(df["timestamp"]).dt.tz_localize(None)
+            df["value"] = pd.to_numeric(df["value"], errors="coerce")
+            out = df[["timestamp", "value"]].dropna().reset_index(drop=True)
+            if out.empty:
+                logger.warning(f"Yahoo Finance DXY 解析后为空 ({symbol})")
+            return out
+        except Exception as e:
+            logger.warning(f"ICE DXY 获取失败 ({symbol}): {e}")
+            return pd.DataFrame(columns=["timestamp", "value"])
+
+    def fetch_trade_weighted_usd(self) -> pd.DataFrame:
+        """抓取贸易加权美元指数(广义) — FRED DTWEXBGS.
+
+        水平约 120，不是 ICE DXY。用于宏观研究时需明确标注指标名称。
+        """
         df = self.fetch(series_id="DTWEXBGS")
         if df.empty:
             return pd.DataFrame(columns=["timestamp", "value"])
@@ -239,7 +276,8 @@ class MacroDataFetcher(DataFetcher):
     def fetch_all_macro(self) -> dict[str, pd.DataFrame]:
         """一次性获取所有宏观指标."""
         return {
-            "dxy": self.fetch_dxy(),
+            "dxy": self.fetch_dxy(),  # ICE DXY (~100)
+            "trade_weighted_usd": self.fetch_trade_weighted_usd(),  # FRED DTWEXBGS (~120)
             "yield_curve": self.fetch_yield_curve(),
         }
 
@@ -283,7 +321,8 @@ def fetch_macro_data(lookback_days: int = 365) -> dict[str, pd.DataFrame]:
         lookback_days: 回溯天数
 
     Returns:
-        dict with keys: dxy, yield_curve, real_rate, breakeven, silver
+        dict with keys: dxy (ICE), trade_weighted_usd (FRED DTWEXBGS),
+                        yield_curve, real_rate, breakeven, silver
     """
     fetcher = MacroDataFetcher()
     result = fetcher.fetch_all_macro()

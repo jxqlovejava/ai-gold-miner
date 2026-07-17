@@ -15,7 +15,8 @@ from gold_miner.signals.base import Signal, SignalDirection, SignalStrength
 class EtfFlowSignalGenerator:
     """ETF资金流信号生成器 — 同时追踪黄金ETF和比特币ETF."""
 
-    SOURCE_TIER = "T1"  # yfinance 数据终端，官方授权数据
+    SOURCE_TIER = "T1"  # 默认; 持仓路径单独标 T0
+    HOLDINGS_SOURCE_TIER = "T0"  # SPDR GLD 官方持仓
 
     def __init__(self) -> None:
         self.gold_fetcher = GoldEtfFlowFetcher()
@@ -34,11 +35,15 @@ class EtfFlowSignalGenerator:
         return signals
 
     # ------------------------------------------------------------------
-    # 黄金ETF信号
+    # 国内黄金ETF信号（价格 proxy，非真实资金流）
     # ------------------------------------------------------------------
 
     def _gold_etf_signals(self) -> list[Signal]:
-        """黄金ETF资金流信号 — 资金流入=看涨，流出=看跌."""
+        """国内黄金ETF价格/成交量 proxy 信号.
+
+        注意: 国内路径目前仅有日增长率+成交量，不是真实申赎资金流。
+        信号名与描述必须标明 proxy，score 上限 |0.3|。
+        """
         signals: list[Signal] = []
         try:
             summary = self.gold_fetcher.fetch_daily_change()
@@ -50,46 +55,58 @@ class EtfFlowSignalGenerator:
             total_vol = summary.get("total_volume", 0)
             total_turnover = summary.get("total_turnover", 0)
 
-            # 量价配合信号
+            # 价格变动 proxy（非真实资金流），score 严格封顶
             if direction_str == "inflow" and nav_change > 0.5:
-                strength = SignalStrength.STRONG if nav_change > 1.5 else SignalStrength.MODERATE
+                score = min(nav_change / 10, 0.3)
                 signals.append(Signal(
-                    name="黄金ETF资金流入",
+                    name="国内黄金ETF价格变动(proxy)",
                     dimension="sentiment",
                     direction=SignalDirection.BULLISH,
-                    strength=strength,
-                    score=min(nav_change / 3, 0.8),
-                    description=(
-                        f"黄金ETF量价齐升: 成交额{turnover_fmt(total_turnover)}, "
-                        f"净值+{nav_change:.2f}%, 成交量{turnover_fmt(total_vol)}手"
-                    ),
-                    metadata={"source": "gold_etf", "nav_change": nav_change},
-                ))
-            elif direction_str == "outflow" and nav_change < -0.5:
-                score = max(nav_change / 3, -0.8)
-                signals.append(Signal(
-                    name="黄金ETF资金流出",
-                    dimension="sentiment",
-                    direction=SignalDirection.BEARISH,
-                    strength=SignalStrength.MODERATE if nav_change < -1.5 else SignalStrength.WEAK,
+                    strength=SignalStrength.WEAK,
                     score=round(score, 2),
                     description=(
-                        f"黄金ETF量价齐跌: 成交额{turnover_fmt(total_turnover)}, "
-                        f"净值{nav_change:+.2f}%"
+                        f"国内黄金ETF价格变动(proxy，非真实资金流): "
+                        f"日涨{nav_change:+.2f}%, 成交额{turnover_fmt(total_turnover)}, "
+                        f"成交量{turnover_fmt(total_vol)}手"
                     ),
-                    metadata={"source": "gold_etf", "nav_change": nav_change},
+                    metadata={
+                        "source": "gold_etf_price_proxy",
+                        "nav_change": nav_change,
+                        "is_real_flow": False,
+                    },
+                ))
+            elif direction_str == "outflow" and nav_change < -0.5:
+                score = max(nav_change / 10, -0.3)
+                signals.append(Signal(
+                    name="国内黄金ETF价格变动(proxy)",
+                    dimension="sentiment",
+                    direction=SignalDirection.BEARISH,
+                    strength=SignalStrength.WEAK,
+                    score=round(score, 2),
+                    description=(
+                        f"国内黄金ETF价格变动(proxy，非真实资金流): "
+                        f"日跌{nav_change:+.2f}%, 成交额{turnover_fmt(total_turnover)}"
+                    ),
+                    metadata={
+                        "source": "gold_etf_price_proxy",
+                        "nav_change": nav_change,
+                        "is_real_flow": False,
+                    },
                 ))
 
-            # 成交量异动
+            # 成交量异动（弱 proxy）
             if total_vol > 5_000_000:
                 signals.append(Signal(
-                    name="黄金ETF成交放量",
+                    name="国内黄金ETF成交放量(proxy)",
                     dimension="sentiment",
                     direction=SignalDirection.BULLISH if nav_change > 0 else SignalDirection.BEARISH,
                     strength=SignalStrength.WEAK,
-                    score=0.15 if nav_change > 0 else -0.15,
-                    description=f"黄金ETF成交{turnover_fmt(total_vol)}手, 显著放量",
-                    metadata={"source": "gold_etf_volume"},
+                    score=0.1 if nav_change > 0 else -0.1,
+                    description=(
+                        f"国内黄金ETF成交{turnover_fmt(total_vol)}手, "
+                        f"放量(价格/成交量 proxy，非真实资金流)"
+                    ),
+                    metadata={"source": "gold_etf_volume_proxy", "is_real_flow": False},
                 ))
 
         except Exception as e:
@@ -98,16 +115,16 @@ class EtfFlowSignalGenerator:
         return signals
 
     # ------------------------------------------------------------------
-    # 国际黄金ETF信号
+    # 国际黄金ETF信号 — 持仓(吨)为主
     # ------------------------------------------------------------------
 
     def _intl_gold_etf_signals(self) -> list[Signal]:
-        """国际黄金ETF资金流信号 — GLD/IAU/GLDM等.
+        """国际黄金ETF资金流信号 — 以 GLD 官方持仓(吨)日变化为主信号.
 
         逻辑:
-        - 国际ETF资金大幅流入 = 全球机构增持黄金 → 看涨
-        - 国际ETF资金大幅流出 = 机构减持 → 看跌
-        - GLD 成交量异常放大 = 资金活跃
+        - GLD 持仓吨数↑ = 真实申购/增持 → 看涨 (T0)
+        - GLD 持仓吨数↓ = 真实赎回/减持 → 看跌 (T0)
+        - 成交量异动仅作 secondary 弱 proxy，|score|≤0.2，不得当资金流
         """
         signals: list[Signal] = []
         try:
@@ -116,10 +133,21 @@ class EtfFlowSignalGenerator:
                 return signals
 
             direction = summary.get("flow_direction", "neutral")
-            score = summary.get("flow_score", 0.0)
-            gld_change = summary.get("gld_change_pct", 0.0)
-            gld_vol_ratio = summary.get("gld_volume_ratio", 1.0)
-            vol_surge = summary.get("volume_surge_count", 0)
+            score = float(summary.get("flow_score", 0.0))
+            tonnes_delta = float(summary.get("tonnes_delta", 0.0))
+            holdings_pct = float(summary.get("holdings_change_pct", 0.0))
+            holdings_tonnes = float(summary.get("holdings_tonnes", 0.0))
+            gld_vol_ratio = float(summary.get("gld_volume_ratio", 1.0))
+            gld_change = float(summary.get("gld_change_pct", 0.0))
+
+            holdings_meta = {
+                "source": "gld_holdings_tonnes",
+                "source_tier": self.HOLDINGS_SOURCE_TIER,
+                "tonnes_delta": tonnes_delta,
+                "holdings_change_pct": holdings_pct,
+                "holdings_tonnes": holdings_tonnes,
+                "is_real_flow": True,
+            }
 
             if direction == "strong_inflow":
                 signals.append(Signal(
@@ -129,10 +157,10 @@ class EtfFlowSignalGenerator:
                     strength=SignalStrength.STRONG,
                     score=round(score, 2),
                     description=(
-                        f"国际黄金ETF资金大幅流入: GLD涨{gld_change:+.1f}%, "
-                        f"{vol_surge}只ETF放量, 全球机构增持"
+                        f"GLD持仓(吨)变化: {tonnes_delta:+.2f}吨 "
+                        f"({holdings_pct:+.3f}%), 现持仓{holdings_tonnes:.1f}吨, 大幅增持"
                     ),
-                    metadata={"source": "intl_gold_etf", "gld_change": gld_change},
+                    metadata=holdings_meta,
                 ))
             elif direction == "inflow":
                 signals.append(Signal(
@@ -141,8 +169,11 @@ class EtfFlowSignalGenerator:
                     direction=SignalDirection.BULLISH,
                     strength=SignalStrength.MODERATE,
                     score=round(score, 2),
-                    description=f"国际黄金ETF资金流入: GLD涨{gld_change:+.1f}%",
-                    metadata={"source": "intl_gold_etf", "gld_change": gld_change},
+                    description=(
+                        f"GLD持仓(吨)变化: {tonnes_delta:+.2f}吨 "
+                        f"({holdings_pct:+.3f}%), 现持仓{holdings_tonnes:.1f}吨"
+                    ),
+                    metadata=holdings_meta,
                 ))
             elif direction == "strong_outflow":
                 signals.append(Signal(
@@ -152,10 +183,10 @@ class EtfFlowSignalGenerator:
                     strength=SignalStrength.STRONG,
                     score=round(score, 2),
                     description=(
-                        f"国际黄金ETF资金大幅流出: GLD跌{gld_change:+.1f}%, "
-                        f"{vol_surge}只ETF放量, 全球机构减持"
+                        f"GLD持仓(吨)变化: {tonnes_delta:+.2f}吨 "
+                        f"({holdings_pct:+.3f}%), 现持仓{holdings_tonnes:.1f}吨, 大幅减持"
                     ),
-                    metadata={"source": "intl_gold_etf", "gld_change": gld_change},
+                    metadata=holdings_meta,
                 ))
             elif direction == "outflow":
                 signals.append(Signal(
@@ -164,23 +195,35 @@ class EtfFlowSignalGenerator:
                     direction=SignalDirection.BEARISH,
                     strength=SignalStrength.MODERATE,
                     score=round(score, 2),
-                    description=f"国际黄金ETF资金流出: GLD跌{gld_change:+.1f}%",
-                    metadata={"source": "intl_gold_etf", "gld_change": gld_change},
+                    description=(
+                        f"GLD持仓(吨)变化: {tonnes_delta:+.2f}吨 "
+                        f"({holdings_pct:+.3f}%), 现持仓{holdings_tonnes:.1f}吨"
+                    ),
+                    metadata=holdings_meta,
                 ))
 
-            # GLD 成交量异动
+            # Secondary: 成交量 proxy（非真实资金流），|score|≤0.2
             if gld_vol_ratio > 2.0:
+                vol_score = 0.2 if gld_change > 0 else -0.15
+                vol_score = max(-0.2, min(0.2, vol_score))
                 signals.append(Signal(
-                    name="GLD成交量异常放大",
+                    name="GLD成交量异常放大(proxy)",
                     dimension="sentiment",
                     direction=SignalDirection.BULLISH if gld_change > 0 else SignalDirection.BEARISH,
-                    strength=SignalStrength.MODERATE if gld_change > 0 else SignalStrength.WEAK,
-                    score=0.2 if gld_change > 0 else -0.15,
-                    description=f"GLD成交量达20日均值{gld_vol_ratio:.1f}倍, 资金异动",
-                    metadata={"source": "intl_gold_etf_volume", "gld_vol_ratio": gld_vol_ratio},
+                    strength=SignalStrength.WEAK,
+                    score=vol_score,
+                    description=(
+                        f"价格/成交量 proxy（非真实资金流）: "
+                        f"GLD成交量达20日均值{gld_vol_ratio:.1f}倍, 价格{gld_change:+.1f}%"
+                    ),
+                    metadata={
+                        "source": "intl_gold_etf_volume_proxy",
+                        "gld_vol_ratio": gld_vol_ratio,
+                        "is_real_flow": False,
+                    },
                 ))
 
-            # 国内vs国际背离
+            # 国内(价格proxy) vs 国际(真实持仓) 背离
             domestic = self.gold_fetcher.fetch_daily_change()
             if domestic.get("status") == "ok":
                 dom_dir = domestic.get("flow_direction", "neutral")
@@ -192,7 +235,9 @@ class EtfFlowSignalGenerator:
                         direction=SignalDirection.BULLISH,
                         strength=SignalStrength.WEAK,
                         score=0.1,
-                        description="国内黄金ETF流入但国际ETF流出，内资更乐观",
+                        description=(
+                            "国内黄金ETF价格上涨(proxy)但国际GLD持仓(吨)流出，内资更乐观"
+                        ),
                         metadata={"source": "domestic_intl_divergence"},
                     ))
                 elif dom_dir == "outflow" and "inflow" in intl_dir:
@@ -202,7 +247,9 @@ class EtfFlowSignalGenerator:
                         direction=SignalDirection.BEARISH,
                         strength=SignalStrength.WEAK,
                         score=-0.1,
-                        description="国内黄金ETF流出但国际ETF流入，外资更乐观",
+                        description=(
+                            "国内黄金ETF价格下跌(proxy)但国际GLD持仓(吨)流入，外资更乐观"
+                        ),
                         metadata={"source": "domestic_intl_divergence"},
                     ))
 

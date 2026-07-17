@@ -6,13 +6,54 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 from loguru import logger
 
 from gold_miner.storage import get_store
+
+# Directional correctness: any positive / negative move counts (matches EventStore resolver).
+_DIRECTIONAL_THRESHOLD = 0.0
+# Neutral / hold: treat as correct when price stays within this band.
+_NEUTRAL_BAND = 0.015
+
+_BULLISH_ALIASES = frozenset({
+    "long", "buy", "bullish", "做多", "看多", "买入", "多",
+})
+_BEARISH_ALIASES = frozenset({
+    "short", "sell", "bearish", "做空", "看空", "卖出", "空",
+})
+_NEUTRAL_ALIASES = frozenset({
+    "neutral", "hold", "flat", "观望", "中性", "持有", "空仓",
+})
+
+# Fixture prices often used in unit tests — excluded from accuracy_ex_test.
+_TEST_PRICES = frozenset({1000.0, 2000.0})
+
+
+def normalize_direction(direction: str) -> str:
+    """Normalize direction labels to long | short | neutral."""
+    key = (direction or "").strip().lower()
+    if key in _BULLISH_ALIASES:
+        return "long"
+    if key in _BEARISH_ALIASES:
+        return "short"
+    if key in _NEUTRAL_ALIASES:
+        return "neutral"
+    # Unknown → neutral (safe default for accuracy stats).
+    return "neutral"
+
+
+def determine_correctness(direction: str, actual_return: float) -> bool:
+    """Judge whether a prediction direction was correct given realized return."""
+    side = normalize_direction(direction)
+    if side == "long":
+        return actual_return > _DIRECTIONAL_THRESHOLD
+    if side == "short":
+        return actual_return < -_DIRECTIONAL_THRESHOLD
+    return abs(actual_return) < _NEUTRAL_BAND
 
 
 @dataclass
@@ -57,9 +98,13 @@ class PredictionTracker:
                 continue
 
     def record_prediction(self, record: PredictionRecord) -> None:
+        record.direction = normalize_direction(record.direction)
         self.records.append(record)
         self._append(record)
-        logger.info(f"预测已记录 (id: {record.id}, 方向: {record.direction}, 仓位: {record.position_pct:.0%})")
+        logger.info(
+            f"预测已记录 (id: {record.id}, 方向: {record.direction}, "
+            f"仓位: {record.position_pct:.0%})"
+        )
 
     def _append(self, record: PredictionRecord) -> None:
         data = asdict(record)
@@ -74,25 +119,69 @@ class PredictionTracker:
         """用实际价格结算预测，计算正确性和收益率."""
         for record in self.records:
             if record.id == prediction_id and record.actual_price is None and not record.invalidated:
-                record.actual_price = actual_price
-                record.resolved_at = datetime.now()
-                record.actual_return = (
-                    (actual_price - record.current_price) / record.current_price
-                )
-
-                # 方向正确性判定
-                direction = record.direction
-                ret = record.actual_return
-                if direction == "buy":
-                    record.was_correct = ret > 0
-                elif direction == "sell":
-                    record.was_correct = ret < 0
-                else:  # hold / neutral
-                    record.was_correct = abs(ret) < 0.01
-
-                self._rewrite()
-                return record
+                return self._settle(record, actual_price, rewrite=True)
         return None
+
+    def _settle(
+        self,
+        record: PredictionRecord,
+        actual_price: float,
+        *,
+        rewrite: bool = True,
+    ) -> PredictionRecord:
+        """Settle a single unresolved record in place."""
+        record.actual_price = actual_price
+        record.resolved_at = datetime.now()
+        if record.current_price:
+            record.actual_return = (
+                (actual_price - record.current_price) / record.current_price
+            )
+        else:
+            record.actual_return = 0.0
+        record.was_correct = determine_correctness(
+            record.direction, record.actual_return
+        )
+        if rewrite:
+            self._rewrite()
+        return record
+
+    def auto_resolve_stale(
+        self,
+        current_price: float,
+        min_age_hours: float = 24,
+        horizons_hours: list | None = None,
+    ) -> list[PredictionRecord]:
+        """Auto-resolve unresolved, non-invalidated predictions older than min_age_hours.
+
+        If ``horizons_hours`` is provided, a record is resolved when its age reaches
+        the first horizon that it has exceeded (same effect as min age for the
+        smallest horizon). Default behaviour: resolve once when age >= min_age_hours.
+        """
+        now = datetime.now()
+        # If horizons provided, due when age exceeds any listed horizon; else use min_age_hours.
+        age_thresholds = (
+            [timedelta(hours=float(h)) for h in horizons_hours]
+            if horizons_hours
+            else [timedelta(hours=min_age_hours)]
+        )
+
+        newly_resolved: list[PredictionRecord] = []
+        for record in self.records:
+            if record.actual_price is not None or record.invalidated:
+                continue
+            age = now - record.timestamp
+            if not any(age >= t for t in age_thresholds):
+                continue
+            self._settle(record, current_price, rewrite=False)
+            newly_resolved.append(record)
+
+        if newly_resolved:
+            self._rewrite()
+            logger.info(
+                f"自动结算 {len(newly_resolved)} 条过期预测 "
+                f"(price={current_price}, min_age_hours={min_age_hours})"
+            )
+        return newly_resolved
 
     def invalidate_prediction(
         self, prediction_id: str, reason: str = ""
@@ -130,12 +219,25 @@ class PredictionTracker:
         resolved = self.list_resolved()
         unresolved = self.list_unresolved()
         correct = sum(1 for r in resolved if r.was_correct)
+
+        # Optional: accuracy excluding common unit-test fixtures.
+        ex_test = [
+            r for r in resolved
+            if not r.invalidated
+            and r.current_price not in _TEST_PRICES
+            and not str(r.id).startswith("r")
+        ]
+        correct_ex = sum(1 for r in ex_test if r.was_correct)
+        accuracy_ex_test = correct_ex / len(ex_test) if ex_test else 0.0
+
         return {
             "total": total,
             "resolved": len(resolved),
             "unresolved": len(unresolved),
             "correct": correct,
             "accuracy": correct / len(resolved) if resolved else 0.0,
+            "accuracy_ex_test": accuracy_ex_test,
+            "resolved_ex_test": len(ex_test),
         }
 
     def recent(self, n: int = 10) -> list[PredictionRecord]:

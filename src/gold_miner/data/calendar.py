@@ -257,17 +257,32 @@ class EventCalendar:
     回退到算法推算未覆盖年份。
     """
 
-    def __init__(self, data_path: Path | None = None) -> None:
+    def __init__(
+        self,
+        data_path: Path | None = None,
+        *,
+        autoload: bool = True,
+    ) -> None:
         self.events: list[CalendarEvent] = []
         self._data_path = data_path or _CALENDAR_PATH
+        # 已成功加载过的年份；避免 load_fixed_calendar 重复 extend 导致翻倍
+        self._loaded_years: set[int] = set()
+        if autoload:
+            self.load_fixed_calendar()
 
     # ------------------------------------------------------------------
     # 公开接口
     # ------------------------------------------------------------------
 
     def load_fixed_calendar(self, year: int | None = None) -> list[CalendarEvent]:
-        """从 JSONL 文件加载已知事件，叠加算法生成事件."""
+        """从 JSONL 文件加载已知事件，叠加算法生成事件.
+
+        幂等：同一 year 再次调用不会重复 append，直接返回该年已加载事件。
+        """
         target = year or datetime.now(tz=timezone.utc).year
+        if target in self._loaded_years:
+            return [e for e in self.events if e.scheduled_at.year == target]
+
         jsonl_events = self._load_from_jsonl(year=target)
 
         # JSONL 无该年份数据时回退到推算
@@ -288,6 +303,7 @@ class EventCalendar:
 
         self.events.extend(events)
         self.events.sort(key=lambda e: e.scheduled_at)
+        self._loaded_years.add(target)
         return events
 
     def check_event_outcome(self, event_name: str, actual: str, forecast: str) -> None:

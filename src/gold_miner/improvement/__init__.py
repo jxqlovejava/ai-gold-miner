@@ -3,11 +3,16 @@ from __future__ import annotations
 
 from gold_miner.improvement.analyzer import PerformanceAnalyzer
 from gold_miner.improvement.findings import Finding, FindingGenerator
-from gold_miner.improvement.tracker import PredictionRecord, PredictionTracker
+from gold_miner.improvement.tracker import (
+    PredictionRecord,
+    PredictionTracker,
+    normalize_direction,
+)
 
 __all__ = [
     "PredictionRecord",
     "PredictionTracker",
+    "normalize_direction",
     "PerformanceAnalyzer",
     "Finding",
     "FindingGenerator",

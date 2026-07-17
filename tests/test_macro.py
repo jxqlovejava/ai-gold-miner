@@ -6,6 +6,8 @@ from tempfile import TemporaryDirectory
 
 import pandas as pd
 
+import pytest
+
 from gold_miner.data.economic_data import EconomicDataPoint, EconomicDataRecorder
 from gold_miner.data.macro import MacroDataFetcher
 from gold_miner.storage.local import LocalFileStore
@@ -20,6 +22,78 @@ class FakeRecorder:
     def save(self, point: EconomicDataPoint, force: bool = False) -> bool:
         self.saved.append(point)
         return True
+
+
+class TestMacroDxyVsTradeWeighted:
+    """ICE DXY 与 FRED 贸易加权美元指数必须分开."""
+
+    def test_series_maps_trade_weighted_not_dxy(self):
+        assert MacroDataFetcher.SERIES.get("trade_weighted_usd") == "DTWEXBGS"
+        assert "dxy" not in MacroDataFetcher.SERIES
+        meta = MacroDataFetcher.SERIES_META["DTWEXBGS"]
+        assert meta["indicator"] == "trade_weighted_usd"
+        assert "贸易加权" in meta["name"]
+        assert meta["name"] != "美元指数"
+
+    def test_fetch_dxy_uses_yahoo_ice_symbol(self, monkeypatch):
+        """fetch_dxy 必须走 Yahoo ICE DXY，而非 FRED DTWEXBGS."""
+        idx = pd.to_datetime(["2026-07-01", "2026-07-02", "2026-07-03"])
+        hist = pd.DataFrame(
+            {"Close": [100.5, 101.0, 100.8], "Volume": [1, 1, 1]},
+            index=idx,
+        )
+        hist.index.name = "Date"
+
+        class FakeTicker:
+            def __init__(self, symbol: str) -> None:
+                assert symbol == "DX-Y.NYB"
+                self.symbol = symbol
+
+            def history(self, period: str = "1y") -> pd.DataFrame:
+                return hist
+
+        class FakeYf:
+            @staticmethod
+            def Ticker(symbol: str) -> FakeTicker:
+                return FakeTicker(symbol)
+
+        import sys
+        monkeypatch.setitem(sys.modules, "yfinance", FakeYf)
+
+        fetcher = MacroDataFetcher(recorder=FakeRecorder())
+        called_fred: list[str] = []
+
+        def fake_fetch(**kwargs):
+            called_fred.append(kwargs.get("series_id", ""))
+            return pd.DataFrame(columns=["timestamp", "value", "series_id"])
+
+        monkeypatch.setattr(fetcher, "fetch", fake_fetch)
+        df = fetcher.fetch_dxy()
+        assert called_fred == []  # must not call FRED
+        assert not df.empty
+        assert list(df.columns) == ["timestamp", "value"]
+        assert df["value"].iloc[-1] == pytest.approx(100.8)
+        # ICE DXY 水平约 100，不是贸易加权约 120
+        assert df["value"].mean() < 110
+
+    def test_fetch_trade_weighted_usd_uses_fred(self, monkeypatch):
+        fetcher = MacroDataFetcher(recorder=FakeRecorder())
+        dates = [datetime(2026, 7, 1) - timedelta(days=i) for i in range(2, -1, -1)]
+        fred_df = pd.DataFrame({
+            "timestamp": dates,
+            "value": [120.0, 121.0, 122.0],
+            "series_id": ["DTWEXBGS"] * 3,
+        })
+
+        def fake_fetch(**kwargs):
+            assert kwargs.get("series_id") == "DTWEXBGS"
+            return fred_df
+
+        monkeypatch.setattr(fetcher, "fetch", fake_fetch)
+        df = fetcher.fetch_trade_weighted_usd()
+        assert not df.empty
+        assert list(df.columns) == ["timestamp", "value"]
+        assert df["value"].iloc[-1] == 122.0
 
 
 class TestMacroDataFetcher:
@@ -37,7 +111,8 @@ class TestMacroDataFetcher:
         fetcher._persist_series(df, "DTWEXBGS")
         assert len(recorder.saved) == 1
         point = recorder.saved[0]
-        assert point.indicator == "dxy"
+        # DTWEXBGS 是贸易加权美元指数，不是 ICE DXY
+        assert point.indicator == "trade_weighted_usd"
         assert point.observation_date == "2026-07-01"
         assert point.period == "2026-07-01"
         assert point.actual == 103.0
