@@ -33,6 +33,31 @@ _NEUTRAL_ALIASES = frozenset({
 _TEST_PRICES = frozenset({1000.0, 2000.0})
 
 
+def _json_safe(obj: Any) -> Any:
+    """Recursively coerce values to JSON-serializable Python builtins."""
+    if isinstance(obj, dict):
+        return {str(k): _json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_json_safe(v) for v in obj]
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    if isinstance(obj, bool):
+        return bool(obj)
+    if isinstance(obj, int) and not isinstance(obj, bool):
+        return int(obj)
+    if isinstance(obj, float):
+        return float(obj)
+    if obj is None or isinstance(obj, str):
+        return obj
+    # numpy.bool_ / numpy.floating etc.
+    if hasattr(obj, "item") and callable(obj.item):
+        try:
+            return _json_safe(obj.item())
+        except Exception:
+            pass
+    return str(obj)
+
+
 def normalize_direction(direction: str) -> str:
     """Normalize direction labels to long | short | neutral."""
     key = (direction or "").strip().lower()
@@ -111,7 +136,7 @@ class PredictionTracker:
         data["timestamp"] = record.timestamp.isoformat()
         if record.resolved_at:
             data["resolved_at"] = record.resolved_at.isoformat()
-        self._store.append_prediction(data)
+        self._store.append_prediction(_json_safe(data))
 
     def resolve_prediction(
         self, prediction_id: str, actual_price: float
@@ -202,6 +227,8 @@ class PredictionTracker:
             data["timestamp"] = record.timestamp.isoformat()
             if record.resolved_at:
                 data["resolved_at"] = record.resolved_at.isoformat()
+            # 确保 JSON 可序列化（numpy.bool_ / 嵌套异常类型）
+            data = _json_safe(data)
             records_data.append(data)
         self._store.save_predictions(records_data)
 

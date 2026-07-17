@@ -147,17 +147,20 @@ class PortfolioManager:
         else:
             position_pct = 0.0
 
-        # 弱综合分：不给方向性仓位（策略覆盖可谨慎例外）
+        # 弱综合分：不给方向性开仓；微弱负分≠减仓信号（须 |score|≥阈值）
         weak_score = abs(score) < self.SCORE_THRESHOLD
         if weak_score:
             direction = "neutral"
             position_pct = 0.0
-            bearish_bias = score < 0
+            # 仅显著偏空才保留减仓意图，避免 -0.04 噪声触发 reduce
+            bearish_bias = score <= -self.SCORE_THRESHOLD
 
-        # long_only：永不返回 short；偏空→neutral + 仓位清零（减仓由 position_state 处理）
+        # long_only：永不返回 short；显著偏空由 bearish_bias 交给 position_state 决定是否减仓
         if long_only and direction == "short":
             direction = "neutral"
             position_pct = 0.0
+            if not weak_score:
+                bearish_bias = True
 
         result = {
             "direction": direction,

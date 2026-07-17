@@ -135,11 +135,12 @@ def resolve_position_state(
         secondary_stop is not None and current_price > 0 and current_price <= secondary_stop
     )
 
-    # long_only: short / bearish_bias → 有仓减仓意图，无仓观望；执行方向永不 short
+    # long_only: short / 显著偏空 → 有仓减仓；微弱负分不减仓
+    # bearish_bias 仅当 PM 判定为显著空头意图时为 True
     bearish_intent = (
         direction_raw == "short"
         or composite_score <= -0.3
-        or bool(raw_decision.get("bearish_bias"))
+        or (bool(raw_decision.get("bearish_bias")) and composite_score <= -0.3)
     )
     if long_only and direction_raw == "short":
         exec_direction = "neutral"
