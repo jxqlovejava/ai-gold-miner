@@ -1,0 +1,15 @@
+{
+  "stop_near_pct": 2.0,
+  "day_drop_pct": 2.0,
+  "day_rise_pct": 3.0,
+  "order_near_pct": 1.5,
+  "event_remind_hours": 24,
+  "cool_p0": 5,
+  "cool_p1": 30,
+  "cool_p2": 120,
+  "root": "/home/ubuntu/ai-gold-miner",
+  "portfolio_path": "/home/ubuntu/.hermes/gold/portfolio.yaml",
+  "orders_path": "/home/ubuntu/.hermes/gold/conditional_orders.jsonl",
+  "calendar_path": "/home/ubuntu/.hermes/gold/calendar_events.jsonl",
+  "state_path": "/home/ubuntu/.hermes/gold/sentinel_state.json"
+}
