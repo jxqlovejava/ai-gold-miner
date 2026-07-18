@@ -180,6 +180,10 @@ class SignalPipeline:
         if name in self._steps:
             self._steps[name].enabled = False
 
+    def run(self, context: PipelineContext) -> SignalBundle:
+        """run 别名 — 委托给 execute."""
+        return self.execute(context)
+
     def execute(self, context: PipelineContext) -> SignalBundle:
         """执行管线 — 拓扑排序 + 并行批次 (同一依赖级别的步骤并行执行)."""
         bundle = SignalBundle()
