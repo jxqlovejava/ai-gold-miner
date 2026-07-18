@@ -12,6 +12,7 @@ Hermes 约定:
   orders    仅条件单检查 (有接近才推)
   calendar  仅日历提醒 (有事件才推)
   news      突发新闻监控 (有 breaking news 才推)
+  deep-news-queries  输出深度新闻搜索查询计划 (JSON, 供分析 pipeline)
   full      全部频道 (有异动才推)
   briefing  每日盘前简报 (必推)
   weekly    每周总结 (必推)
@@ -31,7 +32,7 @@ from .engine import SentinelConfig, SentinelEngine
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="黄金哨兵 / Hermes 微信推送")
     parser.add_argument("--mode", default="alert",
-                        help="alert|price|orders|calendar|news|full|briefing|weekly")
+                        help="alert|price|orders|calendar|news|deep-news-queries|full|briefing|weekly")
     parser.add_argument("--portfolio", type=Path, default=None)
     parser.add_argument("--orders", type=Path, default=None)
     parser.add_argument("--calendar", type=Path, default=None)
@@ -119,6 +120,12 @@ def main(argv: list[str] | None = None) -> int:
                 return 0
             if message.strip():
                 print(message, flush=True)
+            return 0
+
+        # ── 深度新闻搜索计划 (供本地分析 pipeline 调用) ──
+        if mode == "deep-news-queries":
+            from .deep_news import print_search_plan
+            print_search_plan()
             return 0
 
         result = engine.run()
