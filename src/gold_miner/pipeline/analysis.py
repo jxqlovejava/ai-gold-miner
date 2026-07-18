@@ -14,6 +14,7 @@ import pandas as pd
 import yaml
 from loguru import logger
 
+from gold_miner.advisor.monitor_evaluator import MonitorContext, MonitorEvaluator
 from gold_miner.config import settings
 from gold_miner.data.jd_accumulation_gold import JdAccumulationGoldFetcher, JdGoldPrice
 from gold_miner.data.macro import MacroDataFetcher
@@ -352,6 +353,9 @@ class AnalysisPipeline:
 
         bundle = SignalBundle()
 
+        # ---- 先评估 active monitor 触发条件，关闭已触发的 ----
+        self._evaluate_active_monitors(result)
+
         # ---- Batch 1: 所有独立信号生成器并行 ----
         news_signals: list[Signal] = []
 
@@ -540,6 +544,34 @@ class AnalysisPipeline:
         except Exception as e:
             logger.warning(f"情绪面数据获取异常，跳过: {e}")
             return [], None
+
+    def _evaluate_active_monitors(self, result: AnalysisResult) -> None:
+        """评估 active monitor 触发条件，已触发则关闭."""
+        try:
+            from gold_miner.data.calendar import EventCalendar
+
+            cal = EventCalendar()
+            active = cal.get_active_monitors()
+            if not active:
+                return
+
+            mctx = MonitorContext(
+                gold_price=result.current_price,
+                minsheng_price=result.minsheng_accumulation_price,
+                xauusd=result.intl_price,
+            )
+            evaluator = MonitorEvaluator(calendar=cal)
+            closed = evaluator.evaluate_and_close(active, mctx)
+
+            if closed:
+                logger.info(
+                    f"[MonitorEvaluator] {len(closed)} 个 monitor 触发: "
+                    f"{', '.join(m.name for m, _ in closed)}"
+                )
+            else:
+                logger.info("[MonitorEvaluator] 无 monitor 触发")
+        except Exception as e:
+            logger.debug(f"active monitor 评估异常: {e}")
 
     # ------------------------------------------------------------------
     # Step 3: 来源验证
