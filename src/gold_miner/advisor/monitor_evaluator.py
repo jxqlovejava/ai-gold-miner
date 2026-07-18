@@ -42,7 +42,7 @@ class MonitorEvaluator:
             triggered, result = self._evaluate(monitor, ctx)
             if triggered and result and self.calendar.close_monitor(monitor.name, result):
                 closed.append((monitor, result))
-                logger.info(f"[Monitor] {monitor.name} 触发并关闭: {result}")
+                logger.debug(f"[Monitor] {monitor.name} 触发并关闭: {result}")
         return closed
 
     def _evaluate(

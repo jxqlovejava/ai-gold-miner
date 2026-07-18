@@ -10,7 +10,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from loguru import logger
 
@@ -86,7 +86,7 @@ class MonitorSignalGenerator:
         # 2. 活跃的 monitor — 观测提醒
         signals.extend(self._generate_active_monitor_signals())
 
-        logger.info(
+        logger.debug(
             f"[Monitor] {len(signals)}个信号 "
             f"(触发: {sum(1 for s in signals if s.direction != SignalDirection.NEUTRAL)}, "
             f"观测中: {sum(1 for s in signals if s.direction == SignalDirection.NEUTRAL)})"
@@ -107,7 +107,7 @@ class MonitorSignalGenerator:
             return []
 
         signals: list[Signal] = []
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
 
         for monitor in triggered:
             triggered_dt = self._parse_triggered_at(monitor.triggered_at)

@@ -565,11 +565,9 @@ class AnalysisPipeline:
 
             if closed:
                 logger.info(
-                    f"[MonitorEvaluator] {len(closed)} 个 monitor 触发: "
+                    f"[Monitor] {len(closed)} 个触发: "
                     f"{', '.join(m.name for m, _ in closed)}"
                 )
-            else:
-                logger.info("[MonitorEvaluator] 无 monitor 触发")
         except Exception as e:
             logger.debug(f"active monitor 评估异常: {e}")
 
