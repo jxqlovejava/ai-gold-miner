@@ -7,11 +7,13 @@ Hermes 约定:
   - 致命错误：stderr 打印，exit 1
 
 频道 (--mode):
-  alert     持仓监控 + 价格异动 (默认)
-  price     仅报价快照
-  orders    仅条件单检查
-  calendar  仅日历提醒
-  full      全部频道
+  alert     持仓监控 + 价格异动 (默认, 有异动才推)
+  price     仅报价快照 (有异动才推)
+  orders    仅条件单检查 (有接近才推)
+  calendar  仅日历提醒 (有事件才推)
+  full      全部频道 (有异动才推)
+  briefing  每日盘前简报 (必推)
+  weekly    每周总结 (必推)
 """
 
 from __future__ import annotations
@@ -28,7 +30,7 @@ from .engine import SentinelConfig, SentinelEngine
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="黄金哨兵 / Hermes 微信推送")
     parser.add_argument("--mode", default="alert",
-                        help="alert|price|orders|calendar|full")
+                        help="alert|price|orders|calendar|full|briefing|weekly")
     parser.add_argument("--portfolio", type=Path, default=None)
     parser.add_argument("--orders", type=Path, default=None)
     parser.add_argument("--calendar", type=Path, default=None)
@@ -84,6 +86,28 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         engine = SentinelEngine(config)
+
+        # ── 定时简报模式 (必推, 无静默) ──
+        if mode == "briefing":
+            from .briefing import generate_daily_briefing
+            message = generate_daily_briefing(config)
+            if args.as_json:
+                print(json.dumps({"mode": "briefing", "message": message},
+                                 ensure_ascii=False, indent=2))
+                return 0
+            print(message, flush=True)
+            return 0
+
+        if mode == "weekly":
+            from .briefing import generate_weekly_summary
+            message = generate_weekly_summary(config)
+            if args.as_json:
+                print(json.dumps({"mode": "weekly", "message": message},
+                                 ensure_ascii=False, indent=2))
+                return 0
+            print(message, flush=True)
+            return 0
+
         result = engine.run()
     except Exception as e:
         if not args.quiet_errors:
