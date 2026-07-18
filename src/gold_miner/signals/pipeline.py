@@ -180,8 +180,10 @@ class SignalPipeline:
         if name in self._steps:
             self._steps[name].enabled = False
 
-    def run(self, context: PipelineContext) -> SignalBundle:
-        """run 别名 — 委托给 execute."""
+    def run(self, context: PipelineContext | None = None) -> SignalBundle:
+        """执行管线 — 便捷入口，context 可选（默认创建空上下文）."""
+        if context is None:
+            context = PipelineContext()
         return self.execute(context)
 
     def execute(self, context: PipelineContext) -> SignalBundle:
