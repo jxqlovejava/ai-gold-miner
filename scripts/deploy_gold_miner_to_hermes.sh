@@ -78,7 +78,7 @@ EOF
 chmod +x /home/ubuntu/.hermes/scripts/gold_sentinel.py"
 
 # 分频道薄入口
-for mode in alert price orders calendar full briefing weekly; do
+for mode in alert price orders calendar news full briefing weekly; do
   "${SSH[@]}" "$HOST" "cat > /home/ubuntu/.hermes/scripts/gold_${mode}.py <<EOFMODE
 #!/usr/bin/env python3
 import os, sys

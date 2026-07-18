@@ -199,6 +199,7 @@ class SentinelEngine:
 
         now = datetime.now(timezone.utc)
         window = now + timedelta(hours=self.cfg.event_remind_hours)
+        happening_now = timedelta(minutes=30)  # ±30分钟视为"正在发生"
 
         try:
             for line in cal_path.read_text(encoding="utf-8").strip().split("\n"):
@@ -216,14 +217,29 @@ class SentinelEngine:
                 if sat.tzinfo is None:
                     continue
 
-                if now <= sat <= window and d.get("impact") == "high":
-                    name = d.get("name", "")
-                    if d.get("actual"):
-                        continue  # 已有结果的事件不提醒
+                name = d.get("name", "")
+                impact = d.get("impact", "medium")
+
+                # 已有结果的事件不提醒
+                if d.get("actual"):
+                    continue
+
+                bj_time = sat.astimezone(BEIJING).strftime("%m-%d %H:%M")
+
+                # ── 正在发生 (±30min) → P0 即时通知 ──
+                if abs((now - sat).total_seconds()) <= happening_now.total_seconds():
+                    alerts.append(SentinelAlert(
+                        level=AlertLevel.P0,
+                        title=f"🔔 正在进行: {name}",
+                        detail=f"时间: {bj_time} (北京), 影响: {impact}",
+                        suggestion="关注市场即时反应, 谨慎操作",
+                    ))
+                # ── 即将到来 (24h内) → P2 提醒 ──
+                elif now <= sat <= window and impact == "high":
                     alerts.append(SentinelAlert(
                         level=AlertLevel.P2,
                         title=f"📅 即将: {name}",
-                        detail=f"时间: {sat.astimezone(BEIJING).strftime('%m-%d %H:%M')} (北京)",
+                        detail=f"时间: {bj_time} (北京)",
                     ))
         except Exception:
             return []
