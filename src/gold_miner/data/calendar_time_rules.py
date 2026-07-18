@@ -197,6 +197,167 @@ def check_events(events: Iterable[dict]) -> tuple[list[str], list[str]]:
     return errors, warnings
 
 
+# ---- DOW (星期) 硬规则 — 防止输出「周三初请失业金」类错误 ----
+
+# 事件类型 → 允许的美东星期 (0=Mon, 6=Sun)
+# None = 不检查
+_DOW_RULES: dict[str, set[int] | None] = {
+    "nfp": {3},                    # 初请失业金永远周四; 非农永远周五
+    "fed_rate": {2},               # FOMC 决议日永远是周三 (14:00 ET)
+    "fomc_minutes": {2, 3},        # 纪要通常周三，偶尔调整
+    "cpi": {1, 2, 3, 4},          # 周二-周五常见
+    "ppi": {0, 1, 2, 3, 4},       # 周一-周五均可能
+    "pce": {1, 2, 3, 4},          # 周二-周五
+    "pmi": {0, 1, 2, 3, 4},
+    "pmi_markit": {0, 1, 2, 3, 4},
+    "fed_speech": {0, 1, 2, 3, 4},
+    "ecb": {0, 1, 2, 3, 4},
+    "boe": {0, 1, 2, 3, 4},
+    "geo": None,                    # 地缘事件任何一天都可能
+    "monitor": None,                # monitor 任何一天都行
+    "gold_reserve": None,
+}
+
+# 事件名称关键词 → 期望 DOW 覆盖 (优先级高于类型规则)
+_NAME_DOW_OVERRIDES: dict[str, set[int]] = {
+    "初请失业金": {3},             # 永远周四
+    "非农就业": {4},               # 永远周五 (偶尔周四但罕见)
+    "非农": {4},
+}
+
+_WEEKDAY_CN = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+_WEEKDAY_EN = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+
+def expected_dow(event_type: str, name: str = "") -> set[int] | None:
+    """返回某事件类型期望的美东星期 (0=Mon, 6=Sun). None=不限制."""
+    # 名称覆盖优先
+    for keyword, dows in _NAME_DOW_OVERRIDES.items():
+        if keyword in name:
+            return dows
+    return _DOW_RULES.get(event_type)
+
+
+def fmt_dow_set(dows: set[int] | None) -> str:
+    """格式化期望 DOW 为人类可读字符串."""
+    if dows is None:
+        return "不限"
+    return ", ".join(_WEEKDAY_CN[d] for d in sorted(dows))
+
+
+def check_event_dow(
+    *,
+    name: str,
+    event_type: str,
+    scheduled_at: datetime,
+) -> list[TimeCheckFinding]:
+    """检查事件的 ET 星期是否符合该类型惯例.
+
+    Returns:
+        findings: 星期异常 = warning (不阻断写入, 但需人工确认).
+    """
+    findings: list[TimeCheckFinding] = []
+
+    if scheduled_at.tzinfo is None:
+        return findings  # 钟点检查已报 error, 不重复
+
+    dow = scheduled_at.weekday()
+    dow_cn = _WEEKDAY_CN[dow]
+    dual = dual_clock_str(scheduled_at)
+
+    # 周末检查 (geo/monitor 除外)
+    if dow >= 5 and event_type not in ("geo", "monitor"):
+        findings.append(TimeCheckFinding(
+            "error",
+            "weekend_event",
+            f"[{event_type}] {name}: 安排在周末 (ET {_WEEKDAY_EN[dow]})。"
+            f" 官方数据/会议不会在周末发布。{dual}",
+        ))
+        return findings
+
+    expected = expected_dow(event_type, name)
+    if expected is not None and dow not in expected:
+        expected_str = ", ".join(_WEEKDAY_CN[d] for d in sorted(expected))
+
+        # 名称覆盖匹配 → 已知确定性事件, DOW 错误 = error 阻断
+        is_name_override = any(kw in name for kw in _NAME_DOW_OVERRIDES)
+        sev = "error" if is_name_override else "warning"
+
+        findings.append(TimeCheckFinding(
+            sev,
+            "dow_anomaly",
+            f"[{event_type}] {name}: ET 星期={dow_cn}({_WEEKDAY_EN[dow]}), "
+            f"该类型通常为 {expected_str}。请确认日期是否正确。{dual}",
+        ))
+
+    return findings
+
+
+# ---- 输出参考表 ----
+
+def generate_dow_reference_table(
+    events: list[dict],
+    days_ahead: int = 30,
+) -> str:
+    """生成未来事件的 DOW 参考表 (Markdown), 供分析报告引用.
+
+    每行包含: 事件名 | ET日期 | ET星期 | 北京时间 | 北京星期 | 期望DOW
+    异常行会在末尾标注 ⚠️。
+    """
+    from datetime import timezone as _tz
+
+    now = datetime.now(tz=_tz.utc)
+    cutoff = now + timedelta(days=days_ahead)
+
+    rows: list[str] = []
+    header = (
+        "| 事件名称 | ET 日期 | ET 星期 | 北京时间 | 北京星期 | 期望 | 校验 |\n"
+        "|----------|---------|---------|----------|----------|------|------|"
+    )
+    rows.append(header)
+
+    for e in events:
+        name = e.get("name", "")
+        etype = e.get("event_type", "")
+        sat_str = e.get("scheduled_at", "")
+        if not sat_str:
+            continue
+        try:
+            dt = datetime.fromisoformat(sat_str)
+        except ValueError:
+            continue
+
+        # 只显示未来的事件 + 最近 7 天已过去的
+        if dt < now - timedelta(days=7) or dt > cutoff:
+            continue
+
+        bj = to_beijing(dt) if dt.tzinfo else dt
+        et_dow_cn = _WEEKDAY_CN[dt.weekday()]
+        et_dow_en = _WEEKDAY_EN[dt.weekday()]
+        bj_dow_cn = _WEEKDAY_CN[bj.weekday()]
+
+        expected = expected_dow(etype, name)
+        expected_str = fmt_dow_set(expected)
+
+        # 校验
+        flags = []
+        if dt.weekday() >= 5 and etype not in ("geo", "monitor"):
+            flags.append("🔴周末")
+        elif expected is not None and dt.weekday() not in expected:
+            flags.append(f"⚠️DOW异常(期望{expected_str})")
+        status = " ".join(flags) if flags else "✅"
+
+        et_date = dt.strftime("%m-%d %H:%M")
+        bj_date = bj.strftime("%m-%d %H:%M")
+
+        rows.append(
+            f"| {name[:30]} | {et_date} | {et_dow_cn}({et_dow_en}) "
+            f"| {bj_date} | {bj_dow_cn} | {expected_str} | {status} |"
+        )
+
+    return "\n".join(rows)
+
+
 def make_et_iso(year: int, month: int, day: int, hour: int, minute: int = 0) -> str:
     """构造带正确 DST 偏移的美东 ISO 字符串 (写入日历用).
 

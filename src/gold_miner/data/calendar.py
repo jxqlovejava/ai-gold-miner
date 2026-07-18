@@ -448,29 +448,58 @@ class EventCalendar:
     def add_event(self, event: CalendarEvent, *, force: bool = False) -> None:
         """添加事件（内存+追加到 JSONL 文件）.
 
-        写入前跑钟点硬规则 (calendar_time_rules)。国会听证晚间 ET 等
-        双重换算形态默认 raise ValueError; force=True 仅用于历史回填。
-        """
-        from gold_miner.data.calendar_time_rules import check_event_clock, dual_clock_str
+        写入前跑三重校验 (calendar_time_rules):
+          1. DOW (星期) — 防止「周三初请失业金」类
+          2. 钟点 — 防双重换算 (听证晚间 ET 等)
+          3. 数据发布时间窗口
 
-        findings = check_event_clock(
+        默认 raise ValueError; force=True 仅用于历史回填。
+        """
+        from gold_miner.data.calendar_time_rules import (
+            check_event_clock,
+            check_event_dow,
+            dual_clock_str,
+        )
+
+        all_errors: list[str] = []
+        dual = (
+            dual_clock_str(event.scheduled_at)
+            if event.scheduled_at.tzinfo
+            else str(event.scheduled_at)
+        )
+
+        # 1. DOW 校验
+        dow_findings = check_event_dow(
             name=event.name,
             event_type=event.event_type.value,
             scheduled_at=event.scheduled_at,
         )
-        errors = [f for f in findings if f.severity == "error"]
-        for f in findings:
-            if f.severity == "warning":
+        for f in dow_findings:
+            if f.severity == "error":
+                all_errors.append(f.message)
+            else:
+                logger.warning(f"[日历DOW] {f.message}")
+
+        # 2. 钟点校验
+        clock_findings = check_event_clock(
+            name=event.name,
+            event_type=event.event_type.value,
+            scheduled_at=event.scheduled_at,
+        )
+        for f in clock_findings:
+            if f.severity == "error":
+                all_errors.append(f.message)
+            elif f.severity == "warning":
                 logger.warning(f"[日历钟点] {f.message}")
-        if errors and not force:
-            detail = "; ".join(e.message for e in errors)
+
+        if all_errors and not force:
+            detail = "; ".join(all_errors)
             raise ValueError(
-                f"拒绝写入日历 (钟点校验失败): {detail} | "
-                f"{dual_clock_str(event.scheduled_at) if event.scheduled_at.tzinfo else event.scheduled_at}"
+                f"拒绝写入日历 (校验失败): {detail} | {dual}"
             )
-        if errors and force:
-            for e in errors:
-                logger.error(f"[日历钟点 force 写入] {e.message}")
+        if all_errors and force:
+            for msg in all_errors:
+                logger.error(f"[日历 force 写入] {msg}")
 
         self.events.append(event)
         self.events.sort(key=lambda e: e.scheduled_at)
@@ -479,6 +508,60 @@ class EventCalendar:
                 f.write(json.dumps(self._to_dict(event), ensure_ascii=False) + "\n")
         except OSError as e:
             logger.warning(f"写入日历文件失败: {e}")
+
+    # ------------------------------------------------------------------
+    # DOW 参考表 (分析前校验用)
+    # ------------------------------------------------------------------
+
+    def dow_reference_table(self, days_ahead: int = 30) -> str:
+        """生成未来事件的 DOW 参考表 (Markdown), 供分析报告引用.
+
+        每行包含 ET/BJ 双列日期和星期, 异常行标注 ⚠️。
+        分析报告中涉及事件日期时必须引用此表校验。
+        """
+        from gold_miner.data.calendar_time_rules import generate_dow_reference_table
+
+        events_dict = [self._to_dict(e) for e in self.events]
+        return generate_dow_reference_table(events_dict, days_ahead=days_ahead)
+
+    def pre_analysis_validate(self) -> tuple[list[str], list[str]]:
+        """分析前校验 — 返回 (errors, warnings).
+
+        此方法应在任何分析 pipeline 运行前调用。
+        若 errors 非空, 分析应中断直到修复。
+        """
+        from gold_miner.data.calendar_time_rules import (
+            check_event_clock,
+            check_event_dow,
+        )
+
+        errors: list[str] = []
+        warnings: list[str] = []
+
+        for e in self.events:
+            # DOW 校验
+            for f in check_event_dow(
+                name=e.name,
+                event_type=e.event_type.value,
+                scheduled_at=e.scheduled_at,
+            ):
+                if f.severity == "error":
+                    errors.append(f.message)
+                else:
+                    warnings.append(f.message)
+
+            # 钟点校验
+            for f in check_event_clock(
+                name=e.name,
+                event_type=e.event_type.value,
+                scheduled_at=e.scheduled_at,
+            ):
+                if f.severity == "error":
+                    errors.append(f.message)
+                else:
+                    warnings.append(f.message)
+
+        return errors, warnings
 
     # ------------------------------------------------------------------
     # Monitor 事件管理
