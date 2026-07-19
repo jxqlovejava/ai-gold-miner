@@ -59,6 +59,11 @@ class EventForecast:
     historical_analogs: list[str] = field(default_factory=list)
     advice_summary: str = ""     # 一句话建议
 
+    @property
+    def name(self) -> str:
+        """向后兼容别名 — 等同于 event_name."""
+        return self.event_name
+
 
 @dataclass(frozen=True)
 class ActionInstruction:
