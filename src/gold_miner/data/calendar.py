@@ -563,6 +563,90 @@ class EventCalendar:
 
         return errors, warnings
 
+    def validate_calendar_completeness(
+        self,
+        year: int | None = None,
+        month: int | None = None,
+    ) -> tuple[list[str], list[str]]:
+        """分析前检查 — 验证当前月份是否有缺失的关键事件类别.
+
+        返回 (missing_categories, warnings).
+
+        检查清单覆盖美国、欧洲、英国、全球关键事件：
+        - 美国: FOMC/CPI/PPI/PCE/NFP/ISM PMI/初请失业金
+        - 欧洲: ECB/全球Flash PMI/德国ZEW/EU消费者信心
+        - 英国: BOE/UK CPI
+
+        若发现缺失的类别，分析流程应标记为不完整，但不应阻止分析——
+        分析者应手动搜索这些事件并补充到报告中。
+
+        Args:
+            year: 目标年份，默认当前年
+            month: 目标月份，默认当前月
+
+        Returns:
+            (missing_categories, warnings) — missing 是需要人肉确认并补充的类别列表
+        """
+        now = datetime.now(tz=timezone.utc)
+        target_year = year or now.year
+        target_month = month or now.month
+
+        # 定义必须覆盖的事件类别及其检查关键词
+        required_categories: list[dict[str, Any]] = [
+            # 美国
+            {"region": "美国", "name": "FOMC/美联储利率决议", "keywords": ["FOMC", "fed_rate"], "severity": "critical"},
+            {"region": "美国", "name": "CPI/通胀数据", "keywords": ["CPI", "cpi"], "severity": "critical"},
+            {"region": "美国", "name": "非农就业", "keywords": ["非农", "NFP", "nfp"], "severity": "critical"},
+            {"region": "美国", "name": "ISM PMI", "keywords": ["ISM", "pmi"], "severity": "high"},
+            {"region": "美国", "name": "核心PCE", "keywords": ["PCE", "pce"], "severity": "high"},
+            # 欧洲
+            {"region": "欧洲", "name": "ECB利率决议", "keywords": ["ECB", "ecb"], "severity": "high"},
+            {"region": "欧洲", "name": "全球Flash PMI", "keywords": ["Flash PMI", "flash_pmi"], "severity": "high"},
+            {"region": "欧洲", "name": "德国ZEW经济情绪", "keywords": ["ZEW", "zew"], "severity": "medium"},
+            {"region": "欧洲", "name": "欧盟消费者信心", "keywords": ["消费者信心", "consumer_confidence"], "severity": "low"},
+            # 英国
+            {"region": "英国", "name": "BOE利率决议", "keywords": ["BOE", "boe"], "severity": "medium"},
+            {"region": "英国", "name": "UK CPI", "keywords": ["UK CPI", "uk_cpi"], "severity": "medium"},
+        ]
+
+        # 收集当前月份所有事件的 event_type 和 name
+        month_events = [
+            e for e in self.events
+            if e.scheduled_at.year == target_year
+            and e.scheduled_at.month == target_month
+        ]
+        month_event_types = {e.event_type.value for e in month_events}
+        month_event_names = " ".join(e.name for e in month_events)
+
+        missing: list[str] = []
+        warnings: list[str] = []
+
+        for cat in required_categories:
+            # 检查 event_type 或 name 中是否包含关键词
+            found = any(
+                kw in month_event_types or kw.lower() in month_event_names.lower()
+                for kw in cat["keywords"]
+            )
+            if not found:
+                msg = (
+                    f"[{cat['region']}] {cat['name']} — "
+                    f"{target_year}年{target_month}月无此事件"
+                )
+                if cat["severity"] == "critical":
+                    missing.append(f"🔴 {msg}")
+                elif cat["severity"] == "high":
+                    missing.append(f"🟡 {msg}")
+                else:
+                    warnings.append(f"⚪ {msg}")
+
+        # 特殊检查：初请失业金（每周四，不适用月度检查，仅提示）
+        has_jobless = any("初请" in e.name or "jobless" in e.name.lower()
+                         for e in self.events)
+        if not has_jobless:
+            warnings.append("⚪ [美国] 初请失业金人数 — 每周事件，未在日历中（不影响分析）")
+
+        return missing, warnings
+
     # ------------------------------------------------------------------
     # Monitor 事件管理
     # ------------------------------------------------------------------
@@ -867,6 +951,128 @@ class EventCalendar:
         return events
 
     # ------------------------------------------------------------------
+    # 全球央行事件生成器（欧洲+英国+日本）
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _generate_ecb_events(year: int) -> list[CalendarEvent]:
+        """ECB利率决议 — 约每6周一次，全年~8次.
+
+        ECB通常在周四14:15 CET (08:15 ET) 公布，新闻发布会14:45 CET.
+        按月推算：1,3,4,6,7,9,10,12 月的中旬。
+        """
+        events: list[CalendarEvent] = []
+        ecb_months = (1, 3, 4, 6, 7, 9, 10, 12)
+        for month in ecb_months:
+            dt = datetime(year, month, 15, 8, 15)
+            dt = dt.replace(tzinfo=_et_offset(dt))
+            events.append(CalendarEvent(
+                name="ECB利率决议",
+                event_type=EventType.ECB,
+                scheduled_at=dt,
+                impact=EventImpact.HIGH,
+                source="European Central Bank (approx.)",
+                description="欧洲央行利率决议 + Lagarde新闻发布会（推算日期）",
+            ))
+        return events
+
+    @staticmethod
+    def _generate_boe_events(year: int) -> list[CalendarEvent]:
+        """BOE利率决议 — 约每6周一次，全年~8次.
+
+        BOE通常在周四12:00 GMT (07:00 ET) 公布.
+        """
+        events: list[CalendarEvent] = []
+        boe_months = (2, 3, 5, 6, 8, 9, 11, 12)
+        for month in boe_months:
+            dt = datetime(year, month, 15, 7, 0)
+            dt = dt.replace(tzinfo=_et_offset(dt))
+            events.append(CalendarEvent(
+                name="BOE利率决议",
+                event_type=EventType.BOE,
+                scheduled_at=dt,
+                impact=EventImpact.MEDIUM,
+                source="Bank of England (approx.)",
+                description="英国央行利率决议（推算日期）",
+            ))
+        return events
+
+    @staticmethod
+    def _generate_global_flash_pmi_events(year: int) -> list[CalendarEvent]:
+        """全球Flash PMI — 每月24日前后 (S&P Global).
+
+        覆盖：法国/德国/欧元区/英国/美国 Flash PMI.
+        制造业PMI + 服务业PMI + 综合PMI 在同一天发布（flash）.
+        """
+        events: list[CalendarEvent] = []
+        for month in range(1, 13):
+            dt = datetime(year, month, 24, 9, 45)
+            dt = dt.replace(tzinfo=_et_offset(dt))
+            events.append(CalendarEvent(
+                name="全球Flash PMI (7月)",
+                event_type=EventType.PMI,
+                scheduled_at=dt,
+                impact=EventImpact.HIGH,
+                source="S&P Global (approx.)",
+                description=(
+                    "法国/德国/欧元区/英国/美国 Flash PMI（制造业+服务业+综合），"
+                    "推算日期，实际以S&P Global发布日历为准"
+                ),
+            ))
+        return events
+
+    @staticmethod
+    def _generate_uk_cpi_events(year: int) -> list[CalendarEvent]:
+        """UK CPI — 每月中旬 (约15-20日) 07:00 GMT."""
+        events: list[CalendarEvent] = []
+        for month in range(1, 13):
+            dt = datetime(year, month, 17, 2, 0)
+            dt = dt.replace(tzinfo=_et_offset(dt))
+            events.append(CalendarEvent(
+                name="UK CPI (6月)",
+                event_type=EventType.CPI,
+                scheduled_at=dt,
+                impact=EventImpact.MEDIUM,
+                source="ONS (approx.)",
+                description="英国消费者物价指数，月度同比/环比（推算日期）",
+            ))
+        return events
+
+    @staticmethod
+    def _generate_german_zew_events(year: int) -> list[CalendarEvent]:
+        """德国ZEW经济情绪指数 — 每月中旬 (约15-18日) 11:00 CEST."""
+        events: list[CalendarEvent] = []
+        for month in range(1, 13):
+            dt = datetime(year, month, 17, 5, 0)
+            dt = dt.replace(tzinfo=_et_offset(dt))
+            events.append(CalendarEvent(
+                name="德国ZEW经济情绪指数",
+                event_type=EventType.PMI,  # 复用 PMI 类型 (经济情绪指标)
+                scheduled_at=dt,
+                impact=EventImpact.MEDIUM,
+                source="ZEW (approx.)",
+                description="德国/欧元区ZEW经济景气指数（推算日期）",
+            ))
+        return events
+
+    @staticmethod
+    def _generate_eu_consumer_confidence(year: int) -> list[CalendarEvent]:
+        """欧盟消费者信心指数 — 每月20-23日 (Flash)."""
+        events: list[CalendarEvent] = []
+        for month in range(1, 13):
+            dt = datetime(year, month, 22, 10, 0)
+            dt = dt.replace(tzinfo=_et_offset(dt))
+            events.append(CalendarEvent(
+                name="欧盟消费者信心指数(7月初值)",
+                event_type=EventType.PMI,  # 复用 PMI 类型 (消费者情绪)
+                scheduled_at=dt,
+                impact=EventImpact.LOW,
+                source="European Commission (approx.)",
+                description="欧元区消费者信心指数初值（推算日期）",
+            ))
+        return events
+
+    # ------------------------------------------------------------------
     # 回退：无数据源的动态推算
     # ------------------------------------------------------------------
 
@@ -875,6 +1081,7 @@ class EventCalendar:
         """从未知年份推算事件日期 (精确度较低).
 
         用于 JSONL 无覆盖的年份，基于历史规律推算。
+        覆盖美国、欧洲、英国、全球PMI等主要市场事件。
         """
         events: list[CalendarEvent] = []
 
@@ -882,7 +1089,8 @@ class EventCalendar:
             dt = datetime(year, month, day, hour, minute)
             return dt.replace(tzinfo=_et_offset(dt))
 
-        # FOMC: 全年8次，约6周一次，大致在每月中旬
+        # ---- 美国事件 ----
+        # FOMC: 全年8次，约6周一次
         for month in (1, 3, 5, 6, 7, 9, 11, 12):
             events.append(CalendarEvent(
                 name="FOMC利率决议",
@@ -929,7 +1137,7 @@ class EventCalendar:
         # NFP
         events.extend(EventCalendar._generate_nfp_events(year))
 
-        # PMI
+        # ISM PMI
         for month in range(1, 13):
             first_day = datetime(year, month, 1)
             days_until_fri = (4 - first_day.weekday()) % 7
@@ -950,5 +1158,15 @@ class EventCalendar:
                 source="S&P Global / ISM (approx.)",
                 description="服务业景气度指标（推算日期）",
             ))
+
+        # ---- 欧洲事件 ----
+        events.extend(EventCalendar._generate_ecb_events(year))
+        events.extend(EventCalendar._generate_boe_events(year))
+        events.extend(EventCalendar._generate_uk_cpi_events(year))
+        events.extend(EventCalendar._generate_german_zew_events(year))
+        events.extend(EventCalendar._generate_eu_consumer_confidence(year))
+
+        # ---- 全球事件 ----
+        events.extend(EventCalendar._generate_global_flash_pmi_events(year))
 
         return events

@@ -133,6 +133,29 @@ def _print_status(errors: list[str], warnings: list[str]) -> None:
         print("✅ 日历日期+钟点+DOW 校验全部通过")
 
 
+def validate_completeness() -> tuple[list[str], list[str]]:
+    """检查当月关键事件类别是否完整覆盖（美国+欧洲+英国+全球）."""
+    try:
+        from gold_miner.data.calendar import EventCalendar  # noqa: E402
+
+        cal = EventCalendar()
+        return cal.validate_calendar_completeness()
+    except ImportError:
+        return [], []
+
+
+def _print_completeness(missing: list[str], warnings: list[str]) -> None:
+    if missing:
+        print("🟡 日历事件覆盖度检查 — 以下类别缺失 (分析前需手动搜索补充):")
+        for m in missing:
+            print(f"  {m}")
+    if warnings:
+        for w in warnings:
+            print(f"  {w}")
+    if not missing and not any("🔴" in m for m in missing):
+        print("✅ 日历事件覆盖度检查通过")
+
+
 if __name__ == "__main__":
     import argparse
 
@@ -161,6 +184,11 @@ if __name__ == "__main__":
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
 
     _print_status(errors, warnings)
+
+    # ---- 完整性检查 (新增) ----
+    missing, completeness_warnings = validate_completeness()
+    print()
+    _print_completeness(missing, completeness_warnings)
 
     if errors:
         sys.exit(1)

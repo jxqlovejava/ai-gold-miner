@@ -31,26 +31,36 @@ _HEARING_NAME_RE = re.compile(
 )
 
 # BLS/BEA 类数据发布: 官方几乎固定 08:30 ET
+# (仅适用于美国数据 — 非美 CPI/PPI 等由 _is_non_us_event 排除)
 _DATA_TYPES = frozenset({"cpi", "ppi", "pce", "nfp"})
 
 # 各类型允许的美东小时 (含端点); None = 不检查小时
 # 说明: 这是防双重换算的安全网, 不是完整官网替代
+# 对于非美事件(欧洲/英国/日本等), 已换算成 ET 的钟点会偏早或偏晚,
+# 由 _is_non_us_event 检测后跳过常规美国钟点检查
 _HOUR_WINDOWS: dict[str, tuple[int, int] | None] = {
-    "cpi": (8, 9),          # 通常 08:30
+    "cpi": (8, 9),          # 通常 08:30 (仅美国CPI; UK CPI 等非美豁免)
     "ppi": (8, 9),
     "pce": (8, 9),
     "nfp": (8, 9),          # 非农/初请多为 08:30
     "fed_rate": (13, 15),   # FOMC 声明多在 14:00 ET
     "fomc_minutes": (13, 15),
     "fed_speech": (8, 17),  # 讲话/听证通常工作日白天; 晚间另有听证规则
-    "pmi": (8, 12),
-    "pmi_markit": (8, 12),
-    "ecb": (5, 14),         # 欧洲时间, 允许更早 ET
-    "boe": (5, 14),
+    "pmi": (0, 12),         # ISM 通常 10:00 ET; 全球Flash PMI 欧洲发布 → ET 03:00-04:00
+    "pmi_markit": (0, 12),
+    "ecb": (5, 14),         # ECB 14:15 CET → 08:15 ET (夏令时)
+    "boe": (5, 14),         # BOE 12:00 GMT → 07:00 ET
     "geo": None,
     "monitor": None,
     "gold_reserve": None,
 }
+
+# 非美国事件名称关键词 (检查时豁免美国钟点惯例)
+_NON_US_EVENT_KEYWORDS: list[str] = [
+    "UK ", "UK(", "ECB", "EU ", "欧盟", "欧元区",
+    "德国", "法国", "英国", "日本", "中国", "全球",
+    "ZEW", "Flash PMI", "BOE", "BOJ", "PBOC",
+]
 
 
 @dataclass(frozen=True)
@@ -91,6 +101,20 @@ def is_hearing_like(name: str, event_type: str = "") -> bool:
     return bool(_HEARING_NAME_RE.search(n))
 
 
+def _is_non_us_event(name: str, event_type: str = "") -> bool:
+    """检测是否为非美国事件 (欧洲/英国/日本/中国/全球).
+
+    非美事件换算成 ET 后钟点可能偏早(如 UK CPI 07:00 BST=02:00 ET)
+    或偏晚, 不应按美国数据发布惯例 (08:30 一带) 来校验钟点。
+    """
+    if event_type in ("ecb", "boe"):
+        return True
+    for kw in _NON_US_EVENT_KEYWORDS:
+        if kw.lower() in name.lower():
+            return True
+    return False
+
+
 def check_event_clock(
     *,
     name: str,
@@ -115,6 +139,9 @@ def check_event_clock(
     hour = scheduled_at.hour
     dual = dual_clock_str(scheduled_at)
 
+    # 非美国事件豁免美国钟点惯例检查
+    non_us = _is_non_us_event(name, event_type)
+
     # --- 国会听证: 美东上午, 晚间几乎必是双重换算 ---
     if is_hearing_like(name, event_type):
         if hour >= 18 or hour < 8:
@@ -135,8 +162,8 @@ def check_event_clock(
             ))
         return findings
 
-    # --- BLS/BEA 数据: 固定 08:30 一带 ---
-    if event_type in _DATA_TYPES:
+    # --- BLS/BEA 数据: 固定 08:30 一带 (仅美国数据) ---
+    if event_type in _DATA_TYPES and not non_us:
         lo, hi = _HOUR_WINDOWS[event_type]  # type: ignore[misc]
         if hour < lo or hour > hi:
             # 白天写错成晚上 = 双重换算高危
@@ -162,6 +189,13 @@ def check_event_clock(
                     "fed_speech_late_et",
                     f"[{event_type}] {name}: 美东晚间讲话少见, 请确认是否误把北京时间当 ET。"
                     f" 若是欧洲日程, 用欧洲官方当地时换算 ET 而非北京钟点。{dual}",
+                ))
+            elif non_us:
+                # 非美事件: 降级为 info (已知原因)
+                findings.append(TimeCheckFinding(
+                    "info",
+                    "non_us_hour",
+                    f"[{event_type}] {name}: 非美国事件, 已换算为 ET hour={hour}. {dual}",
                 ))
             else:
                 findings.append(TimeCheckFinding(
