@@ -275,9 +275,14 @@ class EventCalendar:
     # ------------------------------------------------------------------
 
     def load_fixed_calendar(self, year: int | None = None) -> list[CalendarEvent]:
-        """从 JSONL 文件加载已知事件，叠加算法生成事件.
+        """从 JSONL 文件加载已知事件，自动补全缺失的全球事件类别.
 
-        幂等：同一 year 再次调用不会重复 append，直接返回该年已加载事件。
+        加载策略（三层）：
+        1. JSONL 精确事件（最高优先级，含 actual/forecast 等手动维护字段）
+        2. 自动推算事件（仅补充 JSONL 中缺失的类别，避免重复）
+        3. 幂等：同一 year 再次调用不重复 append
+
+        自动补全覆盖：NFP/ECB/BOE/Flash PMI/UK CPI/德国ZEW/EU消费者信心
         """
         target = year or datetime.now(tz=timezone.utc).year
         if target in self._loaded_years:
@@ -285,26 +290,120 @@ class EventCalendar:
 
         jsonl_events = self._load_from_jsonl(year=target)
 
-        # JSONL 无该年份数据时回退到推算
+        # JSONL 无该年份数据时：完全回退到推算
         if not jsonl_events:
             logger.warning(f"JSONL 无 {target} 年日历数据，使用推算")
             events = self._load_approximate_calendar(target)
         else:
             events = list(jsonl_events)
-            # 收集 JSONL 中已有的 NFP 月份，避免 _generate_nfp_events 生成重复事件
-            nfp_months_in_jsonl = {
-                e.scheduled_at.month
-                for e in jsonl_events
-                if e.event_type == EventType.NFP
-            }
-            events.extend(self._generate_nfp_events(
-                target, skip_months=nfp_months_in_jsonl,
-            ))
+            # JSONL 有数据时：用自动生成器补全 JSONL 中缺失的事件类别
+            self._supplement_missing_categories(events, target)
 
         self.events.extend(events)
         self.events.sort(key=lambda e: e.scheduled_at)
         self._loaded_years.add(target)
         return events
+
+    @staticmethod
+    def _supplement_missing_categories(
+        events: list[CalendarEvent],
+        year: int,
+    ) -> None:
+        """对已有 JSONL 数据的年份，自动补全缺失的全球事件类别.
+
+        检查每个生成器覆盖的月份是否在 events 中已有对应事件，
+        缺失的月份由算法自动生成并追加到 events 列表中。
+        此方法确保即使 JSONL 只维护了美国事件，欧洲/全球事件也不会遗漏。
+        """
+        # 收集已有事件的 (event_type, month) 集合
+        existing: dict[str, set[int]] = {}
+        for e in events:
+            existing.setdefault(e.event_type.value, set()).add(e.scheduled_at.month)
+
+        def _missing_months(etype: str, expected: set[int]) -> set[int]:
+            return expected - existing.get(etype, set())
+
+        # ---- NFP (每月第一个周五) ----
+        nfp_missing = _missing_months("nfp", set(range(1, 13)))
+        if nfp_missing:
+            nfp_events = EventCalendar._generate_nfp_events(year, skip_months=None)
+            for e in nfp_events:
+                if e.scheduled_at.month in nfp_missing:
+                    events.append(e)
+
+        # ---- ECB (每6周，全年约8次) ----
+        ecb_missing = _missing_months("ecb", {1, 3, 4, 6, 7, 9, 10, 12})
+        if ecb_missing:
+            ecb_events = EventCalendar._generate_ecb_events(year)
+            for e in ecb_events:
+                if e.scheduled_at.month in ecb_missing:
+                    events.append(e)
+
+        # ---- BOE (每6周，全年约8次) ----
+        boe_missing = _missing_months("boe", {2, 3, 5, 6, 8, 9, 11, 12})
+        if boe_missing:
+            boe_events = EventCalendar._generate_boe_events(year)
+            for e in boe_events:
+                if e.scheduled_at.month in boe_missing:
+                    events.append(e)
+
+        # ---- 全球 Flash PMI (每月24日) ----
+        flash_pmi_missing = _missing_months("pmi", set(range(1, 13)))
+        if flash_pmi_missing:
+            # 仅补充"全球Flash PMI"类事件（通过名称区分，不影响ISM PMI）
+            flash_events = EventCalendar._generate_global_flash_pmi_events(year)
+            for e in flash_events:
+                if e.scheduled_at.month in flash_pmi_missing:
+                    # 检查是否有同月同名事件（避免重复）
+                    dup = any(
+                        existing.name == e.name
+                        and existing.scheduled_at.month == e.scheduled_at.month
+                        for existing in events
+                    )
+                    if not dup:
+                        events.append(e)
+
+        # ---- UK CPI (每月中旬) ----
+        uk_cpi_missing = _missing_months("cpi", set(range(1, 13)))
+        if uk_cpi_missing:
+            uk_cpi_events = EventCalendar._generate_uk_cpi_events(year)
+            for e in uk_cpi_events:
+                if e.scheduled_at.month in uk_cpi_missing:
+                    dup = any(
+                        existing.name == e.name
+                        and existing.scheduled_at.month == e.scheduled_at.month
+                        for existing in events
+                    )
+                    if not dup:
+                        events.append(e)
+
+        # ---- 德国 ZEW (每月中旬) ----
+        zew_missing = _missing_months("pmi", set(range(1, 13)))
+        if zew_missing:
+            zew_events = EventCalendar._generate_german_zew_events(year)
+            for e in zew_events:
+                if e.scheduled_at.month in zew_missing:
+                    dup = any(
+                        existing.name == e.name
+                        and existing.scheduled_at.month == e.scheduled_at.month
+                        for existing in events
+                    )
+                    if not dup:
+                        events.append(e)
+
+        # ---- EU 消费者信心 (每月22日) ----
+        eu_cc_missing = _missing_months("pmi", set(range(1, 13)))
+        if eu_cc_missing:
+            eu_cc_events = EventCalendar._generate_eu_consumer_confidence(year)
+            for e in eu_cc_events:
+                if e.scheduled_at.month in eu_cc_missing:
+                    dup = any(
+                        existing.name == e.name
+                        and existing.scheduled_at.month == e.scheduled_at.month
+                        for existing in events
+                    )
+                    if not dup:
+                        events.append(e)
 
     def check_event_outcome(self, event_name: str, actual: str, forecast: str) -> None:
         """更新事件的实际结果."""
