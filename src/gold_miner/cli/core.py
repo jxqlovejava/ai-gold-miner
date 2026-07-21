@@ -155,9 +155,9 @@ def main() -> None:
     elif args.command == "verify":
         run_verify_wrapper(args)
     elif args.command == "advisor":
-        from gold_miner.advisor.orchestrator import Advisor
-        advisor = Advisor()
         if args.question:
+            from gold_miner.advisor.orchestrator import Advisor
+            advisor = Advisor()
             print("=" * 60)
             print("💬 投资咨询")
             print("=" * 60)
@@ -170,13 +170,13 @@ def main() -> None:
             )
             print(report.to_markdown())
         else:
+            from gold_miner.advisor.action_guide import run_pipeline_and_report
             print("=" * 60)
             print("🎯 今日行动指令")
             print("=" * 60)
-            report = advisor.daily_guide(
+            report = run_pipeline_and_report(
                 current_position_pct=args.position,
                 avg_cost=args.cost,
-                strategy_preference=args.strategy_pref,
             )
             print(report.to_markdown())
     elif args.command == "doctor":

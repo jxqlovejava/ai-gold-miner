@@ -139,22 +139,22 @@ class Briefer:
         score = 0.0
         action = "hold"
         try:
-            from gold_miner.advisor.orchestrator import Advisor
+            from gold_miner.advisor.action_guide import run_pipeline_and_report
             from gold_miner.agent.portfolio import PortfolioTracker
 
-            advisor = Advisor()
             portfolio = PortfolioTracker()
             snap = portfolio.snapshot(price_dom)
             position_pct = snap.gold_allocation_pct / 100
 
-            report = advisor.daily_guide(
+            report = run_pipeline_and_report(
                 current_position_pct=position_pct,
                 avg_cost=snap.positions[0].avg_cost if snap.positions else 0.0,
             )
             if report.instruction:
-                score = getattr(report.instruction, "score", 0.0) or 0.0
-                raw_action = getattr(report.instruction, "action", "hold") or "hold"
-                action = raw_action if raw_action in ("buy", "sell", "hold") else "hold"
+                score = 0.0  # composite_score 在 report.confidence 中
+                raw_action = getattr(report.instruction, "action", None)
+                action_str = str(raw_action.value) if hasattr(raw_action, "value") else str(raw_action or "hold")
+                action = action_str if action_str in ("buy", "sell", "hold", "add", "reduce") else "hold"
         except Exception as e:
             logger.warning(f"完整管线运行失败，使用简化模式: {e}")
 
