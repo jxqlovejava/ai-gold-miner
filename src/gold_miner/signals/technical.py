@@ -1,13 +1,28 @@
-"""技术面信号 — RSI、MACD、布林带、支撑阻力."""
+"""技术面信号 — RSI、MACD、布林带、支撑阻力、ATR、短期均线、ADX.
+
+ATR/ADX 作为内部调节器，调节现有信号的 strength/score，不输出独立 Signal。
+仅 MA crossover 输出独立 Signal (WEAK 强度)。
+"""
 from __future__ import annotations
+
+import logging
 
 import pandas as pd
 
+from gold_miner.signals._price_utils import average_true_range
 from gold_miner.signals.base import Signal, SignalDirection, SignalStrength
+
+logger = logging.getLogger(__name__)
 
 
 class TechnicalAnalyzer:
-    """技术分析器."""
+    """技术分析器.
+
+    在 ``generate_signals()`` 内部:
+    1. 先计算 ATR/ADX 作为市场环境判断
+    2. 用 ATR/ADX 调节 RSI/MACD/布林带信号的 strength
+    3. 追加 MA crossover 信号
+    """
 
     SOURCE_TIER = "T0"  # 数据源: SGE 官方交易所一手数据
 
@@ -17,6 +32,122 @@ class TechnicalAnalyzer:
 
     def _ensure_sorted(self) -> None:
         self.df = self.df.sort_values("timestamp").reset_index(drop=True)
+
+    # ------------------------------------------------------------------
+    # 共享价格工具
+    # ------------------------------------------------------------------
+
+    def atr(self, period: int = 14) -> dict[str, float]:
+        """计算 ATR 及波动率区间.
+
+        Returns:
+            {"atr": float, "atr_pct": float, "volatility_regime": "low"|"normal"|"high"}
+        """
+        if len(self.df) < period + 1:
+            return {"atr": 0.0, "atr_pct": 0.0, "volatility_regime": "normal"}
+
+        try:
+            atr_series = average_true_range(self.df, period=period)
+            latest_atr = float(atr_series.iloc[-1])
+            latest_close = float(self.df["close"].iloc[-1])
+            atr_pct = (latest_atr / latest_close) * 100 if latest_close > 0 else 0.0
+
+            if atr_pct > 2.0:
+                regime = "high"
+            elif atr_pct < 1.0:
+                regime = "low"
+            else:
+                regime = "normal"
+
+            return {"atr": round(latest_atr, 2), "atr_pct": round(atr_pct, 2), "volatility_regime": regime}
+        except Exception:
+            logger.debug("ATR 计算异常", exc_info=True)
+            return {"atr": 0.0, "atr_pct": 0.0, "volatility_regime": "normal"}
+
+    def ma_crossover(self, fast: int = 5, slow: int = 20) -> dict:
+        """短期均线交叉检测.
+
+        Returns:
+            {"crossover": "bullish"|"bearish"|"none", "fast_ma": float, "slow_ma": float, "gap_pct": float}
+        """
+        if len(self.df) < slow + 1:
+            return {"crossover": "none", "fast_ma": 0.0, "slow_ma": 0.0, "gap_pct": 0.0}
+
+        try:
+            ma_fast = self.df["close"].rolling(window=fast).mean()
+            ma_slow = self.df["close"].rolling(window=slow).mean()
+
+            prev_fast, curr_fast = float(ma_fast.iloc[-2]), float(ma_fast.iloc[-1])
+            prev_slow, curr_slow = float(ma_slow.iloc[-2]), float(ma_slow.iloc[-1])
+
+            gap_pct = ((curr_fast - curr_slow) / curr_slow * 100) if curr_slow > 0 else 0.0
+
+            crossover = "none"
+            if prev_fast <= prev_slow and curr_fast > curr_slow:
+                crossover = "bullish"
+            elif prev_fast >= prev_slow and curr_fast < curr_slow:
+                crossover = "bearish"
+
+            return {
+                "crossover": crossover,
+                "fast_ma": round(curr_fast, 2),
+                "slow_ma": round(curr_slow, 2),
+                "gap_pct": round(gap_pct, 2),
+            }
+        except Exception:
+            logger.debug("MA crossover 计算异常", exc_info=True)
+            return {"crossover": "none", "fast_ma": 0.0, "slow_ma": 0.0, "gap_pct": 0.0}
+
+    def adx(self, period: int = 14) -> dict[str, float]:
+        """ADX 趋势强度.
+
+        Returns:
+            {"adx": float, "plus_di": float, "minus_di": float, "trend_regime": "trending"|"ranging"}
+        """
+        if len(self.df) < period * 2:
+            return {"adx": 20.0, "plus_di": 0.0, "minus_di": 0.0, "trend_regime": "ranging"}
+
+        try:
+            high = self.df["high"]
+            low = self.df["low"]
+
+            # True Range (已用共享工具, 这里直接调 internal)
+            from gold_miner.signals._price_utils import true_range
+            tr = true_range(self.df)
+
+            up_move = high.diff()
+            down_move = -low.diff()
+
+            plus_dm = pd.Series(0.0, index=self.df.index)
+            minus_dm = pd.Series(0.0, index=self.df.index)
+
+            plus_mask = (up_move > down_move) & (up_move > 0)
+            minus_mask = (down_move > up_move) & (down_move > 0)
+            plus_dm[plus_mask] = up_move[plus_mask]
+            minus_dm[minus_mask] = down_move[minus_mask]
+
+            atr_smoothed = tr.ewm(alpha=1.0 / period, adjust=False).mean()
+            plus_di = (plus_dm.ewm(alpha=1.0 / period, adjust=False).mean() / atr_smoothed) * 100
+            minus_di = (minus_dm.ewm(alpha=1.0 / period, adjust=False).mean() / atr_smoothed) * 100
+
+            dx = ((plus_di - minus_di).abs() / (plus_di + minus_di)) * 100
+            adx_val = float(dx.ewm(alpha=1.0 / period, adjust=False).mean().iloc[-1])
+
+            regime = "trending" if adx_val > 25 else "ranging"
+
+            return {
+                "adx": round(adx_val, 1),
+                "plus_di": round(float(plus_di.iloc[-1]), 1),
+                "minus_di": round(float(minus_di.iloc[-1]), 1),
+                "trend_regime": regime,
+            }
+        except Exception:
+            logger.debug("ADX 计算异常", exc_info=True)
+            return {"adx": 20.0, "plus_di": 0.0, "minus_di": 0.0, "trend_regime": "ranging"}
+
+    # ------------------------------------------------------------------
+    # 原有指标 (不变)
+    # ------------------------------------------------------------------
 
     def rsi(self, period: int = 14) -> float:
         if len(self.df) < period + 1:
@@ -82,55 +213,122 @@ class TechnicalAnalyzer:
             "distance_to_resistance": (recent["high"].max() - self.df["close"].iloc[-1]) / recent["high"].max(),
         }
 
+    # ------------------------------------------------------------------
+    # 信号生成 (含 ATR/ADX 调节)
+    # ------------------------------------------------------------------
+
     def generate_signals(self) -> list[Signal]:
+        """生成所有技术面信号.
+
+        ATR/ADX 作为内部调节器 — 不输出独立 Signal，仅调节已有信号的
+        strength 和 score。MA crossover 输出 WEAK 强度的独立 Signal。
+        """
         signals: list[Signal] = []
 
+        # 1) 市场环境判断
+        atr_data = self.atr()
+        adx_data = self.adx()
+
+        in_range = adx_data["adx"] < 20
+        high_vol = atr_data["volatility_regime"] == "high"
+        low_vol = atr_data["volatility_regime"] == "low"
+
+        def _adjust(strength: SignalStrength, score: float) -> tuple[SignalStrength, float]:
+            """ATR/ADX 调节器: 低波降级, 震荡市削弱, 高波保留/升级."""
+            # 低波市场: 所有信号降一级, score 打折
+            if low_vol:
+                if strength == SignalStrength.STRONG:
+                    return (SignalStrength.MODERATE, score * 0.7)
+                elif strength == SignalStrength.MODERATE:
+                    return (SignalStrength.WEAK, score * 0.5)
+                else:
+                    return (SignalStrength.WEAK, score * 0.5)
+            # 震荡市: MODERATE 以上信号降一级
+            if in_range:
+                if strength == SignalStrength.STRONG:
+                    return (SignalStrength.MODERATE, score * 0.8)
+                elif strength == SignalStrength.MODERATE:
+                    return (SignalStrength.WEAK, score * 0.7)
+            # 高波市场: WEAK 升 MODERATE (宽幅边界的信号更有意义)
+            if high_vol and strength == SignalStrength.WEAK:
+                return (SignalStrength.MODERATE, score * 1.3)
+            # 趋势市: 保持原值
+            return (strength, score)
+
+        # 2) RSI
         rsi_val = self.rsi()
         if rsi_val < 30:
+            s, sc = _adjust(SignalStrength.MODERATE, min((30 - rsi_val) / 30, 1.0))
             signals.append(Signal(
                 name="RSI超卖", dimension="technical", direction=SignalDirection.BULLISH,
-                strength=SignalStrength.MODERATE, score=min((30 - rsi_val) / 30, 1.0),
+                strength=s, score=sc,
                 description=f"RSI={rsi_val:.1f} < 30，超卖反弹信号",
-                metadata={"source_tier": self.SOURCE_TIER},
+                metadata={"source_tier": self.SOURCE_TIER, "adx": adx_data["adx"], "atr_pct": atr_data["atr_pct"]},
             ))
         elif rsi_val > 70:
+            s, sc = _adjust(SignalStrength.MODERATE, -min((rsi_val - 70) / 30, 1.0))
             signals.append(Signal(
                 name="RSI超买", dimension="technical", direction=SignalDirection.BEARISH,
-                strength=SignalStrength.MODERATE, score=-min((rsi_val - 70) / 30, 1.0),
+                strength=s, score=sc,
                 description=f"RSI={rsi_val:.1f} > 70，超买回调信号",
-                metadata={"source_tier": self.SOURCE_TIER},
+                metadata={"source_tier": self.SOURCE_TIER, "adx": adx_data["adx"], "atr_pct": atr_data["atr_pct"]},
             ))
 
+        # 3) MACD
         macd_data = self.macd()
         if macd_data["crossover"] == "bullish":
+            s, sc = _adjust(SignalStrength.STRONG, 0.6)
             signals.append(Signal(
                 name="MACD金叉", dimension="technical", direction=SignalDirection.BULLISH,
-                strength=SignalStrength.STRONG, score=0.6,
+                strength=s, score=sc,
                 description="MACD线上穿信号线",
-                metadata={"source_tier": self.SOURCE_TIER},
+                metadata={"source_tier": self.SOURCE_TIER, "adx": adx_data["adx"], "atr_pct": atr_data["atr_pct"]},
             ))
         elif macd_data["crossover"] == "bearish":
+            s, sc = _adjust(SignalStrength.STRONG, -0.6)
             signals.append(Signal(
                 name="MACD死叉", dimension="technical", direction=SignalDirection.BEARISH,
-                strength=SignalStrength.STRONG, score=-0.6,
+                strength=s, score=sc,
                 description="MACD线下穿信号线",
-                metadata={"source_tier": self.SOURCE_TIER},
+                metadata={"source_tier": self.SOURCE_TIER, "adx": adx_data["adx"], "atr_pct": atr_data["atr_pct"]},
             ))
 
+        # 4) 布林带
         bb = self.bollinger()
         if bb["position"] < 0.1:
+            s, sc = _adjust(SignalStrength.WEAK, 0.3)
             signals.append(Signal(
                 name="布林带下轨", dimension="technical", direction=SignalDirection.BULLISH,
-                strength=SignalStrength.WEAK, score=0.3,
+                strength=s, score=sc,
                 description="价格触及布林带下轨",
-                metadata={"source_tier": self.SOURCE_TIER},
+                metadata={"source_tier": self.SOURCE_TIER, "adx": adx_data["adx"], "atr_pct": atr_data["atr_pct"]},
             ))
         elif bb["position"] > 0.9:
+            s, sc = _adjust(SignalStrength.WEAK, -0.3)
             signals.append(Signal(
                 name="布林带上轨", dimension="technical", direction=SignalDirection.BEARISH,
-                strength=SignalStrength.WEAK, score=-0.3,
+                strength=s, score=sc,
                 description="价格触及布林带上轨",
-                metadata={"source_tier": self.SOURCE_TIER},
+                metadata={"source_tier": self.SOURCE_TIER, "adx": adx_data["adx"], "atr_pct": atr_data["atr_pct"]},
+            ))
+
+        # 5) 🆕 MA crossover
+        ma = self.ma_crossover()
+        if ma["crossover"] == "bullish":
+            s, sc = _adjust(SignalStrength.WEAK, 0.2)
+            signals.append(Signal(
+                name="MA5金叉MA20", dimension="technical", direction=SignalDirection.BULLISH,
+                strength=s, score=sc,
+                description=f"MA5({ma['fast_ma']:.1f})上穿MA20({ma['slow_ma']:.1f})，短期趋势转多",
+                metadata={"source_tier": self.SOURCE_TIER, "adx": adx_data["adx"], "atr_pct": atr_data["atr_pct"]},
+            ))
+        elif ma["crossover"] == "bearish":
+            s, sc = _adjust(SignalStrength.WEAK, -0.2)
+            signals.append(Signal(
+                name="MA5死叉MA20", dimension="technical", direction=SignalDirection.BEARISH,
+                strength=s, score=sc,
+                description=f"MA5({ma['fast_ma']:.1f})下穿MA20({ma['slow_ma']:.1f})，短期趋势转空",
+                metadata={"source_tier": self.SOURCE_TIER, "adx": adx_data["adx"], "atr_pct": atr_data["atr_pct"]},
             ))
 
         return signals

@@ -13,6 +13,8 @@ from datetime import datetime
 
 import pandas as pd
 
+from gold_miner.signals._price_utils import true_range as _true_range_fn
+
 
 @dataclass(frozen=True)
 class TrailingStopSignal:
@@ -236,13 +238,8 @@ class ATRTrailingStop:
         )
 
     def _true_range(self, df: pd.DataFrame) -> pd.Series:
-        """计算真实波幅 True Range."""
-        high_low = df["high"] - df["low"]
-        high_close_prev = (df["high"] - df["close"].shift(1)).abs()
-        low_close_prev = (df["low"] - df["close"].shift(1)).abs()
-        return pd.concat([high_low, high_close_prev, low_close_prev], axis=1).max(
-            axis=1
-        )
+        """计算真实波幅 True Range — 委托 ``_price_utils.true_range()``."""
+        return _true_range_fn(df)
 
 
 def format_signal(signal: TrailingStopSignal) -> str:
