@@ -4,8 +4,15 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PEM="${HERMES_PEM:-$HOME/Documents/hermes.pem}"
-HOST="${HERMES_HOST:-ubuntu@124.220.236.129}"
+PEM="${HERMES_PEM:-}"
+HOST="${HERMES_HOST:-}"
+
+if [ -z "$PEM" ] || [ -z "$HOST" ]; then
+  echo "❌ 请设置 HERMES_PEM 和 HERMES_HOST 环境变量"
+  echo "   export HERMES_PEM=~/Documents/hermes.pem"
+  echo "   export HERMES_HOST=ubuntu@<your-server-ip>"
+  exit 1
+fi
 REMOTE_ROOT="${HERMES_GOLD_ROOT:-/home/ubuntu/ai-gold-miner}"
 REMOTE_PORTFOLIO="${HERMES_GOLD_PORTFOLIO:-/home/ubuntu/.hermes/gold/portfolio.yaml}"
 REMOTE_ORDERS="${HERMES_GOLD_ORDERS:-/home/ubuntu/.hermes/gold/conditional_orders.jsonl}"
