@@ -187,20 +187,24 @@ class AnalysisPipeline:
     # ------------------------------------------------------------------
 
     def _step_prepare(self, ctx: AnalysisContext, result: AnalysisResult) -> None:
-        """Step 1: 信息准备 — 日历DOW校验 + 事件同步 + 深度新闻 + 7路数据采集."""
-        logger.info("[1/9] 信息准备 (日历校验+事件同步+数据采集)...")
+        """Step 1: 信息准备 — 日历DOW校验 + 事件同步 + 深度新闻 + 7路数据采集 (4路并行)."""
+        logger.info("[1/9] 信息准备 (4路并行: 日历校验+事件同步+深度新闻+数据采集)...")
 
-        # ---- 1.1 日历日期+钟点校验 ----
-        self._validate_calendar(result)
+        # 4个子步骤并行: 前3个是读操作/子进程, _collect_market_data 是HTTP采集
+        # _sync_events_and_monitors 仅读取日历(无写操作), 可安全并行
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            f_cal = pool.submit(self._validate_calendar, result)
+            f_sync = pool.submit(self._sync_events_and_monitors, result)
+            f_news = pool.submit(self._deep_news_queries, result)
+            f_data = pool.submit(self._collect_market_data, ctx, result)
 
-        # ---- 1.2 事件同步: 近期未记录结果的事件 + Monitor检查 + Staleness ----
-        self._sync_events_and_monitors(result)
-
-        # ---- 1.3 深度新闻搜索计划 ----
-        self._deep_news_queries(result)
-
-        # ---- 1.4 7路并行数据采集 ----
-        self._collect_market_data(ctx, result)
+            # 等待全部完成, 收集异常
+            for name, f in [("日历校验", f_cal), ("事件同步", f_sync),
+                            ("深度新闻", f_news), ("数据采集", f_data)]:
+                try:
+                    f.result()
+                except Exception as e:
+                    logger.warning(f"[1/9] {name} 并行执行异常: {e}")
 
         logger.info("[1/9] 信息准备完成")
 
@@ -448,19 +452,18 @@ class AnalysisPipeline:
     # ------------------------------------------------------------------
 
     def _step_generate_signals(self, ctx: AnalysisContext, result: AnalysisResult) -> None:
-        """Step 2: 信号生成 — 8维并行采集."""
-        logger.info("[2/9] 信号生成 (并行)...")
+        """Step 2: 信号生成 — 全部并行 (含Monitor+新闻原文+LLM)."""
+        logger.info("[2/9] 信号生成 (全并行)...")
 
         bundle = SignalBundle()
 
-        # ---- 先评估 active monitor 触发条件，关闭已触发的 ----
-        self._evaluate_active_monitors(result)
-
-        # ---- Batch 1: 所有独立信号生成器并行 ----
-        news_signals: list[Signal] = []
-
-        with ThreadPoolExecutor(max_workers=12) as pool:
+        with ThreadPoolExecutor(max_workers=14) as pool:
             futures: dict[Future, str] = {}
+
+            # ---- Phase 1: 所有独立信号生成器 + Monitor + 新闻原文 全部并行 ----
+
+            # Monitor 触发条件评估 (从串行前置改为并行)
+            futures[pool.submit(self._evaluate_active_monitors, result)] = "monitor_eval"
 
             # 技术面
             futures[pool.submit(
@@ -478,11 +481,13 @@ class AnalysisPipeline:
                 ).generate_signals()
             )] = "fundamental"
 
-            # 消息面
+            # 消息面: 信号 + 新闻原文 (并行拉取, 消除重复)
             if ctx.with_news:
                 futures[pool.submit(
                     lambda: NewsSignalGenerator().fetch_and_analyze(hours=24)
                 )] = "news"
+                # 新闻原文并行拉取 (原在主线程重复拉取, 现在并行)
+                futures[pool.submit(self._fetch_raw_news)] = "news_raw"
 
             # 情绪面
             if ctx.with_sentiment:
@@ -493,14 +498,13 @@ class AnalysisPipeline:
                 lambda: EtfFlowSignalGenerator().generate_signals()
             )] = "etf"
 
-            # COT 聪明钱（强制接入 scan）
+            # COT 聪明钱
             futures[pool.submit(
                 lambda: CotSignalGenerator().generate_signals()
             )] = "cot"
 
-            # 聪明钱合成：13F / 投行 / COMEX 大户 / 综合（强制接入 scan）
+            # 聪明钱合成: 13F / 投行 / COMEX 大户 / 综合
             spot_for_inst = float(result.current_price or 0) or 3300.0
-            # InstitutionalSignal 用美元现货更合理；无国际价时用国内价兜底
             try:
                 if result.intl_price and float(result.intl_price) > 0:
                     spot_for_inst = float(result.intl_price)
@@ -530,94 +534,77 @@ class AnalysisPipeline:
                 lambda: MonitorSignalGenerator().generate_signals()
             )] = "monitor"
 
-            # ---- 收集 Batch 1 结果 ----
+            # ---- 收集 Phase 1 ----
             batch_results: dict[str, list[Signal]] = {}
+            news_raw_items: list = []
             for future in as_completed(futures):
                 key = futures[future]
                 try:
-                    sigs = future.result()
+                    result_or_sigs = future.result()
                     if key == "sentiment":
-                        # sentiment future returns (signals, au_df) tuple
-                        sigs, au_df = sigs if isinstance(sigs, tuple) else (sigs, None)
+                        sigs, au_df = result_or_sigs if isinstance(result_or_sigs, tuple) else (result_or_sigs, None)
                         if au_df is not None:
                             result.au_df = au_df
-                    batch_results[key] = sigs or []
-                    logger.debug(f"[2/9] {key}: {len(batch_results[key])} 个信号")
+                        batch_results[key] = sigs or []
+                    elif key == "news_raw":
+                        news_raw_items = result_or_sigs or []
+                        logger.debug(f"[2/9] news_raw: {len(news_raw_items)} 条")
+                    elif key == "monitor_eval":
+                        pass  # side-effect only
+                    else:
+                        batch_results[key] = result_or_sigs or []
+                    logger.debug(f"[2/9] {key}: {len(batch_results.get(key, []))} 个信号")
                 except Exception as e:
                     logger.warning(f"[2/9] {key} 信号生成异常: {e}")
-                    batch_results[key] = []
+                    if key not in ("news_raw", "monitor_eval"):
+                        batch_results[key] = []
 
-        # ---- 注入所有 Batch 1 信号 ----
-        for key, sigs in batch_results.items():
-            for sig in sigs:
-                bundle.add(sig)
-            if key != "sentiment":  # sentiment already logged in the worker
-                logger.info(f"{key}信号: {len(sigs)} 个")
+            # ---- 注入信号 ----
+            for key, sigs in batch_results.items():
+                for sig in sigs:
+                    bundle.add(sig)
+                if key != "sentiment":
+                    logger.info(f"{key}信号: {len(sigs)} 个")
 
-        # 消息面信号单独记录 (用于 DeepSeek)
-        news_signals = batch_results.get("news", [])
-        logger.info(f"消息面信号: {len(news_signals)} 个")
+            news_signals = batch_results.get("news", [])
+            logger.info(f"消息面信号: {len(news_signals)} 个")
+            logger.info(f"情绪面信号: {len(batch_results.get('sentiment', []))} 个")
 
-        # 情绪面日志
-        sentiment_sigs = batch_results.get("sentiment", [])
-        logger.info(f"情绪面信号: {len(sentiment_sigs)} 个")
+            # 新闻原文 (pool 内已拉取, 仅需做 sentiment 分析)
+            result.news_raw = []
+            if ctx.with_news and news_raw_items:
+                try:
+                    nf = NewsFetcher()
+                    result.news_raw = nf.analyze_sentiment(news_raw_items)
+                except Exception:
+                    result.news_raw = news_raw_items
 
-        # ---- 消息面补充: 新闻原文抓取 (轻量,主线程) ----
-        result.news_raw = []
-        if ctx.with_news:
-            try:
-                nf = NewsFetcher()
-                result.news_raw = nf.fetch_latest(max_results=6)
-                result.news_raw = nf.analyze_sentiment(result.news_raw)
-            except Exception:
-                pass
-
-        # ---- Batch 2: DeepSeek 深度分析 (依赖 news_signals + composite_score) ----
-        if ctx.deep and news_signals:
-            try:
-                logger.info("[DeepSeek] 深度分析新闻...")
-                llm = LLMClient()
-                news_text = "\n".join(
-                    f"- [{s.metadata.get('source', '?')}] {s.description}"
-                    for s in news_signals
-                )[:3000]
-                # 基于已收集信号计算初步方向
-                bullish = sum(1 for s in bundle.signals if s.direction == SignalDirection.BULLISH)
-                bearish = sum(1 for s in bundle.signals if s.direction == SignalDirection.BEARISH)
-                pre_score = (bullish - bearish) / max(len(bundle.signals), 1)
-                llm_result = llm.analyze_article(
-                    text=news_text,
-                    rule_sentiment=(
-                        "bullish" if pre_score > 0.1
-                        else "bearish" if pre_score < -0.1
-                        else "neutral"
-                    ),
-                    rule_score=pre_score,
+            # ---- Phase 2: DeepSeek 与 Phase 1 信号注入并行 ----
+            deepseek_future: Future | None = None
+            if ctx.deep and news_signals:
+                deepseek_future = pool.submit(
+                    self._run_deepseek_analysis, news_signals, bundle
                 )
-                if llm_result and not llm_result.get("parse_error"):
-                    direction = llm_result.get("sentiment", "neutral")
-                    conf = llm_result.get("confidence", 0.5)
-                    score_impact = conf if direction == "bullish" else -conf
-                    bundle.add(Signal(
-                        name="DeepSeek 新闻深度分析",
-                        dimension="news",
-                        direction=(
-                            SignalDirection.BULLISH if direction == "bullish"
-                            else SignalDirection.BEARISH if direction == "bearish"
-                            else SignalDirection.NEUTRAL
-                        ),
-                        strength=SignalStrength.MODERATE if conf > 0.6 else SignalStrength.WEAK,
-                        score=round(score_impact, 2),
-                        description=llm_result.get("reasoning", "")[:150],
-                    ))
-                    logger.info(f"DeepSeek 分析完成: {direction} (置信度 {conf:.0%})")
-            except Exception as e:
-                logger.warning(f"DeepSeek分析异常: {e}")
 
-        # ---- 打分 ----
-        engine = ScoringEngine()
-        engine.score(bundle)
-        logger.info(f"综合评分: {bundle.composite_score:+.2f} | 置信度: {bundle.confidence:.0%}")
+            # ---- 打分 ----
+            engine = ScoringEngine()
+            engine.score(bundle)
+            logger.info(
+                f"综合评分: {bundle.composite_score:+.2f} | 置信度: {bundle.confidence:.0%}"
+            )
+
+            # 收集 DeepSeek 结果 (与打分并行执行后)
+            if deepseek_future:
+                try:
+                    deep_sig = deepseek_future.result()
+                    if deep_sig:
+                        bundle.add(deep_sig)
+                        logger.info(
+                            f"DeepSeek 分析完成: {deep_sig.direction.value} "
+                            f"(置信度 {deep_sig.strength.value})"
+                        )
+                except Exception as e:
+                    logger.warning(f"DeepSeek分析异常: {e}")
 
         result.bundle = bundle
         logger.info("[2/9] 信号生成完成")
@@ -670,6 +657,77 @@ class AnalysisPipeline:
                 )
         except Exception as e:
             logger.debug(f"active monitor 评估异常: {e}")
+
+    # ---- Step 2 并行辅助方法 ----
+
+    @staticmethod
+    def _fetch_raw_news() -> list:
+        """拉取新闻原文 — 与信号生成并行, 消除主线程重复拉取.
+
+        Returns:
+            list[NewsItem]: 原始新闻列表 (不做 sentiment 分析)
+        """
+        try:
+            nf = NewsFetcher()
+            return nf.fetch_latest(max_results=6)
+        except Exception:
+            return []
+
+    @staticmethod
+    def _run_deepseek_analysis(
+        news_signals: list[Signal], bundle: SignalBundle
+    ) -> Signal | None:
+        """DeepSeek LLM 深度新闻分析 — 独立 worker, 与信号生成+打分并行.
+
+        Args:
+            news_signals: 消息面信号列表
+            bundle: 当前信号束 (用于计算 pre_score 方向参考)
+
+        Returns:
+            Signal | None: DeepSeek 分析信号
+        """
+        try:
+            llm = LLMClient()
+            news_text = "\n".join(
+                f"- [{s.metadata.get('source', '?')}] {s.description}"
+                for s in news_signals
+            )[:3000]
+            bullish = sum(1 for s in bundle.signals
+                          if s.direction == SignalDirection.BULLISH)
+            bearish = sum(1 for s in bundle.signals
+                         if s.direction == SignalDirection.BEARISH)
+            pre_score = (bullish - bearish) / max(len(bundle.signals), 1)
+            llm_result = llm.analyze_article(
+                text=news_text,
+                rule_sentiment=(
+                    "bullish" if pre_score > 0.1
+                    else "bearish" if pre_score < -0.1
+                    else "neutral"
+                ),
+                rule_score=pre_score,
+            )
+            if llm_result and not llm_result.get("parse_error"):
+                direction = llm_result.get("sentiment", "neutral")
+                conf = llm_result.get("confidence", 0.5)
+                score_impact = conf if direction == "bullish" else -conf
+                return Signal(
+                    name="DeepSeek 新闻深度分析",
+                    dimension="news",
+                    direction=(
+                        SignalDirection.BULLISH if direction == "bullish"
+                        else SignalDirection.BEARISH if direction == "bearish"
+                        else SignalDirection.NEUTRAL
+                    ),
+                    strength=(
+                        SignalStrength.MODERATE if conf > 0.6
+                        else SignalStrength.WEAK
+                    ),
+                    score=round(score_impact, 2),
+                    description=llm_result.get("reasoning", "")[:150],
+                )
+        except Exception as e:
+            logger.warning(f"DeepSeek 分析异常: {e}")
+        return None
 
     # ------------------------------------------------------------------
     # ------------------------------------------------------------------
