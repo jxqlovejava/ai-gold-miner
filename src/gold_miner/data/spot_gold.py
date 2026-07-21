@@ -11,7 +11,6 @@ from datetime import datetime, timedelta
 from time import sleep
 from typing import Any
 
-import akshare as ak
 import httpx
 import pandas as pd
 from bs4 import BeautifulSoup
@@ -106,6 +105,8 @@ class SpotGoldFetcher(DataFetcher):
 
         if not domestic and not international:
             try:
+                import akshare as ak
+
                 df = ak.spot_hist_sge(symbol="Au99.99")
                 if not df.empty:
                     result["domestic_price"] = float(df["close"].iloc[-1])
@@ -157,6 +158,8 @@ class SpotGoldFetcher(DataFetcher):
     ) -> pd.DataFrame:
         """AKShare 上海金交所 Au99.99 历史日线 + jinjia 实时补充."""
         try:
+            import akshare as ak
+
             df = ak.spot_hist_sge(symbol="Au99.99")
             if df.empty:
                 return pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume"])
@@ -345,6 +348,8 @@ class SpotGoldFetcher(DataFetcher):
     def fetch_usd_cny_rate(self) -> float:
         """获取美元兑人民币汇率."""
         try:
+            import akshare as ak
+
             df = ak.currency_boc_safe()
             if not df.empty:
                 usd_row = df[df["货币"] == "美元"]

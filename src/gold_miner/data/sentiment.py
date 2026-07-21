@@ -4,7 +4,6 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-import akshare as ak
 import pandas as pd
 from loguru import logger
 
@@ -48,6 +47,8 @@ class SentimentDataFetcher(DataFetcher):
         - timestamp, open, high, low, close, volume, open_interest
         """
         try:
+            import akshare as ak
+
             df = ak.futures_main_sina(symbol="AU0")
             if df.empty:
                 return pd.DataFrame(columns=[

@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 from time import sleep
 from typing import Any
 
-import akshare as ak
 import pandas as pd
 from loguru import logger
 
@@ -69,6 +68,8 @@ class AccumulationGoldFetcher(DataFetcher):
     ) -> pd.DataFrame:
         """从 AKShare 获取上海金交所 Au99.99 历史数据作为积存金价格."""
         try:
+            import akshare as ak
+
             df = ak.spot_hist_sge(symbol="Au99.99")
             if df.empty:
                 logger.warning("AKShare spot_hist_sge 返回空数据")
@@ -173,6 +174,8 @@ class AccumulationGoldFetcher(DataFetcher):
     def _fetch_usd_cny_rate(self) -> float:
         """获取美元/人民币汇率. 失败时返回 7.2."""
         try:
+            import akshare as ak
+
             df = ak.currency_boc_safe()
             if not df.empty:
                 usd_row = df[df["货币"] == "美元"]
