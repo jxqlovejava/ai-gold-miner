@@ -2,11 +2,11 @@
 
 [![CI](https://github.com/jxqlovejava/ai-gold-miner/actions/workflows/ci.yml/badge.svg)](https://github.com/jxqlovejava/ai-gold-miner/actions/workflows/ci.yml)
 
-**给黄金投资小白的 AI 投资助手。**
+**给黄金投资小白的 AI 投资副驾驶。**
 
 买金前不知道怎么看？怕追高、怕抄底、怕消息骗炮？AI Gold Miner 把金价拆成多个维度，让 AI 帮你**看数据、做辩论、查纪律、给建议**，最后输出一份你能看懂的投资报告。
 
-它不做替你下单的“黑箱”，而是做你的**投资副驾驶**：告诉你现在能不能买、该买多少、哪里设止损、接下来要盯哪些大事。
+它不做替你下单的"黑箱"，而是做你的**投资副驾驶**：告诉你现在能不能买、该买多少、哪里设止损、接下来要盯哪些大事。支持**现货黄金 + JD 积存金**双标的投资分析。
 
 ---
 
@@ -15,62 +15,81 @@
 | 你遇到的难题 | AI Gold Miner 怎么做 |
 |---|---|
 | 金价涨跌看不懂 | 自动采集金价、美元、实际利率、央行购金等数据，算成信号 |
-| 消息太多不知道信谁 | 给每条信息打“可信度标签”（T0 官方 / T1 终端 / T2 媒体 / T3 自媒体） |
-| 一涨就想追、一跌就想割 | 15 条投资军规自动审查，情绪上头时拦住你 |
-| 不知道买多少 | Agent 多空辩论 + 你的风险偏好，给出具体仓位建议 |
-| 不知道什么时候操作 | 自动列出未来高影响事件（非农、CPI、FOMC 等），提前预警 |
+| 消息太多不知道信谁 | 给每条信息打"可信度标签"（T0 官方 / T1 终端 / T2 媒体 / T3 自媒体），多源交叉验证 |
+| 一涨就想追、一跌就想割 | 30 条投资军规自动审查（r001–r030），情绪上头时拦住你 |
+| 不知道买多少 | Agent 多空三方辩论（🐮Bull / 🐻Bear / 💼PM）+ 你的风险偏好，给出具体仓位建议 |
+| 不知道什么时候操作 | 自动列出未来高影响事件（非农、CPI、FOMC、PCE 等），提前预警，DOW 校验杜绝日期错误 |
 | 买了之后忘了复盘 | 自动记录每次预测，后续结算准确率，帮你慢慢变强 |
+| 机构资金流向看不懂 | 独立评估 CFTC COT + ETF 资金流 + COMEX 大户 + 13F，生成聪明钱综合评价 |
+| 中长期趋势看不清 | 1/6/12/24/36 个月多维度趋势判断，包含情景矩阵与概率加权预期 |
 
 ---
 
 ## 核心功能
 
-### 1. 多维金价扫描
-把金价从 5 个角度拆开看：
+### 1. 9 步统一分析管线
+所有分析统一通过 `AnalysisPipeline` 执行，对齐以下 9 步流程：
 
-- **技术面**：RSI、MACD、布林带、20 日区间
-- **基本面**：美元指数、实际利率、通胀预期、金银比、央行购金
-- **消息面**：24h 新闻 + 情感打分
-- **情绪面**：期货持仓、CFTC COT、ETF 资金流向
-- **事件面**：未来高影响经济数据日历
+1. **prepare** — 日历 DOW 校验 + 事件同步 + 深度新闻 + 数据采集
+2. **generate_signals** — 8 维信号生成（技术/基本面/消息/情绪/聪明钱/事件/Polymarket/异常）
+3. **source_truth** — 来源验证 + 事实 vs 解释分类
+4. **doctrine_check** — 军规审查（r001–r030）+ 风控审查
+5. **munger_models** — Munger 思维模型选 3 个 + 仓位约束
+6. **profile_match** — 投资者画像约束检查
+7. **agent_debate** — 🐮Bull / 🐻Bear / 💼PM 三方辩论
+8. **decide** — 交易建议 + 条件单审查
+9. **plan** — 后续事件关注 + 情景预案 + Monitor 创建
 
-### 2. Agent 多空博弈
-不是由一个 AI 拍脑袋，而是让三个角色“吵一架”：
+### 2. 8 维金价信号扫描
+| 维度 | 数据来源 | 核心指标 |
+|------|---------|---------|
+| technical | Yahoo Finance | RSI、MACD、布林带、20 日区间、200/60 日均线 |
+| fundamental | FRED / Yahoo | ICE 美元指数(~100)、10Y TIPS 实际利率、盈亏平衡通胀、金银比、央行购金、**印度 GDP/INR** |
+| news | NewsAPI / WebSearch | 24h 新闻情感打分、关键词影响检测 |
+| sentiment | AKShare 上期所 | AU 期货持仓量、量价关系、日内偏向 |
+| 👔 smart_money | CFTC / AKShare / 13F | CFTC 非商业净仓、ETF 资金流、COMEX 集中度、机构持仓、综合评分 |
+| event | 日历引擎 | 高影响经济数据事件检测 |
+| polymarket | Polymarket API | 预测市场隐含概率 |
+| anomaly/scenario | 价格数据 | 背离检测、放量异常、情景分析 |
 
-- **多头分析师**：找看涨理由
-- **空头分析师**：找看跌理由
-- **投资经理**：综合双方，给出仓位建议
+### 3. Agent 多空三方博弈
+不是由一个 AI 拍脑袋，而是让三个角色"吵一架"：
 
-最后输出谁更有道理、建议仓位是多少。
+- **🐮 多头分析师 (BullAgent)** — 找看涨理由，**资金流论据独立展示**
+- **🐻 空头分析师 (BearAgent)** — 找看跌理由，**资金流论据独立展示**
+- **💼 投资经理 (PortfolioManager)** — 综合双方 + 军规审查，给出最终仓位建议
 
-### 3. 投资军规审查
-内置 15 条纪律（r001–r015），每条自动判定 ✅/⚠️/❌：
+**关键规则**：聪明钱资金流论据（CFTC/ETF/COMEX/13F）不可被常规论据淹没，必须独立小节展示。
 
-- 单笔不超过总资产 20%
-- 总黄金敞口不超过 80%
-- 重大数据前 2 小时不重仓
-- 单日波动 >3% 不追涨杀跌
-- 浮盈 >20% 必须把止损移到成本价以上
-- ……
+### 4. 投资军规审查（r001–r030）
+内置 30 条纪律，每条自动判定 ✅/⚠️/❌：
 
-### 4. 投资者画像匹配
+| 类别 | 规则 | 严重度 |
+|------|------|--------|
+| 仓位管理 | 单笔不超过总资产 20% | block |
+| 仓位管理 | 总黄金敞口不超过 80% | block |
+| 仓位管理 | 重大数据前 2 小时不重仓 | warn |
+| 情绪纪律 | 单日波动 >3% 不追涨杀跌 | block |
+| 情绪纪律 | 浮盈 >20% 必须把止损移到成本价以上 | block |
+| 情绪纪律 | 任何交易必须预设止损位 | block |
+| 操作纪律 | 分批建仓（≥2 批，间隔 ≥5 交易日） | warn |
+| 信号纪律 | 聪明钱与散户流向分歧时警示 | warn |
+| 趋势纪律 | ATR 移动止盈（14×ATR×2.5） | block |
+| 原则纪律 | 永远给自己留安全边际 | warn |
+
+完整 30 条见 [docs/doctrine.md](docs/doctrine.md)。
+
+### 5. 投资者画像匹配
 先读你的**定性画像**（风险偏好、交易风格）和**定量持仓**（克数、成本、止损），确保建议不超出你的承受能力。
 
-### 5. 多个场景工作流
-| 工作流 | 什么时候用 |
-|---|---|
-| `pre-market` 盘前 | 开盘前快速看报价、新闻、日历、预警 |
-| `intra-day` 盘中 | 盘中盯关键价位和异常波动 |
-| `post-market` 盘后 | 收盘后完整复盘 + 交易建议 |
-| `daily` 日度 | 每天跑一次完整简化扫描 |
-| `long-term` 中长期 | 1/6/12/24/36 个月趋势判断 |
-
 ### 6. Munger 思维模型
-每次决策引用 2–3 个查理·芒格思维模型，比如：
+每次决策引用 2–3 个查理·芒格思维模型，按学科分类（投资、心理学、物理学、生物学、经济学），系统自动选择最相关的模型。
 
-- **市场先生**：不被短期情绪左右
-- **安全边际**：为判断错误留缓冲
-- **检查清单方法**：用纪律对抗人性漏洞
+### 7. 中长期趋势分析
+```bash
+gold-miner longterm --horizon 12
+```
+输出情景矩阵（bull/base/bear）、概率加权预期价格范围、触发条件与再平衡规则。
 
 ---
 
@@ -107,7 +126,7 @@ cp .env.demo .env
 gold-miner --demo scan
 ```
 
-如果看到最后输出「黄金投资决策仪表盘」，就说明跑通了。
+如果看到控制台逐步骤输出结果，就说明跑通了。
 
 ### 方式三：Web 仪表盘
 
@@ -138,30 +157,39 @@ cp data/portfolio.example.yaml data/private/portfolio.yaml
 
 > 这两个文件已加入 `.gitignore`，不会提交到 Git。
 
-### Step 2：跑一个完整盘后分析
+### Step 2：跑信息准备
 
 ```bash
-gold-miner workflow post-market
+gold-miner prepare
 ```
 
-或Demo模式（跳过需要 API key 的新闻/情绪）：
+执行管线 Step 1：日历校验 + 事件同步 + 深度新闻搜索 + 数据采集。
+
+### Step 3：跑完整分析
 
 ```bash
-gold-miner --demo workflow post-market
+# Demo 模式（跳过需要 API key 的新闻/情绪）
+gold-miner --demo scan
+
+# 完整模式（需配置 API key）
+gold-miner scan --news --sentiment --deep
 ```
 
-### Step 3：看报告做决策
+### Step 4：看报告做决策
 
-报告会给出：
+报告会逐步骤输出到控制台：
 
 1. 当前金价和关键数据
-2. 多空双方理由
-3. 建议仓位（0% = 观望，10% = 轻仓，等等）
-4. 军规审查结果
-5. 未来要盯的大事
-6. 是否符合你的画像约束
+2. 8 维信号逐项说明（含聪明钱资金流子项）
+3. Source Truth 验证标签
+4. 军规审查结果（r001–r030）
+5. Munger 模型解释
+6. 画像约束检查
+7. Agent 三方博弈（含资金流论据）
+8. 交易建议 + 条件单审查
+9. 后续事件关注 + 情景预案
 
-**不要只看“买入/持有”结论**，重点看军规警告和事件提醒。
+**不要只看"买入/持有"结论**，重点看军规警告和事件提醒。
 
 ---
 
@@ -171,29 +199,39 @@ gold-miner --demo workflow post-market
 # 看实时金价
 gold-miner quote
 
-# 日度简化扫描（Demo 模式）
-gold-miner --demo scan
+# 信息准备（日历校验 + 事件同步 + 数据采集）
+gold-miner prepare
 
-# 日度完整扫描（需 API key）
+# 日度完整扫描
 gold-miner scan --news --sentiment
 
-# 列出所有工作流
- gold-miner workflow --workflow-list
-
-# 盘前简报
- gold-miner workflow pre-market
-
-# 盘后完整复盘
- gold-miner workflow post-market
-
 # 中长期分析（12 个月视角）
- gold-miner longterm --horizon 12
-
-# 投资顾问：针对你的持仓给建议
- gold-miner advisor --position 0.1 --cost 915.88
+gold-miner longterm --horizon 12
 
 # 军规检查
- gold-miner doctrine --check
+gold-miner doctrine --check
+
+# 搜索 Munger 模型
+gold-miner doctrine --search "安全边际"
+
+# 文章深度分析
+gold-miner analyze --url <article_url> --deep
+
+# 情景分析
+gold-miner scenario --text "美伊冲突升级"
+
+# 预测追踪
+gold-miner track --list
+gold-miner track --price 3200
+
+# 回测
+gold-miner backtest --days 365 --capital 100000
+
+# Web 仪表盘
+gold-miner web
+
+# 定时扫描守护进程
+gold-miner daemon --interval 60
 ```
 
 ---
@@ -213,122 +251,163 @@ TAKE_PROFIT_PCT=0.06
 RISK_PROFILE=moderate
 
 # [API] 进阶功能（可选）
-LLM_API_KEY=your_key_here        # AI 深度分析
-FRED_API_KEY=your_key_here       # 美国宏观数据
+LLM_API_KEY=your_key_here        # AI 深度分析（DeepSeek）
+FRED_API_KEY=your_key_here       # 美国宏观数据（实际利率、CPI等）
 NEWS_API_KEY=your_key_here       # 新闻情绪
-TAVILY_API_KEY=your_key_here     # 深度研究
+TAVILY_API_KEY=your_key_here     # 深度研究（web search fallback）
 
 # [高级] 通知与代理（可选）
 WECHAT_WEBHOOK_URL=
-MIHOMO_SUB_URL=
-AGENT_ENABLED=false
+MIHOMO_SUB_URL=                   # mihomo/clash 订阅链接
+AGENT_ENABLED=false               # Agent 定时调度
 ```
 
 没有 API key 也能用，`--demo` 模式会自动跳过需要 key 的功能。
 
+### 私密数据文件
+
+| 文件 | 用途 |
+|------|------|
+| `data/private/investor_profile.md` | 定性画像：风险偏好、交易风格、信源偏好 |
+| `data/private/portfolio.yaml` | 定量持仓：克数、成本价、止损价、总资金 |
+| `data/private/trade_log.md` | 交易日志 |
+| `data/private/prediction_journal.jsonl` | 预测记录 |
+| `data/private/event_store.jsonl` | 事件存储 |
+| `data/private/economic_data.jsonl` | 经济数据历史 |
+
 ---
 
-## 项目架构（小白版）
+## 项目架构
 
 ```
-数据采集层 → 信号处理层 → 决策层 → 输出层
-     ↓            ↓            ↓
-  央行/ETF    技术/基本面   Agent 辩论
-  新闻/COT    情绪/事件     军规审查
+数据采集层 ──► 信号处理层 ──► 分析管线(9步) ──► 决策输出
+     ↓               ↓               ↓               ↓
+   FRED/FX        技术/基本面     prepare         Agent 辩论
+   News/COT       情绪/事件       signals         军规审查
+   AKShare/JD    聪明钱/异常     source_truth    交易建议
+                                 doctrine        情景预案
+                                 munger
+                                 profile_match
+                                 agent_debate
+                                 decide
+                                 plan
 ```
 
 主要代码目录：
 
 ```
 src/gold_miner/
-├── cli/          # 命令行入口
-├── data/         # 数据采集（金价、宏观、新闻、COT）
-├── signals/      # 信号处理
-├── decision/     # Agent 博弈与风控
-├── doctrine/     # 军规 + Munger 模型
-├── execution/    # 报告、仪表盘
-├── pipeline/     # 统一分析管线
-├── workflows/    # 盘前/盘中/盘后/日度/中长期工作流
-└── web/          # Streamlit 可视化
+├── cli/          # 命令行入口（26+ 命令）
+├── pipeline/     # 统一分析管线（9 步 AnalysisPipeline + LongTermAnalyzer）
+├── signals/      # 8 维信号生成器
+├── decision/     # Agent 博弈（Bull/Bear/PM）与机构资金流评估
+├── data/         # 数据采集（FRED、Yahoo、AKShare、CFTC、News、JD）
+├── doctrine/     # 军规规则 + Munger 思维模型库
+├── advisor/      # 投资顾问、极端情景预警、哨兵监控
+├── strategy/     # Kelly 公式、ATR 止损、仓位风控
+├── execution/    # 警报、仪表盘格式化、通知
+├── llm/          # DeepSeek LLM 客户端
+├── events/       # 事件日历模型与存储
+├── sentinel/     # 突发新闻监控（NLP 否定句过滤、语义去重）
+├── storage/      # 本地文件持久化（data/private/）
+├── proxy/        # 代理管理器（mihomo/clash 隔离进程，httpx 连接池）
+├── web/          # Streamlit 可视化仪表盘
+├── backtest/     # 策略回测引擎
+├── experience/   # 经验加载
+├── improvement/  # 自改进循环
+├── verification/ # 预测结算与验证
+├── scenarios/    # 情景分析
+├── utils/        # 工具函数
+└── config.py     # pydantic-settings 全局配置
 ```
 
 ---
 
 ## 输出报告长什么样？
 
-每次完整分析会输出：
+每次完整分析会逐步输出：
 
-1. **当前金价与关键数据**（价格、DXY、实际利率、央行购金等）
-2. **多维度信号**（技术 / 基本面 / 消息 / 情绪 / ETF 资金流）
-3. **Agent 博弈**：Bull vs Bear vs 投资经理
-4. **军规审查**：r001–r015 每条判定
-5. **Munger 模型**：2–3 个思维模型解释
-6. **画像匹配**：建议是否在你的约束范围内
-7. **未来关注事件**：接下来要盯的数据/会议
-8. **投资决策仪表盘**：最终信号、仓位、止损、操作清单
+1. **当前金价与关键数据**（价格、DXY、实际利率、央行购金、JD 积存金）
+2. **8 维信号逐项说明**（技术/基本面/👔聪明钱/新闻/情绪/事件/Polymarket/异常）
+3. **Source Truth + 事实 vs 解释**（T0–T3 标签）
+4. **军规自查**（r001–r030 每条判定 ✅/⚠️/❌）
+5. **Munger 模型**（2–3 个思维模型解释）
+6. **画像匹配**（建议是否在你的约束范围内）
+7. **Agent 三方博弈**（🐮Bull / 🐻Bear / 💼PM 含资金流论据）
+8. **交易决策仪表盘**（最终信号、仓位、止损、操作清单、条件单）
+9. **后续事件关注 + 情景预案 + Monitor**
 
-示例：
+示例仪表盘：
 
 ```
 ==================================================
            黄金投资决策仪表盘
 ==================================================
-
   信号: 持有
   标的: 积存金 Au99.99 (元/克) | 国际 $4,062/oz
   仓位: 0%
 
   入场价: 886.74
   建议区间: 882.31 ~ 891.17
-
 --------------------------------------------------
   操作清单:
     1. 维持当前仓位，等待更明确信号
-
-  生成时间: 2026-06-29 17:54:01
-
 --------------------------------------------------
   未来关注事件:
     ISM制造业PMI: 2天后 07-02 10:00 | 来源: S&P Global / ISM
     非农就业: 3天后 07-03 08:30 | 来源: BLS
-    ISM服务业PMI: 3天后 07-03 10:00 | 来源: S&P Global / ISM
-    美国PPI: 12天后 07-12 08:30 | 来源: BLS
-
 ==================================================
 ```
 
 ---
 
-## 重要提醒
+## 数据源
 
-1. **这不是投资建议**，是辅助你决策的工具。最终下单前请再确认一次自己的纪律。
-2. **市场有风险**，任何模型都可能错。仓位控制和止损比预测更重要。
-3. **数据会有延迟或失败**，报告会明确标注 API 失败和数据来源等级，不要盲信。
-4. **私密信息不上传**：`data/private/` 已加入 `.gitignore`，但不要在公开场合分享。
+| 数据 | 来源 | 频率 | 需要 API Key |
+|------|------|------|-------------|
+| 国际金价 (XAU/USD) | Yahoo Finance | 实时 | 否 |
+| 美元指数 (ICE DXY) | Yahoo Finance | 实时 | 否 |
+| 10Y TIPS 实际利率 | FRED | 日频 | FRED_API_KEY |
+| CFTC COT 持仓 | CFTC.gov | 周频（周五） | 否 |
+| 国内黄金 ETF 流向 | AKShare | 日频 | 否 |
+| 金价新闻 | NewsAPI / Tavily | 实时 | NEWS_API_KEY / TAVILY_API_KEY |
+| JD 积存金价格 | JD Finance API | 实时 | 否 |
+| 上期所 AU 期货 | AKShare | 日频 | 否 |
+| Polymarket 预测 | Polymarket API | 实时 | 否 |
+| 经济日历 | 内置引擎 | 预加载 | 否 |
 
 ---
 
-## 了解更多
+## 开发
 
-- 投资决策流程与输出规范：[CLAUDE.md](CLAUDE.md)
-- Agent 博弈与披露格式：[AGENTS.md](AGENTS.md)
-- 个人补充规则与 ATR 止盈：[data/personal_rules.md](data/personal_rules.md)
-
----
-
-## 开发与贡献
+### 运行测试
 
 ```bash
-# 运行测试
-pytest tests/ -m "not slow and not integration" -v
-
-# 代码检查
-ruff check src/
-mypy src/  # 允许已存在的类型警告
+pytest tests/ -v
 ```
+
+### 代码检查
+
+```bash
+ruff check src/
+mypy src/
+```
+
+### 项目配置
+
+详见 [pyproject.toml](pyproject.toml)。使用 hatchling 构建系统，核心依赖包括 pydantic、httpx、yfinance、akshare、pandas、ta-lib。
 
 ---
 
-## License
+## 文档
 
-MIT
+完整的项目文档（面向开发者和 AI 代理）位于 [openwiki/](openwiki/quickstart.md) 目录，包含：
+
+- [Quickstart](openwiki/quickstart.md) — 快速开始与导航
+- [Architecture](openwiki/architecture/overview.md) — 模块架构与数据流
+- [Analysis Pipeline](openwiki/pipeline/analysis-pipeline.md) — 9 步分析管线详解
+- [Long-Term Analysis](openwiki/pipeline/long_term.md) — 中长期分析引擎
+- [Signal System](openwiki/signals/overview.md) — 8 维信号系统
+- [CLI Commands](openwiki/cli/commands.md) — 命令参考
+- [Data Sources](openwiki/data-sources/overview.md) — 数据源与代理管理
+- [Investment Doctrines](openwiki/doctrine/overview.md) — 军规、Munger、画像
