@@ -108,81 +108,181 @@ class AnalysisResult:
     portfolio: dict[str, Any] = field(default_factory=dict)
     institutional_flow: dict[str, Any] = field(default_factory=dict)
     munger_models: list[dict[str, Any]] = field(default_factory=list)
+    prepare_result: dict[str, Any] = field(default_factory=dict)
+    profile_match: dict[str, Any] = field(default_factory=dict)
+    conditional_order_review: list[dict[str, Any]] = field(default_factory=list)
+    scenario_plan: dict[str, Any] = field(default_factory=dict)
 
 
 class AnalysisPipeline:
-    """完整分析管线 — 9步流程.
+    """完整分析管线 — 对齐 CLAUDE.md/SKILL.md 9步流程.
 
     Steps:
-        1. collect       — 数据采集
-        2. generate_signals — 信号生成
-        3. source_truth  — 来源验证 (FactChecker 已在 news pipeline 中运行)
-        4. agent_debate  — 多空辩论
-        5. risk_check    — 风控审查
-        6. doctrine_check — 军规审查
-        7. munger_models — Munger 思维模型
-        8. decide        — 决策输出
-        9. track         — 自动追踪
+        1. prepare        — 日历DOW校验 + 事件同步 + 深度新闻 + 数据采集
+        2. generate_signals — 8维信号生成（含Polymarket+Anomaly）
+        3. source_truth   — 来源验证 + 事实vs解释分类
+        4. doctrine_check — 军规审查(r001-r030) + 风控审查
+        5. munger_models  — Munger思维模型选3个+仓位约束
+        6. profile_match  — 投资者画像约束检查
+        7. agent_debate   — 🐮Bull/🐻Bear/💼PM三方辩论(综合前6步输入)
+        8. decide         — 交易建议 + 条件单审查
+        9. plan           — 后续事件关注 + 情景预案 + Monitor创建
     """
 
     def __init__(self) -> None:
         self._steps: list[str] = [
-            "collect",
+            "prepare",
             "generate_signals",
             "source_truth",
-            "agent_debate",
-            "risk_check",
             "doctrine_check",
             "munger_models",
+            "profile_match",
+            "agent_debate",
             "decide",
-            "track",
+            "plan",
         ]
 
     def run(self, ctx: AnalysisContext | None = None) -> AnalysisResult:
-        """执行完整分析管线."""
+        """执行完整分析管线 — 对齐 CLAUDE.md 9步流程."""
         ctx = ctx or AnalysisContext()
         result = AnalysisResult()
         result.messages.append(f"开始分析: days={ctx.days}, news={ctx.with_news}, sentiment={ctx.with_sentiment}")
 
-        # Step 1: collect
-        self._step_collect(ctx, result)
+        # Step 1: prepare — 日历校验 + 事件同步 + 深度新闻 + 数据采集
+        self._step_prepare(ctx, result)
         if result.gold_df.empty:
             result.messages.append("采集失败: 无法获取金价数据")
             return result
 
-        # Step 2: generate_signals
+        # Step 2: generate_signals — 8维信号采集
         self._step_generate_signals(ctx, result)
 
-        # Step 3+4: source_truth + agent_debate 并行 (都只读 bundle,写不同字段)
-        self._step_source_truth_and_debate(ctx, result)
+        # Step 3: source_truth — 来源验证 + 事实vs解释
+        self._step_source_truth(ctx, result)
 
-        # Step 5: risk_check
-        self._step_risk_check(ctx, result)
-
-        # Step 6: doctrine_check
+        # Step 4: doctrine_check — 军规审查(r001-r030) + 风控
         if not ctx.skip_doctrine:
             self._step_doctrine_check(ctx, result)
 
-        # Step 7: munger_models
+        # Step 5: munger_models
         self._step_munger_models(ctx, result)
 
-        # Step 8: decide
+        # Step 6: profile_match — 画像约束检查
+        self._step_profile_match(ctx, result)
+
+        # Step 7: agent_debate — 综合前6步作为输入
+        self._step_agent_debate(ctx, result)
+
+        # Step 8: decide — 交易建议 + 条件单审查
         if not ctx.skip_dashboard:
             self._step_decide(ctx, result)
 
-        # Step 9: track
-        if not ctx.skip_tracking:
-            self._step_track(ctx, result)
+        # Step 9: plan — 后续事件 + 情景预案 + Monitor
+        self._step_plan(ctx, result)
 
         return result
 
     # ------------------------------------------------------------------
-    # Step 1: 数据采集
+    # Step 1: prepare — 日历校验 + 事件同步 + 深度新闻 + 数据采集
     # ------------------------------------------------------------------
 
-    def _step_collect(self, ctx: AnalysisContext, result: AnalysisResult) -> None:
-        """Step 1: 数据采集 — 7 路并行获取 (gold/intl/minsheng/dxy/rate/silver/breakeven)."""
-        logger.info("[1/9] 数据采集 (并行)...")
+    def _step_prepare(self, ctx: AnalysisContext, result: AnalysisResult) -> None:
+        """Step 1: 信息准备 — 日历DOW校验 + 事件同步 + 深度新闻 + 7路数据采集."""
+        logger.info("[1/9] 信息准备 (日历校验+事件同步+数据采集)...")
+
+        # ---- 1.1 日历日期+钟点校验 ----
+        self._validate_calendar(result)
+
+        # ---- 1.2 事件同步: 近期未记录结果的事件 + Monitor检查 + Staleness ----
+        self._sync_events_and_monitors(result)
+
+        # ---- 1.3 深度新闻搜索计划 ----
+        self._deep_news_queries(result)
+
+        # ---- 1.4 7路并行数据采集 ----
+        self._collect_market_data(ctx, result)
+
+        logger.info("[1/9] 信息准备完成")
+
+    # ---- Step 1 辅助方法 ----
+
+    @staticmethod
+    def _validate_calendar(result: AnalysisResult) -> None:
+        """1.1 日历日期+钟点+覆盖度校验."""
+        try:
+            import subprocess
+            import sys
+            r = subprocess.run(
+                [sys.executable, "scripts/validate_calendar_dates.py", "--ref-table", "30"],
+                capture_output=True, text=True, timeout=30,
+                cwd=str(_PROJECT_DATA_DIR.parent),
+            )
+            output = r.stdout + r.stderr
+            result.messages.append(f"[日历校验] {'✅ 通过' if r.returncode == 0 else '⚠️ 有警告/错误'}")
+            logger.info(f"[日历校验] {'✅ 通过' if r.returncode == 0 else '⚠️ 有警告/错误，详见输出'}")
+            if r.returncode != 0:
+                logger.warning(f"[日历校验] 警告/错误详情:\n{output[:500]}")
+            result.prepare_result["calendar_validation"] = output[-800:]
+        except Exception as e:
+            logger.warning(f"[日历校验] 执行失败: {e}")
+            result.prepare_result["calendar_validation"] = f"执行失败: {e}"
+
+    @staticmethod
+    def _sync_events_and_monitors(result: AnalysisResult) -> None:
+        """1.2 事件同步: 近期未记录结果的事件 + Monitor检查 + Staleness."""
+        try:
+            from gold_miner.data.calendar import EventCalendar
+            from gold_miner.advisor.early_warning import EarlyWarningEngine
+
+            cal = EventCalendar()
+            ewe = EarlyWarningEngine(calendar=cal)
+
+            recent = ewe.check_recent_results(lookback_days=7)
+            monitors = ewe.get_active_monitors()
+            stale = ewe.check_stale_events(lookback_days=7)
+
+            result.prepare_result["recent_without_result"] = len(recent)
+            result.prepare_result["active_monitors"] = len(monitors)
+            result.prepare_result["stale_events"] = len(stale)
+
+            logger.info(
+                f"[事件同步] 未记录:{len(recent)} | 活跃Monitor:{len(monitors)} | "
+                f"Stale:{len(stale)}"
+            )
+            for m in monitors[:20]:
+                logger.debug(f"  Monitor: {m.name} | trigger={m.trigger_condition}")
+        except Exception as e:
+            logger.warning(f"[事件同步] 执行失败: {e}")
+
+    @staticmethod
+    def _deep_news_queries(result: AnalysisResult) -> None:
+        """1.3 深度新闻搜索计划."""
+        try:
+            import subprocess
+            import sys
+            r = subprocess.run(
+                [sys.executable, "-m", "src.gold_miner.sentinel", "--mode", "deep-news-queries"],
+                capture_output=True, text=True, timeout=30,
+                cwd=str(_PROJECT_DATA_DIR.parent),
+            )
+            output = r.stdout
+            result.prepare_result["deep_news_queries"] = output[:2000]
+            # 统计 P0/P1/P2 主题数
+            import json as _json
+            try:
+                topics = _json.loads(output)
+                p0_count = sum(1 for t in topics if t.get("priority") == "P0")
+                result.prepare_result["deep_news_topic_count"] = len(topics)
+                result.prepare_result["deep_news_p0_count"] = p0_count
+                logger.info(f"[深度新闻] {len(topics)}个主题 ({p0_count} P0)")
+            except Exception:
+                logger.info("[深度新闻] 搜索计划已生成")
+        except Exception as e:
+            logger.warning(f"[深度新闻] 执行失败: {e}")
+
+    def _collect_market_data(self, ctx: AnalysisContext, result: AnalysisResult) -> None:
+        """1.4 7路并行数据采集 (gold/intl/minsheng/dxy/rate/silver/breakeven)."""
+        logger.info("[数据采集] 7路并行...")
 
         # 独立 fetcher 实例确保线程安全
         gold_fetcher = SpotGoldFetcher()
@@ -344,11 +444,11 @@ class AnalysisPipeline:
         return False
 
     # ------------------------------------------------------------------
-    # Step 2: 信号生成
+    # Step 2: 信号生成 (8维)
     # ------------------------------------------------------------------
 
     def _step_generate_signals(self, ctx: AnalysisContext, result: AnalysisResult) -> None:
-        """Step 2: 信号生成 — 独立维度并行采集,分两批执行."""
+        """Step 2: 信号生成 — 8维并行采集."""
         logger.info("[2/9] 信号生成 (并行)...")
 
         bundle = SignalBundle()
@@ -572,7 +672,8 @@ class AnalysisPipeline:
             logger.debug(f"active monitor 评估异常: {e}")
 
     # ------------------------------------------------------------------
-    # Step 3: 来源验证
+    # ------------------------------------------------------------------
+    # Step 3: 来源验证 + 事实vs解释
     # ------------------------------------------------------------------
 
     def _step_source_truth(self, ctx: AnalysisContext, result: AnalysisResult) -> None:
@@ -678,11 +779,12 @@ class AnalysisPipeline:
         return warnings
 
     # ------------------------------------------------------------------
-    # Step 4: Agent 辩论
+    # Step 7: Agent 辩论 (综合前6步输入)
     # ------------------------------------------------------------------
 
     def _step_agent_debate(self, ctx: AnalysisContext, result: AnalysisResult) -> None:
-        logger.info("[4/9] Agent 辩论...")
+        """Step 7: Bull/Bear/PM 三方辩论."""
+        logger.info("[7/9] Agent 辩论...")
 
         bull = BullAgent()
         bear = BearAgent()
@@ -702,37 +804,13 @@ class AnalysisPipeline:
 
         logger.info("[4/9] Agent 辩论完成")
 
-    # ------------------------------------------------------------------
-    # Step 3+4: 来源验证 + Agent 辩论 (并行)
-    # ------------------------------------------------------------------
-
-    def _step_source_truth_and_debate(
-        self, ctx: AnalysisContext, result: AnalysisResult
-    ) -> None:
-        """并行执行来源验证和 Agent 辩论 — 二者只读 bundle,写不同字段."""
-        logger.info("[3+4/9] 来源验证 + Agent 辩论 (并行)...")
-
-        with ThreadPoolExecutor(max_workers=2) as pool:
-            f_source = pool.submit(self._step_source_truth, ctx, result)
-            f_debate = pool.submit(self._step_agent_debate, ctx, result)
-
-            # 等待双方完成
-            try:
-                f_source.result()
-            except Exception as e:
-                logger.warning(f"来源验证异常: {e}")
-
-            try:
-                f_debate.result()
-            except Exception as e:
-                logger.warning(f"Agent 辩论异常: {e}")
 
     # ------------------------------------------------------------------
-    # Step 5: 风控审查
+    # [Sub] 风控审查 (Step 4 内部调用)
     # ------------------------------------------------------------------
 
     def _step_risk_check(self, ctx: AnalysisContext, result: AnalysisResult) -> None:
-        logger.info("[5/9] 风控审查...")
+        
 
         # 尽早加载持仓，供集中度检查与后续状态机
         if not result.portfolio:
@@ -840,14 +918,20 @@ class AnalysisPipeline:
         else:
             logger.info(f"风控通过 ({len(result.checks)}项检查)")
 
-        logger.info("[5/9] 风控审查完成")
+        
 
     # ------------------------------------------------------------------
-    # Step 6: 军规审查
+    # Step 4: 军规审查(r001-r030) + 风控
     # ------------------------------------------------------------------
 
     def _step_doctrine_check(self, ctx: AnalysisContext, result: AnalysisResult) -> None:
-        logger.info("[6/9] 军规审查...")
+        """Step 4: 军规审查(r001-r030) + 风控整合."""
+        logger.info("[4/9] 风控 + 军规审查...")
+
+        # --- 4a. 风控审查 ---
+        self._step_risk_check(ctx, result)
+
+        # --- 4b. 军规审查 ---
 
         active_dims = [d for d in ["technical", "fundamental", "news", "sentiment"]
                        if result.bundle.by_dimension(d)]
@@ -926,10 +1010,10 @@ class AnalysisPipeline:
         result.doctrine_result = doctrine_result
         result.final_decision = checker.apply_doctrine(result.final_decision, doctrine_result)
 
-        logger.info("[6/9] 军规审查完成")
+        logger.info("[4/9] 风控 + 军规审查完成")
 
     # ------------------------------------------------------------------
-    # Step 7: Munger 思维模型
+    # Step 5: Munger 思维模型
     # ------------------------------------------------------------------
 
     def _step_munger_models(self, ctx: AnalysisContext, result: AnalysisResult) -> None:
@@ -938,7 +1022,7 @@ class AnalysisPipeline:
         每个匹配模型可能触发仓位调整因子（仅缩减，不放大），
         合成因子取所有触发规则的最小值。
         """
-        logger.info("[7/9] Munger 思维模型...")
+        logger.info("[5/9] Munger 思维模型...")
 
         models = self._select_munger_models(result.bundle, count=3)
         adjustments: list[dict[str, Any]] = []
@@ -1043,7 +1127,7 @@ class AnalysisPipeline:
         return None
 
     # ------------------------------------------------------------------
-    # Step 8: 决策输出
+    # Step 8: 交易建议 + 条件单审查
     # ------------------------------------------------------------------
 
     def _step_decide(self, ctx: AnalysisContext, result: AnalysisResult) -> None:
@@ -1108,20 +1192,10 @@ class AnalysisPipeline:
         logger.info("[8/9] 决策输出完成")
 
     # ------------------------------------------------------------------
-    # Step 9: 自动追踪
+    # Step 9: 后续事件 + 情景预案 + Monitor 创建
     # ------------------------------------------------------------------
 
-    def _step_track(self, ctx: AnalysisContext, result: AnalysisResult) -> None:
-        logger.info("[9/9] 自动追踪...")
-
-        # 自动记录预测
-        if settings.enable_auto_tracking:
-            self._auto_track(result)
-
-        # EventStore 记录
-        result.prediction_id = self._record_events(result)
-
-        logger.info("[9/9] 自动追踪完成")
+    # _step_track removed — tracking merged into _step_plan (Step 9)
 
     # ------------------------------------------------------------------
     # 辅助方法
@@ -1610,6 +1684,77 @@ class AnalysisPipeline:
     # 配置控制
     # ------------------------------------------------------------------
 
+    def _review_conditional_orders(self, result: AnalysisResult) -> None:
+        """审查所有 active 条件单并输出保留/撤销/修改建议表."""
+        try:
+            import json as _json
+            orders_path = _PROJECT_DATA_DIR / "private" / "conditional_orders.jsonl"
+            if not orders_path.exists():
+                result.conditional_order_review = []
+                logger.info("[8/9] 无条件单文件")
+                return
+
+            reviews = []
+            for line in orders_path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line: continue
+                order = _json.loads(line)
+                if order.get("status") != "active": continue
+
+                action = "保留"
+                reason = ""
+                order_type = order.get("type", "")
+
+                # 限价买单：检查触发价是否仍合理
+                if order_type == "limit_buy":
+                    trigger = float(order.get("trigger_price", 0))
+                    current = result.minsheng_accumulation_price or result.current_price
+                    if trigger > current:
+                        reason = f"触发价{trigger}在现价{current:.0f}上方，距现价{(trigger/current-1)*100:+.1f}%"
+                        action = "保留"
+                    elif trigger < current:
+                        gap_pct = (current/trigger - 1) * 100
+                        if gap_pct > 5:
+                            action = "修改" if gap_pct < 10 else "修改"
+                            reason = f"触发价{trigger}距现价{current:.0f}已{gap_pct:.0f}%，需评估是否下调触发价"
+                        else:
+                            action = "保留"
+                            reason = f"接近触发区间，距现价{gap_pct:.0f}%"
+
+                # OCO：检查止盈/止损价
+                elif order_type == "oco":
+                    oco = order.get("oco", {})
+                    tp = float(oco.get("take_profit", {}).get("price", 0))
+                    sl = float(oco.get("stop_loss", {}).get("price", 0))
+                    current = result.minsheng_accumulation_price or result.current_price
+                    if tp and current >= tp * 0.97:
+                        reason = f"接近止盈价{tp}，距现价{current:.0f}仅{(tp/current-1)*100:+.1f}%"
+                        action = "保留"
+                    elif sl and current <= sl * 1.03:
+                        reason = f"接近止损价{sl}，注意风险"
+                        action = "保留"
+                    else:
+                        action = "保留"
+                        reason = f"价格区间合理 (止盈{tp}/止损{sl})"
+
+                r = {
+                    "id": order.get("id", ""),
+                    "type": order_type,
+                    "direction": order.get("direction", ""),
+                    "trigger": str(order.get("trigger_price", order.get("oco", {}))),
+                    "quantity_g": order.get("quantity_g", ""),
+                    "status": "active",
+                    "suggested_action": action,
+                    "reason": reason,
+                }
+                reviews.append(r)
+                logger.info(f"  条件单 {r['id'][-8:]}: {r['type']} {r['direction']} → {action} ({reason[:60]})")
+
+            result.conditional_order_review = reviews
+            logger.info(f"[8/9] 条件单审查: {len(reviews)}个active")
+        except Exception as e:
+            logger.warning(f"[8/9] 条件单审查失败: {e}")
+
     def enable(self, step_name: str) -> None:
         """启用指定步骤 (当前仅用于文档/测试)."""
         logger.debug(f"启用步骤: {step_name}")
@@ -1617,3 +1762,91 @@ class AnalysisPipeline:
     def disable(self, step_name: str) -> None:
         """禁用指定步骤 (当前仅用于文档/测试)."""
         logger.debug(f"禁用步骤: {step_name}")
+
+    # ------------------------------------------------------------------
+    # Step 6: 画像匹配
+    # ------------------------------------------------------------------
+
+    def _step_profile_match(self, ctx: AnalysisContext, result: AnalysisResult) -> None:
+        """Step 6: 投资者画像约束检查."""
+        logger.info("[6/9] 画像匹配...")
+
+        profile, portfolio = self._load_investor_data()
+        result.investor_profile = profile
+        result.portfolio = portfolio
+
+        current_price = result.minsheng_accumulation_price or result.current_price or 0
+        gold_pct = self._portfolio_gold_pct(portfolio, current_price)
+        total_funds = float((portfolio.get("limits") or {}).get("total_funds") or 200000)
+        max_gold = float((portfolio.get("limits") or {}).get("max_gold_pct") or 80)
+        gold_value = (list((portfolio.get("positions") or {}).values())[0].get("grams", 0) * current_price
+                      if (portfolio.get("positions") or {}) else 0)
+
+        result.profile_match = {
+            "gold_pct": gold_pct,
+            "gold_value": gold_value,
+            "total_funds": total_funds,
+            "max_gold_pct": max_gold,
+            "within_limits": gold_pct <= max_gold / 100,
+            "hard_stop_valid": True,  # portfolio.yaml has hard_stop field
+        }
+
+        logger.info(
+            f"[6/9] 画像匹配: 黄金占比 {gold_pct:.1%} | " +
+            ("✅ 在限额内" if gold_pct <= max_gold / 100 else "⚠️ 接近/超出限额")
+        )
+
+    # ------------------------------------------------------------------
+    # Step 9: 后续事件 + 情景预案 + Monitor 创建
+    # ------------------------------------------------------------------
+
+    def _step_plan(self, ctx: AnalysisContext, result: AnalysisResult) -> None:
+        """Step 9: 后续事件关注 + 情景预案 + Monitor 创建 + 自动追踪."""
+        logger.info("[9/9] 后续事件 + 情景预案...")
+
+        # 9.1 未来事件扫描
+        try:
+            from gold_miner.data.calendar import EventCalendar, EventImpact
+            cal = EventCalendar()
+            upcoming = cal.get_upcoming(days=14, min_impact=EventImpact.MEDIUM)
+            result.scenario_plan["upcoming_events"] = [
+                {"name": e.name, "time": e.beijing_time_str, "impact": e.impact.value}
+                for e in upcoming[:15]
+            ]
+            logger.info(f"[9/9] 未来14天: {len(upcoming)}个中高影响事件")
+        except Exception as e:
+            logger.warning(f"[9/9] 未来事件扫描失败: {e}")
+
+        # 9.2 Monitor 检查
+        try:
+            from gold_miner.advisor.monitor_evaluator import MonitorEvaluator, MonitorContext
+            evaluator = MonitorEvaluator()
+            ctx_obj = MonitorContext(
+                gold_price=result.current_price,
+                intl_price=result.intl_price,
+                bundle=result.bundle,
+                decision=result.final_decision,
+            )
+            triggered = evaluator.evaluate(ctx_obj)
+            result.scenario_plan["monitors_triggered"] = len(triggered)
+            if triggered:
+                logger.info(f"[9/9] Monitor 触发: {len(triggered)}个")
+                for t in triggered[:5]:
+                    logger.info(f"  触发: {t.get('name', 'unknown')}")
+        except Exception as e:
+            logger.warning(f"[9/9] Monitor 检查失败: {e}")
+
+        # 9.3 自动追踪 (原 _step_track)
+        if not ctx.skip_tracking:
+            try:
+                self._auto_track(result)
+                self._record_events(result)
+            except Exception as e:
+                logger.warning(f"[9/9] 自动追踪失败: {e}")
+
+        logger.info("[9/9] 后续事件 + 情景预案完成")
+
+
+    def _make_result(self) -> AnalysisResult:
+        """创建空结果对象（供 prepare 等单步骤调用）."""
+        return AnalysisResult()

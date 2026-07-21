@@ -179,54 +179,34 @@ avg_cost = pos["avg_cost"]
 
 ---
 
-## 完整 Pipeline 命令模板
+## 完整 Pipeline — CLI 调用
 
-### 步骤 1.1 — 日历日期校验
+> 🆕 2026-07-22：主路径改为 `gold-miner` CLI。Skill 负责编排（步骤顺序、判断逻辑、图标规则），CLI 负责执行。
+
+### 步骤 1：信息准备
 
 ```bash
+# 完整准备（日历校验 + 事件同步 + 深度新闻 + 数据采集）
+gold-miner prepare
+
+# 等价的手动逐步骤（CLI 不可用时降级）
 PYTHONPATH=src python3 scripts/validate_calendar_dates.py --ref-table 30
+PYTHONPATH=src python3 -m src.gold_miner.sentinel --mode deep-news-queries
+# 然后对每个 P0 主题用 anysearch + last30days-cn
 ```
 
-### 步骤 1.2 — 事件同步 + Monitor 检查
-
-```python
-PYTHONPATH=src python3 -c "
-from gold_miner.data.calendar import EventCalendar, EventType
-from gold_miner.advisor.early_warning import EarlyWarningEngine
-
-cal = EventCalendar()
-ewe = EarlyWarningEngine(calendar=cal)
-
-# 1. 近期未记录结果的事件
-recent = ewe.check_recent_results(lookback_days=7)
-for e in recent:
-    print(f'{e.name} | {e.beijing_time_str} | actual=N/A')
-
-# 2. 活跃 monitor
-monitors = ewe.get_active_monitors()
-for m in monitors:
-    print(f'MONITOR: {m.name} | trigger={m.trigger_condition}')
-
-# 3. Stale fast-evolving 事件
-stale = ewe.check_stale_events(lookback_days=7)
-for s in stale:
-    print(f'STALE: {s.name} | last actual={s.actual[:80] if s.actual else \"N/A\"}')
-"
-```
-
-### 步骤 1.3 — 深度新闻搜索
+### 步骤 2-9：完整扫描
 
 ```bash
-# 生成搜索计划
-PYTHONPATH=src python3 -m src.gold_miner.sentinel --mode deep-news-queries
-
-# 然后对每个 P0 主题用 anysearch batch_search + last30days-cn
-# 用本 Skill 提供的命令模板, 覆盖所有 P0 主题
+# 一键运行全部 9 步
+gold-miner scan --days 30 --news --sentiment
 ```
 
-### 步骤 1.4 — 更新日历 + 添加 Monitor
+### 更新日历 / 添加 Monitor（手动）
 
-```python
+> CLI 不可用时的降级路径：
+
+```bash
 PYTHONPATH=src python3 -c "
 from gold_miner.data.calendar import EventCalendar, CalendarEvent, EventType, EventImpact
 from datetime import datetime, timezone, timedelta
@@ -247,7 +227,7 @@ cal.add_event(CalendarEvent(
     event_type=EventType.MONITOR, status='active',
     scheduled_at=datetime(2026, 7, 21, 10, 30, 0, tzinfo=tz),
     impact=EventImpact.HIGH,
-    source='2026-07-21-analysis',
+    source='2026-07-22-analysis',
     trigger_condition='触发条件自然语言描述',
     check_frequency='on_analysis',
     action_on_trigger='触发后的建议动作',
@@ -255,6 +235,17 @@ cal.add_event(CalendarEvent(
 ))
 "
 ```
+
+### CLI 总览
+
+| 命令 | 功能 |
+|------|------|
+| `gold-miner prepare` | 仅步骤1：日历校验+事件同步+深度新闻+数据采集 |
+| `gold-miner scan` | 完整9步管线（prepare→signals→truth→doctrine→munger→profile→debate→decide→plan）|
+| `gold-miner advisor` | 投资顾问问答 |
+| `gold-miner report` | 生成分析报告 |
+| `gold-miner doctrine --check` | 独立军规审查 |
+| `gold-miner scenario` | 情景推演 |
 
 ---
 
@@ -403,120 +394,88 @@ P0 主题列表（必须全覆盖）：
 
 4. 清单中任何 ❌ 必须在进入第二步前补齐
 
-### 第二步：8 维信号采集 — 命令模板
+### 第二步：8 维信号采集
 
+> **主路径**：`gold-miner scan` 自动运行全部 8 维信号 + ScoringEngine 评分。
 > 🔴 `Signal` 是 dataclass，字段：`s.name`、`s.direction` (枚举 `.value` 取 `"bullish"/"bearish"/"neutral"`)、`s.strength` (枚举 `.value` 取 `"strong"/"moderate"/"weak"`)、`s.score` (float)、`s.description` (str)。
 > 🔴 打印模板：`f'[{s.direction.value}] {s.name} | strength={s.strength.value} | score={s.score:.2f}'`
+
+```bash
+# 一键信号采集（包含全部维度）
+gold-miner scan --days 30 --news --sentiment
+```
+
+> 💡 以下是 CLI 降级路径（仅当 `gold-miner scan` 不可用时手动执行各维度）。API 签名速查见上方「API 签名速查」。
+
+<details>
+<summary>📋 CLI 降级：手动各维度命令模板</summary>
 
 #### 2.1 近期事件（时效性加权）
 
 ```bash
 PYTHONPATH=src python3 -c "
 from gold_miner.signals.recent_events import RecentEventSignalGenerator
-gen = RecentEventSignalGenerator()
-signals = gen.generate_signals()
-for s in signals:
+for s in RecentEventSignalGenerator().generate_signals():
     print(f'[{s.direction.value}] {s.name} | strength={s.strength.value} | score={s.score:.2f}')
-    if s.description:
-        print(f'  {s.description[:250]}')
 "
 ```
 
-#### 2.2 技术面（需要价格 DataFrame）
+#### 2.2 技术面
 
 ```bash
 PYTHONPATH=src python3 -c "
 from gold_miner.data.jd_accumulation_gold import JdAccumulationGoldFetcher
 from gold_miner.signals.technical import TechnicalAnalyzer
-
 f = JdAccumulationGoldFetcher(bank='MS')
-df = f.fetch(days=90)
-ta = TechnicalAnalyzer(df)               # df 必传，不是无参构造
-signals = ta.generate_signals()
-for s in signals:
+for s in TechnicalAnalyzer(f.fetch(days=90)).generate_signals():
     print(f'[{s.direction.value}] {s.name} | strength={s.strength.value} | score={s.score:.2f}')
-    if s.description:
-        print(f'  {str(s.description)[:300]}')
 "
 ```
 
-#### 2.3 基本面（无参构造，调用 `generate_signals()` 不是 `analyze()`）
+#### 2.3 基本面
 
 ```bash
 PYTHONPATH=src python3 -c "
 from gold_miner.signals.fundamental import FundamentalAnalyzer
-fa = FundamentalAnalyzer()              # 无参构造
-signals = fa.generate_signals()         # 不是 analyze()
-for s in signals:
+for s in FundamentalAnalyzer().generate_signals():
     print(f'[{s.direction.value}] {s.name} | strength={s.strength.value} | score={s.score:.2f}')
-    if s.description:
-        print(f'  {s.description[:300]}')
 "
 ```
 
-#### 2.4 消息面（`fetch_and_analyze()` 不是 `generate()`）
+#### 2.4 消息面 + 资金流 + 情绪面
 
 ```bash
+# 消息面
 PYTHONPATH=src python3 -c "
 from gold_miner.signals.news_signal import NewsSignalGenerator
-gen = NewsSignalGenerator()
-signals = gen.fetch_and_analyze(hours=48)  # 不是 generate()
-for s in signals:
+for s in NewsSignalGenerator().fetch_and_analyze(hours=48):
     print(f'[{s.direction.value}] {s.name} | strength={s.strength.value} | score={s.score:.2f}')
-    if s.description:
-        print(f'  {s.description[:250]}')
 "
-```
 
-#### 2.5 👔 资金流（COT + ETF + 机构，统一模板）
-
-```bash
+# 资金流 (COT+ETF+机构)
 PYTHONPATH=src python3 -c "
 from gold_miner.signals.cot_signal import CotSignalGenerator
 from gold_miner.signals.etf_flow_signal import EtfFlowSignalGenerator
 from gold_miner.signals.institutional_signal import InstitutionalSignalGenerator
-
-print('--- CFTC COT ---')
-try:
-    for s in CotSignalGenerator().generate_signals():
-        print(f'  [{s.direction.value}] {s.name} | strength={s.strength.value} | score={s.score:.2f}')
-except Exception as e:
-    print(f'  COT失败: {e}')
-
-print('--- ETF 资金流 ---')
-try:
-    for s in EtfFlowSignalGenerator().generate_signals():
-        print(f'  [{s.direction.value}] {s.name} | strength={s.strength.value} | score={s.score:.2f}')
-except Exception as e:
-    print(f'  ETF失败: {e}')
-
-print('--- COMEX大户 + 13F 机构 ---')
-try:
-    inst = InstitutionalSignalGenerator(current_spot=4065)
-    for s in inst.generate_signals():
-        print(f'  [{s.direction.value}] {s.name} | strength={s.strength.value} | score={s.score:.2f}')
-except Exception as e:
-    print(f'  机构持仓失败: {e}')
+for g in [CotSignalGenerator(), EtfFlowSignalGenerator(), InstitutionalSignalGenerator(current_spot=4065)]:
+    try:
+        for s in g.generate_signals():
+            print(f'[{s.direction.value}] {s.name} | strength={s.strength.value} | score={s.score:.2f}')
+    except Exception as e:
+        print(f'  {type(g).__name__} 失败: {e}')
 "
-```
 
-#### 2.6 情绪面（需要价格 DataFrame）
-
-```bash
+# 情绪面
 PYTHONPATH=src python3 -c "
 from gold_miner.data.jd_accumulation_gold import JdAccumulationGoldFetcher
 from gold_miner.signals.sentiment_signal import SentimentAnalyzer
-
 f = JdAccumulationGoldFetcher(bank='MS')
-df = f.fetch(days=90)
-sa = SentimentAnalyzer(au_df=df)        # df 必传
-signals = sa.generate_signals()
-for s in signals:
+for s in SentimentAnalyzer(au_df=f.fetch(days=90)).generate_signals():
     print(f'[{s.direction.value}] {s.name} | strength={s.strength.value} | score={s.score:.2f}')
-    if s.description:
-        print(f'  {str(s.description)[:300]}')
 "
 ```
+
+</details>
 
 #### 2.7 资金流维度分析要点
 

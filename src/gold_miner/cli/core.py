@@ -14,6 +14,7 @@ from .daemon import run_daemon
 from .doctrine import run_doctrine
 from .journal import run_journal
 from .long_term import run_longterm
+from .prepare import run_prepare
 from .proxy_install import run_proxy_install
 from .record import run_record
 from .quote import run_quote
@@ -41,7 +42,7 @@ def main() -> None:
     parser.add_argument(
         "command",
         choices=[
-            "scan", "quote", "backtest", "journal", "proxy-install",
+            "scan", "prepare", "quote", "backtest", "journal", "proxy-install",
             "track", "review", "findings", "analyze", "scenario", "doctrine", "daemon",
             "verify", "report", "advisor", "doctor", "setup", "workflow", "web",
             "longterm", "record",
@@ -123,7 +124,9 @@ def main() -> None:
         settings.demo_mode = True
         log.info("[Demo 模式] 已启用：跳过新闻/情绪/Polymarket 等需要 API key 的功能")
 
-    if args.command == "quote":
+    if args.command == "prepare":
+        run_prepare()
+    elif args.command == "quote":
         run_quote()
     elif args.command == "scan":
         run_scan(days=args.days, deep=args.deep)
