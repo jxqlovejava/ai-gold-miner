@@ -260,8 +260,8 @@ class AnalysisPipeline:
     def _sync_events_and_monitors(result: AnalysisResult) -> None:
         """1.2 事件同步: 近期未记录结果的事件 + Monitor检查 + Staleness."""
         try:
-            from gold_miner.data.calendar import EventCalendar
             from gold_miner.advisor.early_warning import EarlyWarningEngine
+            from gold_miner.data.calendar import EventCalendar
 
             cal = EventCalendar()
             ewe = EarlyWarningEngine(calendar=cal)
@@ -997,7 +997,7 @@ class AnalysisPipeline:
     # ------------------------------------------------------------------
 
     def _step_risk_check(self, ctx: AnalysisContext, result: AnalysisResult) -> None:
-        
+
 
         # 尽早加载持仓，供集中度检查与后续状态机
         if not result.portfolio:
@@ -1105,7 +1105,7 @@ class AnalysisPipeline:
         else:
             logger.info(f"风控通过 ({len(result.checks)}项检查)")
 
-        
+
 
     # ------------------------------------------------------------------
     # Step 4: 军规审查(r001-r030) + 风控
@@ -1889,9 +1889,11 @@ class AnalysisPipeline:
             reviews = []
             for line in orders_path.read_text(encoding="utf-8").splitlines():
                 line = line.strip()
-                if not line: continue
+                if not line:
+                    continue
                 order = _json.loads(line)
-                if order.get("status") != "active": continue
+                if order.get("status") != "active":
+                    continue
 
                 action = "保留"
                 reason = ""
@@ -2011,7 +2013,7 @@ class AnalysisPipeline:
 
         # 9.2 Monitor 检查
         try:
-            from gold_miner.advisor.monitor_evaluator import MonitorEvaluator, MonitorContext
+            from gold_miner.advisor.monitor_evaluator import MonitorContext, MonitorEvaluator
             evaluator = MonitorEvaluator()
             ctx_obj = MonitorContext(
                 gold_price=result.current_price,

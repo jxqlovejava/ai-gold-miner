@@ -1,6 +1,7 @@
 """改进建议生成器 — 基于效能分析生成分级、可操作的发现."""
 
 from __future__ import annotations
+
 from dataclasses import dataclass
 
 from gold_miner.improvement.analyzer import AnalysisResult

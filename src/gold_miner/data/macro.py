@@ -1,6 +1,7 @@
 """宏观数据抓取 — 美元指数、利率、通胀."""
 
 from __future__ import annotations
+
 from datetime import datetime, timedelta
 from typing import Any
 

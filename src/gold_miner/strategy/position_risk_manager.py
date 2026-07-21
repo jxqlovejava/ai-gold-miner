@@ -72,7 +72,7 @@ class PositionRiskManager:
         self.secondary_stop = secondary_stop
 
     @classmethod
-    def from_store(cls) -> "PositionRiskManager":
+    def from_store(cls) -> PositionRiskManager:
         """从存储层加载配置."""
         from gold_miner.storage import get_store
         store = get_store()
@@ -91,7 +91,7 @@ class PositionRiskManager:
         )
 
     @classmethod
-    def from_yaml(cls, path: str | Path) -> "PositionRiskManager":
+    def from_yaml(cls, path: str | Path) -> PositionRiskManager:
         """从 portfolio.yaml 加载配置 (兼容旧路径)."""
         with open(path, encoding="utf-8") as f:
             config = yaml.safe_load(f)

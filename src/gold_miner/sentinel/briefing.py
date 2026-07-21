@@ -1,15 +1,11 @@
-# -*- coding: utf-8 -*-
 """每日简报 / 每周总结 — Hermes 定时推送."""
 
 from __future__ import annotations
 
 import json
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
-from typing import Optional
 
 from .engine import SentinelConfig, SentinelEngine
-from .models import GoldQuote, PortfolioSnapshot
 from .orders import load_active_orders
 
 BEIJING = timezone(timedelta(hours=8))

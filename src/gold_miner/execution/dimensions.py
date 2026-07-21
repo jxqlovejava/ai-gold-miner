@@ -239,7 +239,7 @@ def print_smart_money(bundle: SignalBundle) -> None:
         groups.setdefault(src, []).append(sig)
 
     # 展示顺序: COT → ETF → 投行 → 大户 → 13F → 综合
-    _ORDER = [
+    _order = [
         "cot_report", "gld_holdings_tonnes",
         "gold_etf_price_proxy", "gold_etf_volume_proxy",
         "intl_gold_etf_volume_proxy", "domestic_intl_divergence",
@@ -263,7 +263,7 @@ def print_smart_money(bundle: SignalBundle) -> None:
         "smart_money_composite": "\U0001f9e0 聪明钱综合评分",
     }
 
-    for src_key in _ORDER:
+    for src_key in _order:
         sigs = groups.get(src_key, [])
         if not sigs:
             continue

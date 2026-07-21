@@ -1,6 +1,7 @@
 """文章分析日志 — JSONL 持久化."""
 
 from __future__ import annotations
+
 import json
 from dataclasses import asdict, dataclass, field
 from datetime import datetime

@@ -13,7 +13,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 
 from loguru import logger
 
@@ -251,8 +251,7 @@ class EarlyWarningEngine:
         level = self._impact_level(event.impact, impact)
 
         # 距离事件天数
-        from datetime import timezone as _tz
-        now = datetime.now(tz=_tz.utc)
+        now = datetime.now(tz=UTC)
         days_until = (event.scheduled_at - now).days
         # 临近事件提高影响等级
         if days_until <= 1:

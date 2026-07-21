@@ -14,7 +14,6 @@ from loguru import logger
 
 from gold_miner.config import settings
 
-
 # ============================================================
 # 输入数据类
 # ============================================================
@@ -693,10 +692,7 @@ class BehavioralBacktestEngine:
                               or 0)
                 # 使用对话中的价格或 estimate
                 price_est = self._estimate_price_from_text(comp.ai_note)
-                if price_est and price_est > 0:
-                    cost = qty * price_est
-                else:
-                    cost = qty * 900  # fallback
+                cost = qty * price_est if price_est and price_est > 0 else qty * 900
 
                 if cost <= capital:
                     position_g += qty
@@ -877,7 +873,7 @@ def print_behavioral_report(result: BehavioralBacktestResult) -> None:
     print(f"  用户交易数:    {result.total_user_trades:>12}")
 
     # 纪律评估
-    print(f"\n  --- 纪律评估 ---")
+    print("\n  --- 纪律评估 ---")
     rateable = result.total_ai_trades
     print(f"  遵守率:        {result.compliance_rate:>11.1%}  "
           f"({result.follow_trades}/{rateable})")
@@ -887,7 +883,7 @@ def print_behavioral_report(result: BehavioralBacktestResult) -> None:
     print(f"  额外交易:      {result.extra_trades:>12}")
 
     # 收益对比
-    print(f"\n  --- 收益对比 ---")
+    print("\n  --- 收益对比 ---")
     ai_str = f"{result.ai_cumulative_return_pct:+.2f}%"
     actual_str = f"{result.actual_cumulative_return_pct:+.2f}%"
     dev_str = f"{result.deviation_cost_pct:+.2f}%"
@@ -896,7 +892,7 @@ def print_behavioral_report(result: BehavioralBacktestResult) -> None:
     print(f"  偏离成本:      {dev_str:>11}  (¥{result.deviation_cost_abs:+,.2f})")
 
     # 纪律评分
-    print(f"\n  --- 纪律评分 ---")
+    print("\n  --- 纪律评分 ---")
     grade = _discipline_grade(result.discipline_score)
     print(f"  总分:          {grade} ({result.discipline_score:.0f}/100)")
     print(f"  - 建议执行率:  {result.compliance_rate:.0%}")
@@ -905,7 +901,7 @@ def print_behavioral_report(result: BehavioralBacktestResult) -> None:
 
     # 逐笔对比
     if result.comparisons:
-        print(f"\n  --- 逐笔对比 ---")
+        print("\n  --- 逐笔对比 ---")
         header = f"  {'日期':<12} {'AI建议':<8} {'用户操作':<8} {'匹配':<6} {'AI量(g)':<9} {'实际量(g)':<9}"
         print(header)
         print(f"  {'-'*12} {'-'*8} {'-'*8} {'-'*6} {'-'*9} {'-'*9}")
@@ -922,7 +918,7 @@ def print_behavioral_report(result: BehavioralBacktestResult) -> None:
                   f"{match_symbol:<6} {ai_qty_str:<9} {act_qty_str:<9}")
 
     # 匹配图例
-    print(f"\n  匹配图例: ✓=遵守  ~=部分偏离  ✗=遗漏  !=额外交易")
+    print("\n  匹配图例: ✓=遵守  ~=部分偏离  ✗=遗漏  !=额外交易")
     print("=" * 58)
 
 

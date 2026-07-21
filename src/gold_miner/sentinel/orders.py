@@ -1,12 +1,9 @@
-# -*- coding: utf-8 -*-
 """条件单检查 — 从 JSONL 读取活跃订单, 判断是否接近触发."""
 
 from __future__ import annotations
 
 import json
-from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 from .models import ConditionalOrder
 
@@ -57,7 +54,7 @@ def check_order_proximity(
 
         # OCO 订单额外检查止盈/止损价
         if o.type == "oco" and o.oco:
-            for key, label in [("take_profit", "止盈"), ("stop_loss", "止损")]:
+            for key, _label in [("take_profit", "止盈"), ("stop_loss", "止损")]:
                 leg = o.oco.get(key)
                 if leg and isinstance(leg, dict):
                     tp = leg.get("price", 0)

@@ -369,7 +369,7 @@ class IntlGoldEtfFlowFetcher(DataFetcher):
             raw_score = pct_change * 2.0
             score = max(-0.8, min(0.8, raw_score))
 
-            abs_pct = abs(pct_change)
+            abs(pct_change)
             if pct_change >= self.HOLDINGS_STRONG_PCT:
                 direction = "strong_inflow"
             elif pct_change >= self.HOLDINGS_MODERATE_PCT:
@@ -383,10 +383,7 @@ class IntlGoldEtfFlowFetcher(DataFetcher):
                 score = 0.0
 
             latest_ts = df["timestamp"].iloc[-1]
-            if hasattr(latest_ts, "isoformat"):
-                as_of = latest_ts.isoformat()
-            else:
-                as_of = str(latest_ts)
+            as_of = latest_ts.isoformat() if hasattr(latest_ts, "isoformat") else str(latest_ts)
 
             return {
                 "status": "ok",

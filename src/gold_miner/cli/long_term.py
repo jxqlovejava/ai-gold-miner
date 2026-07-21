@@ -26,7 +26,7 @@ def run_longterm(args: argparse.Namespace) -> None:
     print("=" * 60)
     analysis = analyzer.run(horizon=args.horizon, risk_profile=args.risk or settings.risk_profile, dry_run=args.dry_run)
 
-    for msg in result.messages:
+    for msg in analysis.messages:
         print(f"  {msg}")
 
     if not args.dry_run:

@@ -10,11 +10,11 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from gold_miner.compat import StrEnum
+from datetime import UTC, datetime
 
 from loguru import logger
 
+from gold_miner.compat import StrEnum
 from gold_miner.data.news import NewsItem
 from gold_miner.data.source_tiers import _domain_matches, get_source_tier
 from gold_miner.proxy import get_proxied_client
@@ -251,7 +251,7 @@ class FactChecker:
                 idx = futures[future]
                 try:
                     results[idx] = future.result()
-                except Exception as e:
+                except Exception:
                     results[idx] = FactCheckResult(
                         news_item=items[idx],
                         status=VerificationStatus.UNVERIFIED,
@@ -317,7 +317,7 @@ class FactChecker:
 
         # 源链过滤：同一线索链的多个域名不算独立确认
         # 例如 i24NEWS 独家被 JPost 转载 → 两个域名实际引用同一匿名源
-        filtered = cls._filter_chain_sources(filtered, original_domain)
+        filtered = self._filter_chain_sources(filtered, original_domain)
 
         return filtered[:max_results]
 
@@ -563,7 +563,7 @@ class FactChecker:
         - 未来日期的新闻 → 可疑
         - 超过30天前的突发新闻 → 可能是旧闻重发
         """
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         age_days = (now - item.published_at).days
 
         return age_days >= 0 and not (item.is_breaking and age_days > 7)

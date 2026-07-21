@@ -24,15 +24,15 @@
 
 from __future__ import annotations
 
-import calendar as _calendar_mod
 import json
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
-from gold_miner.compat import StrEnum
+from datetime import UTC, date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
 from loguru import logger
+
+from gold_miner.compat import StrEnum
 
 # 北京时间 = UTC+8
 _BEIJING_TZ = timezone(timedelta(hours=8))
@@ -199,7 +199,7 @@ class CalendarEvent:
 
         try:
             updated = datetime.fromisoformat(self.actual_updated_at)
-            hours_since = (datetime.now(tz=timezone.utc) - updated).total_seconds() / 3600
+            hours_since = (datetime.now(tz=UTC) - updated).total_seconds() / 3600
             return hours_since > check_hours
         except (ValueError, TypeError):
             return True  # 时间戳不可解析 → 保守
@@ -285,7 +285,7 @@ class EventCalendar:
 
         自动补全覆盖：NFP/ECB/BOE/Flash PMI/UK CPI/德国ZEW/EU消费者信心
         """
-        target = year or datetime.now(tz=timezone.utc).year
+        target = year or datetime.now(tz=UTC).year
         if target in self._loaded_years:
             return [e for e in self.events if e.scheduled_at.year == target]
 
@@ -420,7 +420,7 @@ class EventCalendar:
         min_impact: EventImpact = EventImpact.MEDIUM,
         reference_time: datetime | None = None,
     ) -> list[CalendarEvent]:
-        now = (reference_time or datetime.now(tz=timezone.utc))
+        now = (reference_time or datetime.now(tz=UTC))
         cutoff = now + timedelta(days=days)
         impact_order = {EventImpact.HIGH: 3, EventImpact.MEDIUM: 2, EventImpact.LOW: 1}
         min_level = impact_order.get(min_impact, 1)
@@ -431,7 +431,7 @@ class EventCalendar:
         ]
 
     def get_today(self) -> list[CalendarEvent]:
-        today = datetime.now(tz=timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        today = datetime.now(tz=UTC).replace(hour=0, minute=0, second=0, microsecond=0)
         tomorrow = today + timedelta(days=1)
         return [e for e in self.events if today <= e.scheduled_at < tomorrow]
 
@@ -445,7 +445,7 @@ class EventCalendar:
         用于分析前自动拉取事件结果：scheduled_at 已过但 actual 为空的事件，
         按时间倒序排列。
         """
-        now = reference_time or datetime.now(tz=timezone.utc)
+        now = reference_time or datetime.now(tz=UTC)
         cutoff = now - timedelta(days=lookback_days)
         candidates = [
             e for e in self.events
@@ -467,7 +467,7 @@ class EventCalendar:
 
         只返回非 monitor 类型的普通事件（monitor 由独立机制处理）。
         """
-        now = reference_time or datetime.now(tz=timezone.utc)
+        now = reference_time or datetime.now(tz=UTC)
         cutoff = now - timedelta(days=lookback_days)
         candidates = [
             e for e in self.events
@@ -507,7 +507,7 @@ class EventCalendar:
         if scheduled_at.tzinfo is None:
             scheduled_at = scheduled_at.replace(tzinfo=_et_offset(scheduled_at))
 
-        now_iso = datetime.now(tz=timezone.utc).isoformat()
+        now_iso = datetime.now(tz=UTC).isoformat()
         updated = False
 
         for e in self.events:
@@ -687,7 +687,7 @@ class EventCalendar:
         Returns:
             (missing_categories, warnings) — missing 是需要人肉确认并补充的类别列表
         """
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         target_year = year or now.year
         target_month = month or now.month
 
@@ -775,7 +775,7 @@ class EventCalendar:
             True 如果找到并更新了事件
         """
         updated = False
-        now_iso = datetime.now(tz=timezone.utc).isoformat()
+        now_iso = datetime.now(tz=UTC).isoformat()
         for e in self.events:
             if e.name == name and e.is_active_monitor:
                 e.status = new_status
@@ -806,7 +806,7 @@ class EventCalendar:
         Returns:
             最近触发的 monitor 事件列表
         """
-        now = reference_time or datetime.now(tz=timezone.utc)
+        now = reference_time or datetime.now(tz=UTC)
         cutoff = now - timedelta(days=lookback_days)
         candidates = [
             e for e in self.events
@@ -844,7 +844,7 @@ class EventCalendar:
         Returns:
             按过时程度排序 (无时间戳 / 最久未更新的在前)
         """
-        now = reference_time or datetime.now(tz=timezone.utc)
+        now = reference_time or datetime.now(tz=UTC)
         cutoff = now - timedelta(days=lookback_days)
 
         candidates = [

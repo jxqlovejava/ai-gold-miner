@@ -1,16 +1,14 @@
-# -*- coding: utf-8 -*-
 """黄金哨兵 — 数据模型."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
-from typing import Optional
 
 
-class AlertLevel(str, Enum):
+class AlertLevel(StrEnum):
     P0 = "p0"  # 止损触发 / 硬止损
     P1 = "p1"  # 接近止损 / 日内大跌
     P2 = "p2"  # 条件单接近 / 日历提醒
@@ -37,7 +35,7 @@ class ConditionalOrder:
     direction: str  # 买入 / 卖出
     trigger_price: float
     quantity_g: float
-    oco: Optional[dict] = None  # {take_profit, stop_loss}
+    oco: dict | None = None  # {take_profit, stop_loss}
     note: str = ""
 
 
@@ -97,7 +95,7 @@ class SentinelResult:
     """哨兵运行结果."""
     alerts: list[SentinelAlert] = field(default_factory=list)
     quotes: list[GoldQuote] = field(default_factory=list)
-    portfolio: Optional[PortfolioSnapshot] = None
+    portfolio: PortfolioSnapshot | None = None
 
     @property
     def silent(self) -> bool:
@@ -113,13 +111,13 @@ class SentinelResult:
 def format_alerts(
     alerts: list[SentinelAlert],
     quotes: list[GoldQuote],
-    portfolio: Optional[PortfolioSnapshot] = None,
+    portfolio: PortfolioSnapshot | None = None,
 ) -> str:
     """格式化告警为人话卡片."""
     from datetime import datetime
 
-    BEIJING = __import__('datetime').timezone(__import__('datetime').timedelta(hours=8))
-    now = datetime.now(BEIJING).strftime("%m-%d %H:%M")
+    beijing = __import__('datetime').timezone(__import__('datetime').timedelta(hours=8))
+    now = datetime.now(beijing).strftime("%m-%d %H:%M")
 
     lines = [f"🪙 黄金哨兵 · {now}"]
 

@@ -283,10 +283,7 @@ class PortfolioManager:
         if long_only and result["direction"] == "short":
             result["direction"] = "neutral"
         final_score = abs(float(result["composite_score"]))
-        if final_score < self.SCORE_THRESHOLD and result.get("strategy_objective") is None:
-            result["direction"] = "neutral"
-            result["position_pct"] = 0.0
-        elif (
+        if final_score < self.SCORE_THRESHOLD and result.get("strategy_objective") is None or (
             final_score < self.SCORE_THRESHOLD
             and result.get("strategy_reason", "").startswith("[弱分未覆盖]")
         ):

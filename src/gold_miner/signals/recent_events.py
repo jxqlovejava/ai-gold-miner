@@ -14,11 +14,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from loguru import logger
 
-from gold_miner.data.calendar import EventCalendar, EventType
+from gold_miner.data.calendar import EventCalendar
 from gold_miner.signals.base import Signal, SignalDirection, SignalStrength
 
 
@@ -59,7 +59,7 @@ def _infer_direction_from_event(name: str, actual: str, forecast: str | None) ->
     基于关键词匹配做快速推断，复杂判断由 AI 分析补充。
     """
     actual_lower = actual.lower()
-    forecast_lower = (forecast or "").lower()
+    (forecast or "").lower()
 
     # 鹰派/加息信号 → 利空黄金
     hawkish_keywords = ["加息", "鹰派", "hike", "hawkish", "收紧", "tighten"]
@@ -127,7 +127,7 @@ class RecentEventSignalGenerator:
            避免关键数据发布后被静默忽略。
         """
         self._ensure_loaded()
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
 
         events = self.calendar.get_recent_events_with_results(
             lookback_days=self.config.lookback_days,

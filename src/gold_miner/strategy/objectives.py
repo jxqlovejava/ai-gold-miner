@@ -1,9 +1,11 @@
 """策略目标与配置 — 四种策略目标的不同参数."""
 
 from __future__ import annotations
+
 from dataclasses import dataclass, field
-from gold_miner.compat import StrEnum
 from typing import Any
+
+from gold_miner.compat import StrEnum
 
 
 class StrategyObjective(StrEnum):
@@ -30,7 +32,7 @@ class StrategyConfig:
     description: str = ""
 
     @classmethod
-    def for_objective(cls, objective: StrategyObjective) -> "StrategyConfig":
+    def for_objective(cls, objective: StrategyObjective) -> StrategyConfig:
         """工厂方法 — 为每种目标提供合理默认值."""
         if objective == StrategyObjective.MAXIMIZE_PROFIT:
             return cls(

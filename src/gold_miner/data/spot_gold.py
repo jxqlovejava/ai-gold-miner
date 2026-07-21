@@ -133,21 +133,6 @@ class SpotGoldFetcher(DataFetcher):
     def fetch_international_quote(self) -> list[dict[str, Any]] | None:
         """获取国际金价实时报价."""
         return self._fetch_jinjia_international()
-        try:
-            df = ak.spot_hist_sge(symbol="Au99.99")
-            if not df.empty:
-                return {
-                    "symbol": "Au99.99 (SGE)",
-                    "last_price": float(df["close"].iloc[-1]),
-                    "date": str(df["date"].iloc[-1]),
-                    "source": "上海黄金交易所 (最新收盘)",
-                    "unit": "人民币/克",
-                    "timestamp": datetime.now(),
-                }
-        except Exception:
-            pass
-
-        return {"symbol": "Au99.99", "error": "数据不可用", "timestamp": datetime.now()}
 
     # ------------------------------------------------------------------
     # 内部

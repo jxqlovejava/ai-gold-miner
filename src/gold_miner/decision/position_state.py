@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from typing import Any
 
-
 _ACTION_CN = {
     "hold": "持有",
     "add": "加仓",
@@ -251,7 +250,7 @@ def resolve_position_state(
             direction="neutral",
             position_pct=0.0,
             target_gold_pct=0.0,
-            reason=f"偏空但无持仓，long_only 不新开空→观望",
+            reason="偏空但无持仓，long_only 不新开空→观望",
         )
 
     # 4) 偏多

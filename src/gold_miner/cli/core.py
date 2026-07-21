@@ -16,8 +16,8 @@ from .journal import run_journal
 from .long_term import run_longterm
 from .prepare import run_prepare
 from .proxy_install import run_proxy_install
-from .record import run_record
 from .quote import run_quote
+from .record import run_record
 from .report import run_report
 from .scan import run_scan
 from .scenario import run_scenario

@@ -4,8 +4,9 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
-from gold_miner.compat import StrEnum
 from typing import Any
+
+from gold_miner.compat import StrEnum
 
 
 class EventType(StrEnum):
@@ -36,7 +37,7 @@ class SignalSnapshot:
     description: str = ""
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> "SignalSnapshot":
+    def from_dict(cls, d: dict[str, Any]) -> SignalSnapshot:
         return cls(
             name=d.get("name", ""),
             dimension=d.get("dimension", ""),
@@ -55,7 +56,7 @@ class SourceRef:
     description: str = ""
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> "SourceRef":
+    def from_dict(cls, d: dict[str, Any]) -> SourceRef:
         return cls(
             ref_type=d.get("ref_type", ""),
             ref_id=d.get("ref_id", ""),
@@ -109,7 +110,7 @@ class EvidenceSnapshot:
         confidence: float = 0.0,
         source_type: str = "scan",
         source_refs: list[dict[str, Any]] | None = None,
-    ) -> "EvidenceSnapshot":
+    ) -> EvidenceSnapshot:
         sig_snapshots = tuple(
             SignalSnapshot.from_dict(s) for s in (signals or [])
         )
@@ -154,7 +155,7 @@ class Event:
         event_type: EventType,
         prediction_id: str,
         payload: dict[str, Any],
-    ) -> "Event":
+    ) -> Event:
         return cls(
             event_id=uuid.uuid4().hex[:12],
             timestamp=datetime.now(),

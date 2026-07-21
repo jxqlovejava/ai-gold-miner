@@ -32,7 +32,7 @@ class _SharedClientWrapper:
     def __getattr__(self, name: str) -> Any:
         return getattr(self._client, name)
 
-    def __enter__(self) -> "httpx.Client":
+    def __enter__(self) -> httpx.Client:
         return self._client
 
     def __exit__(self, *args: Any) -> None:
@@ -312,7 +312,7 @@ rules:
         """SOCKS5 代理地址."""
         return f"socks5://127.0.0.1:{self.port}"
 
-    def get_client(self, **kwargs: Any) -> "httpx.Client":
+    def get_client(self, **kwargs: Any) -> httpx.Client:
         """获取配置了代理的 httpx Client（连接池复用, 避免每次新建TLS握手）.
 
         返回一个共享连接池的 wrapper — callers 可安全使用 `with` 语法.

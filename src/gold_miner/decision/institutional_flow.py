@@ -12,10 +12,11 @@
 """
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
-from typing import Any, Iterable
+from typing import Any
 
-from gold_miner.signals.base import Signal, SignalDirection
+from gold_miner.signals.base import Signal
 
 # 不计入机构真流的 proxy 标记
 _PROXY_SOURCES = frozenset({
@@ -148,7 +149,7 @@ def assess_institutional_flow(signals: Iterable[Signal]) -> InstitutionalFlowAss
     net = sum(contribs) / len(contribs)
     net = max(-1.0, min(1.0, net))
 
-    labels = {e["label"] for e in evidence}
+    {e["label"] for e in evidence}
     has_strong_outflow = any(
         e["label"] in ("intl_etf_strong_outflow",) or e["contribution"] <= -0.7
         for e in evidence

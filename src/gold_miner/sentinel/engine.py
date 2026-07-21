@@ -1,18 +1,15 @@
-# -*- coding: utf-8 -*-
 """黄金哨兵引擎 — 持仓监控 + 价格告警 + 条件单检查."""
 
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime, timedelta, timezone
+
 import yaml
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
-from typing import Optional
 
 from .models import (
     AlertLevel,
     ConditionalOrder,
-    GoldQuote,
     PortfolioSnapshot,
     SentinelAlert,
     SentinelConfig,
@@ -73,7 +70,7 @@ class SentinelEngine:
             portfolio=portfolio,
         )
 
-    def _load_portfolio(self, current_price: float) -> Optional[PortfolioSnapshot]:
+    def _load_portfolio(self, current_price: float) -> PortfolioSnapshot | None:
         """加载持仓并计算快照."""
         pf_path = self.cfg.portfolio_path
         if not pf_path.exists():
@@ -85,7 +82,7 @@ class SentinelEngine:
 
         positions = data.get("positions", {})
         gold = positions.get("gold_jd", {})
-        limits = data.get("limits", {})
+        data.get("limits", {})
 
         grams = gold.get("grams", 0)
         avg_cost = gold.get("avg_cost", 0)
@@ -167,7 +164,7 @@ class SentinelEngine:
             alerts.append(SentinelAlert(
                 level=AlertLevel.P2,
                 title=f"浮盈 {p.unrealized_pnl_pct:+.1f}%, 检查止损上移",
-                detail=f"r010: 浮盈>20%时止损必须上移至成本价以上",
+                detail="r010: 浮盈>20%时止损必须上移至成本价以上",
             ))
 
         return alerts
@@ -197,7 +194,7 @@ class SentinelEngine:
         if not cal_path.exists():
             return alerts
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         window = now + timedelta(hours=self.cfg.event_remind_hours)
         happening_now = timedelta(minutes=30)  # ±30分钟视为"正在发生"
 

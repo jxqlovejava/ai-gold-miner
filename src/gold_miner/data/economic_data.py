@@ -15,7 +15,6 @@ from loguru import logger
 
 from gold_miner.storage.local import LocalFileStore
 
-
 # ------------------------------------------------------------------
 # Market Snapshot
 # ------------------------------------------------------------------

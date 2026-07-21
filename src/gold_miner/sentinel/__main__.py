@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """黄金哨兵 — Hermes 入口.
 
 Hermes 约定:

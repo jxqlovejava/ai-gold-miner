@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """突发新闻监控 — 智能检测金价相关 breaking news.
 
 v2 改进:
@@ -11,13 +10,13 @@ v2 改进:
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import re
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Optional
 
 import httpx
 
@@ -106,13 +105,10 @@ def _is_negated(title: str, keyword: str) -> bool:
         if re.search(pat, title):
             return True
     # 和谈/停火类标题 → 冲突降级, 不算地缘升级
-    if keyword in ("美伊", "伊朗", "空袭", "袭击", "战争", "封锁") and \
-       re.search(r"降溫|緩和|缓和|停火|协议.*达成|谈判.*取得.*进展|和谈|peace.*talk|ceasefire", title):
-        return True
-    return False
+    return bool(keyword in ("美伊", "伊朗", "空袭", "袭击", "战争", "封锁") and re.search(r"降溫|緩和|缓和|停火|协议.*达成|谈判.*取得.*进展|和谈|peace.*talk|ceasefire", title))
 
 
-def _parse_sina_time(ctime_str: str) -> Optional[float]:
+def _parse_sina_time(ctime_str: str) -> float | None:
     """解析新浪 ctime 为 Unix 时间戳."""
     if not ctime_str:
         return None
@@ -299,10 +295,10 @@ def analyze_headlines(
                 context = impact
                 if abs(gold_change_pct) > 1.5:
                     if gold_change_pct < 0 and "利多" in impact:
-                        context += " (金价已跌{:.1f}%, 可能尚未定价)".format(gold_change_pct)
+                        context += f" (金价已跌{gold_change_pct:.1f}%, 可能尚未定价)"
                         final_level = "P0"  # 升级: 利多新闻+金价已跌=可能错杀
                     elif gold_change_pct > 0 and "利空" in impact:
-                        context += " (金价反涨{:.1f}%, 市场可能已预期)".format(gold_change_pct)
+                        context += f" (金价反涨{gold_change_pct:.1f}%, 市场可能已预期)"
                         final_level = "P1"  # 降级: 利空新闻+金价反涨=已被定价
 
                 alerts.append({
@@ -340,10 +336,8 @@ def _load_dedup() -> dict[str, float]:
 
 
 def _save_dedup(cache: dict[str, float]) -> None:
-    try:
+    with contextlib.suppress(Exception):
         _DEDUP_FILE.write_text(json.dumps(cache))
-    except Exception:
-        pass
 
 
 def _title_hash(title: str) -> str:
@@ -389,7 +383,7 @@ def format_news_alerts(alerts: list[dict], gold_price: float = 0,
             lines.append(f"  • [{cat}] {a['title'][:80]}")
 
     lines.append("")
-    sources = set(a.get("source", "") for a in p0 + p1)
+    sources = {a.get("source", "") for a in p0 + p1}
     lines.append(f"📡 {', '.join(sources)} | 🕐 自动监控")
     return "\n".join(lines)
 

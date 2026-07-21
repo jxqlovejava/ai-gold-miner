@@ -9,7 +9,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 
 from loguru import logger
 
@@ -22,7 +22,6 @@ _BEIJING_TZ = timezone(timedelta(hours=8))
 
 def _is_us_dst(dt: datetime) -> bool:
     """美东夏令时 (EDT, UTC-4): 3月第二个周日 – 11月第一个周日."""
-    import calendar
     # 若传入 aware datetime，先转为 naive 再比较（月/日边界用本地时间即可）
     naive_dt = dt.replace(tzinfo=None) if dt.tzinfo is not None else dt
     # 3月第二个周日
@@ -73,7 +72,7 @@ class EconomicCalendarSignalGenerator:
     def generate_signals(self) -> list[Signal]:
         """生成未来事件提醒信号."""
         signals: list[Signal] = []
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         try:
             if not self.calendar.events:
                 self.calendar.load_fixed_calendar()

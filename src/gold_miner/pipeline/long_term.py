@@ -34,7 +34,7 @@ class LongTermAnalyzer:
         result = LongTermAnalysisResult(horizon_months=horizon)
 
         # 1. 读取投资者画像与持仓
-        self._load_investor_data(ctx, result)
+        self._load_investor_data(result)
 
         # 2. 数据采集
         try:

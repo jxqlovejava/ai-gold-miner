@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """黄金报价获取 — XAUUSD + 积存金.
 
 策略:
@@ -14,13 +13,12 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import re
 import time
-import urllib.parse
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
 
 import httpx
 
@@ -40,7 +38,7 @@ def _now() -> datetime:
     return datetime.now(BEIJING)
 
 
-def _read_cache(max_age: int = _CACHE_TTL) -> Optional[dict]:
+def _read_cache(max_age: int = _CACHE_TTL) -> dict | None:
     """读取缓存."""
     if not _CACHE_FILE.exists():
         return None
@@ -57,7 +55,7 @@ def _read_cache(max_age: int = _CACHE_TTL) -> Optional[dict]:
 def _write_cache(xauusd_price: float, xauusd_change: float,
                  jd_price: float, jd_change: float) -> None:
     """写入缓存."""
-    try:
+    with contextlib.suppress(Exception):
         _CACHE_FILE.write_text(json.dumps({
             "ts": time.time(),
             "xauusd": xauusd_price,
@@ -65,8 +63,6 @@ def _write_cache(xauusd_price: float, xauusd_change: float,
             "jd": jd_price,
             "jd_change": jd_change,
         }))
-    except Exception:
-        pass
 
 
 def fetch_quotes(bank: str = "MS") -> list[GoldQuote]:
@@ -157,7 +153,7 @@ def fetch_quotes(bank: str = "MS") -> list[GoldQuote]:
     ]
 
 
-def _fetch_jd_gold() -> Optional[dict]:
+def _fetch_jd_gold() -> dict | None:
     """京东金融积存金 H5 接口 — 获取真实民生积存金报价.
 
     接口返回: {price, yesterdayPrice, upAndDownRate, upAndDownAmt, time}
@@ -194,7 +190,7 @@ def _fetch_jd_gold() -> Optional[dict]:
         return None
 
 
-def _fetch_xauusd_cn() -> Optional[dict]:
+def _fetch_xauusd_cn() -> dict | None:
     """国内可访问的 XAUUSD 数据源.
 
     依次尝试:
@@ -215,7 +211,7 @@ def _fetch_xauusd_cn() -> Optional[dict]:
     return None
 
 
-def _from_sina() -> Optional[dict]:
+def _from_sina() -> dict | None:
     """新浪财经国际黄金 (hf_XAU).
 
     格式: var hq_str_hf_XAU="最新价,今开盘,昨收盘?,最高,最低,时间,昨结算,涨跌额,...";
@@ -260,7 +256,7 @@ def _from_sina() -> Optional[dict]:
     return None
 
 
-def _from_eastmoney() -> Optional[dict]:
+def _from_eastmoney() -> dict | None:
     """东方财富黄金现货."""
     try:
         # 东方财富 Au99.99 → 上海金, 需换算成 XAUUSD

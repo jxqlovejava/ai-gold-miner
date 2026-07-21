@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from gold_miner.compat import StrEnum
 
 from loguru import logger
+
+from gold_miner.compat import StrEnum
 
 
 class Severity(StrEnum):

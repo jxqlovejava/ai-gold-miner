@@ -10,8 +10,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from gold_miner.compat import StrEnum
 from typing import Any, Protocol
+
+from gold_miner.compat import StrEnum
 
 # ---------------------------------------------------------------------------
 # 枚举

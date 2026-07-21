@@ -17,9 +17,9 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
-from typing import Iterable
+from datetime import UTC, datetime, timedelta, timezone
 
 _BEIJING_TZ = timezone(timedelta(hours=8))
 
@@ -109,10 +109,7 @@ def _is_non_us_event(name: str, event_type: str = "") -> bool:
     """
     if event_type in ("ecb", "boe"):
         return True
-    for kw in _NON_US_EVENT_KEYWORDS:
-        if kw.lower() in name.lower():
-            return True
-    return False
+    return any(kw.lower() in name.lower() for kw in _NON_US_EVENT_KEYWORDS)
 
 
 def check_event_clock(
@@ -338,9 +335,8 @@ def generate_dow_reference_table(
     每行包含: 事件名 | ET日期 | ET星期 | 北京时间 | 北京星期 | 期望DOW
     异常行会在末尾标注 ⚠️。
     """
-    from datetime import timezone as _tz
 
-    now = datetime.now(tz=_tz.utc)
+    now = datetime.now(tz=UTC)
     cutoff = now + timedelta(days=days_ahead)
 
     rows: list[str] = []

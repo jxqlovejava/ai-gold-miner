@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """深度新闻搜索 — 接入 anysearch + last30days-cn.
 
 此模块在本地分析 pipeline 中调用, 提供 Hermes 端无法实现的深度搜索能力:
@@ -16,7 +15,6 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timedelta, timezone
-from typing import Optional
 
 BEIJING = timezone(timedelta(hours=8))
 
@@ -197,12 +195,12 @@ def format_deep_news_report(
         lines.append(f"━━━ {topic['label']} [{topic['priority']}] ━━━")
 
         if any_results:
-            lines.append(f"🌐 国际源 (anysearch):")
+            lines.append("🌐 国际源 (anysearch):")
             for r in any_results[:3]:
                 lines.append(f"  • {r}")
 
         if cn_results:
-            lines.append(f"🇨🇳 国内源 (last30days):")
+            lines.append("🇨🇳 国内源 (last30days):")
             for r in cn_results[:3]:
                 lines.append(f"  • {r}")
 

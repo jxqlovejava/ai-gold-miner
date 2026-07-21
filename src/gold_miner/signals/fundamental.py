@@ -576,12 +576,12 @@ class FundamentalAnalyzer:
 
         # ── 2. INR/USD 汇率维度 ──
         # Fallback 数据表: 关键时点的 INR/USD (来自 FRED H.10 / TradingEconomics)
-        _INR_FALLBACK: dict[str, float] = {
+        _inr_fallback: dict[str, float] = {
             "2026-01-02": 90.80,   # 年初
             "2026-07-20": 95.97,   # 最新 (TradingEconomics)
         }
-        inr_year_start = _INR_FALLBACK.get("2026-01-02", 90.80)
-        inr_latest = _INR_FALLBACK.get("2026-07-20", 95.97)
+        inr_year_start = _inr_fallback.get("2026-01-02", 90.80)
+        inr_latest = _inr_fallback.get("2026-07-20", 95.97)
         inr_depreciation_pct = (inr_latest - inr_year_start) / inr_year_start * 100
 
         if abs(inr_depreciation_pct) > 3.0:
@@ -630,14 +630,14 @@ class FundamentalAnalyzer:
 
         # ── 3. GDP 季度增速维度 ──
         # Fallback: 最新已知官方数据 (MoSPI Q2 FY2025-26 = Jul-Sep 2025)
-        _GDP_FALLBACK: dict[str, float] = {
+        _gdp_fallback: dict[str, float] = {
             "Q2_FY26": 8.2,     # Jul-Sep 2025, 六季最高
             "Q1_FY26": 7.8,     # Apr-Jun 2025
             "H1_FY26": 8.0,     # 上半年平均
             "FY26_forecast": 7.0,  # 政府+CEA官方预测
         }
-        gdp_latest = _GDP_FALLBACK.get("Q2_FY26", 8.2)
-        gdp_forecast = _GDP_FALLBACK.get("FY26_forecast", 7.0)
+        gdp_latest = _gdp_fallback.get("Q2_FY26", 8.2)
+        gdp_forecast = _gdp_fallback.get("FY26_forecast", 7.0)
 
         # GDP 增速 >7% → 收入增长支撑黄金消费 (收入弹性 ~1.5-2.0)
         # 收入弹性 > 价格弹性 — 印度人越有钱越买黄金 (Kanjilal & Ghosh 2014)
@@ -649,7 +649,7 @@ class FundamentalAnalyzer:
                 strength=SignalStrength.WEAK,
                 score=0.12,
                 description=(
-                    f"印度Q2 FY26 GDP增速 {gdp_latest}% (六季最高, H1 {_GDP_FALLBACK['H1_FY26']}%)。"
+                    f"印度Q2 FY26 GDP增速 {gdp_latest}% (六季最高, H1 {_gdp_fallback['H1_FY26']}%)。"
                     "收入弹性>>价格弹性——经济高增长是黄金需求最强驱动力。"
                     f"全年预期 {gdp_forecast}%+。"
                     "部分对冲关税+卢比贬值的负面效应"
@@ -658,7 +658,7 @@ class FundamentalAnalyzer:
                     "source": "india_gold_demand",
                     "source_tier": "T0",
                     "gdp_q2_fy26": gdp_latest,
-                    "gdp_h1_fy26": _GDP_FALLBACK["H1_FY26"],
+                    "gdp_h1_fy26": _gdp_fallback["H1_FY26"],
                     "fy26_forecast": gdp_forecast,
                     "income_elasticity": "1.5-2.0",
                     "reference": "Kanjilal & Ghosh (2014) Resour Policy",

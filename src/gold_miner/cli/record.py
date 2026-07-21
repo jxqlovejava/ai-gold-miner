@@ -296,7 +296,7 @@ def _run_show(args: argparse.Namespace, recorder: EconomicDataRecorder) -> None:
     print(f"\n📦 批次: {args.batch_id}")
     print(f"   日期: {points[0].release_date}  |  指标数: {len(points)}")
     if snapshot:
-        print(f"   📊 市场快照:")
+        print("   📊 市场快照:")
         if snapshot.spot_gold_usd:
             print(f"      现货黄金: ${snapshot.spot_gold_usd:.0f}/oz")
         if snapshot.au9999_cny:

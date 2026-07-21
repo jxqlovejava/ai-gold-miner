@@ -4,8 +4,9 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime
-from gold_miner.compat import StrEnum
 from typing import Any
+
+from gold_miner.compat import StrEnum
 
 
 class SignalDirection(StrEnum):
@@ -99,7 +100,7 @@ class SignalBundle:
         self,
         min_active_dimensions: int = 4,
         consensus_ratio_threshold: float = 0.75,
-    ) -> "DimensionConsensus":
+    ) -> DimensionConsensus:
         """检测多维度信号是否形成方向共识.
 
         每个维度内取多数方向，然后统计各维度之间的方向一致性。
@@ -144,10 +145,7 @@ class SignalBundle:
             and ratio >= consensus_ratio_threshold
         )
 
-        if has_consensus:
-            direction = "bullish" if bullish > bearish else "bearish"
-        else:
-            direction = "none"
+        direction = ("bullish" if bullish > bearish else "bearish") if has_consensus else "none"
 
         return DimensionConsensus(
             active_dimensions=active,
