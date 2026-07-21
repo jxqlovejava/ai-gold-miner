@@ -4,6 +4,9 @@
 #   bash scripts/push_analysis_to_hermes.sh <报告文本>
 #   echo "报告内容" | bash scripts/push_analysis_to_hermes.sh
 #   bash scripts/push_analysis_to_hermes.sh --file /path/to/report.md
+#
+# 注意：Hermes 的 Weixin iLink 有 30s 冷却机制，每次调用都重置。
+# 不要加客户端重试 — 会放大限流。如果失败，等 60s+ 再手动重试。
 set -euo pipefail
 
 PEM="${HERMES_PEM:-$HOME/Documents/hermes.pem}"
@@ -17,7 +20,6 @@ if [ "${1:-}" = "--file" ] && [ -f "${2:-}" ]; then
 elif [ -n "${1:-}" ] && [ "${1:-}" != "--file" ]; then
   MESSAGE="$1"
 else
-  # 从 stdin 读取
   MESSAGE=$(cat)
 fi
 
@@ -34,8 +36,12 @@ if [ ${#MESSAGE} -gt $MAX_LEN ]; then
 (内容过长已截断, 完整报告见终端)"
 fi
 
-# 通过 Hermes send 推送到微信
-echo "$MESSAGE" | "${SSH[@]}" "$HOST" "hermes send --to weixin --subject '[黄金分析]' -f -" 2>&1
+# 写入 Hermes 端的临时队列文件，由 gold_sentinel cron 代为发送
+# 避免客户端 iLink rate-limit 死循环 (每次调用重置 30s 冷却)
+REMOTE_TMP="/tmp/analysis_push_$(date +%Y%m%d_%H%M%S).txt"
+echo "$MESSAGE" | "${SSH[@]}" "$HOST" "cat > $REMOTE_TMP && echo '📝 已写入队列:' $REMOTE_TMP" 2>&1
 
 echo ""
-echo "✅ 分析报告已推送到微信"
+echo "📝 分析摘要已写入 Hermes 队列文件: $REMOTE_TMP"
+echo "   下次 gold_sentinel cron 将代为推送到微信"
+echo "   如需立即推送: ssh hermes 'cat /tmp/analysis_push_*.txt | tail -1 | xargs -I{} hermes send -t weixin -s \"[黄金分析]\" -f - <<< {}'"
