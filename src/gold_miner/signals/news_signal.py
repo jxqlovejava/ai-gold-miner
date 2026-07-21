@@ -153,6 +153,7 @@ def _aggregate_tier_tag(pool: list[NewsItem]) -> str:
 # 地缘核心主题 → 🇨🇳中文标签映射
 _GEO_TOPIC_LABELS: dict[str, str] = {
     "iran": "🇮🇷伊朗",
+    "tehran": "🇮🇷伊朗",
     "israel": "🇮🇱以色列",
     "houthi": "胡塞武装",
     "yemen": "🇾🇪也门",
@@ -187,7 +188,64 @@ _GEO_TOPIC_LABELS: dict[str, str] = {
     "nuclear": "核",
     "missile": "导弹",
     "drone": "无人机",
+    # 调停方
+    "pakistan": "🇵🇰巴基斯坦",
+    "qatar": "🇶🇦卡塔尔",
+    "oman": "🇴🇲阿曼",
+    "egypt": "🇪🇬埃及",
+    "turkey": "🇹🇷土耳其",
 }
+
+# 参与方立场模板 — 按关键词匹配，产出"<参与方>: <动作>"片段
+# 格式: (关键词匹配模式, 动作描述)
+_STANCE_PATTERNS: list[tuple[str, str]] = [
+    # ── 停火/谈判相关 ──
+    ("iran.{0,60}(?:confirm|receiv|review|study).{0,40}proposal", "🇮🇷伊确认收到方案+正审查"),
+    ("iran.{0,60}(?:accept|agree|approve|支持).{0,30}(?:ceasefire|truce|proposal)", "🇮🇷伊接受停火方案"),
+    ("iran.{0,60}(?:reject|refuse|dismiss).{0,30}(?:ceasefire|truce|proposal)", "🇮🇷伊拒绝停火方案"),
+    ("iran.{0,60}(?:push|initiat|propos).{0,40}(?:ceasefire|truce|10.day)", "🇮🇷伊主动推动停火"),
+    ("iran.{0,60}(?:commit).{0,20}diplomacy", "🇮🇷伊重申外交承诺"),
+    ("(?:trump|us|united states|white house|washington).{0,60}(?:reject|refuse|not willing|no longer).{0,40}(?:negotiat|talk|ceasefire|truce)", "🇺🇸美拒绝谈判+威胁升级"),
+    ("(?:trump|us|united states).{0,40}(?:pay|price|punish|end.{0,5}civilization)", "🇺🇸美要求伊付出代价"),
+    ("(?:trump|us|united states|white house).{0,60}(?:accept|agree|approve|extend).{0,30}(?:ceasefire|truce)", "🇺🇸美接受/延长停火"),
+    ("(?:trump|us|united states).{0,40}(?:threat|pledge|vow|intensify).{0,30}(?:attack|strike|retaliat|escalat)", "🇺🇸美威胁升级攻击"),
+    ("(?:trump|us|united states).{0,40}(?:desperate|want).{0,20}(?:talk|negotiat)", "🇺🇸美称伊求谈判"),
+    ("(?:pakistan|qatar|oman|egypt|turkey).{0,80}(?:propos|offer|mediat|broker).{0,40}(?:ceasefire|truce|de-escalat)", "巴卡调停方提出停火方案"),
+    ("(?:pakistan|qatar|mediator).{0,40}(?:two.week|10.day|temporary).{0,20}(?:ceasefire|truce)", "巴卡方案含2周停火提议"),
+    ("(?:pakistan|qatar|mediator).{0,60}(?:return|back).{0,20}(?:pre.july|july 9)", "方案含退回7/9前状态"),
+    ("reopen.{0,20}(?:strait of hormuz|hormuz)", "方案含重开霍尔木兹海峡"),
+    ("end.{0,10}(?:blockade|sanction).{0,20}(?:iranian|iran)", "方案含解除封锁/制裁"),
+    # ── 军事行动相关 ──
+    (r"(?:us|united states|american).{0,40}(?:launch|carry out|conduct).{0,20}(?:\d+th|strike|attack)", "🇺🇸美军连续空袭伊朗"),
+    ("(?:us|united states).{0,40}(?:strike|attack|hit).{0,20}iran", "🇺🇸美军打击伊朗"),
+    ("iran.{0,60}(?:launch|fire).{0,40}(?:missile|drone|attack|strike)", "🇮🇷伊发射导弹/无人机反击"),
+    ("iran.{0,40}(?:target|hit|destroy).{0,40}(?:kuwait|bahrain|jordan|uae|saudi)", "🇮🇷伊攻击海湾国家"),
+    ("irgc.{0,40}(?:vow|threat|warn).{0,40}(?:respond|retaliat|punish)", "🇮🇷革命卫队誓言反击"),
+    ("(?:houthi|houthis).{0,60}(?:blockade|threat|warn|attack)", "胡塞武装威胁/封锁"),
+    ("(?:houthi|houthis).{0,60}(?:red sea|bab.el-mandeb|saudi)", "胡塞武装红海/曼德海峡"),
+    ("(?:israel).{0,40}(?:strike|attack|hit|operation).{0,30}(?:lebanon|gaza|iran|houthi)", "🇮🇱以色列军事行动"),
+    ("(?:service member|soldier|troop).{0,40}(?:kill|die|death)", "美军人员伤亡"),
+    # ── 经济/制裁相关 ──
+    ("(?:usa?|united states|trump).{0,40}(?:blockade|sanction).{0,20}(?:iranian|iran)", "🇺🇸美封锁/制裁伊朗"),
+    ("(?:strait of hormuz|hormuz).{0,40}(?:close|block|shut|halt|stop|remain closed)", "霍尔木兹海峡仍关闭"),
+    (r"oil.{0,20}(?:price|surge|spike|rise).{0,20}(?:\$|dollar)", "油价上涨"),
+    (r"(?:brent|wti|crude).{0,20}(?:\$|dollar).{0,10}(?:\d{2,3})", "油价持续高位"),
+    # ── 谈判状态 ──
+    ("(?:talk|negotiation|diplomacy).{0,40}(?:stall|deadlock|collapse|break down)", "谈判陷入僵局"),
+    ("(?:talk|negotiation).{0,40}(?:resum|restart|continue)", "谈判将恢复"),
+    ("(?:talk|negotiation).{0,40}(?:islamabad|doha|geneva)", "谈判地点确认"),
+]
+
+# 通用动作兜底 (在 _format_geo_headline 主逻辑匹配不到时使用)
+_GENERIC_ACTIONS: list[tuple[list[str], str]] = [
+    (["ceasefire", "truce", "peace deal", "peace agreement"], "停火动态"),
+    (["attack", "strike", "airstrike", "military operation"], "军事行动"),
+    (["blockade", "封锁"], "封锁动态"),
+    (["sanction", "制裁"], "制裁动态"),
+    (["escalat", "升级"], "局势升级"),
+    (["negotiat", "talk", "diplomatic", "外交"], "外交斡旋"),
+    (["threat", "警告", "威胁"], "威胁/警告"),
+]
 
 
 def _extract_geo_topics(text: str, max_topics: int = 3) -> list[str]:
@@ -213,49 +271,58 @@ def _extract_geo_topics(text: str, max_topics: int = 3) -> list[str]:
 
 
 def _format_geo_headline(news: NewsItem) -> str:
-    """将地缘新闻标题格式化为紧凑可读的中文摘要行.
+    """多参与方立场提炼 — 输出结构化中文摘要.
 
-    提取核心主题 + 来源，避免展示原始英文长标题。
-    格式: "🇮🇷伊朗确认收到停火方案 [Anadolu]"
+    从新闻标题+摘要中匹配各方立场，产出如:
+      "🇮🇷伊确认收到方案+正审查 | 🇺🇸美拒绝谈判+威胁升级 | 巴卡提出2周停火 [Anadolu]"
+      "🇺🇸美军连续10夜空袭 | 🇮🇷革命卫队导弹反击科威特基地 [Al Jazeera]"
+    无精确匹配时回退到通用动作+主题模式:
+      "🇮🇷伊朗🇮🇱以色列停火动态 [Reuters]"
     """
     text = _news_text(news)
-    topics = _extract_geo_topics(text, max_topics=2)
 
-    # 判断主要动作
-    text_lower = text.lower()
-    if any(w in text_lower for w in ("ceasefire", "truce", "peace deal", "peace agreement")):
-        if any(w in text_lower for w in ("agree", "accept", "approved", "signed", "达成", "接受")):
-            action = "达成停火"
-        elif any(w in text_lower for w in ("propos", "offer", "提出", "方案")):
-            action = "提出停火方案"
-        elif any(w in text_lower for w in ("reject", "refuse", "拒绝")):
-            action = "拒绝停火"
-        else:
-            action = "停火谈判"
-    elif any(w in text_lower for w in ("attack", "strike", "airstrike", "空袭", "打击")):
-        action = "发动攻击"
-    elif any(w in text_lower for w in ("blockade", "封锁")):
-        action = "实施封锁"
-    elif any(w in text_lower for w in ("sanction", "制裁")):
-        action = "宣布制裁"
-    elif any(w in text_lower for w in ("escalat", "升级")):
-        action = "局势升级"
-    elif any(w in text_lower for w in ("negotiat", "talk", "diplomatic", "谈判", "外交")):
-        action = "展开谈判"
-    elif any(w in text_lower for w in ("threat", "警告", "威胁")):
-        action = "发出威胁"
+    # ── Step 1: 尝试精准立场匹配 ──
+    stances: list[str] = []
+    seen_actors: set[str] = set()
+
+    def _stance_actor(label: str) -> str:
+        """提取立场标签中的参与方标识 — 按国旗 emoji 去重."""
+        # 匹配开头的国旗 emoji (U+1F1E6-U+1F1FF 两个为一组) 或中文标签
+        m = re.match(
+            r"^([\U0001F1E0-\U0001F1FF]{1,2}"  # 🇮🇷 / 🇺🇸 (1或2个国旗码点)
+            r"|[一-鿿]{2,4})"           # 或 "胡塞武装"/"巴卡"
+            r"[^一-鿿]{0,2}",           # 后跟 0-2 个非中文字符 (如 "伊"/"美")
+            label
+        )
+        if m:
+            return m.group(1)
+        # 无国旗无中文标记 → 取前 6 字符
+        return label[:8]
+
+    for pattern, stance_label in _STANCE_PATTERNS:
+        if re.search(pattern, text, re.IGNORECASE):
+            actor = _stance_actor(stance_label)
+            if actor not in seen_actors:
+                seen_actors.add(actor)
+                stances.append(stance_label)
+
+    if stances:
+        headline = " | ".join(stances[:4])
     else:
+        # ── Step 2: 回退 — 通用主题+动作 ──
+        topics = _extract_geo_topics(text, max_topics=2)
+        text_lower = text.lower()
         action = "相关动态"
+        for keywords, label in _GENERIC_ACTIONS:
+            if any(w in text_lower for w in keywords):
+                action = label
+                break
+        if topics:
+            headline = f"{'·'.join(topics)}→{action}"
+        else:
+            headline = news.title.strip()[:50]
 
-    # 拼装: 主题 + 动作
-    if topics:
-        topic_str = " ".join(topics)
-        headline = f"{topic_str}{action}"
-    else:
-        # 回退：取标题前50字符
-        headline = news.title.strip()[:50]
-
-    # 附来源简称
+    # ── Step 3: 附来源 ──
     source_short = (news.source or "")[:12]
     if source_short:
         headline += f" [{source_short}]"
