@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 
 from gold_miner.config import settings
-from gold_miner.workflows.long_term import LongTermAnalyzer
+from gold_miner.pipeline.long_term import LongTermAnalyzer
 
 
 def run_longterm(args: argparse.Namespace) -> None:
