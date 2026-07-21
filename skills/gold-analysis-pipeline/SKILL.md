@@ -1,13 +1,13 @@
 ---
 name: gold-analysis-pipeline
-description: 黄金价格走势分析完整 pipeline — 第一步到第八步，含所有 API 签名、枚举值、命令模板、常见错误
+description: 黄金价格走势分析完整 pipeline — 第一步到第九步，含 API 签名、枚举值、命令模板、常见错误
 ---
 
 # Gold Analysis Pipeline — 完整分析流程与 API 参考
 
 ## 触发
 
-用户说「分析金价」「黄金走势」「gold」时触发。先执行第一步，再走第一步到第八步，最后输出完整报告。
+用户说「分析金价」「黄金走势」「gold」时触发。先执行第一步，再走第一步到第九步，最后输出完整报告。
 
 ## 输出铁律（优先级最高）
 
@@ -287,14 +287,17 @@ cal.add_event(CalendarEvent(
 | 一 | 信息准备（日历同步+深度新闻） | 时效性加权表 + Monitor检查 + Staleness验证 + P0主题扫描 |
 | 二 | 多维度信号采集 | 8维信号（技术面/基本面/消息面/资金流/情绪面等）|
 | **三** | **Source Truth + 事实vs解释** | 来源验证表 + 事实/解释区分（置信度标注）|
-| **四** | **Agent 博弈** (基于已验证事实) | Bull/Bear/PM 三方辩论 |
-| 五 | 军规自查 | r001-r030 逐条判定 |
-| 六 | Munger 模型 | 2-3个思维模型 |
-| 七 | 画像匹配 | 约束检查表 |
-| 八 | 后续事件关注 | 未来14天事件+情景预案 |
-| → | 最终建议 | 条件单审查 + Monitor创建 + 交易建议 |
+| 四 | 军规自查 | r001-r030 逐条判定 |
+| 五 | Munger 模型 | 2-3个思维模型 |
+| 六 | 画像匹配 | 约束检查表 |
+| **七** | **🐮Bull/🐻Bear/💼PM Agent 博弈** (综合前六步) | 三方辩论 + 资金流论据 + 军规阻断说明 |
+| **八** | **交易建议 + 条件单调整** | 买/卖/观望结论 + 条件单审查（结论先行）|
+| 九 | 后续事件关注 + 情景预案 + Monitor 创建 | 未来14天事件 + CPI/FOMC 情景推演 + 新增 Monitor 表 |
 
-> **关键变更**：第三步(验证)在第四步(辩论)之前 — Agent 必须基于已验证的事实辩论，不能在辩论完了才去验证来源。
+> **关键变更（2026-07-22）**：
+> - Agent 博弈从第四步移至第七步 — 综合军规约束、Munger 思维模型、画像匹配作为输入，形成信息充分的对立辩论。
+> - Agent 图标固定：🐮 BullAgent / 🐻 BearAgent / 💼 PortfolioManager，不可混用。
+> - 第八步结论先行（买/卖/观望+条件单），第九步前瞻附录（什么会改变结论）。
 
 ### 第一步：信息准备 — 事件日历同步 + 深度新闻扫描
 
@@ -321,13 +324,128 @@ P0 主题列表（必须全覆盖）：
 - `ceasefire_diplomacy` — 停火谈判与外交
 - `fed_policy` — 美联储政策
 
-### 第二步：8 维信号采集
+### 第二步：8 维信号采集 — 命令模板
+
+> 🔴 `Signal` 是 dataclass，字段：`s.name`、`s.direction` (枚举 `.value` 取 `"bullish"/"bearish"/"neutral"`)、`s.strength` (枚举 `.value` 取 `"strong"/"moderate"/"weak"`)、`s.score` (float)、`s.description` (str)。
+> 🔴 打印模板：`f'[{s.direction.value}] {s.name} | strength={s.strength.value} | score={s.score:.2f}'`
+
+#### 2.1 近期事件（时效性加权）
+
+```bash
+PYTHONPATH=src python3 -c "
+from gold_miner.signals.recent_events import RecentEventSignalGenerator
+gen = RecentEventSignalGenerator()
+signals = gen.generate_signals()
+for s in signals:
+    print(f'[{s.direction.value}] {s.name} | strength={s.strength.value} | score={s.score:.2f}')
+    if s.description:
+        print(f'  {s.description[:250]}')
+"
+```
+
+#### 2.2 技术面（需要价格 DataFrame）
+
+```bash
+PYTHONPATH=src python3 -c "
+from gold_miner.data.jd_accumulation_gold import JdAccumulationGoldFetcher
+from gold_miner.signals.technical import TechnicalAnalyzer
+
+f = JdAccumulationGoldFetcher(bank='MS')
+df = f.fetch(days=90)
+ta = TechnicalAnalyzer(df)               # df 必传，不是无参构造
+signals = ta.generate_signals()
+for s in signals:
+    print(f'[{s.direction.value}] {s.name} | strength={s.strength.value} | score={s.score:.2f}')
+    if s.description:
+        print(f'  {str(s.description)[:300]}')
+"
+```
+
+#### 2.3 基本面（无参构造，调用 `generate_signals()` 不是 `analyze()`）
+
+```bash
+PYTHONPATH=src python3 -c "
+from gold_miner.signals.fundamental import FundamentalAnalyzer
+fa = FundamentalAnalyzer()              # 无参构造
+signals = fa.generate_signals()         # 不是 analyze()
+for s in signals:
+    print(f'[{s.direction.value}] {s.name} | strength={s.strength.value} | score={s.score:.2f}')
+    if s.description:
+        print(f'  {s.description[:300]}')
+"
+```
+
+#### 2.4 消息面（`fetch_and_analyze()` 不是 `generate()`）
+
+```bash
+PYTHONPATH=src python3 -c "
+from gold_miner.signals.news_signal import NewsSignalGenerator
+gen = NewsSignalGenerator()
+signals = gen.fetch_and_analyze(hours=48)  # 不是 generate()
+for s in signals:
+    print(f'[{s.direction.value}] {s.name} | strength={s.strength.value} | score={s.score:.2f}')
+    if s.description:
+        print(f'  {s.description[:250]}')
+"
+```
+
+#### 2.5 👔 资金流（COT + ETF + 机构，统一模板）
+
+```bash
+PYTHONPATH=src python3 -c "
+from gold_miner.signals.cot_signal import CotSignalGenerator
+from gold_miner.signals.etf_flow_signal import EtfFlowSignalGenerator
+from gold_miner.signals.institutional_signal import InstitutionalSignalGenerator
+
+print('--- CFTC COT ---')
+try:
+    for s in CotSignalGenerator().generate_signals():
+        print(f'  [{s.direction.value}] {s.name} | strength={s.strength.value} | score={s.score:.2f}')
+except Exception as e:
+    print(f'  COT失败: {e}')
+
+print('--- ETF 资金流 ---')
+try:
+    for s in EtfFlowSignalGenerator().generate_signals():
+        print(f'  [{s.direction.value}] {s.name} | strength={s.strength.value} | score={s.score:.2f}')
+except Exception as e:
+    print(f'  ETF失败: {e}')
+
+print('--- COMEX大户 + 13F 机构 ---')
+try:
+    inst = InstitutionalSignalGenerator(current_spot=4065)
+    for s in inst.generate_signals():
+        print(f'  [{s.direction.value}] {s.name} | strength={s.strength.value} | score={s.score:.2f}')
+except Exception as e:
+    print(f'  机构持仓失败: {e}')
+"
+```
+
+#### 2.6 情绪面（需要价格 DataFrame）
+
+```bash
+PYTHONPATH=src python3 -c "
+from gold_miner.data.jd_accumulation_gold import JdAccumulationGoldFetcher
+from gold_miner.signals.sentiment_signal import SentimentAnalyzer
+
+f = JdAccumulationGoldFetcher(bank='MS')
+df = f.fetch(days=90)
+sa = SentimentAnalyzer(au_df=df)        # df 必传
+signals = sa.generate_signals()
+for s in signals:
+    print(f'[{s.direction.value}] {s.name} | strength={s.strength.value} | score={s.score:.2f}')
+    if s.description:
+        print(f'  {str(s.description)[:300]}')
+"
+```
+
 ### 第三步：Source Truth Verification + 事实vs解释
-### 第四步：Agent 博弈 (Bull/Bear/PM)
-### 第五步：军规自查 (r001-r030)
-### 第六步：Munger 模型 (2-3个)
-### 第七步：画像匹配
-### 第八步：后续事件关注 + 条件单审查 + Monitor 创建 + 交易建议
+### 第四步：军规自查 (r001-r030)
+### 第五步：Munger 模型 (2-3个)
+### 第六步：画像匹配
+### 第七步：🐮Bull / 🐻Bear / 💼PM Agent 博弈 (综合前六步输入)
+### 第八步：交易建议（买/卖/观望 + 操作建议 + 条件单调整）
+### 第九步：后续事件关注 + CPI/FOMC 情景预案 + Monitor 创建（前瞻附录）
 
 ---
 
@@ -342,5 +460,11 @@ P0 主题列表（必须全覆盖）：
 | `missing 1 required positional argument: 'actual'` | `update_event_result` 参数名不对 | 签名: `(name, scheduled_at, actual, forecast, previous, source_verified)` |
 | `got an unexpected keyword argument 'days_ahead'` | 参数名猜错 | `get_upcoming(days=14)` 不是 `days_ahead=` |
 | `'str' object has no attribute 'tzinfo'` | scheduled_at 传了字符串 | 必须传 `datetime(2026,7,21,8,0,0, tzinfo=tz)` |
+| `'RecentEventSignalGenerator' has no attribute 'generate'` | 方法名猜错 | `generate_signals()` 不是 `generate()` |
+| `TechnicalAnalyzer.__init__() missing 1 required positional argument: 'df'` | 无参构造 | `TechnicalAnalyzer(df)` 必须传 DataFrame |
+| `'FundamentalAnalyzer' has no attribute 'analyze'` | 方法名猜错 | `generate_signals()` 不是 `analyze()` |
+| `'NewsSignalGenerator' has no attribute 'generate'` | 方法名猜错 | `fetch_and_analyze(hours=48)` 不是 `generate()` |
+| `'SentimentAnalyzer' has no attribute 'analyze'` | 方法名猜错 | `generate_signals()` 不是 `analyze()` |
+| `'Signal' object has no attribute 'label'` | 字段名猜错 | `s.name` 不是 `s.label`；`s.direction.value` 不是 `s.direction` |
 | search 结果被 SEO 大新闻压制 | 搜索引擎偏差 | 对 fast-evolving 类型做逆转/修正专项搜索 |
 | 分析报告中"周三初请失业金" | DOW 未校验 | 先跑 `validate_calendar_dates.py --ref-table 30` |
