@@ -43,6 +43,7 @@ from gold_miner.experience import ExperienceLoader
 from gold_miner.improvement.tracker import PredictionRecord, PredictionTracker
 from gold_miner.llm.client import LLMClient
 from gold_miner.signals.base import FactType, Signal, SignalBundle, SignalDirection, SignalStrength
+from gold_miner.signals.candlestick import CandlestickPatternDetector
 from gold_miner.signals.cot_signal import CotSignalGenerator
 from gold_miner.signals.economic_calendar import EconomicCalendarSignalGenerator
 from gold_miner.signals.engine import ScoringEngine
@@ -514,6 +515,11 @@ class AnalysisPipeline:
             futures[pool.submit(
                 lambda: TechnicalAnalyzer(result.gold_df).generate_signals()
             )] = "technical"
+
+            # K线形态识别 (独立模块, 信号归 dimension="technical")
+            futures[pool.submit(
+                lambda: CandlestickPatternDetector(result.gold_df).generate_signals()
+            )] = "candlestick"
 
             # 基本面
             futures[pool.submit(
