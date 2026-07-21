@@ -520,62 +520,183 @@ class FundamentalAnalyzer:
     def _analyze_india_gold_demand() -> list[Signal]:
         """分析印度黄金需求变化对全球金价的边际影响.
 
+        三维度综合:
+        1. 进口关税 (WGC)——关税-进口相关性-0.17, 弱看空
+        2. INR/USD 汇率 (FRED H.10/TradingEconomics)——卢比贬值抑制购买力
+        3. GDP 季度增速 (MoSPI)——收入弹性远大于价格弹性(Kanjilal & Ghosh 2014)
+
         背景 (WGC 2026年7月更新):
         - 印度是全球第二大黄金消费国(年均~800吨, 几乎全进口)
         - 2026年5月进口关税 6%→15% (历史最大单次上调)
         - WGC 估算全年需求减少 50-60 吨 (~10% YoY)
-        - 历史数据: 关税-进口量相关性仅 -0.17 (WGC 13年数据)
-          高关税主要转向走私而非真正减少总需求
-        - 当前(2026年7月): 需求开始复苏, 珠宝购买回升,
-          ETF 流入增强, 旧金换新 +10-20%
-
-        结论: 对金价的边际影响较弱, 仅作参考信号.
-        关税上调为温和看空, 但被卢比贬值对冲(本币贬值→黄金吸引力↑).
+        - 关税-进口量相关性仅 -0.17 (WGC 13年数据)
+        - 当前(2026年7月): 需求开始复苏, 珠宝购买回升
+        - USD/INR ~95.97 (年初~90.8, 贬值~5.7%), 卢比贬值抑制购买力
+        - Q2 FY26 GDP +8.2% (六季最高), 全年预期 7%+, 收入增长支撑需求
 
         Source: WGC India Gold Market Update (2026-07-17) /
                 WGC Gold Mid-Year Outlook 2026 /
-                Economic Times / Financial Express
+                MoSPI GDP Q2 FY2025-26 / FRED H.10 /
+                Economic Times / TradingEconomics
         """
         from datetime import date
 
         signals: list[Signal] = []
         today = date.today()
 
-        # 关税于 2026-05-13 上调, 影响期约 6-12 个月
-        # 当前处于关税上调后 2-3 个月, 影响仍在但非峰值
+        # ── 1. 关税维度 ──
         tariff_date = date(2026, 5, 13)
         months_since_tariff = (
             (today.year - tariff_date.year) * 12
             + (today.month - tariff_date.month)
         )
 
-        if months_since_tariff < 0 or months_since_tariff > 12:
-            return signals
+        if 0 <= months_since_tariff <= 12:
+            signals.append(Signal(
+                name="印度黄金进口关税上调",
+                dimension="fundamental",
+                direction=SignalDirection.BEARISH,
+                strength=SignalStrength.WEAK,
+                score=-0.10,
+                description=(
+                    f"印度黄金进口关税 6%→15% (2026-05-13, 已{months_since_tariff}个月)。"
+                    "WGC估算全年需求-50~60吨(~10%)。"
+                    "但关税-进口相关性仅-0.17——走私分流+7月需求复苏部分对冲。"
+                    "边际影响弱"
+                ),
+                metadata={
+                    "source": "india_gold_demand",
+                    "source_tier": "T1",
+                    "tariff_pct": 15,
+                    "demand_impact_tonnes": -55,
+                    "correlation_tariff_import": -0.17,
+                    "months_since_tariff": months_since_tariff,
+                },
+            ))
 
-        # 关税上调→需求减少50-60吨/年→温和看空
-        # 但 WGC 7月更新显示需求正复苏, 削弱看空程度
-        score = -0.10  # 弱看空: 影响被走私+卢比贬值+需求复苏部分抵消
+        # ── 2. INR/USD 汇率维度 ──
+        # Fallback 数据表: 关键时点的 INR/USD (来自 FRED H.10 / TradingEconomics)
+        _INR_FALLBACK: dict[str, float] = {
+            "2026-01-02": 90.80,   # 年初
+            "2026-07-20": 95.97,   # 最新 (TradingEconomics)
+        }
+        inr_year_start = _INR_FALLBACK.get("2026-01-02", 90.80)
+        inr_latest = _INR_FALLBACK.get("2026-07-20", 95.97)
+        inr_depreciation_pct = (inr_latest - inr_year_start) / inr_year_start * 100
 
-        signals.append(Signal(
-            name="印度黄金进口关税上调",
-            dimension="fundamental",
-            direction=SignalDirection.BEARISH,
-            strength=SignalStrength.WEAK,
-            score=score,
-            description=(
-                f"印度黄金进口关税 6%→15% (2026-05-13, 已{months_since_tariff}个月)。"
-                "WGC估算全年需求-50~60吨(~10%)。"
-                "但关税-进口相关性仅-0.17，走私分流+卢比贬值+7月需求复苏部分对冲。"
-                "边际影响弱"
-            ),
-            metadata={
-                "source": "india_gold_demand",
-                "source_tier": "T1",
-                "tariff_pct": 15,
-                "demand_impact_tonnes": -55,
-                "correlation_tariff_import": -0.17,
-                "months_since_tariff": months_since_tariff,
-            },
-        ))
+        if abs(inr_depreciation_pct) > 3.0:
+            if inr_depreciation_pct > 0:
+                # 卢比贬值 → 本币金价更贵 → 抑制购买力 → 看空
+                signals.append(Signal(
+                    name="卢比贬值抑制印度购金力",
+                    dimension="fundamental",
+                    direction=SignalDirection.BEARISH,
+                    strength=SignalStrength.WEAK,
+                    score=-0.12,
+                    description=(
+                        f"USD/INR 从年初 {inr_year_start} 贬至 {inr_latest}"
+                        f" ({inr_depreciation_pct:+.1f}%)。"
+                        "卢比贬值→本币金价上涨→削弱印度消费者购买力。"
+                        "但贬值也提升黄金作为卢比计价避险资产的吸引力, 影响复杂"
+                    ),
+                    metadata={
+                        "source": "india_gold_demand",
+                        "source_tier": "T1",
+                        "usd_inr_year_start": inr_year_start,
+                        "usd_inr_latest": inr_latest,
+                        "depreciation_pct": round(inr_depreciation_pct, 1),
+                    },
+                ))
+            else:
+                # 卢比升值 → 利好
+                signals.append(Signal(
+                    name="卢比走强支撑印度购金力",
+                    dimension="fundamental",
+                    direction=SignalDirection.BULLISH,
+                    strength=SignalStrength.WEAK,
+                    score=0.08,
+                    description=(
+                        f"USD/INR 从年初 {inr_year_start} 升至 {inr_latest}"
+                        f" ({inr_depreciation_pct:+.1f}%)。"
+                        "卢比升值→本币金价下降→支撑消费者购买力"
+                    ),
+                    metadata={
+                        "source": "india_gold_demand",
+                        "source_tier": "T1",
+                        "usd_inr_latest": inr_latest,
+                        "appreciation_pct": round(abs(inr_depreciation_pct), 1),
+                    },
+                ))
+
+        # ── 3. GDP 季度增速维度 ──
+        # Fallback: 最新已知官方数据 (MoSPI Q2 FY2025-26 = Jul-Sep 2025)
+        _GDP_FALLBACK: dict[str, float] = {
+            "Q2_FY26": 8.2,     # Jul-Sep 2025, 六季最高
+            "Q1_FY26": 7.8,     # Apr-Jun 2025
+            "H1_FY26": 8.0,     # 上半年平均
+            "FY26_forecast": 7.0,  # 政府+CEA官方预测
+        }
+        gdp_latest = _GDP_FALLBACK.get("Q2_FY26", 8.2)
+        gdp_forecast = _GDP_FALLBACK.get("FY26_forecast", 7.0)
+
+        # GDP 增速 >7% → 收入增长支撑黄金消费 (收入弹性 ~1.5-2.0)
+        # 收入弹性 > 价格弹性 — 印度人越有钱越买黄金 (Kanjilal & Ghosh 2014)
+        if gdp_latest >= 7.0:
+            signals.append(Signal(
+                name="印度经济高增速支撑黄金需求",
+                dimension="fundamental",
+                direction=SignalDirection.BULLISH,
+                strength=SignalStrength.WEAK,
+                score=0.12,
+                description=(
+                    f"印度Q2 FY26 GDP增速 {gdp_latest}% (六季最高, H1 {_GDP_FALLBACK['H1_FY26']}%)。"
+                    "收入弹性>>价格弹性——经济高增长是黄金需求最强驱动力。"
+                    f"全年预期 {gdp_forecast}%+。"
+                    "部分对冲关税+卢比贬值的负面效应"
+                ),
+                metadata={
+                    "source": "india_gold_demand",
+                    "source_tier": "T0",
+                    "gdp_q2_fy26": gdp_latest,
+                    "gdp_h1_fy26": _GDP_FALLBACK["H1_FY26"],
+                    "fy26_forecast": gdp_forecast,
+                    "income_elasticity": "1.5-2.0",
+                    "reference": "Kanjilal & Ghosh (2014) Resour Policy",
+                },
+            ))
+        elif gdp_latest >= 5.0:
+            signals.append(Signal(
+                name="印度经济温和增长支撑黄金需求",
+                dimension="fundamental",
+                direction=SignalDirection.BULLISH,
+                strength=SignalStrength.WEAK,
+                score=0.06,
+                description=(
+                    f"印度GDP增速 {gdp_latest}%，温和增长仍支撑黄金消费。"
+                    f"全年预期 {gdp_forecast}%"
+                ),
+                metadata={
+                    "source": "india_gold_demand",
+                    "source_tier": "T0",
+                    "gdp_latest": gdp_latest,
+                },
+            ))
+        else:
+            signals.append(Signal(
+                name="印度经济放缓拖累黄金需求",
+                dimension="fundamental",
+                direction=SignalDirection.BEARISH,
+                strength=SignalStrength.WEAK,
+                score=-0.10,
+                description=(
+                    f"印度GDP增速降至 {gdp_latest}%——收入效应反转，"
+                    "全球第二大黄金消费国需求可能走弱"
+                ),
+                metadata={
+                    "source": "india_gold_demand",
+                    "source_tier": "T0",
+                    "gdp_latest": gdp_latest,
+                },
+            ))
 
         return signals
