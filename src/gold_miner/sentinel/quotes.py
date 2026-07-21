@@ -3,9 +3,13 @@
 
 策略:
   1. 优先读取本地缓存 (/tmp/gold_quote_cache.json, TTL 5min)
-  2. 尝试 Sina/东方财富 API (国内可达)
-  3. 回退到缓存 (延长 TTL 到 30min)
-  4. 仍失败 → 空 (Hermes 静默)
+  2. XAUUSD: 尝试 Sina/东方财富 API (国内可达)
+  3. 积存金: 优先京东金融 H5 接口 (真实价格), 不可用时回退 XAUUSD 换算
+  4. 回退到缓存 (延长 TTL 到 30min)
+  5. 仍失败 → 空 (Hermes 静默)
+
+🆕 2026-07-21: 积存金价格不再用 XAUUSD×汇率÷31.1035×溢价 的死公式估算，
+改为直接调京东金融 H5 接口获取真实报价。根因：死公式 ¥956 vs 实际 ¥886，偏差 ~8%。
 """
 
 from __future__ import annotations
@@ -13,6 +17,7 @@ from __future__ import annotations
 import json
 import re
 import time
+import urllib.parse
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -25,6 +30,10 @@ BEIJING = timezone(__import__('datetime').timedelta(hours=8))
 _CACHE_FILE = Path("/tmp/gold_sentinel_quote_cache.json")
 _CACHE_TTL = 300  # 5 分钟 (正常)
 _CACHE_TTL_FALLBACK = 1800  # 30 分钟 (网络不可用时)
+
+# 京东金融积存金 H5 接口
+_JD_API_URL = "https://ms.jr.jd.com/gw/generic/hj/h5/m/latestPrice"
+_JD_PRODUCT_ID = "21001001000001"  # 民生银行积存金
 
 
 def _now() -> datetime:
@@ -64,20 +73,34 @@ def fetch_quotes(bank: str = "MS") -> list[GoldQuote]:
     """同步获取黄金报价.
 
     返回最多 2 条: XAUUSD + 积存金.
+    积存金优先使用京东金融真实价格，不可用时回退 XAUUSD 换算.
     全部失败返回空列表 (Hermes 静默).
     """
 
     xauusd = _fetch_xauusd_cn()
     usdcny = _fetch_usdcny_cn()
+    jd_quote = _fetch_jd_gold()
 
     if xauusd:
+        # 积存金: 优先真实价格，不可用则 XAUUSD 换算
+        if jd_quote:
+            jd_price = jd_quote["price"]
+            jd_change = jd_quote["change_pct"]
+            jd_source = jd_quote["source"]
+            jd_prev = jd_quote["prev_close"]
+        else:
+            jd_price = round(xauusd["price"] * usdcny / 31.1035 * 1.005, 2)
+            jd_change = xauusd["change_pct"]
+            jd_source = "XAUUSD换算(JD不可用)"
+            jd_prev = round(xauusd["prev_close"] * usdcny / 31.1035 * 1.005, 2)
+
         cache = _read_cache(_CACHE_TTL)
         if not cache:
             _write_cache(
                 xauusd_price=xauusd["price"],
                 xauusd_change=xauusd["change_pct"],
-                jd_price=round(xauusd["price"] * usdcny / 31.1035 * 1.005, 2),
-                jd_change=xauusd["change_pct"],
+                jd_price=jd_price,
+                jd_change=jd_change,
             )
     else:
         # 网络不可用, 读缓存 (延长 TTL)
@@ -86,6 +109,8 @@ def fetch_quotes(bank: str = "MS") -> list[GoldQuote]:
             return []
         prev_close = cache["xauusd"] / (1 + cache["xauusd_change"] / 100) \
             if cache["xauusd_change"] != -100 else cache["xauusd"]
+        jd_prev = cache["jd"] / (1 + cache["jd_change"] / 100) \
+            if cache["jd_change"] != -100 else cache["jd"]
 
         return [
             GoldQuote(
@@ -102,15 +127,13 @@ def fetch_quotes(bank: str = "MS") -> list[GoldQuote]:
                 price=cache["jd"],
                 currency="CNY",
                 change_pct=cache["jd_change"],
-                prev_close=round(cache["jd"] / (1 + cache["jd_change"] / 100), 2)
-                if cache["jd_change"] != -100 else cache["jd"],
+                prev_close=round(jd_prev, 2),
                 source="cache(stale)",
                 fetched_at=_now(),
             ),
         ]
 
     prev_close = xauusd["prev_close"]
-    jd_price = round(xauusd["price"] * usdcny / 31.1035 * 1.005, 2)
 
     return [
         GoldQuote(
@@ -126,12 +149,49 @@ def fetch_quotes(bank: str = "MS") -> list[GoldQuote]:
             symbol=f"积存金({bank})",
             price=jd_price,
             currency="CNY",
-            change_pct=xauusd["change_pct"],
-            prev_close=round(prev_close * usdcny / 31.1035 * 1.005, 2),
-            source="XAUUSD换算",
+            change_pct=jd_change,
+            prev_close=jd_prev,
+            source=jd_source,
             fetched_at=_now(),
         ),
     ]
+
+
+def _fetch_jd_gold() -> Optional[dict]:
+    """京东金融积存金 H5 接口 — 获取真实民生积存金报价.
+
+    接口返回: {price, yesterdayPrice, upAndDownRate, upAndDownAmt, time}
+    """
+    try:
+        resp = httpx.get(
+            _JD_API_URL,
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)"
+                ),
+                "Referer": "https://m.jd.com/",
+            },
+            timeout=8.0,
+        )
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        if not data.get("success"):
+            return None
+        datas = data.get("resultData", {}).get("datas", {})
+        price = float(datas.get("price", 0))
+        yesterday = float(datas.get("yesterdayPrice", 0))
+        if price <= 0:
+            return None
+        change_pct = (price - yesterday) / yesterday * 100 if yesterday > 0 else 0.0
+        return {
+            "price": round(price, 2),
+            "prev_close": round(yesterday, 2),
+            "change_pct": round(change_pct, 2),
+            "source": "京东金融",
+        }
+    except Exception:
+        return None
 
 
 def _fetch_xauusd_cn() -> Optional[dict]:
