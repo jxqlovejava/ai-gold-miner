@@ -15,6 +15,29 @@ from loguru import logger
 from gold_miner.config import settings
 
 
+class _SharedClientWrapper:
+    """httpx.Client 连接池复用包装器.
+
+    拦截 close()/__exit__(), 使多个调用方可安全使用 `with` 语法
+    而不关闭底层共享连接池。真正关闭仅在整个 pipeline 结束时触发.
+    """
+
+    def __init__(self, client: httpx.Client) -> None:
+        self._client = client
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._client, name)
+
+    def __enter__(self) -> "httpx.Client":
+        return self._client.__enter__()
+
+    def __exit__(self, *args: Any) -> None:
+        pass  # 不关闭共享连接池
+
+    def close(self) -> None:
+        pass  # 不关闭共享连接池
+
+
 class ProxyManager:
     """代理管理器.
 
@@ -39,6 +62,7 @@ class ProxyManager:
         self.config_path: Path | None = None
         self.process: subprocess.Popen | None = None
         self.port = self.DEFAULT_PORT
+        self._shared_client: httpx.Client | None = None
         self._find_binary()
 
     def _find_binary(self) -> None:
@@ -284,13 +308,19 @@ rules:
         """SOCKS5 代理地址."""
         return f"socks5://127.0.0.1:{self.port}"
 
-    def get_client(self, **kwargs: Any) -> httpx.Client:
-        """获取配置了代理的 httpx Client."""
+    def get_client(self, **kwargs: Any) -> "httpx.Client":
+        """获取配置了代理的 httpx Client（连接池复用, 避免每次新建TLS握手）.
+
+        返回一个共享连接池的 wrapper — callers 可安全使用 `with` 语法.
+        """
         from gold_miner.utils.http_fallback import _httpx_proxy_kwargs
         if self.is_running:
             kwargs = _httpx_proxy_kwargs(self.http_proxy, **kwargs)
             logger.debug(f"httpx 使用代理: {self.http_proxy}")
-        return httpx.Client(**kwargs)
+
+        if self._shared_client is None:
+            self._shared_client = httpx.Client(**kwargs)
+        return _SharedClientWrapper(self._shared_client)
 
 
 # 全局单例

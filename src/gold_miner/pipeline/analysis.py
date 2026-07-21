@@ -144,41 +144,66 @@ class AnalysisPipeline:
 
     def run(self, ctx: AnalysisContext | None = None) -> AnalysisResult:
         """执行完整分析管线 — 对齐 CLAUDE.md 9步流程."""
+        import time
+
         ctx = ctx or AnalysisContext()
         result = AnalysisResult()
         result.messages.append(f"开始分析: days={ctx.days}, news={ctx.with_news}, sentiment={ctx.with_sentiment}")
 
+        t0 = time.perf_counter()
+
         # Step 1: prepare — 日历校验 + 事件同步 + 深度新闻 + 数据采集
         self._step_prepare(ctx, result)
+        t1 = time.perf_counter()
+        logger.info(f"⏱ Step 1 信息准备: {t1 - t0:.1f}s")
         if result.gold_df.empty:
             result.messages.append("采集失败: 无法获取金价数据")
             return result
 
         # Step 2: generate_signals — 8维信号采集
         self._step_generate_signals(ctx, result)
+        t2 = time.perf_counter()
+        logger.info(f"⏱ Step 2 信号生成: {t2 - t1:.1f}s")
 
         # Step 3: source_truth — 来源验证 + 事实vs解释
         self._step_source_truth(ctx, result)
+        t3 = time.perf_counter()
+        logger.info(f"⏱ Step 3 来源验证: {t3 - t2:.1f}s")
 
         # Step 4: doctrine_check — 军规审查(r001-r030) + 风控
         if not ctx.skip_doctrine:
             self._step_doctrine_check(ctx, result)
+        t4 = time.perf_counter()
+        logger.info(f"⏱ Step 4 军规审查: {t4 - t3:.1f}s")
 
         # Step 5: munger_models
         self._step_munger_models(ctx, result)
+        t5 = time.perf_counter()
+        logger.info(f"⏱ Step 5 Munger模型: {t5 - t4:.1f}s")
 
         # Step 6: profile_match — 画像约束检查
         self._step_profile_match(ctx, result)
+        t6 = time.perf_counter()
+        logger.info(f"⏱ Step 6 画像匹配: {t6 - t5:.1f}s")
 
         # Step 7: agent_debate — 综合前6步作为输入
         self._step_agent_debate(ctx, result)
+        t7 = time.perf_counter()
+        logger.info(f"⏱ Step 7 Agent博弈: {t7 - t6:.1f}s")
 
         # Step 8: decide — 交易建议 + 条件单审查
         if not ctx.skip_dashboard:
             self._step_decide(ctx, result)
+        t8 = time.perf_counter()
+        logger.info(f"⏱ Step 8 交易决策: {t8 - t7:.1f}s")
 
         # Step 9: plan — 后续事件 + 情景预案 + Monitor
         self._step_plan(ctx, result)
+        t9 = time.perf_counter()
+        logger.info(f"⏱ Step 9 后续规划: {t9 - t8:.1f}s")
+
+        logger.info(f"⏱ 管线总耗时: {t9 - t0:.1f}s")
+        result.messages.append(f"⏱ 总耗时: {t9 - t0:.1f}s")
 
         return result
 

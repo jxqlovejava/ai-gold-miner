@@ -229,20 +229,35 @@ class FactChecker:
         return base
 
     def check_batch(self, items: list[NewsItem]) -> list[FactCheckResult]:
-        """批量核查新闻列表."""
-        results: list[FactCheckResult] = []
-        for item in items:
-            try:
-                result = self.check(item)
-                results.append(result)
-            except Exception as e:
-                logger.debug(f"核查失败 [{item.title[:30]}]: {e}")
-                results.append(FactCheckResult(
-                    news_item=item,
-                    status=VerificationStatus.UNVERIFIED,
-                    confidence=0.0,
-                    check_method="error",
-                ))
+        """批量核查新闻列表 — 并行化: 每条新闻的交叉验证互不依赖."""
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        results: list[FactCheckResult] = [FactCheckResult(
+            news_item=item,
+            status=VerificationStatus.UNVERIFIED,
+            confidence=0.0,
+            check_method="pending",
+        ) for item in items]
+
+        if not items:
+            return results
+
+        with ThreadPoolExecutor(max_workers=min(len(items), 6)) as pool:
+            futures = {
+                pool.submit(self.check, item): idx
+                for idx, item in enumerate(items)
+            }
+            for future in as_completed(futures):
+                idx = futures[future]
+                try:
+                    results[idx] = future.result()
+                except Exception as e:
+                    results[idx] = FactCheckResult(
+                        news_item=items[idx],
+                        status=VerificationStatus.UNVERIFIED,
+                        confidence=0.0,
+                        check_method="error",
+                    )
         return results
 
     def _needs_verification(self, item: NewsItem) -> bool:
