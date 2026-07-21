@@ -90,7 +90,7 @@
 
 **🔴 每次金价分析必须输出完整报告，不可省略任何板块给摘要。**
 
-完整报告包含：信息准备（日历同步+深度新闻）→ 多维度信号采集（8维逐项说明）→ Source Truth + 事实vs解释 → 军规自查（r001-r030）→ Munger模型（2-3个）→ 画像匹配 → Agent博弈（🟢Bull/🔴Bear/👔PM三方）→ 交易建议+条件单 → 后续事件关注+情景预案。
+完整报告包含：信息准备（日历同步+深度新闻）→ 多维度信号采集（8维逐项说明）→ Source Truth + 事实vs解释 → 军规自查（r001-r030）→ Munger模型（2-3个）→ 画像匹配 → Agent博弈（🐮Bull/🐻Bear/💼PM三方）→ 交易建议+条件单 → 后续事件关注+情景预案。
 
 每次运行项目 pipeline（如 `gold-miner scan`）后，输出不能只给结论。详细格式规范（Agent 博弈披露格式、8 维信号逐项说明、API 失败披露）见 [AGENTS.md](AGENTS.md)。
 
@@ -365,11 +365,11 @@ Monitor:  观测: 美伊局势后续演变
 
 > **Agent 博弈是第七步**，综合第三步的已验证事实 + 第四步的军规约束 + 第五步的思维模型 + 第六步的画像匹配，形成一个**信息充分的对立辩论**。
 
-调用并输出（🔴 图标固定规则：Bull 用 🟢，Bear 用 🔴，PM 用 👔）：
+调用并输出（🔴 图标固定规则：Bull 用 🐮，Bear 用 🐻，PM 用 💼）：
 
-- 🟢 `BullAgent.analyze(bundle)` — 看多理由（**含资金流论据** `smart_money_arguments`）
-- 🔴 `BearAgent.analyze(bundle)` — 看空理由（**含资金流论据** `smart_money_arguments`）
-- 👔 `PortfolioManager` — 仓位建议（**必须说明是否被军规阻断**）
+- 🐮 `BullAgent.analyze(bundle)` — 看多理由（**含资金流论据** `smart_money_arguments`）
+- 🐻 `BearAgent.analyze(bundle)` — 看空理由（**含资金流论据** `smart_money_arguments`）
+- 💼 `PortfolioManager` — 仓位建议（**必须说明是否被军规阻断**）
 
 **资金流维度必须显式出现在博弈中**：
 - Bull/Bear 的 `smart_money_arguments` 字段携带 CFTC COT + ETF + COMEX 大户 + 13F 的看多/看空信号
