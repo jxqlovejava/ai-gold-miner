@@ -5,6 +5,8 @@ import math
 import re
 from collections import Counter
 
+from loguru import logger
+
 from gold_miner.data.fact_checker import FactChecker, apply_fact_checks, format_verification_tag
 from gold_miner.data.news import NewsFetcher, NewsItem
 from gold_miner.signals.base import Signal, SignalDirection, SignalStrength
@@ -40,6 +42,14 @@ _GEOPOLITICAL_TRIGGERS: dict[str, tuple[str, ...]] = {
 }
 
 
+# 金价追踪站点域名/来源名 — 这些不是新闻，是价格页面，但其内容含地缘关键词会被误判
+_PRICE_TRACKER_DOMAINS: tuple[str, ...] = (
+    "kitco", "bullionvault", "goldprice", "jmbullion", "goldcore",
+    "gold-eagle", "tradingview", "fxstreet", "fxempire", "investing.com",
+    "dailyfx", "tradingpedia", "invezz",
+)
+
+
 def _news_text(news: NewsItem) -> str:
     """返回用于关键词匹配的新闻文本."""
     return f"{news.title} {news.summary}".lower()
@@ -50,8 +60,48 @@ def _text_contains(text: str, patterns: tuple[str, ...]) -> bool:
     return any(re.search(pattern, text) for pattern in patterns)
 
 
+def _is_price_tracker(news: NewsItem) -> bool:
+    """判断是否为金价追踪站点（非新闻源）."""
+    check = f"{news.source} {news.url} {news.title}".lower()
+    return any(domain in check for domain in _PRICE_TRACKER_DOMAINS)
+
+
+def _is_markdown_noise(news: NewsItem) -> bool:
+    """判断是否为 Markdown 模板行/非实质内容条目."""
+    title = (news.title or "").strip()
+    title_lower = title.lower()
+    summary = (news.summary or "").strip()
+
+    # 明显模板头部 — 无论摘要多长都排除
+    if "search results" in title_lower or "search result" in title_lower:
+        return True
+    if "page " in title_lower and "of " in title_lower:  # "Page 1 of 3"
+        return True
+
+    # 含实质正文的条目保留（anysearch 把正文塞在 summary/description）
+    if len(summary) > 150:
+        return False
+
+    # 标题过短或无标题
+    if not title or len(title) < 20:
+        return True
+    if title.startswith("http"):
+        return True
+    # Markdown 结构行
+    if re.match(r"^#{1,6}\s", title):  # ## / ###
+        return True
+    if re.match(r"^[-*]\s", title):  # - item / * item
+        return True
+    # URL label 行: "- **URL**: https://..."
+    if re.match(r"^-?\s*\*?\*?URL\*?\*?:?\s*https?:", title):
+        return True
+    return False
+
+
 def _is_geopolitical(news: NewsItem) -> bool:
-    """判断新闻是否涉及地缘风险."""
+    """判断新闻是否涉及地缘风险 — 排除纯价格追踪页面."""
+    if _is_price_tracker(news):
+        return False
     text = _news_text(news)
     return _text_contains(text, _GEOPOLITICAL_TRIGGERS["primary"])
 
@@ -98,6 +148,177 @@ def _aggregate_tier_tag(pool: list[NewsItem]) -> str:
     return "[mixed]"
 
 
+# ── 标题本地化格式化 ──
+
+# 地缘核心主题 → 🇨🇳中文标签映射
+_GEO_TOPIC_LABELS: dict[str, str] = {
+    "iran": "🇮🇷伊朗",
+    "israel": "🇮🇱以色列",
+    "houthi": "胡塞武装",
+    "yemen": "🇾🇪也门",
+    "gaza": "加沙",
+    "hamas": "哈马斯",
+    "hezbollah": "真主党",
+    "saudi": "🇸🇦沙特",
+    "ukraine": "🇺🇦乌克兰",
+    "russia": "🇷🇺俄罗斯",
+    "taiwan": "🇹🇼台湾",
+    "china": "🇨🇳中国",
+    "north korea": "🇰🇵朝鲜",
+    "hormuz": "霍尔木兹海峡",
+    "strait of hormuz": "霍尔木兹海峡",
+    "middle east": "中东",
+    "ceasefire": "停火",
+    "truce": "停火",
+    "peace talk": "和谈",
+    "negotiation": "谈判",
+    "diplomatic": "外交斡旋",
+    "attack": "攻击",
+    "strike": "空袭",
+    "airstrike": "空袭",
+    "military": "军事行动",
+    "war": "战争",
+    "conflict": "冲突",
+    "escalation": "升级",
+    "oil": "石油",
+    "blockade": "封锁",
+    "sanction": "制裁",
+    "tariff": "关税",
+    "nuclear": "核",
+    "missile": "导弹",
+    "drone": "无人机",
+}
+
+
+def _extract_geo_topics(text: str, max_topics: int = 3) -> list[str]:
+    """从新闻文本中提取地缘主题关键词（中文化）."""
+    text_lower = text.lower()
+    found: list[tuple[int, str]] = []  # (priority, label)
+    for keyword, label in _GEO_TOPIC_LABELS.items():
+        if keyword in text_lower:
+            # 更长的关键词优先（更具体）
+            priority = len(keyword)
+            found.append((priority, label))
+    # 按优先级降序（最具体的在前），去重后取前 N
+    found.sort(key=lambda x: -x[0])
+    seen: set[str] = set()
+    result: list[str] = []
+    for _, label in found:
+        if label not in seen:
+            seen.add(label)
+            result.append(label)
+            if len(result) >= max_topics:
+                break
+    return result
+
+
+def _format_geo_headline(news: NewsItem) -> str:
+    """将地缘新闻标题格式化为紧凑可读的中文摘要行.
+
+    提取核心主题 + 来源，避免展示原始英文长标题。
+    格式: "🇮🇷伊朗确认收到停火方案 [Anadolu]"
+    """
+    text = _news_text(news)
+    topics = _extract_geo_topics(text, max_topics=2)
+
+    # 判断主要动作
+    text_lower = text.lower()
+    if any(w in text_lower for w in ("ceasefire", "truce", "peace deal", "peace agreement")):
+        if any(w in text_lower for w in ("agree", "accept", "approved", "signed", "达成", "接受")):
+            action = "达成停火"
+        elif any(w in text_lower for w in ("propos", "offer", "提出", "方案")):
+            action = "提出停火方案"
+        elif any(w in text_lower for w in ("reject", "refuse", "拒绝")):
+            action = "拒绝停火"
+        else:
+            action = "停火谈判"
+    elif any(w in text_lower for w in ("attack", "strike", "airstrike", "空袭", "打击")):
+        action = "发动攻击"
+    elif any(w in text_lower for w in ("blockade", "封锁")):
+        action = "实施封锁"
+    elif any(w in text_lower for w in ("sanction", "制裁")):
+        action = "宣布制裁"
+    elif any(w in text_lower for w in ("escalat", "升级")):
+        action = "局势升级"
+    elif any(w in text_lower for w in ("negotiat", "talk", "diplomatic", "谈判", "外交")):
+        action = "展开谈判"
+    elif any(w in text_lower for w in ("threat", "警告", "威胁")):
+        action = "发出威胁"
+    else:
+        action = "相关动态"
+
+    # 拼装: 主题 + 动作
+    if topics:
+        topic_str = " ".join(topics)
+        headline = f"{topic_str}{action}"
+    else:
+        # 回退：取标题前50字符
+        headline = news.title.strip()[:50]
+
+    # 附来源简称
+    source_short = (news.source or "")[:12]
+    if source_short:
+        headline += f" [{source_short}]"
+
+    return headline
+
+
+def _format_breaking_desc(news: NewsItem) -> str:
+    """格式化重大事件描述 — 结构化、中文友好."""
+    parts = []
+    title = news.title.strip()[:100]
+    parts.append(f"📰 {title}")
+    if news.source:
+        parts.append(f"📍来源: {news.source}")
+    return "\n       ".join(parts)
+
+
+def _format_news_item_line(it: NewsItem) -> str | None:
+    """格式化单条新闻为一行摘要 — 中文友好。返回 None 表示该项应跳过。"""
+    title = _clean_title(it)
+    # 跳过清洗后仍然无意义的条目
+    if not title or len(title) < 10:
+        return None
+    if title.startswith("http"):
+        return None
+    if title.lower().startswith("search result"):
+        return None
+    s = it.sentiment
+    e = "📈" if s > 0.1 else "📉" if s < -0.1 else "➖"
+    source = (it.source or "")[:15]
+    return f"{e} {title} | {source}"
+
+
+def _clean_title(it: NewsItem) -> str:
+    """清洗 anysearch Markdown 标题，提取可读摘要.
+
+    '### 1. Gold Price Today — Live Gold...' → 'Gold Price Today — Live Gold...'
+    '- Gold Spot Prices | Silver Prices...' → 'Gold Spot Prices...'
+    'https://www.apmex.com/gold-price' → 'APMEX Gold Price'
+    """
+    title = (it.title or "").strip()
+    # URL → 提取域名关键词
+    if title.startswith("http"):
+        try:
+            from urllib.parse import urlparse
+            domain = urlparse(title).netloc.replace("www.", "")
+            title = domain.split(".")[0].title()
+        except Exception:
+            title = ""
+    # 掉 Markdown 标题前缀: "### 1. " → ""
+    title = re.sub(r"^#{1,6}\s*\d*\.?\s*", "", title)
+    # 掉列表符号: "- " → ""
+    title = re.sub(r"^[-*]\s+", "", title)
+    # 掉粗体标记: **text** → text
+    title = re.sub(r"\*\*", "", title)
+    # 掉 URL: 前缀
+    title = re.sub(r"^-?\s*URL:?\s*", "", title)
+    # 限制长度
+    if len(title) > 70:
+        title = title[:67] + "..."
+    return title.strip()
+
+
 class NewsSignalGenerator:
     """消息面信号生成器 — 集成事实核查."""
 
@@ -111,6 +332,23 @@ class NewsSignalGenerator:
 
         if not items:
             return signals
+
+        # === 预过滤1：排除金价追踪页面 ===
+        real_news = [it for it in items if not _is_price_tracker(it)]
+        price_tracker_count = len(items) - len(real_news)
+        if price_tracker_count > 0:
+            logger.debug(f"过滤 {price_tracker_count} 条金价追踪页面")
+
+        # === 预过滤2：排除 Markdown 模板行 & URL-only 条目 ===
+        items = [it for it in real_news if not _is_markdown_noise(it)]
+
+        # 全部被过滤 → 降级使用原始条目（标题清洗后展示，标注低质量）
+        if not items:
+            logger.debug(f"{len(real_news)}条均为噪音条目，使用清洗后的原始数据")
+            items = real_news
+            items_low_quality = True
+        else:
+            items_low_quality = False
 
         # === 事实核查 ===
         check_results = self.fact_checker.check_batch(items)
@@ -198,18 +436,15 @@ class NewsSignalGenerator:
 
                 tag = format_verification_tag(news)
 
-                # 输出具体资讯：保留完整标题、摘要、来源与链接
-                title_display = news.title.strip()
-                summary_display = (news.summary or news.title).strip()
-                desc_parts = [summary_display]
+                # 格式化描述 — 结构化中文友好
+                title_short = news.title.strip()[:100]
+                desc_parts = [f"📰 {title_short}"]
                 if news.source:
-                    desc_parts.append(f"来源: {news.source}")
-                if news.url:
-                    desc_parts.append(f"链接: {news.url}")
+                    desc_parts.append(f"📍{news.source}")
                 description = " | ".join(desc_parts)
 
                 signals.append(Signal(
-                    name=f"重大事件{tag}: {title_display[:80]}{'...' if len(title_display) > 80 else ''}",
+                    name=f"重大事件{tag}: {_format_geo_headline(news) if _is_geopolitical(news) else title_short[:60]}",
                     dimension="news",
                     direction=direction,
                     strength=strength,
@@ -252,22 +487,21 @@ class NewsSignalGenerator:
                 },
             ))
 
-        # 汇总具体资讯列表，方便下游直接展示新闻标题/来源/情感
+        # 汇总具体资讯列表 — 中文友好格式化
         if items:
-            top_items = items[:5]
-            news_lines = []
-            for it in top_items:
-                s = it.sentiment
-                e = "+" if s > 0.1 else "-" if s < -0.1 else "o"
-                line = f"[{e}] [{it.source}] {it.title}"
-                news_lines.append(line)
-            signals.append(Signal(
-                name="最近新闻资讯",
-                dimension="news",
-                direction=SignalDirection.NEUTRAL,
-                strength=SignalStrength.WEAK,
-                score=0.0,
-                description="; ".join(news_lines[:3]),
+            top_items = items[:8]
+            news_lines = [
+                line for it in top_items
+                if (line := _format_news_item_line(it)) is not None
+            ]
+            if news_lines:
+                signals.append(Signal(
+                    name="最近新闻资讯",
+                    dimension="news",
+                    direction=SignalDirection.NEUTRAL,
+                    strength=SignalStrength.WEAK,
+                    score=0.0,
+                    description="\n       ".join(news_lines[:5]),
                 metadata={
                     "news_list": [
                         {
@@ -370,9 +604,11 @@ class NewsSignalGenerator:
                 geo_direction = SignalDirection.BULLISH
                 geo_description = "地缘风险升温，推升黄金避险溢价"
 
-            # 聚合具体标题列表
-            geo_titles = [it.title.strip()[:60] for it in geo_items]
-            geo_titles_str = "；".join(f"{i+1}.{t}" for i, t in enumerate(geo_titles[:8]))
+            # 聚合具体标题列表 — 使用中文本地化摘要
+            geo_headlines = [_format_geo_headline(it) for it in geo_items]
+            geo_titles_str = "\n       ".join(
+                f"{i+1}. {h}" for i, h in enumerate(geo_headlines[:8])
+            )
 
             signals.append(Signal(
                 name="地缘风险溢价",
@@ -380,7 +616,10 @@ class NewsSignalGenerator:
                 direction=geo_direction,
                 strength=SignalStrength.MODERATE if aggregate_boost > 0.3 else SignalStrength.WEAK,
                 score=round(aggregate_boost if geo_direction == SignalDirection.BULLISH else -aggregate_boost, 2),
-                description=f"{len(geo_items)}条地缘新闻聚合：{geo_description} | {geo_titles_str}",
+                description=(
+                    f"{len(geo_items)}条地缘新闻聚合：{geo_description}\n"
+                    f"       {geo_titles_str}"
+                ),
                 metadata={
                     "geo_news_count": len(geo_items),
                     "aggregate_boost": round(aggregate_boost, 2),
