@@ -60,15 +60,15 @@ class TestAnalysisPipelineStepComposition:
     def test_pipeline_has_all_steps(self):
         pipeline = AnalysisPipeline()
         expected = [
-            "collect",
+            "prepare",
             "generate_signals",
             "source_truth",
-            "agent_debate",
-            "risk_check",
             "doctrine_check",
             "munger_models",
+            "profile_match",
+            "agent_debate",
             "decide",
-            "track",
+            "plan",
         ]
         assert pipeline._steps == expected
 
