@@ -414,6 +414,168 @@ class FundamentalAnalyzer:
         signals.extend(self.analyze_gold_silver_ratio())
         signals.extend(self.analyze_inflation())
         signals.extend(self.analyze_central_bank())
+        signals.extend(self._analyze_election_cycle())
+        signals.extend(self._analyze_india_gold_demand())
         for s in signals:
             s.metadata.setdefault("source_tier", self.SOURCE_TIER)
+        return signals
+
+    # ------------------------------------------------------------------
+    # 美国中期选举周期信号
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _analyze_election_cycle() -> list[Signal]:
+        """分析美国中期选举周期对黄金的影响.
+
+        基于 14 个中期选举年（~56 年）的历史数据:
+        - 中期选举年金价平均上涨 +12.83%（vs 总统年 +3.47%、选后年 +5.11%）
+        - 最佳窗口: 7月4日-9月6日，平均 +7%，成功率 71%+
+        - VIX 在中期年平均 +20%，75% 年份上涨
+        - 选举前 6 个月平均黄金回报 +5.8%
+
+        当前 (2026-07-22) 距离 2026-11-03 中期选举约 3.5 个月，
+        处于历史上黄金表现最强的中期选举窗口内。
+
+        Source: Seasonax.com / Resource Capital / SSGA (2026)
+        """
+        from datetime import date
+
+        signals: list[Signal] = []
+        today = date.today()
+
+        # 中期选举日期: 2026年11月第一个星期二 = 2026-11-03
+        election_date = date(2026, 11, 3)
+
+        # 仅在中选年份生成信号
+        if today.year != 2026:
+            return signals
+
+        months_to_election = (
+            (election_date.year - today.year) * 12
+            + (election_date.month - today.month)
+        )
+
+        # 只在选举前 6 个月内生成信号（选举年 5 月起）
+        if months_to_election > 6 or months_to_election < 0:
+            return signals
+
+        # 最佳窗口: 7/4 - 9/6（当前正处此窗口）
+        in_optimal_window = (
+            today >= date(2026, 7, 4)
+            and today <= date(2026, 9, 6)
+        )
+
+        if in_optimal_window:
+            # 最优窗口: 历史上平均+7%，成功率71%+
+            signals.append(Signal(
+                name="美国中期选举最优窗口",
+                dimension="fundamental",
+                direction=SignalDirection.BULLISH,
+                strength=SignalStrength.MODERATE,
+                score=0.25,
+                description=(
+                    "美国中期选举最佳黄金窗口(7/4-9/6)已激活——"
+                    "14个中期年中平均+7%，成功率71%+。"
+                    "政策不确定性+VIX历史上升→避险买盘。"
+                    f"距离选举约{months_to_election}个月"
+                ),
+                metadata={
+                    "source": "election_cycle",
+                    "source_tier": "T2",
+                    "historical_avg_return_pct": 7.0,
+                    "success_rate_pct": 71,
+                    "months_to_election": months_to_election,
+                },
+            ))
+        else:
+            # 选举年非最优窗口但仍在前6月内
+            score = 0.15 if months_to_election <= 3 else 0.10
+            signals.append(Signal(
+                name="美国中期选举政策不确定性",
+                dimension="fundamental",
+                direction=SignalDirection.BULLISH,
+                strength=SignalStrength.WEAK,
+                score=score,
+                description=(
+                    f"美国2026中期选举临近(约{months_to_election}个月)，"
+                    "政策不确定性为黄金提供温和避险支撑。"
+                    "历史中期年金价平均+12.83%"
+                ),
+                metadata={
+                    "source": "election_cycle",
+                    "source_tier": "T2",
+                    "historical_avg_return_pct": 12.83,
+                    "months_to_election": months_to_election,
+                },
+            ))
+
+        return signals
+
+    # ------------------------------------------------------------------
+    # 印度黄金需求信号
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _analyze_india_gold_demand() -> list[Signal]:
+        """分析印度黄金需求变化对全球金价的边际影响.
+
+        背景 (WGC 2026年7月更新):
+        - 印度是全球第二大黄金消费国(年均~800吨, 几乎全进口)
+        - 2026年5月进口关税 6%→15% (历史最大单次上调)
+        - WGC 估算全年需求减少 50-60 吨 (~10% YoY)
+        - 历史数据: 关税-进口量相关性仅 -0.17 (WGC 13年数据)
+          高关税主要转向走私而非真正减少总需求
+        - 当前(2026年7月): 需求开始复苏, 珠宝购买回升,
+          ETF 流入增强, 旧金换新 +10-20%
+
+        结论: 对金价的边际影响较弱, 仅作参考信号.
+        关税上调为温和看空, 但被卢比贬值对冲(本币贬值→黄金吸引力↑).
+
+        Source: WGC India Gold Market Update (2026-07-17) /
+                WGC Gold Mid-Year Outlook 2026 /
+                Economic Times / Financial Express
+        """
+        from datetime import date
+
+        signals: list[Signal] = []
+        today = date.today()
+
+        # 关税于 2026-05-13 上调, 影响期约 6-12 个月
+        # 当前处于关税上调后 2-3 个月, 影响仍在但非峰值
+        tariff_date = date(2026, 5, 13)
+        months_since_tariff = (
+            (today.year - tariff_date.year) * 12
+            + (today.month - tariff_date.month)
+        )
+
+        if months_since_tariff < 0 or months_since_tariff > 12:
+            return signals
+
+        # 关税上调→需求减少50-60吨/年→温和看空
+        # 但 WGC 7月更新显示需求正复苏, 削弱看空程度
+        score = -0.10  # 弱看空: 影响被走私+卢比贬值+需求复苏部分抵消
+
+        signals.append(Signal(
+            name="印度黄金进口关税上调",
+            dimension="fundamental",
+            direction=SignalDirection.BEARISH,
+            strength=SignalStrength.WEAK,
+            score=score,
+            description=(
+                f"印度黄金进口关税 6%→15% (2026-05-13, 已{months_since_tariff}个月)。"
+                "WGC估算全年需求-50~60吨(~10%)。"
+                "但关税-进口相关性仅-0.17，走私分流+卢比贬值+7月需求复苏部分对冲。"
+                "边际影响弱"
+            ),
+            metadata={
+                "source": "india_gold_demand",
+                "source_tier": "T1",
+                "tariff_pct": 15,
+                "demand_impact_tonnes": -55,
+                "correlation_tariff_import": -0.17,
+                "months_since_tariff": months_since_tariff,
+            },
+        ))
+
         return signals

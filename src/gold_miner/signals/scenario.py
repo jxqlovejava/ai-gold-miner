@@ -348,6 +348,29 @@ PREDEFINED_SCENARIOS: dict[str, ScenarioDefinition] = {
         btc_direction="",
         btc_note="BTC也失去部分避险叙事，但受影响程度小于黄金",
     ),
+    "us_midterm_election": ScenarioDefinition(
+        id="us_midterm_election",
+        name="美国中期选举政策不确定性",
+        description=(
+            "2026年11月美国中期选举——历史上14个中选年金价平均+12.83%，"
+            "最佳窗口(7/4-9/6)平均+7%。政策不确定性推升VIX(+20%)，"
+            "避险买盘阶段性利好黄金。叠加2026年Fed主席换届(Warsh)，"
+            "货币政策路径不确定性高于往常。"
+        ),
+        gold_direction=SignalDirection.BULLISH,
+        gold_impact_score=0.25,
+        duration="short_term",
+        early_warnings=[
+            "民调显示国会控制权不确定",
+            "EPU(经济政策不确定性)指数上升",
+            "VIX持续高于20",
+            "选举相关财政/贸易政策承诺推升避险",
+            "Fed独立性受质疑(Warsh与Trump关系)",
+        ],
+        btc_impact_score=0.10,
+        btc_direction="bullish",
+        btc_note="政策不确定性也利好BTC，但BTC对选举的敏感度低于黄金",
+    ),
 }
 
 
@@ -514,6 +537,26 @@ class ScenarioAnalyzer:
 
         # 全球永久和平 — 一样不可自动评估
         probs["permanent_peace"] = 0.01
+
+        # 美国中期选举政策不确定性 (2026-07-22新增)
+        election_prob = 0.0
+        from datetime import date
+        today = date.today()
+        election_date = date(2026, 11, 3)
+        months_left = (
+            (election_date.year - today.year) * 12
+            + (election_date.month - today.month)
+        )
+        if 0 <= months_left <= 6:
+            # 越接近选举，不确定性越高
+            election_prob = 0.10 + (6 - months_left) / 6 * 0.25  # 0.10~0.35
+        if vix_value and vix_value > 20:
+            election_prob += 0.10  # VIX高企→不确定性溢价的额外佐证
+        pm_election = _match_polymarket([
+            "midterm", "election", "congress", "house control",
+            "senate control", "2026 midterm",
+        ])
+        probs["us_midterm_election"] = min(election_prob + pm_election * 0.5, 1.0)
 
         # 更新内部状态
         for sid, prob in probs.items():

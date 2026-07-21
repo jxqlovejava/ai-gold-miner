@@ -30,6 +30,13 @@ _GEOPOLITICAL_TRIGGERS: dict[str, tuple[str, ...]] = {
         r"\bgold\b", r"\bsafe haven\b", r"\bsafe-haven\b",
         r"\btreasury\b", r"\bdollar\b",
     ),
+    # 印度黄金需求关键词 (2026-07-22) — WGC 年中报告列为下半年金价变量
+    "india_gold": (
+        r"\bindia gold\b", r"\bindian gold\b", r"\bindia import tariff\b",
+        r"\bindia gold duty\b", r"\bindia gold demand\b",
+        r"\brupee gold\b", r"\bindia gold smuggling\b",
+        r"\bindian wedding season gold\b",
+    ),
 }
 
 

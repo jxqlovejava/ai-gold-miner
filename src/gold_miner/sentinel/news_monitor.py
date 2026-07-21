@@ -68,6 +68,12 @@ _HIGH_IMPACT_RULES: list[tuple[str, str, str, str]] = [
     # ─ 贸易/制裁 ─
     (r"关税.*加征|trade.*war|贸易.*战|制裁.*升级", "贸易战升级→避险利多但通胀复杂", "trade", "P1"),
     (r"资本.*管制|外汇.*管制|资金.*封锁", "流动性危机→短期利空一切资产", "policy", "P1"),
+    # ─ 印度黄金需求 (2026-07-22新增) ─
+    (r"印度.*关税|India.*tariff|India.*duty.*gold", "印度关税调整→需求变化→边际影响金价", "india_gold", "P2"),
+    (r"印度.*黄金.*进口|India.*gold.*import", "印度进口数据→全球第二大需求国动向", "india_gold", "P2"),
+    # ─ 美国选举 (2026-07-22新增) ─
+    (r"中期选举|midterm.*election|美国.*选举", "政策不确定性→避险买盘→利多金价", "election", "P1"),
+    (r"民调|poll.*congress|选举.*民调", "选举民调→不确定性定价→影响金价", "election", "P1"),
 ]
 
 # 中等优先级 — 仅做背景，不推送
