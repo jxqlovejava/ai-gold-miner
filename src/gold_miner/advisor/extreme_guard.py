@@ -235,8 +235,8 @@ class ExtremeGuard:
         try:
             report = self.analyzer.analyze(
                 scenario_description=scenario.description,
-                target_asset="黄金",
-                time_horizon="1个月",
+                time_horizon_months=1,
+                context={"target_asset": "黄金"},
             )
             if report and report.probability is not None:
                 # 融合两种估计

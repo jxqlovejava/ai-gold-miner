@@ -20,6 +20,19 @@ class SignalStrength(StrEnum):
     WEAK = "weak"
 
 
+class FactType(StrEnum):
+    """信号的事实/解释分类.
+
+    用于区分不可争议的客观数据与需要主观判断的因果推断，
+    避免把「解释」当作「事实」引用。
+    """
+
+    FACT = "fact"                    # 不可争议的客观数据: 价格、成交量、官方数值
+    INTERPRETATION = "interpretation"  # 因果推断: "X 因为 Y 上涨"
+    PROJECTION = "projection"         # 预测/展望: "预计 X 将..."
+    OPINION = "opinion"               # 机构/分析师主观观点
+
+
 @dataclass
 class Signal:
     name: str
@@ -30,6 +43,26 @@ class Signal:
     description: str = ""
     timestamp: datetime = field(default_factory=datetime.now)
     metadata: dict[str, Any] = field(default_factory=dict)
+    fact_type: FactType = FactType.INTERPRETATION  # 默认保守: 解释而非事实
+
+    @property
+    def is_fact(self) -> bool:
+        return self.fact_type == FactType.FACT
+
+    @property
+    def needs_verification(self) -> bool:
+        """需要额外验证的信号类型."""
+        return self.fact_type in (FactType.PROJECTION, FactType.OPINION)
+
+    def fact_label(self) -> str:
+        """返回中文标签."""
+        labels = {
+            FactType.FACT: "🔵 事实",
+            FactType.INTERPRETATION: "🟡 解释",
+            FactType.PROJECTION: "🔮 预测",
+            FactType.OPINION: "💬 观点",
+        }
+        return labels.get(self.fact_type, "❓ 未知")
 
 
 @dataclass(frozen=True)

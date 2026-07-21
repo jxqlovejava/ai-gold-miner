@@ -19,7 +19,11 @@ class _SharedClientWrapper:
     """httpx.Client 连接池复用包装器.
 
     拦截 close()/__exit__(), 使多个调用方可安全使用 `with` 语法
-    而不关闭底层共享连接池。真正关闭仅在整个 pipeline 结束时触发.
+    而不关闭底层共享连接池。
+
+    不调用底层 client.__enter__() — httpx.Client 在 UNOPENED 状态下
+    请求完全正常，且多线程可安全并发使用同一连接池。
+    真正关闭仅在整个 pipeline 结束时触发.
     """
 
     def __init__(self, client: httpx.Client) -> None:
@@ -29,7 +33,7 @@ class _SharedClientWrapper:
         return getattr(self._client, name)
 
     def __enter__(self) -> "httpx.Client":
-        return self._client.__enter__()
+        return self._client
 
     def __exit__(self, *args: Any) -> None:
         pass  # 不关闭共享连接池

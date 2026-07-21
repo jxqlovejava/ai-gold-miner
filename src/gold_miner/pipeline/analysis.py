@@ -42,7 +42,7 @@ from gold_miner.execution.notifier import Notifier
 from gold_miner.experience import ExperienceLoader
 from gold_miner.improvement.tracker import PredictionRecord, PredictionTracker
 from gold_miner.llm.client import LLMClient
-from gold_miner.signals.base import Signal, SignalBundle, SignalDirection, SignalStrength
+from gold_miner.signals.base import FactType, Signal, SignalBundle, SignalDirection, SignalStrength
 from gold_miner.signals.cot_signal import CotSignalGenerator
 from gold_miner.signals.economic_calendar import EconomicCalendarSignalGenerator
 from gold_miner.signals.engine import ScoringEngine
@@ -341,14 +341,34 @@ class AnalysisPipeline:
                     logger.debug(f"[collect] {key} 获取失败: {e}")
                     raw[key] = None
 
-        # --- gold_df (必须成功) ---
+        # --- gold_df (必须成功, 失败时回退到积存金数据) ---
         gold_df = raw.get("gold")
         if gold_df is None or gold_df.empty:
-            logger.error("现货黄金数据获取失败")
-            return
+            logger.warning("现货黄金数据获取失败，回退到积存金历史数据")
+            from gold_miner.data.jd_accumulation_gold import JdAccumulationGoldFetcher
+            try:
+                jd_fetcher = JdAccumulationGoldFetcher(bank="MS")
+                jd_df = jd_fetcher.fetch(days=ctx.days)
+                if jd_df is not None and not jd_df.empty:
+                    gold_df = jd_df.rename(columns={"close": "close"})
+                    if "open" not in gold_df.columns:
+                        gold_df["open"] = gold_df["close"]
+                    if "high" not in gold_df.columns:
+                        gold_df["high"] = gold_df["close"]
+                    if "low" not in gold_df.columns:
+                        gold_df["low"] = gold_df["close"]
+                    if "volume" not in gold_df.columns:
+                        gold_df["volume"] = 0
+                    logger.info(f"✅ 积存金回退成功: {len(gold_df)} 条")
+                else:
+                    logger.error("积存金回退也失败，无法继续")
+                    return
+            except Exception as e:
+                logger.error(f"积存金回退异常: {e}")
+                return
         result.gold_df = gold_df
         result.current_price = gold_df["close"].iloc[-1]
-        logger.info(f"国内金价 Au99.99: {result.current_price:.2f} 元/克 (来源: SGE/jinjia)")
+        logger.info(f"国内金价: {result.current_price:.2f} 元/克")
 
         # --- 国际金价 ---
         try:
@@ -463,7 +483,7 @@ class AnalysisPipeline:
             }
             for e in upcoming:
                 et = getattr(e.event_type, "value", str(e.event_type)).lower()
-                if et in high_types or e.impact in (EventImpact.HIGH, EventImpact.CRITICAL):
+                if et in high_types or e.impact in (EventImpact.HIGH, EventImpact.EXTREME):
                     return True
                 name = (e.name or "").upper()
                 if any(k in name for k in ("FOMC", "CPI", "PCE", "非农", "利率决议")):
@@ -760,13 +780,16 @@ class AnalysisPipeline:
     # ------------------------------------------------------------------
 
     def _step_source_truth(self, ctx: AnalysisContext, result: AnalysisResult) -> None:
-        """来源验证 — 跨维度一致性检查 + source tier 覆盖审计."""
+        """来源验证 — 跨维度一致性检查 + source tier 覆盖审计 + 事实vs解释分类."""
         logger.info("[3/9] 来源验证...")
 
         bundle = result.bundle
         if not bundle.signals:
             logger.info("[3/9] 无信号，跳过来源验证")
             return
+
+        # --- 0. 自动分类事实/解释 (程序化规则，不走 LLM) ---
+        self._classify_fact_types(bundle)
 
         warnings: list[str] = []
 
@@ -810,6 +833,77 @@ class AnalysisPipeline:
         logger.info(
             f"  维度方向汇总: {bull_dims}维看多 | {bear_dims}维看空 | {insuf_dims}维数据不足"
         )
+
+        # --- 5. 事实/解释分类汇总 ---
+        self._print_fact_type_summary(bundle)
+
+    @staticmethod
+    def _classify_fact_types(bundle: SignalBundle) -> None:
+        """程序化分类信号为事实/解释/预测/观点.
+
+        基于 signal 的 dimension + name + description 做关键词匹配，
+        完全不依赖 LLM。默认保守：标记为 'interpretation'。
+        """
+        from gold_miner.signals.base import FactType
+
+        fact_rules: list[tuple[str, list[str], FactType]] = [
+            # 技术指标数值 = 事实
+            ("technical", ["RSI(", "MACD:", "均线", "布林带", "ATR", "成交量",
+                           "支撑", "阻力", "20日", "60日", "200日"], FactType.FACT),
+            # 官方发布数据 = 事实
+            ("economic", ["CPI", "PPI", "PCE", "非农", "GDP", "利率决议",
+                          "PMI", "ZEW", "零售销售", "失业率", "初请"], FactType.FACT),
+            # COT/ETF 持仓数据 = 事实
+            ("smart_money", ["COT", "ETF持仓", "GLD持仓", "持仓量", "13F"], FactType.FACT),
+            # 价格数据 = 事实
+            ("", ["金价", "XAUUSD", "收盘", "开盘", "最高", "最低"], FactType.FACT),
+            # 预测类
+            ("", ["预计", "预期", "预测", "目标价", "展望", "forecast",
+                  "大概率", "可能将", "或将"], FactType.PROJECTION),
+            # 机构观点
+            ("", ["分析师认为", "机构认为", "策略师", "研报", "投行",
+                  "高盛", "摩根", "花旗", "建议"], FactType.OPINION),
+            # 地缘事件 = 事实(不可争议发生了)
+            ("event", ["空袭", "停火", "谈判", "封锁", "制裁", "协议",
+                       "冲突", "袭击", "声明", "决议"], FactType.FACT),
+        ]
+
+        for sig in bundle.signals:
+            text = f"{sig.name} {sig.description}".lower()
+            for dim_prefix, keywords, fact_type in fact_rules:
+                if dim_prefix and not sig.dimension.startswith(dim_prefix):
+                    continue
+                if any(kw.lower() in text for kw in keywords):
+                    sig.fact_type = fact_type
+                    break
+
+    @staticmethod
+    def _print_fact_type_summary(bundle: SignalBundle) -> None:
+        """输出事实/解释分类统计."""
+        from collections import Counter
+        counts = Counter(s.fact_type for s in bundle.signals)
+        total = len(bundle.signals)
+        if total == 0:
+            return
+        facts = counts.get(FactType.FACT, 0)
+        interps = counts.get(FactType.INTERPRETATION, 0)
+        proj = counts.get(FactType.PROJECTION, 0)
+        opinions = counts.get(FactType.OPINION, 0)
+        logger.info(
+            f"  事实/解释分类: 🔵事实 {facts} | 🟡解释 {interps} | "
+            f"🔮预测 {proj} | 💬观点 {opinions} "
+            f"(共{total}条, 事实占比 {facts/max(total,1):.0%})"
+        )
+        # 打印高置信解释信号 (可能被误当事实引用的风险点)
+        high_conf_interps = [
+            s for s in bundle.signals
+            if s.fact_type == FactType.INTERPRETATION
+            and s.strength in (SignalStrength.STRONG, SignalStrength.MODERATE)
+        ]
+        if high_conf_interps:
+            logger.info(f"  ⚠️ 以下{len(high_conf_interps)}条是解释而非事实，引用需标注:")
+            for s in high_conf_interps[:5]:
+                logger.info(f"     [{s.fact_type}] {s.name}: {s.description[:60]}")
 
     @staticmethod
     def _audit_source_tiers(bundle: SignalBundle) -> dict[str, set[str]]:
@@ -1336,6 +1430,11 @@ class AnalysisPipeline:
             )
             if final.get("position_state", {}).get("reason"):
                 print(f"     原因: {final['position_state']['reason']}")
+
+        # 程序化决策理由 (无需 LLM 生成)
+        rationale = result.decision.get("rationale") or result.final_decision.get("rationale")
+        if rationale:
+            print(f"\n  📋 决策理由: {rationale}")
 
     def _print_risk_check(self, result: AnalysisResult) -> None:
         if result.final_decision.get("risk_override"):
@@ -1864,7 +1963,7 @@ class AnalysisPipeline:
         """Step 6: 投资者画像约束检查."""
         logger.info("[6/9] 画像匹配...")
 
-        profile, portfolio = self._load_investor_data()
+        profile, portfolio, _ = self._load_investor_data(result)
         result.investor_profile = profile
         result.portfolio = portfolio
 
@@ -1916,11 +2015,11 @@ class AnalysisPipeline:
             evaluator = MonitorEvaluator()
             ctx_obj = MonitorContext(
                 gold_price=result.current_price,
-                intl_price=result.intl_price,
-                bundle=result.bundle,
-                decision=result.final_decision,
+                minsheng_price=result.minsheng_accumulation_price or result.current_price,
+                xauusd=result.intl_price if result.intl_price > 0 else None,
             )
-            triggered = evaluator.evaluate(ctx_obj)
+            active_monitors = evaluator.calendar.get_active_monitors()
+            triggered = evaluator.evaluate_and_close(active_monitors, ctx_obj)
             result.scenario_plan["monitors_triggered"] = len(triggered)
             if triggered:
                 logger.info(f"[9/9] Monitor 触发: {len(triggered)}个")

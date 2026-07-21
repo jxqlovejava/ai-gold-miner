@@ -295,6 +295,37 @@ class MacroDataFetcher(DataFetcher):
             return pd.DataFrame(columns=["timestamp", "value"])
         return df[["timestamp", "value"]].copy()
 
+    def fetch_vix(self) -> pd.DataFrame:
+        """获取 CBOE 波动率指数 VIX — FRED series VIXCLS."""
+        try:
+            return self.fetch("VIXCLS", "VIX")
+        except Exception:
+            return pd.DataFrame(columns=["timestamp", "value"])
+
+    def fetch_fear_greed(self, days: int = 7) -> pd.DataFrame:
+        """获取恐惧贪婪指数 — alternative.me Crypto Fear & Greed Index (可作为市场风险偏好参考).
+
+        返回含 timestamp + value 的标准 DataFrame。
+        """
+        try:
+            import json
+            import urllib.request
+            url = f"https://api.alternative.me/fng/?limit={min(days, 365)}"
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode())
+            records: list[dict[str, Any]] = []
+            for item in data.get("data", []):
+                records.append({
+                    "timestamp": pd.Timestamp(item["timestamp"], unit="s"),
+                    "value": float(item["value"]),
+                })
+            if records:
+                return pd.DataFrame(records).sort_values("timestamp")
+            return pd.DataFrame(columns=["timestamp", "value"])
+        except Exception:
+            return pd.DataFrame(columns=["timestamp", "value"])
+
     def fetch_silver(self) -> pd.DataFrame:
         """获取白银价格 — 上海金交所 Ag99.99 (元/克)."""
         try:

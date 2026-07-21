@@ -298,4 +298,110 @@ class PortfolioManager:
             float(result["position_pct"]),
             final_score,
         )
+
+        # --- 程序化决策理由 (无需 LLM) ---
+        result["rationale"] = _build_decision_rationale(result, bull, bear, bundle)
         return result
+
+
+def _build_decision_rationale(
+    result: dict[str, Any],
+    bull: AgentOpinion,
+    bear: AgentOpinion,
+    bundle: SignalBundle,
+) -> str:
+    """基于决策结果和信号上下文，生成程序化中文决策理由.
+
+    所有逻辑来自信号评分数学 + 维度方向统计 + 置信度阈值判断，
+    完全不依赖 LLM。产出可直接嵌入报告。
+    """
+    score = float(result.get("composite_score", 0))
+    direction = result.get("direction", "neutral")
+    position_pct = float(result.get("position_pct", 0))
+    confidence = bundle.confidence
+
+    # 维度统计
+    bull_dims, bear_dims, insuf = bundle.dimension_direction_counts()
+    active = bull_dims + bear_dims
+
+    # 方向描述
+    dir_cn = {"long": "做多", "short": "做空", "neutral": "观望"}
+
+    # 评分级别
+    if abs(score) >= 0.5:
+        strength_desc = "强信号" if score > 0 else "强偏空"
+    elif abs(score) >= 0.3:
+        strength_desc = "中等信号" if score > 0 else "中等偏空"
+    else:
+        strength_desc = "弱信号"
+
+    parts: list[str] = []
+
+    # 1. 核心判断
+    if direction == "long":
+        parts.append(
+            f"综合评分{score:+.2f}({strength_desc}), 置信度{confidence:.0%}, "
+            f"建议{dir_cn[direction]}, 建议仓位{position_pct:.0%}"
+        )
+    elif direction == "neutral":
+        parts.append(
+            f"综合评分{score:+.2f}({strength_desc}), 置信度{confidence:.0%}, "
+            f"信号不足以支撑方向性操作, 建议观望"
+        )
+    elif direction == "short":
+        parts.append(
+            f"综合评分{score:+.2f}(负偏), 置信度{confidence:.0%}, "
+            f"风险管理偏空"
+        )
+
+    # 2. 维度多空对比
+    if active > 0:
+        if bull_dims > bear_dims:
+            parts.append(
+                f"有效维度{bull_dims}维看多 vs {bear_dims}维看空"
+                + (f"({insuf}维数据不足)" if insuf > 0 else "")
+            )
+        elif bear_dims > bull_dims:
+            parts.append(
+                f"有效维度{bear_dims}维看空 vs {bull_dims}维看多"
+                + (f"({insuf}维数据不足)" if insuf > 0 else "")
+            )
+        elif bull_dims == bear_dims:
+            parts.append(
+                f"维度方向平手({bull_dims}多 vs {bear_dims}空)"
+            )
+    elif insuf > 0:
+        parts.append(f"全部{insuf}维数据不足，无法判断方向")
+
+    # 3. Agent 一致性
+    if bull.stance == "bullish" and bear.stance != "bearish":
+        parts.append("多头明确看多, 空头未反驳 → 方向明确")
+    elif bear.stance == "bearish" and bull.stance != "bullish":
+        parts.append("空头明确看空, 多头未反驳 → 偏空明确")
+    elif bull.stance == "bullish" and bear.stance == "bearish":
+        parts.append("多空分歧大 → 不确定性高, 不追单边")
+    else:
+        parts.append("多空均为中性 → 无明确方向信号")
+
+    # 4. 仓位管理提示
+    if position_pct <= 0:
+        parts.append("当前无开仓建议 → 持有现有仓位不变或等待信号")
+    elif position_pct <= 0.05:
+        parts.append(f"建议仓位仅{position_pct:.0%} → 观察仓, 等信号确认后再加")
+    elif position_pct >= 0.3:
+        parts.append(f"建议仓位{position_pct:.0%} ≥ 30% → 注意单次下注上限")
+
+    # 5. 弱信号特别说明
+    if abs(score) < 0.3:
+        parts.append(
+            f"|score|={abs(score):.2f} < 阈值0.3 → 已有持仓维持, "
+            f"不建议新开或加仓"
+        )
+
+    # 6. 置信度不足警告
+    if confidence < 0.5:
+        parts.append(
+            f"置信度{confidence:.0%} < 50% → 信号可信度低, 不建议据此操作"
+        )
+
+    return "; ".join(parts)
