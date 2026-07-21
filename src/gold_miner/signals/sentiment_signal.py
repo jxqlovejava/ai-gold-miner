@@ -31,6 +31,8 @@ class SentimentAnalyzer:
         """持仓量趋势 — 增仓看涨，减仓看跌."""
         signals: list[Signal] = []
         try:
+            if "open_interest" not in self.au.columns:
+                return signals
             oi = self.au["open_interest"].dropna()
             if len(oi) < 5:
                 return signals
