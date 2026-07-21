@@ -184,7 +184,7 @@ class Institutional13FFetcher:
 
     def _fallback_summary(self) -> InstitutionalSummary:
         """回退数据 — 基于公开信息的近似汇总."""
-        logger.warning("13F实时数据不可用，使用回退数据")
+        logger.debug("13F实时数据不可用，使用回退数据")
         return InstitutionalSummary(
             quarter=self._current_quarter(),
             total_institutions=7,

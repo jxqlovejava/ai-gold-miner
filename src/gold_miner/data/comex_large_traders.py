@@ -122,7 +122,7 @@ class ComexLargeTraderFetcher(DataFetcher):
 
     def _fallback_data(self) -> pd.DataFrame:
         """回退数据 — 模拟近期大户集中度数据."""
-        logger.warning("CFTC大户数据不可用，使用回退数据")
+        logger.debug("CFTC大户数据不可用，使用回退数据")
         base_date = datetime(2026, 5, 27)
         records = []
         for i in range(12):

@@ -14,7 +14,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 
 from loguru import logger
 
@@ -206,8 +206,13 @@ class RecentEventSignalGenerator:
 
             hours_desc = f"{hours_ago:.0f}h前" if hours_ago < 72 else f"{hours_ago/24:.0f}天前"
 
+            # 格式化事件发生时间: ET + 北京双列
+            et_str = event.scheduled_at.strftime("%m/%d %H:%M ET")
+            bj_dt = event.scheduled_at.astimezone(timezone(timedelta(hours=8)))
+            bj_str = bj_dt.strftime("%m/%d %H:%M 北京")
+
             description_parts = [
-                f"{hours_desc} | 权重{weight:.1f}",
+                f"🕐 {et_str} ({bj_str}) | {hours_desc} | 权重{weight:.1f}",
             ]
             if event.actual:
                 description_parts.append(f"实际: {event.actual}")

@@ -370,18 +370,23 @@ class NewsSignalGenerator:
                 geo_direction = SignalDirection.BULLISH
                 geo_description = "地缘风险升温，推升黄金避险溢价"
 
+            # 聚合具体标题列表
+            geo_titles = [it.title.strip()[:60] for it in geo_items]
+            geo_titles_str = "；".join(f"{i+1}.{t}" for i, t in enumerate(geo_titles[:8]))
+
             signals.append(Signal(
                 name="地缘风险溢价",
                 dimension="news",
                 direction=geo_direction,
                 strength=SignalStrength.MODERATE if aggregate_boost > 0.3 else SignalStrength.WEAK,
                 score=round(aggregate_boost if geo_direction == SignalDirection.BULLISH else -aggregate_boost, 2),
-                description=f"{len(geo_items)}条地缘新闻聚合：{geo_description}",
+                description=f"{len(geo_items)}条地缘新闻聚合：{geo_description} | {geo_titles_str}",
                 metadata={
                     "geo_news_count": len(geo_items),
                     "aggregate_boost": round(aggregate_boost, 2),
                     "escalation_keywords": es_count,
                     "de_escalation_keywords": de_count,
+                    "geo_news_titles": [it.title for it in geo_items],
                 },
             ))
 
