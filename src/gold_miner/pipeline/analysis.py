@@ -718,6 +718,16 @@ class AnalysisPipeline:
         else:
             logger.info(f"[3/9] 来源验证完成 ({len(warnings)} 项提醒)")
 
+        # --- 4. 程序化维度方向总览表（防止手动计数错误） ---
+        table = bundle.format_dimension_table()
+        result.messages.append(table)
+        logger.info(f"\n{table}")
+
+        bull_dims, bear_dims, insuf_dims = bundle.dimension_direction_counts()
+        logger.info(
+            f"  维度方向汇总: {bull_dims}维看多 | {bear_dims}维看空 | {insuf_dims}维数据不足"
+        )
+
     @staticmethod
     def _audit_source_tiers(bundle: SignalBundle) -> dict[str, set[str]]:
         """审计各维度的 source_tier 覆盖.

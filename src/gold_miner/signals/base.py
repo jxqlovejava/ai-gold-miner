@@ -124,3 +124,126 @@ class SignalBundle:
             consensus_ratio=ratio,
             has_consensus=has_consensus,
         )
+
+    def dimension_direction_summary(self) -> dict[str, dict]:
+        """返回每个维度的方向摘要，包含各方向信号计数、主导方向、均分等。
+
+        排除中性信号的维度标记为 insufficient_data。
+        用于程序化生成维度总览表，避免手动计数错误。
+
+        Returns:
+            dict: key=维度名, value={
+                "dominant": "bullish"|"bearish"|"insufficient_data",
+                "bullish": int, "bearish": int, "neutral": int,
+                "total": int, "avg_score": float,
+                "insufficient_data": bool,
+            }
+        """
+        if not self.signals:
+            return {}
+
+        summary: dict[str, dict] = {}
+        for dim in sorted({s.dimension for s in self.signals}):
+            signals_in_dim = self.by_dimension(dim)
+            bull = sum(1 for s in signals_in_dim if s.direction == SignalDirection.BULLISH)
+            bear = sum(1 for s in signals_in_dim if s.direction == SignalDirection.BEARISH)
+            neutral = sum(1 for s in signals_in_dim if s.direction == SignalDirection.NEUTRAL)
+            total = len(signals_in_dim)
+            avg_score = sum(s.score for s in signals_in_dim) / total if total > 0 else 0.0
+
+            # 排除中性信号后判断主导方向
+            non_neutral = bull + bear
+            if non_neutral == 0:
+                dominant = "insufficient_data"
+                insufficient = True
+            elif bull > bear:
+                dominant = "bullish"
+                insufficient = False
+            elif bear > bull:
+                dominant = "bearish"
+                insufficient = False
+            else:
+                # bull == bear (平手)
+                dominant = "insufficient_data"
+                insufficient = True
+
+            summary[dim] = {
+                "dominant": dominant,
+                "bullish": bull,
+                "bearish": bear,
+                "neutral": neutral,
+                "total": total,
+                "avg_score": round(avg_score, 2),
+                "insufficient_data": insufficient,
+            }
+        return summary
+
+    def dimension_direction_counts(self) -> tuple[int, int, int]:
+        """返回 (看多维度数, 看空维度数, 数据不足维度数)。
+
+        基于 dimension_direction_summary() 的 dominant 字段计算，
+        排除数据不足的维度后在有效维度间比较方向。
+
+        Returns:
+            tuple: (bullish_dimensions, bearish_dimensions, insufficient_data_dimensions)
+        """
+        summary = self.dimension_direction_summary()
+        bullish = sum(1 for v in summary.values() if v["dominant"] == "bullish")
+        bearish = sum(1 for v in summary.values() if v["dominant"] == "bearish")
+        insufficient = sum(1 for v in summary.values() if v["insufficient_data"])
+        return (bullish, bearish, insufficient)
+
+    def format_dimension_table(self) -> str:
+        """生成程序化维度方向总览表，LLM 可直接嵌入报告。
+
+        表格包含每个维度的方向、看多/看空/中性信号数、均分，
+        以及汇总行（有效维度间的方向对比）。
+
+        Returns:
+            str: 格式化的中文表格字符串
+        """
+        summary = self.dimension_direction_summary()
+        if not summary:
+            return "(无信号)"
+
+        lines = [
+            "┌──────────────────┬────────────────────┬──────┬──────┬──────┬────────┐",
+            "│      维度        │        方向        │ 看多 │ 看空 │ 中性 │  均分  │",
+            "├──────────────────┼────────────────────┼──────┼──────┼──────┼────────┤",
+        ]
+
+        dir_labels = {
+            "bullish": "🟢 看多",
+            "bearish": "🔴 看空",
+            "insufficient_data": "🟡 数据不足",
+        }
+
+        for dim, info in summary.items():
+            # 维度名截断至多16字符
+            dim_display = dim[:16]
+            dir_display = dir_labels.get(info["dominant"], info["dominant"])
+            lines.append(
+                f"│ {dim_display:<16} │ {dir_display:<18} │ "
+                f"{info['bullish']:>4} │ {info['bearish']:>4} │ "
+                f"{info['neutral']:>4} │ {info['avg_score']:>+6.2f} │"
+            )
+
+        lines.append("└──────────────────┴────────────────────┴──────┴──────┴──────┴────────┘")
+
+        # 汇总行
+        bull_dims, bear_dims, insuf_dims = self.dimension_direction_counts()
+        active = bull_dims + bear_dims
+        if active > 0:
+            if bull_dims > bear_dims:
+                consensus_note = f"看多 {bull_dims}维 vs 看空 {bear_dims}维"
+            elif bear_dims > bull_dims:
+                consensus_note = f"看空 {bear_dims}维 vs 看多 {bull_dims}维"
+            else:
+                consensus_note = f"看多 {bull_dims}维 vs 看空 {bear_dims}维 (平手)"
+        else:
+            consensus_note = "无有效方向维度"
+        if insuf_dims > 0:
+            consensus_note += f"（{insuf_dims}维数据不足）"
+
+        lines.append(f"  有效维度方向对比: {consensus_note}")
+        return "\n".join(lines)

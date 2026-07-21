@@ -90,6 +90,25 @@ class FactChecker:
         ("军事打击", "取消军事打击"),
     ]
 
+    # 匿名来源模式 — 基于匿名信息源的报道不应被自动标记为"已确认"
+    # 即使有多个交叉源，若它们都引用同一匿名线索，也不算独立确认
+    ANONYMOUS_SOURCE_PATTERNS: list[str] = [
+        r"\b(?:据(?:悉|透露|了解|消息[人灵]士?称?|称|报)|sources?\s+(?:said|told|familiar|briefed|close\s+to)|anonymous|不愿?具名|要求?匿名)\b",
+        r"(?:知情(?:人士?|消息来源)|内部人士?|接近.*的消息[人灵]士?)",
+        r"(?:exclusive|独家)(?:.*(?:according\s+to\s+sources|reportedly|learns))",
+    ]
+
+    # 已知共享同一匿名线索或机构来源的域聚类（源链）—— 同链源不算独立确认
+    # 用以防止「不同域名引用同一独家线索」被误判为多源确认
+    SOURCE_CHAINS: dict[str, list[str]] = {
+        # 以色列媒体链：i24NEWS 独家常被 JPost/Ynet 转载
+        "i24news.tv": ["jpost.com", "ynetnews.com", "timesofisrael.com"],
+        # AP 链：AP 报道被 US News/ABC 等成员转载
+        "apnews.com": ["usnews.com", "abcnews.go.com"],
+        # Reuters 企业内部链
+        "reuters.com": ["reuters.tv"],
+    }
+
     def __init__(self, min_cross_sources: int = 2) -> None:
         self.min_cross_sources = min_cross_sources
 
@@ -137,6 +156,23 @@ class FactChecker:
 
         # 4. 多源交叉验证（搜索引擎搜索同一事件）
         cross_sources = self._cross_reference(item)
+
+        # 4.2 匿名独家守卫：基于匿名源的报道即使有多个交叉源也不自动标记为已确认
+        #   除非有独立的 T0/T1 源独立确认同一事实
+        if self._detect_anonymous_exclusive(item):
+            has_independent_confirm = any(
+                self._source_tier_of_url(src) in ("T0", "T1")
+                and self._extract_domain(src) != self._extract_domain(item.url)
+                for src in cross_sources
+            )
+            if not has_independent_confirm:
+                return FactCheckResult(
+                    news_item=item,
+                    status=VerificationStatus.UNVERIFIED,
+                    cross_sources=cross_sources,
+                    confidence=0.2,
+                    check_method="anonymous_exclusive_no_independent_confirm",
+                )
 
         # 5. 冲突检测
         if cross_sources and self._detect_conflict(item, cross_sources):
@@ -263,6 +299,10 @@ class FactChecker:
         original_domain = self._extract_domain(item.url)
         filtered = [s for s in unique_sources
                     if self._extract_domain(s) != original_domain]
+
+        # 源链过滤：同一线索链的多个域名不算独立确认
+        # 例如 i24NEWS 独家被 JPost 转载 → 两个域名实际引用同一匿名源
+        filtered = cls._filter_chain_sources(filtered, original_domain)
 
         return filtered[:max_results]
 
@@ -525,6 +565,73 @@ class FactChecker:
             return domain
         except Exception:
             return ""
+
+    @classmethod
+    def _detect_anonymous_exclusive(cls, item: NewsItem) -> bool:
+        """检测新闻是否仅基于匿名信息源（"知情人士"、"据透露"等）。
+
+        匿名独家报道不应被自动标记为"已确认"，即使有多个交叉源——
+        因为这些交叉源可能引用同一匿名线索，而非独立确认。
+
+        Returns:
+            bool: 若标题/摘要包含匿名源模式则返回 True
+        """
+        import re as _re
+
+        text = f"{item.title} {item.summary}"
+        for pattern in cls.ANONYMOUS_SOURCE_PATTERNS:
+            if _re.search(pattern, text, _re.IGNORECASE):
+                return True
+        return False
+
+    @classmethod
+    def _source_tier_of_url(cls, url: str) -> str:
+        """获取 URL 对应的 source_tier 字符，用于匿名独家守卫的独立确认判断。
+
+        Returns:
+            "T0" | "T1" | "T2" | "T3" | "unknown"
+        """
+        try:
+            return get_source_tier("", url)
+        except Exception:
+            return "unknown"
+
+    @classmethod
+    def _filter_chain_sources(
+        cls, sources: list[str], original_domain: str
+    ) -> list[str]:
+        """过滤同源链内的重复域名。
+
+        当两个域名属于同一源链时，只保留链中的第一个域名。
+        例如：i24NEWS.tv 的独家被 jpost.com 转载 →
+        jpost.com 不算独立确认，从列表中移除。
+
+        Args:
+            sources: 按域名去重后的交叉源 URL 列表
+            original_domain: 原始新闻的域名
+
+        Returns:
+            过滤后的 URL 列表
+        """
+        # 构建反向索引：每个域名属于哪个源链
+        chain_membership: dict[str, str] = {}
+        for anchor, members in cls.SOURCE_CHAINS.items():
+            chain_membership[anchor] = anchor
+            for member in members:
+                chain_membership[member] = anchor
+
+        seen_chains: set[str] = set()
+        filtered: list[str] = []
+        for src in sources:
+            domain = cls._extract_domain(src)
+            chain = chain_membership.get(domain)
+            if chain:
+                if chain in seen_chains:
+                    # 同一源链中已有一个源，跳过此源
+                    continue
+                seen_chains.add(chain)
+            filtered.append(src)
+        return filtered
 
 
 def apply_fact_checks(

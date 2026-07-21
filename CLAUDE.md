@@ -254,3 +254,24 @@
 - 优先使用 web-access skill 的 CDP 浏览器访问一手来源官网
 - 一手官网不可达时，用 WebSearch 定位官方发布页面，再用 WebFetch/curl 读取
 - 严禁仅依赖搜索结果摘要就写入分析或交易建议
+
+### 匿名源与源独立性规则（2026-07-22 新增）
+
+**核心原则**：匿名独家 ≠ 多源确认。不同域名引用同一匿名线索 ≠ 独立验证。
+
+1. **匿名独家 = 未验证**：完全基于匿名信息源（"据知情人士"、"匿名消息源"、"sources familiar with"等）的声明，即使有 2 个以上域名报道相同内容，也**不得标注为"事实"**。必须标注为 `[anonymous claim, unverified]`，置信度 ≤ 0.2。
+2. **源链 ≠ 独立确认**：两个不同域名可能引用同一原始独家/新闻线索。已知源链包括 `i24NEWS ↔ Jerusalem Post ↔ Ynet`、`AP ↔ US News`、`Reuters ↔ Reuters TV` 等。若交叉验证的多个源属于同一链，只算 **1 个**独立确认点。
+3. **矛盾优先搜索**：将声明标注为"事实"之前，**必须先主动搜索矛盾报道**。只要存在 ≥1 个同等或更高级别（T0-T2）源的矛盾报道，声明须标注为 `[disputed: 源A说X vs 源B说Y]`，不可作为事实引用。
+4. **i24NEWS 特殊规则**：i24NEWS 的独家报道常引用匿名以色列/伊朗情报源，其"独家"属性意味着天然缺乏独立交叉验证。i24NEWS 的匿名源独家**最高标注为** `[anonymous claim: i24NEWS exclusive, unverified]`，除非有 T0/T1 非以色列媒体独立确认同一事实。
+5. **输出标注规约**：
+   - `[verified: T0, independent]` — 多个独立 T0/T1 源确认
+   - `[verified: T2, cross-referenced]` — 多个独立 T2 源确认
+   - `[anonymous claim, unverified]` — 匿名源独家，无 T0/T1 独立确认
+   - `[disputed: 源A说X vs 源B说Y]` — 存在矛盾的权威报道
+
+### 信号维度计数规则（2026-07-22 新增）
+
+**禁止手动数信号方向**。`SignalBundle.format_dimension_table()` 会在 pipeline 第三步自动输出程序化维度总览表。分析报告中直接引用该表的数字，不得自行重新计数。
+
+- 报告中的多空维度对比必须**逐条对照程序化表格**的汇总行
+- 数据不足（insufficient_data）的维度不计入多空对比
