@@ -97,6 +97,7 @@ class EventImpact(StrEnum):
     HIGH = "high"
     MEDIUM = "medium"
     LOW = "low"
+    EXTREME = "extreme"
 
 
 class EventType(StrEnum):

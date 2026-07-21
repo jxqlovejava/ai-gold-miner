@@ -87,6 +87,10 @@ def validate() -> tuple[list[str], list[str]]:
                 f"旧格式(无时区): [{etype}] {name} → {scheduled} (应加 -04:00/-05:00)"
             )
 
+        # 跳过 7 天前的历史事件 (已发生, 无必要校验 DOW/钟点)
+        if dt < datetime.now(timezone.utc) - timedelta(days=7):
+            continue
+
         # ---- 1. DOW (星期) 校验 ----
         for finding in check_event_dow(
             name=name, event_type=etype, scheduled_at=dt
