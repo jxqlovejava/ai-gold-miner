@@ -21,20 +21,54 @@ from typing import Optional
 BEIJING = timezone(timedelta(hours=8))
 
 # ── 搜索主题配置 ──
+# 设计原则 (2026-07-21 修订):
+#   1. 地缘冲突是多极点的——不能只搜美伊, 必须覆盖以色列/胡塞/沙特/红海等所有活跃战线
+#   2. 外交与军事是对称维度——有冲突升级查询就必须有停火/调停查询, 否则单向盲区
+#   3. 每新增一个区域冲突参与方, 其对应的中文关键词也必须同步更新
 _SEARCH_TOPICS: list[dict] = [
     {
         "id": "geopolitical",
-        "label": "地缘冲突",
+        "label": "地缘冲突 (美伊+中东全域)",
         "priority": "P0",
         "anysearch_queries": [
-            "US Iran conflict Strait of Hormuz latest news today",
-            "Middle East oil tanker attack today",
-            "Iran military escalation latest",
+            "US Iran war latest military strikes today",
+            "Iran Strait of Hormuz oil tanker blockade latest",
+            "Middle East war escalation Israel Houthi Saudi latest",
         ],
         "last30days_keywords": [
-            "美伊冲突 霍尔木兹",
-            "中东局势 原油 金价",
-            "伊朗 美国 空袭",
+            "美伊冲突 霍尔木兹 空袭",
+            "中东局势 原油 金价 战争",
+            "伊朗 美国 以色列 胡塞",
+        ],
+    },
+    {
+        "id": "israel_houthi",
+        "label": "以色列-胡塞武装-也门",
+        "priority": "P0",
+        "anysearch_queries": [
+            "Israel strikes Houthi Yemen Hodeidah latest",
+            "Houthi Red Sea Bab el-Mandeb blockade Saudi",
+            "Israel military operation Middle East escalation",
+        ],
+        "last30days_keywords": [
+            "以色列 空袭 胡塞 也门 荷台达",
+            "胡塞武装 曼德海峡 红海 封锁",
+            "以色列 伊朗 中东 战争升级",
+        ],
+    },
+    {
+        "id": "ceasefire_diplomacy",
+        "label": "停火谈判与外交调停",
+        "priority": "P0",
+        "anysearch_queries": [
+            "US Iran ceasefire truce peace talks Pakistan mediation latest",
+            "Middle East peace negotiation diplomatic breakthrough",
+            "Iran ceasefire proposal Qatar Pakistan broker",
+        ],
+        "last30days_keywords": [
+            "美伊 停火 和谈 调停 巴基斯坦",
+            "伊朗 美国 谈判 外交 斡旋",
+            "中东 停火协议 和平谈判",
         ],
     },
     {
@@ -88,12 +122,12 @@ _SEARCH_TOPICS: list[dict] = [
         "priority": "P1",
         "anysearch_queries": [
             "crude oil Brent WTI price latest",
-            "oil supply disruption Hormuz",
+            "oil supply disruption Hormuz Red Sea",
             "OPEC+ production decision",
         ],
         "last30days_keywords": [
             "原油 油价 布伦特",
-            "霍尔木兹 石油 供应",
+            "霍尔木兹 曼德海峡 石油 供应",
         ],
     },
     {
