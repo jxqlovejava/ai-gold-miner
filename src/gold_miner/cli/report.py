@@ -1,4 +1,8 @@
-"""Report command handler."""
+"""Report command handler — ⚠️ DEPRECATED 2026-07-22.
+
+此模块手动复制了 AnalysisPipeline 的数据采集+信号生成+Agent 辩论逻辑。
+新代码应将 AnalysisPipeline.run() 的 AnalysisResult 传给 ReportGenerator。
+目前 gold-miner report 命令仍可用但功能滞后于 gold-miner scan。"""
 
 from __future__ import annotations
 

@@ -1,4 +1,8 @@
-"""决策指令系统 — 将多维度信号转化为具体行动指令.
+"""决策指令系统 — ⚠️ DEPRECATED 2026-07-22.
+
+此模块的信号生成+Agent 辩论逻辑与 AnalysisPipeline 重复。
+新代码应将 AnalysisPipeline.run() 的结果映射到 AdvisorReport。
+目前仅由 Advisor.daily_guide() (orchestrator.py) 引用——该路径也待重构。
 
 核心逻辑:
   1. 采集全部信号 → SignalBundle

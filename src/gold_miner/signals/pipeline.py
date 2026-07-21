@@ -1,4 +1,9 @@
-"""信号管线 — 统一协调各维度信号生成顺序."""
+"""信号管线 — ⚠️ DEPRECATED 2026-07-22.
+
+此模块从未被生产代码调用。所有信号生成已由
+AnalysisPipeline._step_generate_signals() (pipeline/analysis.py) 直接处理。
+保留此文件仅用于参考和未来 Phase B 重构（让 AnalysisPipeline 委托给 SignalPipeline）。
+"""
 from __future__ import annotations
 
 from collections.abc import Callable

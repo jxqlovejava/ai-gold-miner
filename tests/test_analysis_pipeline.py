@@ -97,14 +97,14 @@ class TestAnalysisPipelineStepComposition:
         """当 gold_df 为空时，run() 应提前返回."""
         pipeline = AnalysisPipeline()
 
-        # mock _step_collect to set empty gold_df
+        # mock _step_prepare to set empty gold_df
         def mock_collect(ctx, result):
             result.gold_df = SignalBundle()._to_df() if hasattr(SignalBundle, '_to_df') else type('obj', (object,), {'empty': True})()
             # Create a mock DataFrame with empty property
             import pandas as pd
             result.gold_df = pd.DataFrame()
 
-        monkeypatch.setattr(pipeline, '_step_collect', mock_collect)
+        monkeypatch.setattr(pipeline, '_step_prepare', mock_collect)
 
         ctx = AnalysisContext()
         result = pipeline.run(ctx)
@@ -116,14 +116,14 @@ class TestAnalysisPipelineSkipFlags:
     def test_skip_tracking(self, monkeypatch):
         pipeline = AnalysisPipeline()
         # Mock all steps to avoid network calls
-        monkeypatch.setattr(pipeline, '_step_collect', lambda ctx, res: None)
+        monkeypatch.setattr(pipeline, '_step_prepare', lambda ctx, res: None)
         monkeypatch.setattr(pipeline, '_step_generate_signals', lambda ctx, res: None)
         monkeypatch.setattr(pipeline, '_step_source_truth', lambda ctx, res: None)
         monkeypatch.setattr(pipeline, '_step_agent_debate', lambda ctx, res: None)
         monkeypatch.setattr(pipeline, '_step_risk_check', lambda ctx, res: None)
         monkeypatch.setattr(pipeline, '_step_doctrine_check', lambda ctx, res: None)
         monkeypatch.setattr(pipeline, '_step_decide', lambda ctx, res: None)
-        monkeypatch.setattr(pipeline, '_step_track', lambda ctx, res: None)
+        monkeypatch.setattr(pipeline, '_step_plan', lambda ctx, res: None)
 
         # Set a mock gold_df so it doesn't return early
         import pandas as pd
@@ -131,7 +131,7 @@ class TestAnalysisPipelineSkipFlags:
             res.gold_df = pd.DataFrame({'close': [100.0]})
             res.current_price = 100.0
 
-        monkeypatch.setattr(pipeline, '_step_collect', mock_collect)
+        monkeypatch.setattr(pipeline, '_step_prepare', mock_collect)
 
         ctx = AnalysisContext(skip_tracking=True)
         result = pipeline.run(ctx)
@@ -145,14 +145,14 @@ class TestAnalysisPipelineSkipFlags:
             res.gold_df = pd.DataFrame({'close': [100.0]})
             res.current_price = 100.0
 
-        monkeypatch.setattr(pipeline, '_step_collect', mock_collect)
+        monkeypatch.setattr(pipeline, '_step_prepare', mock_collect)
         monkeypatch.setattr(pipeline, '_step_generate_signals', lambda ctx, res: None)
         monkeypatch.setattr(pipeline, '_step_source_truth', lambda ctx, res: None)
         monkeypatch.setattr(pipeline, '_step_agent_debate', lambda ctx, res: None)
         monkeypatch.setattr(pipeline, '_step_risk_check', lambda ctx, res: None)
         monkeypatch.setattr(pipeline, '_step_doctrine_check', lambda ctx, res: None)
         monkeypatch.setattr(pipeline, '_step_decide', lambda ctx, res: None)
-        monkeypatch.setattr(pipeline, '_step_track', lambda ctx, res: None)
+        monkeypatch.setattr(pipeline, '_step_plan', lambda ctx, res: None)
 
         ctx = AnalysisContext(skip_doctrine=True)
         result = pipeline.run(ctx)
@@ -167,14 +167,14 @@ class TestAnalysisPipelineSkipFlags:
             res.gold_df = pd.DataFrame({'close': [100.0]})
             res.current_price = 100.0
 
-        monkeypatch.setattr(pipeline, '_step_collect', mock_collect)
+        monkeypatch.setattr(pipeline, '_step_prepare', mock_collect)
         monkeypatch.setattr(pipeline, '_step_generate_signals', lambda ctx, res: None)
         monkeypatch.setattr(pipeline, '_step_source_truth', lambda ctx, res: None)
         monkeypatch.setattr(pipeline, '_step_agent_debate', lambda ctx, res: None)
         monkeypatch.setattr(pipeline, '_step_risk_check', lambda ctx, res: None)
         monkeypatch.setattr(pipeline, '_step_doctrine_check', lambda ctx, res: None)
         monkeypatch.setattr(pipeline, '_step_decide', lambda ctx, res: None)
-        monkeypatch.setattr(pipeline, '_step_track', lambda ctx, res: None)
+        monkeypatch.setattr(pipeline, '_step_plan', lambda ctx, res: None)
 
         ctx = AnalysisContext(skip_dashboard=True)
         result = pipeline.run(ctx)
@@ -407,7 +407,7 @@ class TestMinshengAccumulationPrice:
         pipeline = AnalysisPipeline()
         assert pipeline._fetch_minsheng_accumulation_price() is None
 
-    def test_step_collect_records_minsheng_price(self, monkeypatch):
+    def test_step_prepare_records_minsheng_price(self, monkeypatch):
         pipeline = AnalysisPipeline()
 
         # Mock 现货黄金数据
@@ -460,7 +460,7 @@ class TestMinshengAccumulationPrice:
 
         ctx = AnalysisContext()
         result = AnalysisResult()
-        pipeline._step_collect(ctx, result)
+        pipeline._step_prepare(ctx, result)
 
         assert result.minsheng_accumulation_price == 920.0
         assert result.minsheng_accumulation_change_pct == "+0.10%"

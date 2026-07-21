@@ -1,4 +1,4 @@
-"""完整分析管线 — 封装 run_scan() 硬编码流程为可配置、可测试的类."""
+"""完整分析管线 — 对齐 CLAUDE.md/SKILL.md 9步流程."""
 
 from __future__ import annotations
 
@@ -802,7 +802,7 @@ class AnalysisPipeline:
         # 透传 bundle 置信度，供持仓状态机弱信号判定
         result.decision["confidence"] = result.bundle.confidence
 
-        logger.info("[4/9] Agent 辩论完成")
+        logger.info("[7/9] Agent 辩论完成")
 
 
     # ------------------------------------------------------------------
@@ -1062,7 +1062,7 @@ class AnalysisPipeline:
             }
 
         logger.info(
-            f"[7/9] Munger 模型: {len(models)}个选中, "
+            f"[5/9] Munger 模型: {len(models)}个选中, "
             f"合成因子 {composite_factor:.2f}"
         )
 
@@ -1480,7 +1480,7 @@ class AnalysisPipeline:
             return
 
         print(f"\n{'='*60}")
-        print("  Munger 思维模型 (Step 7)")
+        print("  Munger 思维模型 (Step 5)")
         print(f"{'='*60}")
 
         for m in models:
