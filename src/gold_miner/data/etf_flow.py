@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from time import sleep
 from typing import Any
 
 import pandas as pd
@@ -166,7 +167,9 @@ class BtcEtfFlowFetcher(DataFetcher):
             import yfinance as yf
 
             records = []
-            for symbol, name in self.BTC_ETF_SYMBOLS.items():
+            for i, (symbol, name) in enumerate(self.BTC_ETF_SYMBOLS.items()):
+                if i > 0:
+                    sleep(1.5)  # rate-limit: Yahoo Finance 429 avoidance
                 try:
                     ticker = yf.Ticker(symbol)
                     hist = ticker.history(period="5d")
@@ -286,7 +289,9 @@ class IntlGoldEtfFlowFetcher(DataFetcher):
             import yfinance as yf
 
             records = []
-            for symbol, name in self.INTL_GOLD_ETFS.items():
+            for i, (symbol, name) in enumerate(self.INTL_GOLD_ETFS.items()):
+                if i > 0:
+                    sleep(1.5)  # rate-limit: Yahoo Finance 429 avoidance
                 try:
                     ticker = yf.Ticker(symbol)
                     hist = ticker.history(period="30d")

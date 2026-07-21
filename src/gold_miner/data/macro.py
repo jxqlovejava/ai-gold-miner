@@ -210,32 +210,41 @@ class MacroDataFetcher(DataFetcher):
         注意: 不要与 FRED ``DTWEXBGS``（贸易加权美元指数，水平约 120）混淆。
         交易者口中的 DXY 指 ICE Dollar Index，水平约 100。
         """
+        from time import sleep as _sleep
+
         symbol = settings.yahoo_symbol_dxy
-        try:
-            import yfinance as yf
+        for attempt in range(3):
+            try:
+                import yfinance as yf
 
-            ticker = yf.Ticker(symbol)
-            hist = ticker.history(period="1y")
-            if hist is None or hist.empty:
-                logger.warning(f"Yahoo Finance 返回空 DXY 数据 ({symbol})")
-                return pd.DataFrame(columns=["timestamp", "value"])
+                if attempt > 0:
+                    _sleep(2 ** attempt)  # exponential backoff
 
-            df = hist.reset_index()
-            # yfinance 索引列可能是 Date 或 Datetime
-            date_col = "Date" if "Date" in df.columns else "Datetime"
-            if date_col not in df.columns:
-                # 已是普通列名场景
-                date_col = df.columns[0]
-            df = df.rename(columns={date_col: "timestamp", "Close": "value"})
-            df["timestamp"] = pd.to_datetime(df["timestamp"]).dt.tz_localize(None)
-            df["value"] = pd.to_numeric(df["value"], errors="coerce")
-            out = df[["timestamp", "value"]].dropna().reset_index(drop=True)
-            if out.empty:
-                logger.warning(f"Yahoo Finance DXY 解析后为空 ({symbol})")
-            return out
-        except Exception as e:
-            logger.warning(f"ICE DXY 获取失败 ({symbol}): {e}")
-            return pd.DataFrame(columns=["timestamp", "value"])
+                ticker = yf.Ticker(symbol)
+                hist = ticker.history(period="1y")
+                if hist is None or hist.empty:
+                    logger.warning(f"Yahoo Finance 返回空 DXY 数据 ({symbol})")
+                    return pd.DataFrame(columns=["timestamp", "value"])
+
+                df = hist.reset_index()
+                # yfinance 索引列可能是 Date 或 Datetime
+                date_col = "Date" if "Date" in df.columns else "Datetime"
+                if date_col not in df.columns:
+                    # 已是普通列名场景
+                    date_col = df.columns[0]
+                df = df.rename(columns={date_col: "timestamp", "Close": "value"})
+                df["timestamp"] = pd.to_datetime(df["timestamp"]).dt.tz_localize(None)
+                df["value"] = pd.to_numeric(df["value"], errors="coerce")
+                out = df[["timestamp", "value"]].dropna().reset_index(drop=True)
+                if out.empty:
+                    logger.warning(f"Yahoo Finance DXY 解析后为空 ({symbol})")
+                return out
+            except Exception as e:
+                if attempt < 2:
+                    logger.warning(f"ICE DXY 获取失败 (attempt {attempt + 1}/3, {symbol}): {e}")
+                else:
+                    logger.warning(f"ICE DXY 获取失败 ({symbol}): {e}")
+        return pd.DataFrame(columns=["timestamp", "value"])
 
     def fetch_trade_weighted_usd(self) -> pd.DataFrame:
         """抓取贸易加权美元指数(广义) — FRED DTWEXBGS.
