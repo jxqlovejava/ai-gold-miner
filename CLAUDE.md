@@ -286,14 +286,23 @@ Monitor:  观测: 美伊局势后续演变
 
 ### 第一步：多维度信号采集（强制）
 
+> 7 个维度必须全部覆盖，缺一不可。**资金流维度权重最高**——机构资金不会说谎。
+
 | 维度 | 工具 | 输出内容 |
 |------|------|---------|
 | **近期事件（时效性加权）** | `RecentEventSignalGenerator` | 第〇步同步的事件结果，按时间衰减加权 |
 | 技术面 | `TechnicalAnalyzer` | RSI、MACD、布林带、20 日区间、ATR |
 | 基本面 | `FundamentalAnalyzer` | DXY、实际利率、通胀预期、金银比、央行购金 |
 | 消息面 | `NewsSignalGenerator` | 24h 新闻信号 + 情感打分 |
-| 情绪面 | `SentimentAnalyzer` | 期货持仓、CFTC COT |
-| ETF 资金流 | `EtfFlowSignalGenerator` | 黄金 ETF 净流入/流出 |
+| **👔 聪明钱资金流** | `CotSignalGenerator` + `EtfFlowSignalGenerator` + `InstitutionalSignalGenerator` | **CFTC COT (管理基金净多/商业套保)** + **ETF 日度/月度资金流 (GLD/WGC)** + **COMEX 大户集中度** + **13F 机构持仓** + 聪明钱综合评分 |
+| 情绪面 | `SentimentAnalyzer` | AU 期货持仓/成交量、散户情绪指标 |
+
+> **资金流维度分析要点**：
+> - **CFTC COT**：管理基金(mgmt money)净多仓趋势 + 商业套保(producer)净空变化 = 两股力量同向时信号最强。背离时（如管理基金加仓但矿商加速套保）需警惕。
+> - **ETF 资金流**：GLD 日度持仓变化 > WGC 月度汇总。CPI/FOMC 等数据日出现脉冲流入但次日即逆转 = 假突破。
+> - **COMEX 大户集中度**：前4大多头/空头集中度 > 40% = 拥挤警告。逼空风险 = 强烈看多信号。
+> - **矿商套保 (Commercial Hedgers)**：矿商在上涨中加速做空 = 他们认为当前价格值得锁定。这是最重要的反向指标之一。
+> - 当三类聪明钱一致时（ETF流出 + 管理基金减仓 + 矿商加速套保），即使消息面利多也应警惕顶部。
 
 > 第〇步同步的事件结果已按时效性衰减注入 `recent_events` 维度（权重最高）。基本面/消息面中涉及相同事件时，应引用第〇步表中的加权结论而非独立评估。
 
@@ -301,9 +310,14 @@ Monitor:  观测: 美伊局势后续演变
 
 调用并输出：
 
-- `BullAgent.analyze(bundle)` — 看多理由
-- `BearAgent.analyze(bundle)` — 看空理由
+- `BullAgent.analyze(bundle)` — 看多理由（**含资金流论据** `smart_money_arguments`）
+- `BearAgent.analyze(bundle)` — 看空理由（**含资金流论据** `smart_money_arguments`）
 - `PortfolioManager` — 仓位建议
+
+**资金流维度必须显式出现在博弈中**：
+- Bull/Bear 的 `smart_money_arguments` 字段携带 CFTC COT + ETF + COMEX 大户 + 13F 的看多/看空信号
+- 分析报告中 Agent 博弈板块必须单独列出「资金流论据」小节，不可仅混在常规论据中
+- 当聪明钱与消息面方向矛盾时（如地缘利多 vs ETF 流出），必须在博弈中标注「**消息面 vs 资金面背离**」并说明权重取舍
 
 具体披露格式见 [AGENTS.md](AGENTS.md)。
 

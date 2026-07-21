@@ -89,6 +89,8 @@ class DashboardFormatter:
         instrument: str = "现货黄金",
         current_price: float = 0.0,
     ) -> TradeDecision:
+        from gold_miner.execution.dimensions import _SMART_MONEY_SOURCES
+
         direction = portfolio_decision.get("direction", "neutral")
         action = portfolio_decision.get("action") or ""
         action_cn = portfolio_decision.get("action_cn") or ""
@@ -107,12 +109,27 @@ class DashboardFormatter:
             )
 
         score_details: dict[str, float] = {}
-        for dim in ["technical", "fundamental", "news", "sentiment", "hype_bias", "event", "polymarket", "anomaly", "scenario"]:
-            signals = signal_bundle.by_dimension(dim)
-            if signals:
-                score_details[dim] = round(sum(s.score for s in signals) / len(signals), 2)
+        for dim in ["technical", "fundamental", "smart_money", "news", "sentiment", "hype_bias", "event", "polymarket", "anomaly", "scenario"]:
+            if dim == "smart_money":
+                # 聪明钱资金流: 从 sentiment/fundamental 维度中按 source 筛选
+                smart_sigs = [
+                    s for s in (
+                        signal_bundle.by_dimension("sentiment")
+                        + signal_bundle.by_dimension("fundamental")
+                    )
+                    if s.metadata.get("source", "") in _SMART_MONEY_SOURCES
+                    and abs(s.score) > 0.05
+                ]
+                score_details[dim] = (
+                    round(sum(s.score for s in smart_sigs) / len(smart_sigs), 2)
+                    if smart_sigs else 0.0
+                )
             else:
-                score_details[dim] = 0.0
+                signals = signal_bundle.by_dimension(dim)
+                if signals:
+                    score_details[dim] = round(sum(s.score for s in signals) / len(signals), 2)
+                else:
+                    score_details[dim] = 0.0
 
         position_pct = portfolio_decision.get("position_pct", 0)
         stop_loss = 0.0

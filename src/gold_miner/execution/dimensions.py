@@ -1,9 +1,25 @@
-"""四维度详细输出 — 技术面/基本面/消息面/情绪面."""
+"""多维度详细输出 — 技术面/基本面/消息面/情绪面/资金流/经济日历."""
 from __future__ import annotations
 
 import pandas as pd
 
-from gold_miner.signals.base import SignalBundle
+from gold_miner.signals.base import Signal, SignalBundle
+
+# 聪明钱资金流信号 source 分类
+_SMART_MONEY_SOURCES = frozenset({
+    "cot_report",          # CFTC COT 持仓报告
+    "gld_holdings_tonnes", # GLD 官方持仓
+    "gold_etf_price_proxy",
+    "gold_etf_volume_proxy",
+    "intl_gold_etf_volume_proxy",
+    "domestic_intl_divergence",
+    "btc_etf",
+    "cross_etf",
+    "bank_targets",        # 投行目标价共识
+    "comex_large_traders", # COMEX 大户集中度
+    "13f_institutional",   # 13F 机构持仓
+    "smart_money_composite",  # 聪明钱综合信号
+})
 
 
 def _calc_rsi(close: pd.Series, period: int = 14) -> float:
@@ -195,12 +211,96 @@ def print_economic_calendar(bundle: SignalBundle) -> None:
             print(f"    [!] {sig.name}: {sig.description[:60]}")
 
 
+def print_smart_money(bundle: SignalBundle) -> None:
+    """聪明钱资金流维度 — 聚合 CFTC COT + ETF 资金流 + 机构持仓.
+
+    «这个市场谁在买、谁在卖、谁在套保——比新闻头条更诚实。»
+    """
+    # 从 bundle 中筛选所有聪明钱相关信号
+    all_smart: list[Signal] = []
+    for dim in ("sentiment", "fundamental"):
+        for sig in bundle.by_dimension(dim):
+            src = sig.metadata.get("source", "")
+            if src in _SMART_MONEY_SOURCES:
+                all_smart.append(sig)
+
+    if not all_smart:
+        return
+
+    dim_name = "\U0001f468‍\U0001f4bc 聪明钱资金流"
+    print(f"\n{'='*60}")
+    print(f"  {dim_name}")
+    print(f"{'='*60}")
+
+    # 按来源分组展示
+    groups: dict[str, list[Signal]] = {}
+    for sig in all_smart:
+        src = sig.metadata.get("source", "other")
+        groups.setdefault(src, []).append(sig)
+
+    # 展示顺序: COT → ETF → 投行 → 大户 → 13F → 综合
+    _ORDER = [
+        "cot_report", "gld_holdings_tonnes",
+        "gold_etf_price_proxy", "gold_etf_volume_proxy",
+        "intl_gold_etf_volume_proxy", "domestic_intl_divergence",
+        "btc_etf", "cross_etf",
+        "bank_targets", "comex_large_traders", "13f_institutional",
+        "smart_money_composite",
+    ]
+
+    group_labels: dict[str, str] = {
+        "cot_report": "\U0001f4ca CFTC COT 期货持仓",
+        "gld_holdings_tonnes": "\U0001f4e6 GLD 官方持仓 (吨)",
+        "gold_etf_price_proxy": "\U0001f4c8 黄金ETF价格代理",
+        "gold_etf_volume_proxy": "\U0001f4ca 黄金ETF成交量代理",
+        "intl_gold_etf_volume_proxy": "\U0001f30d 国际黄金ETF资金流",
+        "domestic_intl_divergence": "\U00002194 国内外ETF背离",
+        "btc_etf": "\U000020bf 比特币ETF资金流",
+        "cross_etf": "\U0001f504 黄金vs比特币ETF交叉",
+        "bank_targets": "\U0001f3e6 投行目标价共识",
+        "comex_large_traders": "\U0001f3af COMEX大户集中度",
+        "13f_institutional": "\U0001f4cb 13F机构持仓",
+        "smart_money_composite": "\U0001f9e0 聪明钱综合评分",
+    }
+
+    for src_key in _ORDER:
+        sigs = groups.get(src_key, [])
+        if not sigs:
+            continue
+        label = group_labels.get(src_key, src_key)
+        print(f"  {label}:")
+        for sig in sigs:
+            d = "\U0001f7e2" if sig.direction.value == "bullish" else "\U0001f534" if sig.direction.value == "bearish" else "\U000026ab"
+            print(f"    {d} {sig.name} [{sig.strength.value}]: {sig.score:+.2f}")
+            if sig.description:
+                print(f"       {sig.description[:100]}")
+
+    # 加权汇总
+    all_scores = [s.score for s in all_smart if abs(s.score) > 0.05]
+    if all_scores:
+        avg = sum(all_scores) / len(all_scores)
+        n_bullish = sum(1 for s in all_smart if s.direction.value == "bullish")
+        n_bearish = sum(1 for s in all_smart if s.direction.value == "bearish")
+        consensus = (
+            "一致看多" if n_bullish >= n_bearish + 3
+            else "一致看空" if n_bearish >= n_bullish + 3
+            else "偏多" if n_bullish > n_bearish
+            else "偏空" if n_bearish > n_bullish
+            else "分歧"
+        )
+        print(f"  {'-'*56}")
+        print(f"  聪明钱共识: {consensus}  |  均分 {avg:+.2f}  |  "
+              f"看多信号{n_bullish}个 看空信号{n_bearish}个  "
+              f"({len(all_smart)}个有效信号)")
+
+
 def print_all_dimensions(
     gold_df, dxy_df, rate_df, breakeven_df, silver_df,
     news_items, au_df, bundle,
 ) -> None:
     print_technical(gold_df, bundle)
     print_fundamental(dxy_df, rate_df, breakeven_df, gold_df, silver_df, bundle)
+    print_smart_money(bundle)
     print_news(news_items, bundle)
     print_sentiment(au_df, bundle)
     print_economic_calendar(bundle)

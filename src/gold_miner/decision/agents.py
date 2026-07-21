@@ -4,8 +4,46 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from gold_miner.signals.base import SignalBundle
+from gold_miner.signals.base import Signal, SignalBundle
 from gold_miner.strategy.kelly import kelly_position
+
+# 聪明钱资金流信号 source 白名单（与 dimensions.py  _SMART_MONEY_SOURCES 一致）
+_SMART_MONEY_SOURCES: frozenset[str] = frozenset({
+    "cot_report",
+    "gld_holdings_tonnes",
+    "gold_etf_price_proxy",
+    "gold_etf_volume_proxy",
+    "intl_gold_etf_volume_proxy",
+    "domestic_intl_divergence",
+    "btc_etf",
+    "cross_etf",
+    "bank_targets",
+    "comex_large_traders",
+    "13f_institutional",
+    "smart_money_composite",
+})
+
+
+def _is_smart_money(sig: Signal) -> bool:
+    return sig.metadata.get("source", "") in _SMART_MONEY_SOURCES
+
+
+def _extract_smart_money_args(
+    signals: list[Signal],
+    direction: str = "bullish",
+    max_args: int = 2,
+) -> list[str]:
+    """从信号列表中提取聪明钱相关的论据，保证资金流维度在辩论中不被淹没。"""
+    filtered = [
+        s for s in signals
+        if _is_smart_money(s)
+        and (s.score > 0 if direction == "bullish" else s.score < 0)
+    ]
+    filtered.sort(key=lambda s: abs(s.score), reverse=True)
+    args: list[str] = []
+    for s in filtered[:max_args]:
+        args.append(f"[👔{s.name}] {s.description} (评分: {s.score:+.2f})")
+    return args
 
 
 @dataclass
@@ -14,6 +52,7 @@ class AgentOpinion:
     stance: str
     confidence: float
     arguments: list[str] = field(default_factory=list)
+    smart_money_arguments: list[str] = field(default_factory=list)
     suggested_position_pct: float = 0.0
 
 
@@ -24,8 +63,17 @@ class BullAgent:
         bullish_signals = [s for s in bundle.signals if s.score > 0]
         bearish_signals = [s for s in bundle.signals if s.score < 0]
 
-        arguments: list[str] = []
-        for s in sorted(bullish_signals, key=lambda x: abs(x.score), reverse=True)[:3]:
+        # 聪明钱论据 — 保证资金流维度不淹没在新闻/情绪信号中
+        smart_money_args = _extract_smart_money_args(bullish_signals, "bullish", max_args=2)
+
+        # 常规论据: 按 |score| 取前 N 个，但排除聪明钱（避免重复）
+        non_smart = [s for s in bullish_signals if not _is_smart_money(s)]
+        non_smart.sort(key=lambda x: abs(x.score), reverse=True)
+        # 至少保留 1 个聪明钱论据位置
+        reserved = min(1, len(smart_money_args))
+        top_n = max(0, 3 - reserved)
+        arguments: list[str] = smart_money_args[:reserved].copy()
+        for s in non_smart[:top_n]:
             arguments.append(f"[{s.name}] {s.description} (评分: {s.score:+.2f})")
 
         bull_score = sum(s.score for s in bullish_signals)
@@ -41,6 +89,7 @@ class BullAgent:
             stance=stance,
             confidence=confidence,
             arguments=arguments,
+            smart_money_arguments=smart_money_args,
             suggested_position_pct=suggested,
         )
 
@@ -52,8 +101,16 @@ class BearAgent:
         bearish_signals = [s for s in bundle.signals if s.score < 0]
         bullish_signals = [s for s in bundle.signals if s.score > 0]
 
-        arguments: list[str] = []
-        for s in sorted(bearish_signals, key=lambda x: abs(x.score), reverse=True)[:3]:
+        # 聪明钱论据 — 保证资金流维度不淹没在新闻/情绪信号中
+        smart_money_args = _extract_smart_money_args(bearish_signals, "bearish", max_args=2)
+
+        # 常规论据: 按 |score| 取前 N 个，但排除聪明钱（避免重复）
+        non_smart = [s for s in bearish_signals if not _is_smart_money(s)]
+        non_smart.sort(key=lambda x: abs(x.score), reverse=True)
+        reserved = min(1, len(smart_money_args))
+        top_n = max(0, 3 - reserved)
+        arguments: list[str] = smart_money_args[:reserved].copy()
+        for s in non_smart[:top_n]:
             arguments.append(f"[{s.name}] {s.description} (评分: {s.score:+.2f})")
 
         bear_score = sum(abs(s.score) for s in bearish_signals)
@@ -69,6 +126,7 @@ class BearAgent:
             stance=stance,
             confidence=confidence,
             arguments=arguments,
+            smart_money_arguments=smart_money_args,
             suggested_position_pct=suggested,
         )
 
