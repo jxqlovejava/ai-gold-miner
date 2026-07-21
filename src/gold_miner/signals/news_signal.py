@@ -93,9 +93,7 @@ def _is_markdown_noise(news: NewsItem) -> bool:
     if re.match(r"^[-*]\s", title):  # - item / * item
         return True
     # URL label 行: "- **URL**: https://..."
-    if re.match(r"^-?\s*\*?\*?URL\*?\*?:?\s*https?:", title):
-        return True
-    return False
+    return bool(re.match(r"^-?\s*\*?\*?URL\*?\*?:?\s*https?:", title))
 
 
 def _is_geopolitical(news: NewsItem) -> bool:
@@ -317,10 +315,7 @@ def _format_geo_headline(news: NewsItem) -> str:
             if any(w in text_lower for w in keywords):
                 action = label
                 break
-        if topics:
-            headline = f"{'·'.join(topics)}→{action}"
-        else:
-            headline = news.title.strip()[:50]
+        headline = f"{'·'.join(topics)}→{action}" if topics else news.title.strip()[:50]
 
     # ── Step 3: 附来源 ──
     source_short = (news.source or "")[:12]
@@ -413,9 +408,9 @@ class NewsSignalGenerator:
         if not items:
             logger.debug(f"{len(real_news)}条均为噪音条目，使用清洗后的原始数据")
             items = real_news
-            items_low_quality = True
+            items_low_quality = True  # noqa: F841 — 下游逻辑待接入
         else:
-            items_low_quality = False
+            items_low_quality = False  # noqa: F841
 
         # === 事实核查 ===
         check_results = self.fact_checker.check_batch(items)

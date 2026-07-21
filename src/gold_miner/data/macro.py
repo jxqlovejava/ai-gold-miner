@@ -217,7 +217,8 @@ class MacroDataFetcher(DataFetcher):
 
         多层降级: yfinance HTTPS → yfinance HTTP (noproxy) → 缓存 → 空
         """
-        from time import sleep as _sleep, time as _time
+        from time import sleep as _sleep
+        from time import time as _time
 
         symbol = settings.yahoo_symbol_dxy
         hist = None
