@@ -1,27 +1,6 @@
-"""Workflows 包入口."""
+"""Legacy workflow module — only LongTermAnalyzer remains after Workflow system removal."""
 from __future__ import annotations
 
-from gold_miner.workflows.base import Workflow, WorkflowContext, WorkflowResult
-from gold_miner.workflows.builtin import (
-    DailyWorkflow,
-    IntraDayWorkflow,
-    PostMarketWorkflow,
-    PostTradeWorkflow,
-    PreMarketWorkflow,
-    WeeklyReviewWorkflow,
-)
-from gold_miner.workflows.registry import WorkflowRegistry, get_registry
+from gold_miner.workflows.long_term import LongTermAnalyzer
 
-__all__ = [
-    "Workflow",
-    "WorkflowContext",
-    "WorkflowResult",
-    "WorkflowRegistry",
-    "get_registry",
-    "PreMarketWorkflow",
-    "IntraDayWorkflow",
-    "PostMarketWorkflow",
-    "DailyWorkflow",
-    "PostTradeWorkflow",
-    "WeeklyReviewWorkflow",
-]
+__all__ = ["LongTermAnalyzer"]

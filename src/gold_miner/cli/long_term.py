@@ -7,39 +7,29 @@ import json
 from pathlib import Path
 
 from gold_miner.config import settings
-from gold_miner.workflows.base import WorkflowContext
-from gold_miner.workflows.long_term import LongTermWorkflow
+from gold_miner.workflows.long_term import LongTermAnalyzer
 
 
 def run_longterm(args: argparse.Namespace) -> None:
     """执行中长期金价分析工作流."""
-    workflow = LongTermWorkflow()
-    ctx = WorkflowContext(
-        args={
-            "horizon": args.horizon,
-            "risk_profile": args.risk or settings.risk_profile,
-        },
-        dry_run=args.dry_run,
-    )
+    analyzer = LongTermAnalyzer()
 
     if args.dry_run:
-        print(f"\n[DRY-RUN] 工作流: {workflow.name}")
-        print(f"描述: {workflow.description}")
+        print(f"\n[DRY-RUN] LongTermAnalyzer ({args.horizon}个月)")
         print("\n执行步骤:")
-        for step in workflow.dry_run_steps(ctx):
+        for step in analyzer.dry_run_steps():
             print(f"  {step}")
         print("\n(dry-run 模式: 未执行实际网络调用)")
         return
 
     print(f"\n执行中长期分析 ({args.horizon} 个月视角)")
     print("=" * 60)
-    result = workflow.run(ctx)
+    analysis = analyzer.run(horizon=args.horizon, risk_profile=args.risk or settings.risk_profile, dry_run=args.dry_run)
 
     for msg in result.messages:
         print(f"  {msg}")
 
-    if result.success and result.data.get("long_term_analysis"):
-        analysis = result.data["long_term_analysis"]
+    if not args.dry_run:
         print("\n--- 战略建议 ---")
         summary = analysis.get("summary", {})
         print(f"动作: {summary.get('action', '观望')}")
@@ -78,5 +68,4 @@ def run_longterm(args: argparse.Namespace) -> None:
                 encoding="utf-8",
             )
             print(f"\n报告已保存: {output_path}")
-    elif not result.success:
-        print("\n工作流执行失败")
+

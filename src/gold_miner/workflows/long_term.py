@@ -1,4 +1,4 @@
-"""中长期金价分析工作流."""
+"""中长期金价分析 — 独立分析类 (6-36个月视角)."""
 
 from __future__ import annotations
 
@@ -16,15 +16,10 @@ from gold_miner.signals.long_term_fundamental import LongTermFundamentalSignal
 from gold_miner.signals.long_term_scenario import LongTermScenarioSignal
 from gold_miner.signals.long_term_trend import LongTermTrendSignal
 from gold_miner.storage import get_store
-from gold_miner.workflows.base import Workflow, WorkflowContext, WorkflowResult
 
 
-class LongTermWorkflow(Workflow):
-    """中长期金价分析工作流 (6-36 个月视角)."""
-
-    name = "long-term"
-    aliases = {"longterm", "中长期", "长期", "lt"}
-    description = "中长期金价分析：机构持仓趋势 + 结构性基本面 + 情景矩阵 + 战略仓位建议"
+class LongTermAnalyzer:
+    """中长期金价分析 (6-36 个月视角)."""
 
     def __init__(self) -> None:
         self.data_aggregator = LongTermDataAggregator()
@@ -32,12 +27,9 @@ class LongTermWorkflow(Workflow):
         self.fundamental_signal_gen = LongTermFundamentalSignal()
         self.scenario_signal_gen = LongTermScenarioSignal()
 
-    def run(self, ctx: WorkflowContext) -> WorkflowResult:
-        if ctx.dry_run:
-            return WorkflowResult(success=True, messages=self.dry_run_steps(ctx))
-
-        horizon = int(ctx.args.get("horizon", 12))
-        risk_profile = ctx.args.get("risk_profile", "moderate")
+    def run(self, horizon: int = 12, risk_profile: str = "moderate", dry_run: bool = False) -> LongTermAnalysisResult:
+        if dry_run:
+            return LongTermAnalysisResult(horizon_months=horizon)
 
         result = LongTermAnalysisResult(horizon_months=horizon)
 
@@ -153,13 +145,9 @@ class LongTermWorkflow(Workflow):
         # 8. 生成消息
         self._build_messages(result)
 
-        return WorkflowResult(
-            success=True,
-            messages=result.messages,
-            data={"long_term_analysis": result.to_report_dict()},
-        )
+        return result
 
-    def dry_run_steps(self, ctx: WorkflowContext) -> list[str]:
+    def dry_run_steps(self) -> list[str]:
         return [
             "[1] 读取投资者画像与持仓",
             "[2] 采集中长期数据 (央行/ETF/COT/财政/金价)",
@@ -170,9 +158,9 @@ class LongTermWorkflow(Workflow):
             "[7] 输出战略仓位建议、触发条件、再平衡规则",
         ]
 
-    def _load_investor_data(self, ctx: WorkflowContext, result: LongTermAnalysisResult) -> None:
+    def _load_investor_data(self, result: LongTermAnalysisResult) -> None:
         """加载投资者画像与持仓，支持 private 或 example fallback."""
-        store = ctx.store or get_store()
+        store = get_store()
 
         # 优先读取 private，不存在则尝试 example
         profile = store.load_investor_profile()

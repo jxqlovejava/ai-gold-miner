@@ -15,7 +15,6 @@ from gold_miner.advisor.core import (
     AdvisorReport,
     PositionSize,
 )
-from gold_miner.pipeline.analysis import AnalysisContext, AnalysisPipeline
 
 
 def _pct_to_position_size(pct: float) -> PositionSize:
@@ -54,6 +53,9 @@ def run_pipeline_and_report(
     这是 ActionGuide.generate() 的直接替代。
     """
     logger.info("[ActionGuide→Pipeline] 委托给 AnalysisPipeline...")
+
+    # 懒导入避免循环: advisor/__init__.py → action_guide → pipeline.analysis → advisor
+    from gold_miner.pipeline.analysis import AnalysisContext, AnalysisPipeline
 
     ctx = AnalysisContext(
         days=30,

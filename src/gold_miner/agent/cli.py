@@ -18,28 +18,15 @@ import sys
 from datetime import datetime
 
 
-def _run_workflow(name: str, dry_run: bool = False) -> None:
-    """通过工作流名称运行工作流."""
-    from gold_miner.workflows.base import WorkflowContext
-    from gold_miner.workflows.registry import get_registry
+def _run_pipeline(label: str = "") -> None:
+    """运行 AnalysisPipeline 并输出摘要."""
+    from gold_miner.pipeline.analysis import AnalysisContext, AnalysisPipeline
 
-    registry = get_registry()
-    try:
-        workflow = registry.resolve(name)
-    except ValueError as e:
-        print(f"错误: {e}")
-        return
-
-    ctx = WorkflowContext(dry_run=dry_run)
-    result = workflow.run(ctx)
-
-    for msg in result.messages:
-        print(f"  {msg}")
-
-    if result.success:
-        print(f"\n工作流完成: {workflow.name}")
-    else:
-        print(f"\n工作流失败: {workflow.name}")
+    print(f"运行分析管线: {label}" if label else "运行分析管线...")
+    pipeline = AnalysisPipeline()
+    result = pipeline.run(AnalysisContext(with_news=False, with_sentiment=False))
+    print(f"  综合评分: {result.bundle.composite_score:+.2f}")
+    print(f"  决策: {result.final_decision.get('direction', 'neutral')}")
 
 
 def cmd_start(_args: argparse.Namespace) -> None:
@@ -57,36 +44,23 @@ def cmd_start(_args: argparse.Namespace) -> None:
 
 def cmd_briefing(_args: argparse.Namespace) -> None:
     """手动触发完整分析周期."""
-    _run_workflow("daily")
-
-
-def cmd_single(kind: str) -> None:
-    """触发单个简报 — 映射到工作流."""
-    workflow_map = {
-        "pre_market": "pre-market",
-        "post_open": "intra-day",
-        "closing": "post-market",
-        "event_scan": "intra-day",
-        "weekly": "weekly-review",
-    }
-    wf_name = workflow_map.get(kind, kind)
-    _run_workflow(wf_name)
+    _run_pipeline("完整分析")
 
 
 def cmd_pre_market(_args: argparse.Namespace) -> None:
-    cmd_single("pre_market")
+    _run_pipeline("盘前简报")
 
 
 def cmd_post_open(_args: argparse.Namespace) -> None:
-    cmd_single("post_open")
+    _run_pipeline("开盘分析")
 
 
 def cmd_closing(_args: argparse.Namespace) -> None:
-    cmd_single("closing")
+    _run_pipeline("尾盘提醒")
 
 
 def cmd_events(_args: argparse.Namespace) -> None:
-    cmd_single("event_scan")
+    _run_pipeline("事件扫描")
 
 
 def cmd_backtest(args: argparse.Namespace) -> None:
@@ -105,25 +79,16 @@ def cmd_backtest(args: argparse.Namespace) -> None:
 
     print(f"数据: {len(df)}条 ({df.iloc[0].get('timestamp', '?')} → {df.iloc[-1].get('timestamp', '?')})")
 
-    # 买入持有基准
     bh = engine.run_buy_and_hold(df)
     print(f"\n{bh.summary()}")
-
-    # MA金叉死叉
     ma = engine.run_ma_crossover(df, fast=5, slow=20)
     print(f"\n{ma.summary()}")
-
-    # RSI策略
     rsi = engine.run_rsi_strategy(df)
     print(f"\n{rsi.summary()}")
-
-    # 信号验证
     results = engine.validate_signals(df, lookahead_days=args.lookahead)
     print(f"\n信号预测准确率 ({args.lookahead}日后):")
     for sig, acc in results.items():
         print(f"  {sig}: {acc:.1%}")
-
-    # 保存
     if args.save:
         path = engine.save(ma)
         print(f"\n回测结果已保存: {path}")
@@ -134,14 +99,12 @@ def cmd_status(_args: argparse.Namespace) -> None:
     from gold_miner.agent.briefer import Briefer
     from gold_miner.agent.portfolio import PortfolioTracker
     from gold_miner.config import settings
-    from gold_miner.workflows.registry import get_registry
 
     print("=== 系统状态 ===")
     print(f"时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"时区: {settings.agent_timezone}")
     print(f"主动Agent: {'启用' if settings.agent_enabled else '未启用'}")
 
-    # 持仓
     try:
         tracker = PortfolioTracker()
         briefer = Briefer()
@@ -151,24 +114,15 @@ def cmd_status(_args: argparse.Namespace) -> None:
     except Exception as e:
         print(f"持仓加载失败: {e}")
 
-    # 调度表
     print("\n调度任务:")
-    print(f"  {settings.agent_schedule_pre_market} — 盘前简报 (pre-market)")
-    print(f"  {settings.agent_schedule_post_open} — 开盘分析 (intra-day)")
-    print(f"  {settings.agent_schedule_closing} — 尾盘提醒 (post-market)")
-    print(f"  {settings.agent_schedule_event_scan} — 事件扫描 (intra-day)")
-    print("  sun-21:00 — 周度展望 (weekly-review)")
+    print(f"  {settings.agent_schedule_pre_market} — 盘前简报")
+    print(f"  {settings.agent_schedule_post_open} — 开盘分析")
+    print(f"  {settings.agent_schedule_closing} — 尾盘提醒")
+    print(f"  {settings.agent_schedule_event_scan} — 事件扫描")
+    print("  sun-21:00 — 周度展望")
 
-    # 通知
     print(f"\n通知: {'企业微信' if settings.wechat_webhook_url else '未配置'}")
     print(f"数据目录: {settings.data_path}")
-
-    # 工作流列表
-    print("\n已注册工作流:")
-    registry = get_registry()
-    for wf in registry.get_all():
-        aliases = ", ".join(sorted(wf.aliases)) if wf.aliases else ""
-        print(f"  {wf.name} ({aliases})")
 
 
 def main() -> None:

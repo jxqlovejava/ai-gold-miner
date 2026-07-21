@@ -24,7 +24,6 @@ from .scenario import run_scenario
 from .tracking import run_findings, run_review, run_track
 from .verify import run_doctor_wrapper, run_setup_wrapper, run_verify_wrapper
 from .web import run_web
-from .workflow import run_workflow
 
 
 def setup_logging() -> None:
@@ -44,16 +43,13 @@ def main() -> None:
         choices=[
             "scan", "prepare", "quote", "backtest", "journal", "proxy-install",
             "track", "review", "findings", "analyze", "scenario", "doctrine", "daemon",
-            "verify", "report", "advisor", "doctor", "setup", "workflow", "web",
+            "verify", "report", "advisor", "doctor", "setup", "web",
             "longterm", "record",
         ],
         help="命令",
     )
-    parser.add_argument("workflow_name", nargs="?", default=None, help="工作流名称 (workflow 命令)")
     parser.add_argument("--demo", action="store_true", default=False, help="Demo 模式：跳过需要 API key 的功能")
     parser.add_argument("--port", type=int, default=8501, help="Web 仪表盘端口 (web 命令)")
-    parser.add_argument("--workflow-list", dest="workflow_list", action="store_true", default=False, help="列出所有工作流 (workflow --list)")
-    parser.add_argument("--workflow-dry-run", dest="workflow_dry_run", action="store_true", default=False, help="dry-run 模式 (workflow --dry-run)")
     parser.add_argument("--days", type=int, default=365, help="回溯天数")
     parser.add_argument("--news", action="store_true", help="启用新闻分析（需配置API key）")
     parser.add_argument("--sentiment", action="store_true", help="启用情绪分析（COT/ETF数据）")
@@ -183,8 +179,6 @@ def main() -> None:
         run_doctor_wrapper()
     elif args.command == "setup":
         run_setup_wrapper(args)
-    elif args.command == "workflow":
-        run_workflow(args)
     elif args.command == "web":
         run_web(args)
     elif args.command == "longterm":
