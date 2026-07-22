@@ -6,12 +6,17 @@ from typing import Any
 
 from loguru import logger
 
-from gold_miner.signals.base import SignalBundle
+from gold_miner.signals.base import SignalBundle, SignalStrength
 
 
 @dataclass
 class DimensionWeights:
-    """各维度权重配置."""
+    """各维度权重配置（维度间加权）.
+
+    维度内信号级别加权由 ScoringEngine._strength_weight() 处理：
+    STRONG=3x, MODERATE=2x, WEAK=1x — 确保央行购金、COT大减仓等
+    决定性信号不会被同维度弱信号（如印度关税调整）稀释。
+    """
 
     technical: float = 0.18
     fundamental: float = 0.22
@@ -33,9 +38,21 @@ class DimensionWeights:
 
 
 class ScoringEngine:
-    """多因子综合评分引擎."""
+    """多因子综合评分引擎.
+
+    两层加权：
+    1. 维度内 — 按信号强度 (STRONG=3x, MODERATE=2x, WEAK=1x) 加权平均
+    2. 维度间 — 按 DimensionWeights 各维度权重合成总分
+    """
 
     DEFAULT_WEIGHTS = DimensionWeights()
+
+    # 信号强度 → 维度内权重
+    _STRENGTH_MAP: dict[SignalStrength, float] = {
+        SignalStrength.STRONG: 3.0,
+        SignalStrength.MODERATE: 2.0,
+        SignalStrength.WEAK: 1.0,
+    }
 
     def __init__(self, weights: DimensionWeights | None = None) -> None:
         self.weights = weights or self.DEFAULT_WEIGHTS
@@ -46,13 +63,19 @@ class ScoringEngine:
             bundle.confidence = 0.0
             return bundle
 
-        dimension_scores: dict[str, list[float]] = {}
+        # 维度内加权平均 — 按信号强度加权
+        dim_weighted_sum: dict[str, float] = {}
+        dim_weight_total: dict[str, float] = {}
         for signal in bundle.signals:
-            dimension_scores.setdefault(signal.dimension, []).append(signal.score)
+            dim = signal.dimension
+            w = self._STRENGTH_MAP.get(signal.strength, 1.0)
+            dim_weighted_sum[dim] = dim_weighted_sum.get(dim, 0.0) + signal.score * w
+            dim_weight_total[dim] = dim_weight_total.get(dim, 0.0) + w
 
         dim_avg: dict[str, float] = {}
-        for dim, scores in dimension_scores.items():
-            dim_avg[dim] = sum(scores) / len(scores)
+        for dim in dim_weighted_sum:
+            if dim_weight_total[dim] > 0:
+                dim_avg[dim] = dim_weighted_sum[dim] / dim_weight_total[dim]
 
         composite = 0.0
         weight_used = 0.0

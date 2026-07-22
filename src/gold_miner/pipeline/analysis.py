@@ -673,15 +673,26 @@ class AnalysisPipeline:
 
     @staticmethod
     def _fetch_and_generate_sentiment() -> tuple[list[Signal], pd.DataFrame | None]:
-        """情绪面: 获取 AU 期货数据 + 生成信号 (线程安全)."""
+        """情绪面: AU期货 (优先) → 现货OHLCV降级 (兜底)."""
+        au_df = None
         try:
             sentiment_fetcher = SentimentDataFetcher()
             au_df = sentiment_fetcher.fetch_au_futures(lookback=60)
-            analyzer = SentimentAnalyzer(au_df=au_df)
-            return analyzer.generate_signals(), au_df
         except Exception as e:
-            logger.warning(f"情绪面数据获取异常，跳过: {e}")
-            return [], None
+            logger.warning(f"AU期货数据获取失败，降级到现货OHLCV: {e}")
+
+        # 降级: 期货数据不足时用 SpotGoldFetcher
+        if au_df is None or au_df.empty or len(au_df) < 5:
+            try:
+                from gold_miner.data.spot_gold import SpotGoldFetcher
+                au_df = SpotGoldFetcher().fetch(days=90)
+                logger.info(f"情绪面降级: 现货OHLCV {len(au_df)} 条")
+            except Exception as e2:
+                logger.warning(f"情绪面降级也失败: {e2}")
+                return [], None
+
+        analyzer = SentimentAnalyzer(au_df=au_df)
+        return analyzer.generate_signals(), au_df
 
     def _evaluate_active_monitors(self, result: AnalysisResult) -> None:
         """评估 active monitor 触发条件，已触发则关闭."""

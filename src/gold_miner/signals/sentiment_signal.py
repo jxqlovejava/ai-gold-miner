@@ -8,9 +8,15 @@ from gold_miner.signals.base import Signal, SignalDirection, SignalStrength
 
 
 class SentimentAnalyzer:
-    """市场情绪分析器 — 基于国内期货数据."""
+    """市场情绪分析器 — 支持 AU 期货持仓量 + 现货 OHLCV 降级.
 
-    SOURCE_TIER = "T1"  # CFTC COT 原始数据经 AKShare 封装
+    三阶段降级：
+    1. 上期所 AU 期货 — open_interest + intraday_bias → 全量 (持仓+量价+日内)
+    2. 现货 OHLCV (SpotGoldFetcher) — 无 open_interest → 量价+日内 (自动推算 bias)
+    3. 数据 <5 条 → insufficient_data
+    """
+
+    SOURCE_TIER = "T1"
 
     def __init__(self, au_df: pd.DataFrame | None = None) -> None:
         self.au = au_df
@@ -20,12 +26,32 @@ class SentimentAnalyzer:
         if self.au is None or self.au.empty or len(self.au) < 5:
             return signals
 
+        # 自动推算 intraday_bias (当期货数据缺失时从 OHLCV 计算)
+        self._ensure_intraday_bias()
+
         signals.extend(self._analyze_open_interest())
         signals.extend(self._analyze_volume_price())
         signals.extend(self._analyze_intraday_bias())
         for s in signals:
             s.metadata.setdefault("source_tier", self.SOURCE_TIER)
+            # 标注数据降级
+            has_oi = "open_interest" in self.au.columns and not self.au["open_interest"].dropna().empty
+            if not has_oi:
+                s.metadata["data_fallback"] = "现货OHLCV降级 (无期货持仓量)"
         return signals
+
+    def _ensure_intraday_bias(self) -> None:
+        """如果 intraday_bias 列缺失，从 OHLCV 自动推算."""
+        if "intraday_bias" in self.au.columns:
+            return
+        try:
+            if "open" in self.au.columns and "close" in self.au.columns:
+                o, c = self.au["open"], self.au["close"]
+                # 避免除零：open 为 0 时用 close 替代
+                denom = o.where(o != 0, c)
+                self.au["intraday_bias"] = ((c - o) / denom).where(denom > 0, 0.0)
+        except Exception:
+            pass  # 推算失败不影响其他分析
 
     def _analyze_open_interest(self) -> list[Signal]:
         """持仓量趋势 — 增仓看涨，减仓看跌."""
@@ -79,8 +105,14 @@ class SentimentAnalyzer:
             if len(close) < 5:
                 return signals
 
+            # 成交量全为零时跳过 (现货OHLCV降级常见)
+            if vol.sum() == 0:
+                return signals
+
             chg_5d = (close.iloc[-1] - close.iloc[-6]) / close.iloc[-6]
-            vol_ratio = float(vol.tail(5).mean()) / float(vol.tail(20).mean()) if len(vol) >= 20 else 1.0
+            vol_tail_mean = float(vol.tail(5).mean())
+            vol_20_mean = float(vol.tail(20).mean()) if len(vol) >= 20 else 1.0
+            vol_ratio = vol_tail_mean / vol_20_mean if vol_20_mean > 0 else 1.0
 
             if chg_5d > 0.01 and vol_ratio > 1.2:
                 signals.append(Signal(
