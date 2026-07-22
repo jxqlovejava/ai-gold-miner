@@ -331,4 +331,99 @@ class TechnicalAnalyzer:
                 metadata={"source_tier": self.SOURCE_TIER, "adx": adx_data["adx"], "atr_pct": atr_data["atr_pct"]},
             ))
 
+        # 6) 中性汇总: 无极端信号时输出综合指标快照，确保维度不消失
+        if not signals:
+            bb = self.bollinger()
+            sr = self.support_resistance()
+            rsi_val = self.rsi()
+            macd_data = self.macd()
+
+            trend_detail_parts: list[str] = []
+            if adx_data["adx"] >= 25:
+                if adx_data["plus_di"] > adx_data["minus_di"]:
+                    trend_detail_parts.append(f"ADX {adx_data['adx']:.0f} 趋势市 +DI占优")
+                else:
+                    trend_detail_parts.append(f"ADX {adx_data['adx']:.0f} 趋势市 -DI占优")
+            else:
+                trend_detail_parts.append(f"ADX {adx_data['adx']:.0f} 震荡市")
+
+            if macd_data["histogram"] > 0:
+                trend_detail_parts.append("MACD柱转正")
+            else:
+                trend_detail_parts.append("MACD柱为负")
+
+            if bb["position"] > 0.5:
+                trend_detail_parts.append("布林带上半区")
+            else:
+                trend_detail_parts.append("布林带下半区")
+
+            # 信号名: 综合 ADX 趋势 + MACD + 布林带判断微偏方向
+            adx_bearish = adx_data["adx"] >= 25 and adx_data["plus_di"] <= adx_data["minus_di"]
+            adx_bullish = adx_data["adx"] >= 25 and adx_data["plus_di"] > adx_data["minus_di"]
+            macd_improving = macd_data["histogram"] > 0
+            bb_upper = bb["position"] > 0.5
+
+            # 三信号投票定名称
+            bias_votes = 0
+            if adx_bullish:
+                bias_votes += 1
+            elif adx_bearish:
+                bias_votes -= 1
+            if macd_improving:
+                bias_votes += 1
+            else:
+                bias_votes -= 1
+            if bb_upper:
+                bias_votes += 1
+            else:
+                bias_votes -= 1
+
+            if bias_votes >= 2:
+                sig_name = "技术面无极端信号·微偏多"
+                sig_dir = SignalDirection.BULLISH
+            elif bias_votes <= -2:
+                sig_name = "技术面无极端信号·微偏空"
+                sig_dir = SignalDirection.BEARISH
+            else:
+                sig_name = "技术面无极端信号·中性"
+                sig_dir = SignalDirection.NEUTRAL
+
+            # 微偏得分: RSI 偏离 50 的量 + ADX DI 差 + BB 位置偏离
+            neutral_score = round(
+                (rsi_val - 50) * 0.002  # RSI 60→+0.02, 40→-0.02
+                + (adx_data["plus_di"] - adx_data["minus_di"]) * 0.005  # ±5 DI diff→±0.025
+                + (bb["position"] - 0.5) * 0.05,  # ±0.25 pos→±0.0125
+                3,
+            )
+
+            summary = (
+                f"RSI={rsi_val:.0f} | {', '.join(trend_detail_parts)} | "
+                f"支撑{sr['support']:.0f}/阻力{sr['resistance']:.0f} | "
+                f"距支撑{sr['distance_to_support']*100:.1f}% 距阻力{sr['distance_to_resistance']*100:.1f}%"
+            )
+            signals.append(Signal(
+                name=sig_name,
+                dimension="technical",
+                direction=sig_dir,
+                strength=SignalStrength.WEAK,
+                score=neutral_score,
+                description=summary,
+                metadata={
+                    "source_tier": self.SOURCE_TIER,
+                    "rsi": round(rsi_val, 1),
+                    "adx": adx_data["adx"],
+                    "plus_di": adx_data["plus_di"],
+                    "minus_di": adx_data["minus_di"],
+                    "bb_position": round(bb["position"], 2),
+                    "macd_histogram": round(macd_data["histogram"], 1),
+                    "ma5": ma["fast_ma"],
+                    "ma20": ma["slow_ma"],
+                    "ma_gap_pct": ma["gap_pct"],
+                    "support": sr["support"],
+                    "resistance": sr["resistance"],
+                    "volatility_regime": atr_data["volatility_regime"],
+                    "atr_pct": atr_data["atr_pct"],
+                },
+            ))
+
         return signals
