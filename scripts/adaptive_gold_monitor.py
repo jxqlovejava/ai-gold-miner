@@ -206,6 +206,10 @@ DEFAULT_STATE = {
     "last_alert_type": "",
     "level_entered_at": None,
     "consecutive_skips": 0,
+    # 反弹检测
+    "trend_low": None,       # 本次下跌的最低点
+    "trend_high": None,      # 下跌起点(阶段高点)
+    "prev_change_pct": 0.0,  # 上次检查的涨跌幅
 }
 
 
@@ -399,6 +403,75 @@ def _check_surge(current: float, state: dict) -> dict | None:
             "severity": "CRITICAL" if abs(change_pct) > 1.0 else "HIGH",
         }
     return None
+
+
+def _check_rebound(current: float, state: dict, cost_basis: float | None = None) -> dict | None:
+    """检测下跌后的反弹.
+
+    触发条件: 之前在下行 (trend_low 存在且 < trend_high) + 当前在回升.
+    返回反弹摘要: 从低点回升幅度/百分比, 距成本距离.
+    """
+    trend_low = state.get("trend_low")
+    trend_high = state.get("trend_high")
+    if not trend_low or not trend_high:
+        return None
+
+    # 还在跌或持平 → 不是反弹
+    if current <= trend_low:
+        return None
+
+    rebound = current - trend_low
+    rebound_pct = rebound / trend_low * 100
+
+    # 反弹 < 0.3% → 不通知 (噪音)
+    if rebound_pct < 0.3:
+        return None
+
+    drop_total = trend_high - trend_low
+    drop_pct = drop_total / trend_high * 100
+
+    lines = [
+        f"📈 反弹 {rebound_pct:+.1f}% | {trend_low:.0f}→{current:.0f} (低点回升 ¥{rebound:.0f})",
+        f"   本轮跌幅: {trend_high:.0f}→{trend_low:.0f} ({drop_pct:.1f}%), "
+        f"已收复 {rebound/drop_total*100:.0f}%",
+    ]
+    if cost_basis and current < cost_basis:
+        to_cost = cost_basis - current
+        lines.append(f"   距成本线还差 ¥{to_cost:.0f} ({to_cost/cost_basis*100:.1f}%)")
+    elif cost_basis:
+        above_cost = (current - cost_basis) / cost_basis * 100
+        lines.append(f"   已回到成本线上方 (+{above_cost:.1f}%) ✅")
+
+    return {
+        "type": "rebound",
+        "message": "\n".join(lines),
+        "severity": "MEDIUM" if rebound_pct > 1.0 else "INFO",
+    }
+
+
+def _update_trend_bookkeeping(current: float, prev_price: float | None, state: dict) -> None:
+    """维护反弹检测所需的趋势状态.
+
+    下跌中追踪低点; 回升后当价格远离低点 >2% 时重置趋势.
+    """
+    if prev_price is None or prev_price <= 0:
+        return
+
+    change_pct = (current - prev_price) / prev_price * 100
+
+    # 下跌中 → 更新低点 + 记录阶段高点
+    if change_pct < -0.15:
+        if state.get("trend_low") is None or current < state["trend_low"]:
+            state["trend_low"] = current
+        if state.get("trend_high") is None:
+            state["trend_high"] = prev_price
+
+    # 回升 + 已远离低点 >2% → 这波跌完了, 重置
+    if change_pct > 0.15 and state.get("trend_low"):
+        recovery_pct = (current - state["trend_low"]) / state["trend_low"] * 100
+        if recovery_pct > 2.0:
+            state["trend_low"] = None
+            state["trend_high"] = None
 
 
 # 通知: macOS 桌面通知 (osascript) + Hermes weixin (如已配置)
@@ -744,6 +817,11 @@ def main() -> int:
     if reversal:
         alerts.append(reversal)
 
+    # 4f. 反弹检测 (下跌趋势中的回升)
+    rebound = _check_rebound(current, state, cost_basis)
+    if rebound:
+        alerts.append(rebound)
+
     # 5. 🆕 下跌原因分析 — 检测是否是机构在抛售
     #    价格下跌超阈值时触发, 结果缓存30分钟
     drop_reason = None
@@ -765,6 +843,7 @@ def main() -> int:
         or level_changed
         or new_level != "NORMAL"
         or (drop_reason and drop_reason.get("category") == "institutional")
+        or (rebound is not None)  # 反弹始终通知
     )
 
     if should_output:
@@ -774,6 +853,14 @@ def main() -> int:
 
     # 6. 更新状态
     now_iso = _now().isoformat()
+    # ── 趋势簿记: 跟踪下跌低点, 用于反弹检测 ──
+    prev_price = state.get("last_price")
+    state["prev_change_pct"] = (
+        (current - prev_price) / prev_price * 100
+        if prev_price and prev_price > 0 else 0.0
+    )
+    _update_trend_bookkeeping(current, prev_price, state)
+
     state["level"] = new_level
     state["last_check_time"] = now_iso
     state["last_price"] = current
