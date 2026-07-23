@@ -406,6 +406,17 @@ class EventCalendar:
                     if not dup:
                         events.append(e)
 
+        # ---- 初请失业金 (每周四，周频事件) ----
+        existing_jobless_dates = {
+            e.scheduled_at.date()
+            for e in events
+            if "初请" in e.name
+        }
+        all_jobless = EventCalendar._generate_jobless_claims_events(year)
+        for e in all_jobless:
+            if e.scheduled_at.date() not in existing_jobless_dates:
+                events.append(e)
+
     def check_event_outcome(self, event_name: str, actual: str, forecast: str) -> None:
         """更新事件的实际结果."""
         for e in self.events:
@@ -739,11 +750,31 @@ class EventCalendar:
                 else:
                     warnings.append(f"⚪ {msg}")
 
-        # 特殊检查：初请失业金（每周四，不适用月度检查，仅提示）
+        # 初请失业金：每周四发布，检查最近一期是否已同步
         has_jobless = any("初请" in e.name or "jobless" in e.name.lower()
                          for e in self.events)
-        if not has_jobless:
-            warnings.append("⚪ [美国] 初请失业金人数 — 每周事件，未在日历中（不影响分析）")
+        if has_jobless:
+            # 只检查最近8天内已发布且非monitor的初请事件
+            cutoff = datetime.now(tz=UTC) - timedelta(days=8)
+            past_jobless_missing = [
+                e for e in self.events
+                if "初请" in e.name
+                and not e.is_monitor
+                and e.scheduled_at > cutoff
+                and e.scheduled_at < datetime.now(tz=UTC)
+                and not e.actual
+            ]
+            if past_jobless_missing:
+                for e in past_jobless_missing[-3:]:  # 只报最近3期
+                    missing.append(
+                        f"🔴 [美国] 初请失业金 {e.scheduled_at.strftime('%m/%d')} — "
+                        f"已发布但未同步实际结果，请搜索 DOL 官方发布并更新 calendar"
+                    )
+        else:
+            missing.append(
+                "🔴 [美国] 初请失业金人数 — 周度高频事件完全缺失，"
+                "自动生成器无法覆盖（需滚动生成）。请手动添加本周事件。"
+            )
 
         return missing, warnings
 
@@ -1048,6 +1079,39 @@ class EventCalendar:
                 source="BLS",
                 description="美国非农就业数据",
             ))
+        return events
+
+    @staticmethod
+    def _generate_jobless_claims_events(
+        year: int,
+        skip_weeks: set[int] | None = None,
+    ) -> list[CalendarEvent]:
+        """初请失业金人数 — 每周四 08:30 ET（DOL 固定发布日）.
+
+        Args:
+            year: 目标年份
+            skip_weeks: 要跳过的 ISO 周号集合（JSONL 中已有该周事件时传入）
+        """
+        skip = skip_weeks or set()
+        events: list[CalendarEvent] = []
+        jan1 = datetime(year, 1, 1)
+        days_until_thu = (3 - jan1.weekday()) % 7
+        current = jan1 + timedelta(days=days_until_thu)
+        while current.year == year:
+            iso_week = current.isocalendar()[1]
+            if iso_week not in skip:
+                dt = current.replace(hour=8, minute=30)
+                dt = dt.replace(tzinfo=_et_offset(dt))
+                events.append(CalendarEvent(
+                    name="初请失业金人数",
+                    event_type=EventType.NFP,
+                    scheduled_at=dt,
+                    impact=EventImpact.MEDIUM,
+                    source="U.S. Department of Labor",
+                    description="周度初请失业金人数，高频劳动力市场指标。"
+                                "持续上升→就业恶化→降息预期→利好黄金（每周四发布）",
+                ))
+            current += timedelta(days=7)
         return events
 
     # ------------------------------------------------------------------

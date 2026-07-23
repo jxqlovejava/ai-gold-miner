@@ -1,0 +1,150 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>黄金加仓计划 v6 · 含减仓规则 · 2026-07-22</title>
+<style>
+:root{--bg:#0f1117;--s1:#1a1d27;--s2:#22263a;--t:#e1e4eb;--t2:#9498a5;--g:#22c55e;--r:#ef4444;--a:#f59e0b;--b:#3b82f6;--br:#2a2e3d;--gold:#f0b90b}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--t);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.55;padding:32px;max-width:1500px;margin:0 auto}
+h1{font-size:24px;margin-bottom:6px;color:var(--gold)}
+h2{font-size:16px;margin:36px 0 12px;color:var(--t2);border-bottom:1px solid var(--br);padding-bottom:6px}
+h3{font-size:14px;color:var(--a);margin:20px 0 8px}
+table{width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:20px}
+th{background:var(--s2);color:var(--t2);font-weight:600;text-align:left;padding:7px 9px;border-bottom:2px solid var(--br);white-space:nowrap}
+td{padding:6px 9px;border-bottom:1px solid var(--br);vertical-align:top}
+tr:hover td{background:var(--s1)}
+.n{text-align:right;font-variant-numeric:tabular-nums}
+.g{color:var(--g);font-weight:600}.r{color:var(--r);font-weight:600}.am{color:var(--a)}.bl{color:var(--b)}
+.sr td{font-weight:700;background:var(--s1)}
+.warn{background:#3d2000;padding:16px 20px;border-radius:8px;margin:14px 0;font-size:13px}
+.good{background:#0a2e1a;padding:16px 20px;border-radius:8px;margin:14px 0;font-size:13px}
+.info{background:#0a1e2e;padding:14px 18px;border-radius:8px;margin:14px 0;font-size:13px}
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin:20px 0}
+.k{background:var(--s1);border-radius:8px;padding:12px 14px}
+.kl{font-size:11px;color:var(--t2);text-transform:uppercase;letter-spacing:.5px}
+.kv{font-size:22px;font-weight:700;margin:2px 0}
+.ks{font-size:11px;color:var(--t2)}
+.highlight{background:#1a3000;border-left:3px solid var(--g)}
+.highlight-r{background:#300a0a;border-left:3px solid var(--r)}
+</style></head><body>
+<h1>🪙 黄金加仓计划 v6 · 含减仓规则</h1>
+<p style="color:var(--t2);font-size:13px">18条路径 · 双向操作: 加仓+减仓 · B0已执行✅ · 2026-07-22 22:04 CST</p>
+
+<h2>一、仓位架构</h2>
+<div class="info">
+<p><strong>仓位分两层管理，每层有自己的买卖规则：</strong></p>
+<table>
+<tr><th>层级</th><th>目标仓位</th><th>目的</th><th>买入规则</th><th>卖出规则</th></tr>
+<tr><td><strong>核心仓</strong></td><td class="n">~65g</td><td>长期持有·吃央行购金+去美元化最底层逻辑</td><td>B0/B1/B2/B3 每批都有一部分纳入核心仓</td><td><span class="r">仅极端情况卖出</span>: ①伊朗政权崩溃战争结束 ②Trump政策180度转向 ③个人紧急资金需求</td></tr>
+<tr><td><strong>机动仓</strong></td><td class="n">~25g (通过OCO管理)</td><td>波段操作·赚地缘脉冲+事件驱动的快钱</td><td>B0后15g·B1后18g·B2后22g·B3后25g</td><td><span class="g">严格按OCO+减仓规则表执行</span> · 不恋战</td></tr>
+</table></div>
+
+<h2>二、减仓规则 — 核心新增</h2>
+<div class="warn">
+<table>
+<tr><th style="width:3%">#</th><th style="width:22%">触发条件</th><th style="width:8%">信号级别</th><th style="width:10%">动作</th><th>逻辑</th></tr>
+<tr class="highlight"><td><strong>S1</strong></td><td><strong>金价破 ¥1,050</strong> (核设施被炸/以色列参战·全面战争爆发)</td><td class="r">🔴🔴🔴 必须执行</td><td><strong>机动仓全部止盈</strong>·25g以市价卖出<br>核心仓不动</td><td>2022俄乌:金价12天见顶。升级脉冲会在2-3周内到顶，然后油价反噬开始。必须趁峰值把机动仓利润锁住。<br><br>参考: 积存金¥1,050 ≈ XAUUSD $4,800。1973年赎罪日战争后金价在这个位置见顶。</td></tr>
+<tr class="highlight"><td><strong>S2</strong></td><td><strong>金价破 ¥1,000 + RSI日线>75</strong> (已进入超买区)</td><td class="r">🔴🔴 强烈建议</td><td><strong>机动仓减半</strong>·卖出12-15g<br>上移OCO止损至¥920</td><td>RSI>75+金价¥1,000=多头拥挤。历史回测:金价在RSI>75后的2-4周内回调概率>70%。先锁一半利润，剩下一半让利润跑。</td></tr>
+<tr class="highlight-r"><td><strong>S3</strong></td><td><strong>停火正式宣布</strong> (任何形式: 临时/永久/10天)</td><td class="r">🔴🔴🔴 必须执行</td><td><strong>机动仓立即全部卖出</strong><br>核心仓不动·等金价回落后用B3低价补回</td><td>战争溢价回吐速度远快于积累速度。2023哈马斯停火→金价3天下跌4%。2022俄乌和谈信号→单日跌5%。<br><br><strong>机动仓在停火后的策略:</strong> 卖出→等金价企稳→用B3(低价吸筹)买回→完成一次波段。</td></tr>
+<tr><td><strong>S4</strong></td><td><strong>FOMC加息 25bp+</strong> (Powell鹰派声明)</td><td class="r">🔴🔴 触发则执行</td><td>B2跳过(不加仓)<br><strong>机动仓减半</strong>·卖出8-12g<br>等金价回¥860-870后B3低价接回</td><td>2022模式:加息后金价6个月跌22%。机动仓在加息初期减仓→等跌到位再接→有效降低均价。<br><br>概率<10%·但一旦触发影响巨大。</td></tr>
+<tr class="highlight-r"><td><strong>S5</strong></td><td><strong>金价从近期高点回落>8%</strong> (油价反噬或市场转向)</td><td class="am">🟡 视情况</td><td>①检查回落原因: 油价反噬?停火?Fed转向?<br>②若为油价反噬: <strong>不加仓也不减仓</strong>·等待<br>③若为停火/Fed转向: 机动仓减半</td><td>2022金价从$2,070跌至$1,620耗时6个月。在下跌通道中，最好的操作是<strong>不做任何操作</strong>。不加仓(接飞刀)·不减仓(已在高位减过)。<br><br>这个规则防止在下跌通道中情绪化操作。</td></tr>
+<tr><td><strong>S6</strong></td><td><strong>连续2周金价阴跌+成交量放大</strong> (机构撤离信号)</td><td class="am">🟡 警告</td><td>①检查COT/GLD数据确认<br>②若COT连续2周减仓>10%: 机动仓减至0<br>③核心仓不动</td><td>COT是领先指标。如果管理基金在升级事件后仍持续减仓→说明聪明钱看到了比你更多的风险。<br><br>2022年COT在俄乌开战后第3周开始减仓→金价随后跌了6个月。</td></tr>
+</table></div>
+
+<h2>三、减仓触发概率</h2>
+<div class="info">
+<p><strong>基于18条路径的概率加权:</strong></p>
+<table>
+<tr><th>减仓信号</th><th>触发概率</th><th>触发时持仓</th><th>预计卖出量</th><th>预计回收资金</th><th>对期望收益的影响</th></tr>
+<tr><td>S1 金价破¥1,050</td><td class="bl">~15%</td><td class="n">88-111g</td><td class="n">25g</td><td class="n g">~¥26,250</td><td class="g">锁定峰值利润·核心仓继续持有</td></tr>
+<tr><td>S2 金价破¥1,000+RSI>75</td><td class="bl">~20%</td><td class="n">88-111g</td><td class="n">12-15g</td><td class="n g">~¥12,000-15,000</td><td class="g">半仓锁利·降低回撤风险</td></tr>
+<tr><td>S3 停火宣布</td><td class="r">~11%</td><td class="n">55-88g</td><td class="n">18-22g</td><td class="n r">~¥15,000-19,000</td><td class="r">短期亏损但避免更大回撤</td></tr>
+<tr><td>S4 FOMC加息</td><td class="r"><10%</td><td class="n">55-88g</td><td class="n">8-12g</td><td class="n r">~¥6,900-10,400</td><td class="r">减少加息通道中的风险敞口</td></tr>
+<tr><td>S5 回落>8%</td><td class="am">~15%</td><td class="n">88-111g</td><td class="n">0</td><td>—</td><td>不加不减·防止情绪化操作</td></tr>
+<tr><td>S6 COT持续减仓</td><td class="am">~10%</td><td class="n">88-111g</td><td class="n">0-25g</td><td class="n r">~¥0-22,000</td><td>跟随聪明钱·保存实力</td></tr>
+</table></div>
+
+<h2>四、加仓 vs 减仓 决策树 (日常使用)</h2>
+<div class="info">
+<pre style="font-size:13px;line-height:1.8">
+每次打开APP看到金价时，问自己三个问题:
+
+<strong>问题1: 金价相比我的成本价(¥894)怎么样了?</strong>
+  ├─ 金价 > ¥1,050 → S1: 机动仓全部止盈
+  ├─ 金价 > ¥1,000 且 RSI>75 → S2: 机动仓减半
+  ├─ 金价 ¥890-1,000 → 看问题2
+  └─ 金价 < ¥860 → 看问题3
+
+<strong>问题2: 有没有发生改变游戏规则的事件?</strong>
+  ├─ 停火宣布 → S3: 机动仓全部卖出
+  ├─ FOMC加息 → S4: 机动仓减半+B2跳过
+  ├─ 没有任何事件 → 继续持有·等待下一个B批次
+  └─ 核设施被炸 → S1: 但不要立刻卖·等峰值(参考12-20天)
+
+<strong>问题3: 金价在跌·应该恐慌吗?</strong>
+  ├─ 跌幅<5% 且 无基本面变化 → 正常波动·不操作
+  ├─ 跌幅5-8% 且 油价$100+ → S5: 油价反噬·不减不加
+  ├─ 跌幅>8% 且 COT连续减仓 → S6: 机动仓清仓
+  └─ 跌幅>8% 且 停火/Fed转向 → S3/S4
+</pre></div>
+
+<h2>五、加仓计划 (B1已三情景条件化)</h2>
+<table>
+<tr><th>批次</th><th>时间</th><th>事件</th><th>数量</th><th>买价</th><th>预算</th><th>累计</th><th>占比</th><th>触发条件</th></tr>
+<tr style="background:#1a3000"><td><strong>B0 ✅</strong></td><td>7/22 已执行</td><td>—</td><td class="n">20g</td><td class="n">¥898</td><td class="n">¥17,960</td><td class="n">47.6g</td><td class="n">21.4%</td><td><strong>✅ 已完成</strong></td></tr>
+<tr class="highlight"><td><strong>B1</strong></td><td>7/23 20:15<br>ECB决议</td><td>ECB</td><td class="n">0-8g</td><td class="n">¥890-920</td><td class="n">¥0-7,360</td><td class="n">47.6-55.6g</td><td class="n">21-25%</td><td><strong>🟡 三情景条件化</strong>（见下表）</td></tr>
+<tr><td>B2</td><td>7/29 02:00</td><td>FOMC</td><td class="n">33g</td><td class="n">¥932</td><td class="n">¥30,756</td><td class="n">88.6g</td><td class="n">41.0%</td><td>不加息(>90%)+偏鸽→¥920-940</td></tr>
+<tr class="highlight-r"><td><strong>B3</strong></td><td>8/14-15</td><td>停火到期前</td><td class="n">0-23g</td><td class="n">¥890-910</td><td class="n">¥0-20,746</td><td class="n">88-111g</td><td class="n">41-50%</td><td><strong>条件化: FOMC前升级+回落5-8%→跳过</strong></td></tr>
+</table>
+
+<h3>B1 ECB三情景细则</h3>
+<table>
+<tr><th>情景</th><th>ECB结果</th><th>金价条件</th><th>B1动作</th><th>数量</th><th>价格</th><th>预算</th><th>累计持仓</th></tr>
+<tr class="highlight"><td><strong>🟢 A</strong></td><td>ECB鹰派加息 + DXY<100</td><td class="n">>¥910</td><td><strong>执行B1</strong></td><td class="n">8g</td><td class="n">¥910-915</td><td class="n">¥7,280-7,320</td><td class="n">55.6g</td></tr>
+<tr><td><strong>🟡 B</strong></td><td>ECB中性（不加息偏鸽）</td><td class="n">¥890-910</td><td><strong>B1缩量</strong></td><td class="n">4-5g</td><td class="n">市价</td><td class="n">¥3,560-4,550</td><td class="n">51.6-52.6g</td></tr>
+<tr class="highlight-r"><td><strong>🔴 C</strong></td><td>ECB鸽派（不加息偏鸽+DXY>101）</td><td class="n"><¥890</td><td><strong>B1暂缓</strong></td><td class="n">0g</td><td class="n">—</td><td class="n">¥0</td><td class="n">47.6g</td></tr>
+</table>
+
+<div class="warn">
+<p style="font-size:13px"><strong>⚠️ B1不执行满额的核心理由：</strong><br>
+1. COT管理基金减仓17%（r024警告 —— 聪明钱在撤退）<br>
+2. 加仓计划自身约束"停火被拒+油价高企→持仓不追"已触发<br>
+3. 技术面弱势（RSI 44，金价在30日均线下方）<br>
+4. ECB方向不确定 —— 押注鹰派/鸽派=赌方向，违反r006</p>
+</div>
+
+<h2>六、收益总览</h2>
+<div class="kpi">
+<div class="k"><div class="kl">期望收益</div><div class="kv g">+2,309</div><div class="ks">+2.6%</div></div>
+<div class="k"><div class="kl">最大盈利</div><div class="kv g">+15,209</div><div class="ks">+15.0%</div></div>
+<div class="k"><div class="kl">最大亏损</div><div class="kv r">-2,739</div><div class="ks">-2.7%</div></div>
+<div class="k"><div class="kl">盈利概率</div><div class="kv g">64%</div></div>
+<div class="k"><div class="kl">B0 ✅</div><div class="kv g">20g@¥898</div><div class="ks">47.6g · 21.4%</div></div>
+</div>
+
+<h2>七、条件单</h2>
+<table><tr><th>ID</th><th>类型</th><th>当前</th><th>B1后</th><th>B2后</th><th>B3后</th></tr>
+<tr><td>co_1602</td><td>限价买入</td><td class="n">¥865·4.97g</td><td colspan="3" class="n">不变</td></tr>
+<tr><td><strong>co_1603</strong></td><td><strong>OCO</strong></td><td class="n">TP¥950/SL¥852·15g</td><td class="n">TP¥950/SL¥852·18g</td><td class="n">TP¥980/SL¥865·22g</td><td class="n"><strong>TP¥1,000/SL¥880·25g</strong></td></tr>
+<tr><td>co_1604</td><td>限价买入</td><td class="n">¥840·5.95g</td><td colspan="3" class="n">不变</td></tr>
+<tr style="background:#1a3000"><td><strong>🆕 co_0722_s1</strong></td><td><strong>限价卖出(止盈)</strong></td><td class="n">—</td><td colspan="3" class="n"><strong>¥1,050 · 25g (S1触发)</strong></td></tr>
+</table>
+
+<div class="good">
+<p style="font-size:13px"><strong>S1条件单新建建议:</strong> 在京东金融APP设置限价卖出单·¥1,050卖出25g。这是S1的自动化版本——核设施被炸后金价可能2分钟跳¥50+，手动来不及。</p>
+</div>
+
+<h2>八、结论</h2>
+<div class="good">
+<strong style="font-size:16px">加仓有B0→B1(三情景)→B2→B3 · 减仓有S1→S2→S3→S4→S5→S6</strong><br><br>
+<strong>·</strong> 核心仓(~65g): 长期持有·仅极端情况卖出<br>
+<strong>·</strong> 机动仓(~25g): OCO+6条减仓规则管理·波段操作<br>
+<strong>·</strong> <strong class="am">B1（今晚ECB）已三情景条件化: </strong>鹰派→8g全量 / 中性→缩量4-5g / 鸽派→暂缓<br>
+<strong>·</strong> B1不执行满额的主要原因: COT减仓17% + 技术面弱势 + r006不赌方向<br>
+<strong>·</strong> S1(¥1,050+): 机动仓全部止盈·利润落袋<br>
+<strong>·</strong> S3(停火): 机动仓立即清仓·等低价接回<br>
+<strong>·</strong> S5(回落>8%): 不加不减·防止情绪化操作<br>
+<strong>·</strong> <strong class="am">每次打开APP: 对照三问决策树·问自己:金价在哪?有事件吗?该恐慌吗?</strong>
+</div>
+
+<p style="color:var(--t2);font-size:11px;margin-top:40px;text-align:center">
+v6 · 含减仓规则 · 2026-07-22 22:04 · B0已执行✅ · 积存金¥898.44 · XAUUSD $4,117
+</p></body></html>
