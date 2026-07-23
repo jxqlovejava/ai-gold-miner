@@ -362,9 +362,13 @@ def _check_consecutive_down(historical: list[dict]) -> dict | None:
             break
     if down_count >= CONSECUTIVE_DOWN_DAYS:
         total_change = (closes[-1] - closes[-1 - down_count]) / closes[-1 - down_count] * 100
+        avg_daily = total_change / down_count
         return {
             "type": "consecutive_down",
-            "message": f"📉 连续{down_count}日下跌! {closes[-1-down_count]:.0f}→{closes[-1]:.0f} ({total_change:+.1f}%)",
+            "message": (
+                f"连跌{down_count}日 {closes[-1-down_count]:.0f}→{closes[-1]:.0f} "
+                f"({total_change:+.1f}%, 日均{avg_daily:+.1f}%)"
+            ),
             "severity": "MEDIUM",
         }
     return None
@@ -591,28 +595,80 @@ def _format_card(
     alerts: list[dict],
     state: dict,
     drop_reason: dict | None = None,
+    historical: list[dict] | None = None,
 ) -> str:
-    """格式化人话卡片."""
+    """格式化人话卡片.
+
+    去重规则:
+    - 成本/盈亏已在 header 展示, cost_proximity 类告警不再重复
+    - 趋势类告警 (连续下跌/高点回撤) 合并到趋势摘要行
+    - 仅保留新增信息的告警 (急变/日内逆转/首次破位)
+    """
     now = _now()
     level_emoji = {"NORMAL": "🟢", "WATCHING": "🟡", "ALERT": "🟠", "CRITICAL": "🔴"}
 
     lines = [
-        f"{level_emoji.get(level, '⚪')} 金价监控 | {now.strftime('%H:%M:%S')} | 模式: {level}",
-        f"💰 {price_info['price']:.2f}元/克 ({price_info['change_pct']:+.2f}%)",
+        f"{level_emoji.get(level, '⚪')} 金价监控 | {now.strftime('%H:%M:%S')}",
     ]
 
+    # ── 价格 + 日涨跌 ──
+    change_pct = price_info["change_pct"]
+    lines.append(f"💰 {price_info['price']:.2f}元/克 ({change_pct:+.2f}%)")
+
+    # ── 成本/盈亏 (compact) ──
     if cost_basis:
         pnl = (price_info["price"] - cost_basis) / cost_basis * 100
-        lines.append(f"📊 成本: {cost_basis:.0f} | 盈亏: {pnl:+.1f}%")
+        lines.append(f"📊 成本¥{cost_basis:.0f} | 浮{'盈' if pnl >= 0 else '亏'} {abs(pnl):.1f}%")
 
+    # ── 趋势摘要: 从告警中提取去重展示 ──
+    # 分类告警: 趋势类 (合并到摘要行) vs 事件类 (单独展示)
+    alert_by_type = {a["type"]: a for a in alerts}
+
+    # 趋势行: 连续下跌 + 高点回撤 → 合并为一句话
+    trend_parts = []
+    consecutive = alert_by_type.get("consecutive_down")
+    peak = alert_by_type.get("peak_drawdown")
+    cost_alert = alert_by_type.get("cost_proximity") or alert_by_type.get("cost_below")
+
+    if consecutive:
+        # 提取关键数字: "连续N日下跌! X→Y (Z%)"
+        trend_parts.append(consecutive["message"])
+    if peak and peak.get("severity") in ("HIGH",):
+        # 简化: "14日高点917→当前883 (回撤3.7%)"
+        trend_parts.append(peak["message"])
+
+    if trend_parts:
+        lines.append(f"📉 {' | '.join(trend_parts)}")
+    elif change_pct < -0.15 and not trend_parts:
+        # 轻微下跌但无连续/回撤告警 — 给个简洁的一日趋势
+        lines.append(f"📉 日内走弱 ({price_info['change_pct']:+.2f}%)")
+
+    # 成本告警: 仅首次破成本线时简洁提醒 (不再重复数字)
+    if cost_alert and cost_alert["type"] in ("cost_below",):
+        loss_pct = (cost_basis - price_info["price"]) / cost_basis * 100
+        lines.append(f"⚠️ 已破成本线 (浮亏{loss_pct:.1f}%), 注意止损位")
+
+    # ── 频率调整 ──
     if old_level != level:
         lines.append(f"⚡ 监控频率调整: {old_level} → {level}")
         intervals = {l: f"{v//60}分{v%60}秒" for l, v in MIN_INTERVALS.items()}
         lines.append(f"   当前检查间隔: {intervals.get(level, '?')}")
 
-    if alerts:
+    # ── 事件类告警: 仅展示新增信息的 (急变/逆转) ──
+    # 已处理: consecutive_down, peak_drawdown, cost_proximity, cost_below
+    # 当趋势摘要已覆盖时, 急变/逆转信号冗余 → 跳过
+    shown_types = {"consecutive_down", "peak_drawdown", "cost_proximity", "cost_below"}
+    if trend_parts:
+        # 趋势摘要已覆盖下跌方向, price_surge + intraday_reversal 是重复信息
+        shown_types.update({"price_surge", "intraday_reversal"})
+
+    remaining = [
+        a for a in alerts
+        if a["type"] not in shown_types
+    ]
+    if remaining:
         lines.append("")
-        for a in alerts:
+        for a in remaining:
             lines.append(f"  {a['message']}")
 
     # 🆕 下跌原因分析
@@ -689,22 +745,30 @@ def main() -> int:
         alerts.append(reversal)
 
     # 5. 🆕 下跌原因分析 — 检测是否是机构在抛售
-    #    只在价格下跌且有告警时触发, 结果缓存30分钟
-    has_alerts = len(alerts) > 0
+    #    价格下跌超阈值时触发, 结果缓存30分钟
     drop_reason = None
-    if has_alerts and price_info["change_pct"] < -0.5:
+    if price_info["change_pct"] < -0.5 or new_level in ("ALERT", "CRITICAL"):
         drop_reason = _analyze_drop_reason(state)
-        # 注入操作建议
         if drop_reason.get("institutional_selling"):
             drop_reason["action_hint"] = "机构在跑, 你也应该考虑减仓, 不要死扛"
         elif drop_reason.get("category") == "macro":
-            drop_reason["action_hint"] = "非机构抛售, 观察宏观事件(ECB/FOMC/PCE)明朗后再决定"
+            drop_reason["action_hint"] = "非机构抛售, 观察宏观事件(FOMC/PCE)明朗后再决定"
 
-    # 6. 通知
-    should_output = has_alerts or level_changed or new_level != "NORMAL"
+    # 6. 通知 — 仅在有实质内容时输出
+    # 已去重: 单独的成本对比不再触发通知 (趋势摘要替代)
+    has_real_alerts = any(
+        a["type"] not in ("cost_proximity",)
+        for a in alerts
+    )
+    should_output = (
+        has_real_alerts
+        or level_changed
+        or new_level != "NORMAL"
+        or (drop_reason and drop_reason.get("category") == "institutional")
+    )
 
     if should_output:
-        card = _format_card(new_level, old_level, price_info, cost_basis, alerts, state, drop_reason)
+        card = _format_card(new_level, old_level, price_info, cost_basis, alerts, state, drop_reason, historical)
         print(card, flush=True)  # 同时输出到 log 文件
         _send_alert(card)        # Hermes → 微信
 
