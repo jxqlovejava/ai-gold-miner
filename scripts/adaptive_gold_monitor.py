@@ -416,24 +416,56 @@ def _send_alert(message: str) -> bool:
 
 # ═══════════════════════════════════════════════════════════════
 # 下跌原因分析 — 判断是否是机构抛售
+#
+# 数据源:
+#   1. COT 非商业净多仓 (周度, T+3) — CFTC 官方
+#   2. 国际黄金 ETF 资金流 (日度) — GLD/IAU
+# 两源交叉验证: 同时出逃=机构抛售确认; 单源=关注; 无信号=宏观/消息面
+#
+# 缓存: 结果写入 STATE_FILE 同目录的 flow_reason_cache.json
+#   cron 每次调用是新进程, 内存缓存不跨进程, 必须用文件缓存
 # ═══════════════════════════════════════════════════════════════
 
-_LAST_FLOW_CHECK: dict = {"time": None, "result": None}
-_FLOW_CHECK_TTL = 1800  # 30分钟内复用结果
+_FLOW_CACHE_FILE = STATE_FILE.with_name("flow_reason_cache.json")
+_FLOW_CHECK_TTL = 1800  # 30分钟
+
+
+def _load_flow_cache() -> dict | None:
+    if not _FLOW_CACHE_FILE.exists():
+        return None
+    try:
+        data = json.loads(_FLOW_CACHE_FILE.read_text(encoding="utf-8"))
+        cached_at = data.get("cached_at")
+        if cached_at:
+            cache_time = datetime.fromisoformat(cached_at)
+            if (_now() - cache_time).total_seconds() < _FLOW_CHECK_TTL:
+                return data.get("result")
+    except (OSError, json.JSONDecodeError, ValueError):
+        pass
+    return None
+
+
+def _save_flow_cache(result: dict) -> None:
+    try:
+        _FLOW_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _FLOW_CACHE_FILE.write_text(json.dumps({
+            "cached_at": _now().isoformat(),
+            "result": result,
+        }, ensure_ascii=False))
+    except Exception:
+        pass
 
 
 def _analyze_drop_reason(state: dict) -> dict:
     """分析金价下跌驱动因素: 机构抛售 vs 宏观压制 vs 消息面.
 
     返回 {'category': str, 'institutional_selling': bool, 'detail': str}
-    其中 category: 'institutional' | 'macro' | 'mixed' | 'unknown'
+    category: 'institutional' | 'mixed' | 'macro' | 'unknown'
     """
-    global _LAST_FLOW_CHECK
-
-    now = _now()
-    cache_time = _LAST_FLOW_CHECK.get("time")
-    if cache_time and (now - cache_time).total_seconds() < _FLOW_CHECK_TTL:
-        return _LAST_FLOW_CHECK["result"]
+    # 1) 检查文件缓存 (跨 cron 进程)
+    cached = _load_flow_cache()
+    if cached:
+        return cached
 
     result = {
         "category": "unknown",
@@ -441,55 +473,92 @@ def _analyze_drop_reason(state: dict) -> dict:
         "detail": "无法确认下跌驱动因素",
     }
 
-    try:
-        scores: dict[str, float] = {}
+    has_cot_data = False
+    has_etf_data = False
+    cot_selling = False
+    etf_selling = False
+    cot_score = 0.0
+    etf_score = 0.0
 
-        # 1) COT 机构持仓 — 周度数据, 判断趋势
+    try:
+        # 2) COT 机构持仓 — 周度, 判断聪明钱方向
         try:
             from gold_miner.signals.cot_signal import CotSignalGenerator
             cot_sigs = CotSignalGenerator().generate_signals()
             for s in cot_sigs:
                 if "减仓" in s.name:
-                    scores["cot_outflow"] = s.score  # 负值 = 机构减仓
+                    has_cot_data = True
+                    cot_score = s.score  # 负值
+                    cot_selling = cot_score < -0.3
+                    break
+                elif "加仓" in s.name:
+                    has_cot_data = True
+                    cot_score = s.score  # 正值
+                    cot_selling = False
                     break
         except Exception:
             pass
 
-        # 2) 下跌动量 — 距前次检查跌幅
-        last_price = state.get("last_price")
-        if last_price:
-            drop_pct = -1 * (state.get("last_price_observed", 0) or 0)
-            # last_price 是前次价格, current 是本次, 但这里只做定性判断
+        # 3) ETF 资金流 — 日度, 补充确认
+        try:
+            from gold_miner.signals.etf_flow_signal import EtfFlowSignalGenerator
+            etf_sigs = EtfFlowSignalGenerator().generate_signals()
+            for s in etf_sigs:
+                name = s.name
+                if "流出" in name:
+                    has_etf_data = True
+                    etf_score = s.score
+                    # ETF流出信号分两档: "大幅流出" vs "资金流出"
+                    etf_selling = etf_score < -0.3
+                    break
+                elif "流入" in name:
+                    has_etf_data = True
+                    etf_score = s.score
+                    etf_selling = False
+                    break
+        except Exception:
+            pass
 
-        # 3) 综合判断
-        cot_score = scores.get("cot_outflow", 0)
-        if cot_score < -0.3:
-            result["institutional_selling"] = True
-            if cot_score < -0.7:
+        # 4) 交叉验证判断
+        if has_cot_data or has_etf_data:
+            if cot_selling and etf_selling:
+                # 两源一致 → 机构抛售确认
+                result["institutional_selling"] = True
                 result["category"] = "institutional"
                 result["detail"] = (
-                    f"🔴 机构资金在撤退 — COT非商业净多仓大幅减少, "
-                    f"聪明钱在卖出, 不是普通回调, 建议跟随减仓"
+                    "🔴 机构资金在撤退 — COT净多仓减少 + ETF资金流出, "
+                    "聪明钱在卖, 不是普通回调, 建议跟随减仓别死扛"
                 )
-            else:
+            elif cot_selling:
+                # 仅COT
+                result["institutional_selling"] = True
                 result["category"] = "mixed"
                 result["detail"] = (
-                    f"🟠 机构减仓+其他因素 — COT非商业净多仓减少, "
-                    f"部分是获利盘出逃, 关注是否加速"
+                    "🟠 COT非商业净多仓减少, 但ETF未同步流出. "
+                    "部分机构在减仓, 关注是否加速. 可考虑小幅减仓"
                 )
-        else:
-            # 不是机构主导 → 其他因素 (宏观/消息面)
-            result["category"] = "macro"
-            result["detail"] = (
-                f"🟡 未见机构大规模出逃 — 下跌可能来自宏观压力"
-                f"(加息预期/强美元/油价)或消息面冲击, "
-                f"观察是否企稳再决定"
-            )
+            elif etf_selling:
+                # 仅ETF
+                result["category"] = "mixed"
+                result["detail"] = (
+                    "🟠 黄金ETF资金流出, 但COT未同步减仓. "
+                    "可能是散户/短线资金出逃, 机构尚未转向. 继续观察"
+                )
+            else:
+                # 有数据但无卖出信号
+                result["category"] = "macro"
+                result["detail"] = (
+                    "🟡 未见机构大规模出逃 — COT和ETF均无显著卖出. "
+                    "下跌来自宏观压力(加息预期/强美元/油价)或消息面, "
+                    "待FOMC/PCE明朗后再决定"
+                )
+        # else: 无任何数据 → 保持 unknown
 
     except Exception:
         pass
 
-    _LAST_FLOW_CHECK = {"time": now, "result": result}
+    # 5) 缓存并返回
+    _save_flow_cache(result)
     return result
 
 
