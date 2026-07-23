@@ -34,6 +34,19 @@ import httpx
 
 BEIJING = timezone(timedelta(hours=8))
 
+
+def _send_hermes(message: str) -> bool:
+    """通过 Hermes 推送微信通知."""
+    try:
+        result = subprocess.run(
+            ["hermes", "send", "--to", "weixin", message],
+            capture_output=True, text=True, timeout=15,
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
+
+
 # ── AI 判断 (优先用本地 DeepSeek Proxy, 直连 fallback) ──
 _DS_PROXY_URL = "http://127.0.0.1:15800/v1/chat/completions"
 _DS_DIRECT_URL = "https://api.deepseek.com/v1/chat/completions"
@@ -794,6 +807,10 @@ def main() -> int:
 
     report = _format_report(intl_findings, cn_news, calendar_events, jd_price, xauusd)
     print(report, flush=True)
+
+    # ── 发送到微信 ──
+    _send_hermes(report)
+
     return 0
 
 
