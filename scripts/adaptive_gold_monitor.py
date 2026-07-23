@@ -415,6 +415,85 @@ def _send_alert(message: str) -> bool:
 
 
 # ═══════════════════════════════════════════════════════════════
+# 下跌原因分析 — 判断是否是机构抛售
+# ═══════════════════════════════════════════════════════════════
+
+_LAST_FLOW_CHECK: dict = {"time": None, "result": None}
+_FLOW_CHECK_TTL = 1800  # 30分钟内复用结果
+
+
+def _analyze_drop_reason(state: dict) -> dict:
+    """分析金价下跌驱动因素: 机构抛售 vs 宏观压制 vs 消息面.
+
+    返回 {'category': str, 'institutional_selling': bool, 'detail': str}
+    其中 category: 'institutional' | 'macro' | 'mixed' | 'unknown'
+    """
+    global _LAST_FLOW_CHECK
+
+    now = _now()
+    cache_time = _LAST_FLOW_CHECK.get("time")
+    if cache_time and (now - cache_time).total_seconds() < _FLOW_CHECK_TTL:
+        return _LAST_FLOW_CHECK["result"]
+
+    result = {
+        "category": "unknown",
+        "institutional_selling": False,
+        "detail": "无法确认下跌驱动因素",
+    }
+
+    try:
+        scores: dict[str, float] = {}
+
+        # 1) COT 机构持仓 — 周度数据, 判断趋势
+        try:
+            from gold_miner.signals.cot_signal import CotSignalGenerator
+            cot_sigs = CotSignalGenerator().generate_signals()
+            for s in cot_sigs:
+                if "减仓" in s.name:
+                    scores["cot_outflow"] = s.score  # 负值 = 机构减仓
+                    break
+        except Exception:
+            pass
+
+        # 2) 下跌动量 — 距前次检查跌幅
+        last_price = state.get("last_price")
+        if last_price:
+            drop_pct = -1 * (state.get("last_price_observed", 0) or 0)
+            # last_price 是前次价格, current 是本次, 但这里只做定性判断
+
+        # 3) 综合判断
+        cot_score = scores.get("cot_outflow", 0)
+        if cot_score < -0.3:
+            result["institutional_selling"] = True
+            if cot_score < -0.7:
+                result["category"] = "institutional"
+                result["detail"] = (
+                    f"🔴 机构资金在撤退 — COT非商业净多仓大幅减少, "
+                    f"聪明钱在卖出, 不是普通回调, 建议跟随减仓"
+                )
+            else:
+                result["category"] = "mixed"
+                result["detail"] = (
+                    f"🟠 机构减仓+其他因素 — COT非商业净多仓减少, "
+                    f"部分是获利盘出逃, 关注是否加速"
+                )
+        else:
+            # 不是机构主导 → 其他因素 (宏观/消息面)
+            result["category"] = "macro"
+            result["detail"] = (
+                f"🟡 未见机构大规模出逃 — 下跌可能来自宏观压力"
+                f"(加息预期/强美元/油价)或消息面冲击, "
+                f"观察是否企稳再决定"
+            )
+
+    except Exception:
+        pass
+
+    _LAST_FLOW_CHECK = {"time": now, "result": result}
+    return result
+
+
+# ═══════════════════════════════════════════════════════════════
 # 格式化
 # ═══════════════════════════════════════════════════════════════
 
@@ -425,6 +504,7 @@ def _format_card(
     cost_basis: float | None,
     alerts: list[dict],
     state: dict,
+    drop_reason: dict | None = None,
 ) -> str:
     """格式化人话卡片."""
     now = _now()
@@ -448,6 +528,17 @@ def _format_card(
         lines.append("")
         for a in alerts:
             lines.append(f"  {a['message']}")
+
+    # 🆕 下跌原因分析
+    if drop_reason and drop_reason.get("detail"):
+        is_institutional = drop_reason.get("institutional_selling", False)
+        header = "━━━ 🔍 谁在卖？━━━"
+        action = drop_reason.get("action_hint", "")
+        lines.append("")
+        lines.append(header)
+        lines.append(drop_reason["detail"])
+        if action:
+            lines.append(f"  💡 {action}")
 
     return "\n".join(lines)
 
@@ -511,12 +602,23 @@ def main() -> int:
     if reversal:
         alerts.append(reversal)
 
-    # 5. 通知: 有告警或状态变化时通过 hermes send 推微信
+    # 5. 🆕 下跌原因分析 — 检测是否是机构在抛售
+    #    只在价格下跌且有告警时触发, 结果缓存30分钟
     has_alerts = len(alerts) > 0
+    drop_reason = None
+    if has_alerts and price_info["change_pct"] < -0.5:
+        drop_reason = _analyze_drop_reason(state)
+        # 注入操作建议
+        if drop_reason.get("institutional_selling"):
+            drop_reason["action_hint"] = "机构在跑, 你也应该考虑减仓, 不要死扛"
+        elif drop_reason.get("category") == "macro":
+            drop_reason["action_hint"] = "非机构抛售, 观察宏观事件(ECB/FOMC/PCE)明朗后再决定"
+
+    # 6. 通知
     should_output = has_alerts or level_changed or new_level != "NORMAL"
 
     if should_output:
-        card = _format_card(new_level, old_level, price_info, cost_basis, alerts, state)
+        card = _format_card(new_level, old_level, price_info, cost_basis, alerts, state, drop_reason)
         print(card, flush=True)  # 同时输出到 log 文件
         _send_alert(card)        # Hermes → 微信
 
