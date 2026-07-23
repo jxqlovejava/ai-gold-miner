@@ -53,11 +53,14 @@ echo "==> 同步哨兵代码"
 echo "==> 同步持仓数据"
 if [[ -f "$ROOT/data/private/portfolio.yaml" ]]; then
   "${SCP[@]}" "$ROOT/data/private/portfolio.yaml" "$HOST:$REMOTE_PORTFOLIO"
+  "${SSH[@]}" "$HOST" "mkdir -p '$REMOTE_ROOT/data/private'"
+  "${SCP[@]}" "$ROOT/data/private/portfolio.yaml" "$HOST:$REMOTE_ROOT/data/private/portfolio.yaml"
 else
   echo "  本地无 data/private/portfolio.yaml，跳过"
 fi
 if [[ -f "$ROOT/data/private/conditional_orders.jsonl" ]]; then
   "${SCP[@]}" "$ROOT/data/private/conditional_orders.jsonl" "$HOST:$REMOTE_ORDERS"
+  "${SCP[@]}" "$ROOT/data/private/conditional_orders.jsonl" "$HOST:$REMOTE_ROOT/data/private/conditional_orders.jsonl"
 else
   echo "  本地无 data/private/conditional_orders.jsonl，跳过"
 fi
