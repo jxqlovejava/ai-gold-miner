@@ -397,11 +397,21 @@ def _check_surge(current: float, state: dict) -> dict | None:
     return None
 
 
-# 微信推送: 走 Hermes 默认通道 — stdout 有输出 → Hermes 自动转发微信
-# 与 price_surge_monitor.py / overnight_news_scanner.py 一致:
-#   - 有告警: stdout 打印人话卡片, Hermes 转发
-#   - 无异动: stdout 为空, exit 0, Hermes 静默
-#   - 错误: stderr, exit 1
+# 通知: 使用 hermes send 直接推送到微信
+# 无告警时静默退出, 有告警时调用 hermes send --to weixin
+
+
+def _send_alert(message: str) -> bool:
+    """通过 Hermes 推送微信通知."""
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["hermes", "send", "--to", "weixin", message],
+            capture_output=True, text=True, timeout=15,
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -501,19 +511,14 @@ def main() -> int:
     if reversal:
         alerts.append(reversal)
 
-    # 5. Hermes 通道: 有告警或状态变化时 print 到 stdout → Hermes 自动转发微信
-    #    与 price_surge_monitor.py 一致的约定:
-    #      - 无异动: stdout 为空, exit 0 (Hermes 静默)
-    #      - 有告警: stdout 打印卡片, exit 0 (Hermes 转发)
-
+    # 5. 通知: 有告警或状态变化时通过 hermes send 推微信
     has_alerts = len(alerts) > 0
-
-    # 决定是否输出 (默认所有非 NORMAL 状态 + 有告警时输出)
     should_output = has_alerts or level_changed or new_level != "NORMAL"
 
     if should_output:
         card = _format_card(new_level, old_level, price_info, cost_basis, alerts, state)
-        print(card, flush=True)
+        print(card, flush=True)  # 同时输出到 log 文件
+        _send_alert(card)        # Hermes → 微信
 
     # 6. 更新状态
     now_iso = _now().isoformat()
