@@ -42,17 +42,14 @@
 # */5 0-1 * * 2-6 cd /home/ubuntu/ai-gold-miner && PYTHONPATH=src python3 scripts/profit_protection_monitor.py >> logs/profit_protector.log 2>&1
 
 # ═══════════════════════════════════════════════════════════════
-# Hermes 哨兵频道 (保留)
+# Hermes 哨兵频道 (保留 — 与 adaptive 并行)
 # ═══════════════════════════════════════════════════════════════
 # Ubuntu
-# */15 9-23 * * 1-5 cd /home/ubuntu/ai-gold-miner && PYTHONPATH=src python3 /home/ubuntu/.hermes/scripts/gold_alert.py >> logs/alert.log 2>&1
-# */15 0-1 * * 2-6 cd /home/ubuntu/ai-gold-miner && PYTHONPATH=src python3 /home/ubuntu/.hermes/scripts/gold_alert.py >> logs/alert.log 2>&1
+*/15 9-23 * * 1-5 cd /home/ubuntu/ai-gold-miner && PYTHONPATH=src python3 /home/ubuntu/.hermes/scripts/gold_alert.py >> logs/alert.log 2>&1
+*/15 0-1 * * 2-6 cd /home/ubuntu/ai-gold-miner && PYTHONPATH=src python3 /home/ubuntu/.hermes/scripts/gold_alert.py >> logs/alert.log 2>&1
 
 # ── 报价快照 ──
-# 0 10,14,20 * * 1-5 cd /home/ubuntu/ai-gold-miner && PYTHONPATH=src python3 /home/ubuntu/.hermes/scripts/gold_price.py >> logs/price.log 2>&1
-
-# ── 开盘简报 ──
-# 30 9 * * 1-5 cd /home/ubuntu/ai-gold-miner && PYTHONPATH=src python3 /home/ubuntu/.hermes/scripts/gold_full.py >> logs/full.log 2>&1
+0 10,14,20 * * 1-5 cd /home/ubuntu/ai-gold-miner && PYTHONPATH=src python3 /home/ubuntu/.hermes/scripts/gold_price.py >> logs/price.log 2>&1
 
 # ── 日历提醒 ──
-# 0 8 * * 1-5 cd /home/ubuntu/ai-gold-miner && PYTHONPATH=src python3 /home/ubuntu/.hermes/scripts/gold_calendar.py >> logs/calendar.log 2>&1
+0 8 * * 1-5 cd /home/ubuntu/ai-gold-miner && PYTHONPATH=src python3 /home/ubuntu/.hermes/scripts/gold_calendar.py >> logs/calendar.log 2>&1
