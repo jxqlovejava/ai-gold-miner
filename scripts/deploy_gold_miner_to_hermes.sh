@@ -7,10 +7,16 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PEM="${HERMES_PEM:-}"
 HOST="${HERMES_HOST:-}"
 
+# 优先读环境变量，否则从 data/private/hermes_config.sh 读取
 if [ -z "$PEM" ] || [ -z "$HOST" ]; then
-  echo "❌ 请设置 HERMES_PEM 和 HERMES_HOST 环境变量"
-  echo "   export HERMES_PEM=~/Documents/hermes.pem"
-  echo "   export HERMES_HOST=ubuntu@<your-server-ip>"
+  CONFIG="$ROOT/data/private/hermes_config.sh"
+  if [ -f "$CONFIG" ]; then
+    source "$CONFIG"
+  fi
+fi
+
+if [ -z "$PEM" ] || [ -z "$HOST" ]; then
+  echo "❌ 请设置 HERMES_PEM 和 HERMES_HOST 环境变量，或在 data/private/hermes_config.sh 中配置"
   exit 1
 fi
 REMOTE_ROOT="${HERMES_GOLD_ROOT:-/home/ubuntu/ai-gold-miner}"
