@@ -32,6 +32,9 @@
 - **默认搜索工具**：本项目所有网络搜索默认使用 `anysearch` skill，除非用户明确指定其他工具或该工具不可用。
 - 当 `anysearch` 不可用时，依次 fallback 到 `web-access` skill 或 `WebSearch`。
 - **自动提交**：完整实现一个功能或 fix 解决问题后，自动调用 `/gcp` 命令提交并推送，无需等待用户确认，直接执行。
+- **自动部署**：每次 `/gcp` 提交推送之后，立即通过 `scripts/deploy_gold_miner_to_hermes.sh` 部署到 Hermes 服务器，同步代码+数据+条件单+日历，并更新服务器 crontab 和 Hermes cron job。无需等待用户确认，直接执行。
+  - 如果是新增监控脚本（如 `adaptive_gold_monitor.py`、`overnight_news_scanner.py`、`evening_event_preview.py` 等），部署后需用 `hermes cron create` 在服务器上注册对应的 Hermes cron job。
+  - 部署完成后输出部署清单：同步了哪些文件、新增/更新了哪些 cron job。
 - **自主修Bug**：运行过程中发现系统 Bug 或错误（如导入报错、脚本异常、数据格式不匹配等），应尝试自行修复，而非仅报告错误等待用户指示。修复后继续原任务流程。
 
 ### 日期查询硬规则
