@@ -42,6 +42,14 @@ class JdGoldPrice:
     change_pct: str
     source: str
 
+    @property
+    def change_pct_float(self) -> float:
+        """涨跌幅浮点数（如 '-0.96%' → -0.96）."""
+        try:
+            return float(self.change_pct.replace("%", "").strip())
+        except (ValueError, AttributeError):
+            return 0.0
+
 
 class JdAccumulationGoldFetcher(DataFetcher):
     """京东金融积存金实时价格获取器.
