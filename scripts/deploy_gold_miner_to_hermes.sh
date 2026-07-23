@@ -118,7 +118,7 @@ echo "==> 试跑 gold_price.py (price 模式)"
 
 echo ""
 echo "==> 部署监控脚本"
-for script in adaptive_gold_monitor.py overnight_news_scanner.py price_surge_monitor.py profit_protection_monitor.py; do
+for script in adaptive_gold_monitor.py overnight_news_scanner.py evening_event_preview.py price_surge_monitor.py profit_protection_monitor.py; do
     if [[ -f "$ROOT/scripts/$script" ]]; then
         "${SCP[@]}" "$ROOT/scripts/$script" "$HOST:$REMOTE_ROOT/scripts/"
         echo "  ✅ scripts/$script"
@@ -126,6 +126,18 @@ for script in adaptive_gold_monitor.py overnight_news_scanner.py price_surge_mon
         echo "  ⚠️ scripts/$script 不存在, 跳过"
     fi
 done
+
+echo "==> 部署 Hermes cron 包装器 (${ROOT}/scripts -> ~/.hermes/scripts)"
+if [[ -f "$ROOT/scripts/hermes_wrapper_adaptive.py" ]]; then
+    "${SCP[@]}" "$ROOT/scripts/hermes_wrapper_adaptive.py" "$HOST:/home/ubuntu/.hermes/scripts/gold_adaptive_monitor.py"
+    "${SSH[@]}" "$HOST" "chmod +x /home/ubuntu/.hermes/scripts/gold_adaptive_monitor.py"
+    echo "  ✅ gold_adaptive_monitor.py"
+fi
+if [[ -f "$ROOT/scripts/hermes_wrapper_evening.py" ]]; then
+    "${SCP[@]}" "$ROOT/scripts/hermes_wrapper_evening.py" "$HOST:/home/ubuntu/.hermes/scripts/gold_evening_preview.py"
+    "${SSH[@]}" "$HOST" "chmod +x /home/ubuntu/.hermes/scripts/gold_evening_preview.py"
+    echo "  ✅ gold_evening_preview.py"
+fi
 
 echo "==> 部署 crontab 配置文件"
 "${SCP[@]}" "$ROOT/scripts/hermes_crontab.txt" "$HOST:$REMOTE_ROOT/scripts/"
