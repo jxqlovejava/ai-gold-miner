@@ -18,6 +18,7 @@ REMOTE_PORTFOLIO="${HERMES_GOLD_PORTFOLIO:-/home/ubuntu/.hermes/gold/portfolio.y
 REMOTE_ORDERS="${HERMES_GOLD_ORDERS:-/home/ubuntu/.hermes/gold/conditional_orders.jsonl}"
 REMOTE_CALENDAR="${HERMES_GOLD_CALENDAR:-/home/ubuntu/.hermes/gold/calendar_events.jsonl}"
 REMOTE_STATE="${HERMES_GOLD_STATE:-/home/ubuntu/.hermes/gold/sentinel_state.json}"
+REMOTE_SURGE_STATE="${HERMES_GOLD_SURGE_STATE:-/home/ubuntu/.hermes/gold/surge_monitor_state.json}"
 REMOTE_CFG="${HERMES_GOLD_CFG:-/home/ubuntu/.hermes/gold/sentinel_config.json}"
 
 if [[ ! -f "$PEM" ]]; then
@@ -29,7 +30,7 @@ SSH=(ssh -i "$PEM" -o StrictHostKeyChecking=no)
 SCP=(scp -i "$PEM" -o StrictHostKeyChecking=no)
 
 echo "==> 创建远程目录"
-"${SSH[@]}" "$HOST" "mkdir -p '$REMOTE_ROOT/src/gold_miner/sentinel' '$REMOTE_ROOT/scripts' '$(dirname "$REMOTE_PORTFOLIO")'"
+"${SSH[@]}" "$HOST" "mkdir -p '$REMOTE_ROOT/src/gold_miner/sentinel' '$REMOTE_ROOT/scripts' '$(dirname "$REMOTE_PORTFOLIO")' '$(dirname "$REMOTE_SURGE_STATE")'"
 
 echo "==> 同步哨兵代码"
 "${SCP[@]}" -r \
@@ -107,19 +108,49 @@ echo "==> 试跑 gold_price.py (price 模式)"
 "${SSH[@]}" "$HOST" "python3 /home/ubuntu/.hermes/scripts/gold_price.py 2>&1 | head -15" || true
 
 echo ""
-echo "✅ 黄金哨兵部署完成"
+echo "==> 部署新增定时任务脚本"
+for script in overnight_news_scanner.py price_surge_monitor.py; do
+    if [[ -f "$ROOT/scripts/$script" ]]; then
+        "${SCP[@]}" "$ROOT/scripts/$script" "$HOST:$REMOTE_ROOT/scripts/"
+        echo "  ✅ scripts/$script"
+    else
+        echo "  ⚠️ scripts/$script 不存在, 跳过"
+    fi
+done
+
+echo "==> 部署 crontab 配置文件"
+"${SCP[@]}" "$ROOT/scripts/hermes_crontab.txt" "$HOST:$REMOTE_ROOT/scripts/"
+
+echo "==> 创建日志目录"
+"${SSH[@]}" "$HOST" "mkdir -p '$REMOTE_ROOT/logs'"
+
+echo ""
+echo "✅ 黄金哨兵 + 定时任务部署完成"
 echo "持仓: $REMOTE_PORTFOLIO"
 echo "条件单: $REMOTE_ORDERS"
 echo "日历: $REMOTE_CALENDAR"
-echo "入口: gold_sentinel.py --mode <alert|price|orders|calendar|full>"
+echo "定时脚本: $REMOTE_ROOT/scripts/"
 echo ""
-echo "建议 Hermes cron:"
-echo "  1) 盘中监控  */15 9-23 * * 1-5  → gold_alert.py"
-echo "  2) 报价快照  0 10,14,20 * * 1-5 → gold_price.py"
-echo "  3) 开盘简报  30 9 * * 1-5         → gold_full.py"
-echo "  4) 日历提醒  0 8 * * 1-5          → gold_calendar.py"
+echo "━━━━ 安装 crontab (在 Hermes 上执行) ━━━━"
+echo "  ssh -i ~/Documents/hermes.pem $HOST"
+echo "  cd /home/ubuntu/ai-gold-miner"
+echo "  crontab scripts/hermes_crontab.txt"
+echo ""
+echo "━━━━ Hermes 定时任务清单 ━━━━"
+echo "  1) 🌅 盘前扫描  30 7 * * 1-5       → overnight_news_scanner.py"
+echo "  2) 🚨 价格异动  */2 9-23 * * 1-5   → price_surge_monitor.py"
+echo "  3) 盘中监控    */15 9-23 * * 1-5  → gold_alert.py"
+echo "  4) 报价快照    0 10,14,20 * * 1-5 → gold_price.py"
+echo "  5) 开盘简报    30 9 * * 1-5         → gold_full.py"
+echo "  6) 日历提醒    0 8 * * 1-5          → gold_calendar.py"
+echo ""
+echo "━━━━ 手动测试新脚本 ━━━━"
+echo "  ssh -i ~/Documents/hermes.pem $HOST"
+echo "  cd /home/ubuntu/ai-gold-miner"
+echo "  PYTHONPATH=src python3 scripts/overnight_news_scanner.py"
+echo "  PYTHONPATH=src python3 scripts/price_surge_monitor.py"
 echo ""
 echo "同步数据:"
-echo "  scp -i ~/Documents/hermes.pem data/private/portfolio.yaml ubuntu@124.220.236.129:$REMOTE_PORTFOLIO"
-echo "  scp -i ~/Documents/hermes.pem data/private/conditional_orders.jsonl ubuntu@124.220.236.129:$REMOTE_ORDERS"
-echo "  scp -i ~/Documents/hermes.pem data/calendar_events.jsonl ubuntu@124.220.236.129:$REMOTE_CALENDAR"
+echo "  scp -i ~/Documents/hermes.pem data/private/portfolio.yaml $HOST:$REMOTE_PORTFOLIO"
+echo "  scp -i ~/Documents/hermes.pem data/private/conditional_orders.jsonl $HOST:$REMOTE_ORDERS"
+echo "  scp -i ~/Documents/hermes.pem data/calendar_events.jsonl $HOST:$REMOTE_CALENDAR"
