@@ -1,0 +1,58 @@
+# Hermes Gold Miner — Crontab 配置
+# 安装: crontab scripts/hermes_crontab.txt
+# 查看: crontab -l
+# 注意: 以下时间为服务器本地时区 (CST/Asia/Shanghai)
+# 民生银行积存金交易时间: 9:05 — 次日 02:00 (周一至周五)
+
+# ═══════════════════════════════════════════════════════════════
+# 🆕 自适应频率金价监控 (主监控 — 替代 price_surge_monitor)
+# 每分钟触发, 脚本内部状态机自适应节流:
+#   NORMAL (价格平稳)    → 每5分钟检查, 无告警不输出
+#   WATCHING (开始下跌)  → 每2分钟检查
+#   ALERT (加速下跌)     → 每1分钟检查
+#   CRITICAL (恐慌急跌)  → 每1分钟检查+每次推送
+# ═══════════════════════════════════════════════════════════════
+
+# ── Ubuntu 服务器 ──
+* * * * * cd /home/ubuntu/ai-gold-miner && PYTHONPATH=src python3 scripts/adaptive_gold_monitor.py >> logs/adaptive_monitor.log 2>&1
+
+# ── Mac 本地 (开发/测试) ──
+# * * * * * cd /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner && PYTHONPATH=src python3 scripts/adaptive_gold_monitor.py >> logs/adaptive_monitor.log 2>&1
+
+# ═══════════════════════════════════════════════════════════════
+# 盘前隔夜新闻扫描 (保留)
+# ═══════════════════════════════════════════════════════════════
+# Ubuntu
+30 7 * * 1-5 cd /home/ubuntu/ai-gold-miner && PYTHONPATH=src python3 scripts/overnight_news_scanner.py >> logs/overnight_scanner.log 2>&1
+# Mac 本地
+# 30 7 * * 1-5 cd /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner && PYTHONPATH=src python3 scripts/overnight_news_scanner.py >> logs/overnight_scanner.log 2>&1
+
+# ═══════════════════════════════════════════════════════════════
+# 价格急变监控 (保留作为独立补充 — 已合并到 adaptive_gold_monitor)
+# ═══════════════════════════════════════════════════════════════
+# Ubuntu
+# */2 9-23 * * 1-5 cd /home/ubuntu/ai-gold-miner && PYTHONPATH=src python3 scripts/price_surge_monitor.py >> logs/surge_monitor.log 2>&1
+# */2 0-1 * * 2-6 cd /home/ubuntu/ai-gold-miner && PYTHONPATH=src python3 scripts/price_surge_monitor.py >> logs/surge_monitor.log 2>&1
+
+# ═══════════════════════════════════════════════════════════════
+# 盈利保护监控 (保留作为独立补充 — 已合并到 adaptive_gold_monitor)
+# ═══════════════════════════════════════════════════════════════
+# Ubuntu
+# */5 9-23 * * 1-5 cd /home/ubuntu/ai-gold-miner && PYTHONPATH=src python3 scripts/profit_protection_monitor.py >> logs/profit_protector.log 2>&1
+# */5 0-1 * * 2-6 cd /home/ubuntu/ai-gold-miner && PYTHONPATH=src python3 scripts/profit_protection_monitor.py >> logs/profit_protector.log 2>&1
+
+# ═══════════════════════════════════════════════════════════════
+# Hermes 哨兵频道 (保留)
+# ═══════════════════════════════════════════════════════════════
+# Ubuntu
+# */15 9-23 * * 1-5 cd /home/ubuntu/ai-gold-miner && PYTHONPATH=src python3 /home/ubuntu/.hermes/scripts/gold_alert.py >> logs/alert.log 2>&1
+# */15 0-1 * * 2-6 cd /home/ubuntu/ai-gold-miner && PYTHONPATH=src python3 /home/ubuntu/.hermes/scripts/gold_alert.py >> logs/alert.log 2>&1
+
+# ── 报价快照 ──
+# 0 10,14,20 * * 1-5 cd /home/ubuntu/ai-gold-miner && PYTHONPATH=src python3 /home/ubuntu/.hermes/scripts/gold_price.py >> logs/price.log 2>&1
+
+# ── 开盘简报 ──
+# 30 9 * * 1-5 cd /home/ubuntu/ai-gold-miner && PYTHONPATH=src python3 /home/ubuntu/.hermes/scripts/gold_full.py >> logs/full.log 2>&1
+
+# ── 日历提醒 ──
+# 0 8 * * 1-5 cd /home/ubuntu/ai-gold-miner && PYTHONPATH=src python3 /home/ubuntu/.hermes/scripts/gold_calendar.py >> logs/calendar.log 2>&1
