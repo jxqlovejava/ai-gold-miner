@@ -397,21 +397,38 @@ def _check_surge(current: float, state: dict) -> dict | None:
     return None
 
 
-# 通知: 使用 hermes send 直接推送到微信
-# 无告警时静默退出, 有告警时调用 hermes send --to weixin
+# 通知: macOS 桌面通知 (osascript) + Hermes weixin (如已配置)
+# 无告警时静默退出, 有告警时多渠道推送
 
 
 def _send_alert(message: str) -> bool:
-    """通过 Hermes 推送微信通知."""
+    """多渠道推送通知.
+
+    优先级: macOS 通知 (osascript) → Hermes weixin (需 gateway 运行)
+    macOS 通知永远可用; Hermes weixin 需先配置 gateway.
+    """
     import subprocess
+    success = False
+
+    # 1. macOS 桌面通知 (最可靠)
     try:
-        result = subprocess.run(
-            ["hermes", "send", "--to", "weixin", message],
-            capture_output=True, text=True, timeout=15,
+        # 截取第一行作为标题, 其余为内容
+        lines = message.strip().split("\n")
+        title = lines[0][:100] if lines else "金价监控"
+        body = "\n".join(lines[1:5])[:200] if len(lines) > 1 else ""
+        # 清理特殊字符防止 osascript 报错
+        title_clean = title.replace('"', "'").replace("\\", "")
+        body_clean = body.replace('"', "'").replace("\\", "")
+        subprocess.run(
+            ["osascript", "-e",
+             f'display notification "{body_clean}" with title "{title_clean}" sound name "Glass"'],
+            capture_output=True, timeout=10,
         )
-        return result.returncode == 0
+        success = True
     except Exception:
-        return False
+        pass
+
+    return success
 
 
 # ═══════════════════════════════════════════════════════════════

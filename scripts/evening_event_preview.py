@@ -34,13 +34,19 @@ def _now() -> datetime:
 
 
 def _send_hermes(message: str) -> bool:
-    """通过 Hermes 推送微信通知."""
+    """发送 macOS 桌面通知."""
     try:
-        result = subprocess.run(
-            ["hermes", "send", "--to", "weixin", message],
-            capture_output=True, text=True, timeout=15,
+        lines = message.strip().split("\n")
+        title = lines[0][:100] if lines else "晚间事件预告"
+        body = "\n".join(lines[1:5])[:200] if len(lines) > 1 else ""
+        title_clean = title.replace('"', "'").replace("\\", "")
+        body_clean = body.replace('"', "'").replace("\\", "")
+        subprocess.run(
+            ["osascript", "-e",
+             f'display notification "{body_clean}" with title "{title_clean}" sound name "Glass"'],
+            capture_output=True, timeout=10,
         )
-        return result.returncode == 0
+        return True
     except Exception:
         return False
 

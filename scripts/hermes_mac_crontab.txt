@@ -3,11 +3,11 @@
 # 查看: crontab -l
 
 # 自适应频率金价监控 (每分钟触发, 内部自适应节流)
-# 无告警时 stdout 为空 → Hermes 静默 | 有告警时打印卡片 → Hermes 转发微信
-* * * * * cd /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner && PYTHONPATH=src /usr/bin/python3 /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/scripts/adaptive_gold_monitor.py >> /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/logs/adaptive_monitor.log 2>&1
+# 无告警时 stdout 为空 → log 静默 | 有告警时 stdout → 触发微信推送
+* * * * * PYTHONPATH=src /opt/homebrew/bin/python3 /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/scripts/adaptive_gold_monitor.py >> /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/logs/adaptive_monitor.log 2>&1
 
-# 盘前隔夜新闻扫描 (含 Hermes 微信推送)
-30 7 * * 1-5 cd /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner && PYTHONPATH=src /usr/bin/python3 /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/scripts/overnight_news_scanner.py >> /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/logs/overnight_scanner.log 2>&1
+# 盘前隔夜新闻扫描 (含微信推送)
+30 7 * * 1-5 cd /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner && PYTHONPATH=src /opt/homebrew/bin/python3 /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/scripts/overnight_news_scanner.py >> /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/logs/overnight_scanner.log 2>&1
 
 # 晚间事件预告 (18:00 推送今晚美国时段重要事件到微信)
-0 18 * * 1-5 cd /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner && PYTHONPATH=src /usr/bin/python3 /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/scripts/evening_event_preview.py >> /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/logs/evening_preview.log 2>&1
+0 18 * * 1-5 cd /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner && PYTHONPATH=src /opt/homebrew/bin/python3 /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/scripts/evening_event_preview.py >> /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/logs/evening_preview.log 2>&1
