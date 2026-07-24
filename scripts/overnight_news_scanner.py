@@ -704,6 +704,137 @@ def _fallback_impact(findings: list[dict]) -> None:
         f["ai_reason"] = "关键词判断(AI不可用)"
 
 
+# ── 隔夜美盘传导卡 ──
+# 背景 (2026-07-24): 隔夜美盘暴跌 2.4% 直接传导为次日积存金低开，
+# 盘前 7:30 需要的不只是「发生了什么」，而是「性质 + 对我仓位意味着什么」。
+
+_TRANSMISSION_THRESHOLD = 1.0  # XAUUSD 隔夜 |涨跌幅| ≥ 1% 才触发
+
+# 驱动渠道分类: (渠道ID, 关键词, 渠道标签, 下跌启示, 上涨启示)
+_CHANNEL_RULES = [
+    (
+        ["原油", "油价", "wti", "布伦特", "brent", "霍尔木兹", "hormuz",
+         "油轮", "opec", "crude", "tanker"],
+        "油价冲击 → 通胀预期→加息预期",
+        "一次性脉冲+支撑区=洗盘概率高，关注低吸；若油价持续高位则滞胀逻辑接管",
+        "加息压力缓和，涨势更可持续",
+    ),
+    (
+        ["初请", "非农", "cpi", "pce", "加息", "降息", "fed", "fomc",
+         "鲍威尔", "warsh", "powell", "rate hike", "rate cut", "payroll", "jobless"],
+        "利率预期直接驱动",
+        "警惕趋势性压制，勿急于抄底，等事件落地",
+        "降息预期升温，趋势性利多",
+    ),
+    (
+        ["伊朗", "iran", "胡塞", "houthi", "红海", "red sea", "核", "nuclear",
+         "trump", "特朗普", "停火", "ceasefire", "袭击", "attack"],
+        "地缘避险驱动",
+        "避险逻辑未变，回落是低吸机会；若局势缓和则回吐",
+        "避险需求升温，但追高风险大，等回落",
+    ),
+]
+
+
+def _classify_channel(intl_findings: list[dict]) -> tuple[str, str, str]:
+    """从隔夜新闻 findings 分类驱动渠道. 返回 (标签, 下跌启示, 上涨启示)."""
+    text = " ".join(
+        f.get("label", "") + " " + " ".join(f.get("results", [])[:3])
+        for f in intl_findings
+    ).lower()
+    for keywords, label, down_hint, up_hint in _CHANNEL_RULES:
+        if any(kw in text for kw in keywords):
+            return label, down_hint, up_hint
+    return "未明确归因 (无匹配渠道)", "性质不明时按观望处理", "性质不明时勿追高"
+
+
+def _orders_in_range(est_price: float, pct: float = 1.0) -> list[str]:
+    """读取 active 条件单, 返回预计开盘价 ±pct% 射程内的条目描述."""
+    path = Path("data/private/conditional_orders.jsonl")
+    if not path.exists():
+        return []
+    hits: list[str] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            o = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if o.get("status") != "active":
+            continue
+        targets: list[tuple[str, float]] = []
+        if o.get("type") == "limit_buy" and o.get("trigger_price"):
+            targets.append(("买入", float(o["trigger_price"])))
+        oco = o.get("oco") or {}
+        for key, lbl in [("take_profit", "止盈"), ("stop_loss", "止损")]:
+            price = (oco.get(key) or {}).get("price")
+            if price:
+                targets.append((lbl, float(price)))
+        for lbl, tp in targets:
+            dist = (est_price - tp) / tp * 100
+            if abs(dist) <= pct:
+                hits.append(f"{o.get('id', '?')} {lbl}¥{tp:.0f} (距离{dist:+.1f}%)")
+    return hits
+
+
+def _portfolio_line(est_price: float) -> str | None:
+    """持仓成本 vs 预计开盘价."""
+    try:
+        import yaml
+
+        data = yaml.safe_load(
+            Path("data/private/portfolio.yaml").read_text(encoding="utf-8")
+        )
+        cost = float(data["positions"]["gold_jd"]["avg_cost"])
+        pnl = (est_price - cost) / cost * 100
+        return f"持仓: 成本¥{cost:.0f} | 预计开盘浮动盈亏 {pnl:+.1f}%"
+    except Exception:
+        return None
+
+
+def _build_transmission_card(
+    xauusd: dict | None,
+    jd_price: dict | None,
+    intl_findings: list[dict],
+) -> list[str]:
+    """隔夜美盘 → 次日积存金开盘传导卡. |涨跌幅| < 阈值时不触发."""
+    if not xauusd:
+        return []
+    chg = xauusd["change_pct"]
+    if abs(chg) < _TRANSMISSION_THRESHOLD:
+        return []
+
+    direction_txt = "低开" if chg < 0 else "高开"
+    channel_label, down_hint, up_hint = _classify_channel(intl_findings)
+    hint = down_hint if chg < 0 else up_hint
+
+    lines = [
+        "━━━ 🌊 隔夜美盘传导 ━━━",
+        f"XAUUSD 隔夜 {chg:+.2f}% (${xauusd['price']:.0f})",
+    ]
+    est_open: float | None = None
+    if jd_price and jd_price.get("price"):
+        est_open = round(jd_price["price"] * (1 + chg / 100), 2)
+        lines.append(
+            f"积存金预计{direction_txt}: {jd_price['price']:.2f} → ~{est_open:.2f}元/克"
+        )
+    lines.append(f"驱动渠道: {channel_label}")
+    if est_open:
+        hits = _orders_in_range(est_open)
+        if hits:
+            lines.append("⚠️ 条件单射程 (±1%):")
+            for h in hits:
+                lines.append(f"  • {h}")
+        port = _portfolio_line(est_open)
+        if port:
+            lines.append(port)
+    lines.append(f"💬 {hint}")
+    lines.append("")
+    return lines
+
+
 def _format_report(
     intl_findings: list[dict],
     cn_news: list[str],
@@ -732,6 +863,9 @@ def _format_report(
                 f"积存金: {jd_price['price']:.2f}元/克"
             )
         lines.append("")
+
+    # ── 隔夜美盘传导卡 (|chg|≥1% 才出现) ──
+    lines.extend(_build_transmission_card(xauusd, jd_price, intl_findings))
 
     # ── 国际重大新闻 ──
     if intl_findings:
@@ -809,9 +943,12 @@ def main() -> int:
     # 4. 日历
     calendar_events = _check_calendar_overnight()
 
-    # 只有实际发现才推送 (日历事件有 today 也算)
+    # 只有实际发现才推送 (日历事件有 today 也算; 隔夜美盘大幅传导也算)
     today_has_events = any(e["type"] == "today" for e in calendar_events)
-    if not has_findings and not today_has_events:
+    transmission = bool(
+        xauusd and abs(xauusd["change_pct"]) >= _TRANSMISSION_THRESHOLD
+    )
+    if not has_findings and not today_has_events and not transmission:
         return 0  # 静默
 
     report = _format_report(intl_findings, cn_news, calendar_events, jd_price, xauusd)

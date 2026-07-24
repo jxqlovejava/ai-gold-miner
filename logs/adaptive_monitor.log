@@ -3958,3 +3958,50 @@ Traceback (most recent call last):
   File "<frozen importlib._bootstrap_external>", line 1601, in path_hook_for_FileFinder
   File "<frozen importlib._bootstrap_external>", line 1477, in __init__
 PermissionError: [Errno 1] Operation not permitted
+2026-07-24 23:44:02.657 | WARNING  | gold_miner.data.jd_accumulation_gold:fetch:122 - 本地京东历史仅 2 条, 不足 14 条, 使用 SGE Au99.99 代理回填
+🟢 金价监控 | 23:44:03
+💰 887.81元/克 (+0.49%)
+📊 成本¥894 | 浮亏 0.7%
+⚠️ 已破成本线 (浮亏0.7%), 注意止损位
+
+  📈 反弹 +1.1% | 878→888 (低点回升 ¥10)
+   本轮跌幅: 882→878 (0.5%), 已收复 239%
+   距成本线还差 ¥6 (0.7%)
+2026-07-24 23:50:03.361 | WARNING  | gold_miner.data.jd_accumulation_gold:fetch:122 - 本地京东历史仅 2 条, 不足 14 条, 使用 SGE Au99.99 代理回填
+🟢 金价监控 | 23:50:03
+💰 887.83元/克 (+0.49%)
+📊 成本¥894 | 浮亏 0.7%
+⚠️ 已破成本线 (浮亏0.7%), 注意止损位
+
+  📈 反弹 +1.1% | 878→888 (低点回升 ¥10)
+   本轮跌幅: 882→878 (0.5%), 已收复 239%
+   距成本线还差 ¥6 (0.7%)
+2026-07-24 23:56:01.944 | WARNING  | gold_miner.data.jd_accumulation_gold:fetch:122 - 本地京东历史仅 2 条, 不足 14 条, 使用 SGE Au99.99 代理回填
+🟢 金价监控 | 23:56:02
+💰 888.51元/克 (+0.57%)
+📊 成本¥894 | 浮亏 0.6%
+⚠️ 已破成本线 (浮亏0.6%), 注意止损位
+
+  📈 反弹 +1.2% | 878→889 (低点回升 ¥10)
+   本轮跌幅: 882→878 (0.5%), 已收复 256%
+   距成本线还差 ¥6 (0.6%)
+2026-07-25 00:02:02.266 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-07-25 00:02:02.441 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:217 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 3 条
+2026-07-25 00:02:02.443 | WARNING  | gold_miner.data.jd_accumulation_gold:fetch:122 - 本地京东历史仅 3 条, 不足 14 条, 使用 SGE Au99.99 代理回填
+🟢 金价监控 | 00:02:02
+💰 888.42元/克 (+0.00%)
+📊 成本¥894 | 浮亏 0.7%
+⚠️ 已破成本线 (浮亏0.7%), 注意止损位
+
+  📈 反弹 +1.2% | 878→888 (低点回升 ¥10)
+   本轮跌幅: 882→878 (0.5%), 已收复 254%
+   距成本线还差 ¥6 (0.7%)
+2026-07-25 00:08:02.606 | WARNING  | gold_miner.data.jd_accumulation_gold:fetch:122 - 本地京东历史仅 3 条, 不足 14 条, 使用 SGE Au99.99 代理回填
+🟢 金价监控 | 00:08:03
+💰 888.38元/克 (-0.00%)
+📊 成本¥894 | 浮亏 0.7%
+⚠️ 已破成本线 (浮亏0.7%), 注意止损位
+
+  📈 反弹 +1.1% | 878→888 (低点回升 ¥10)
+   本轮跌幅: 882→878 (0.5%), 已收复 253%
+   距成本线还差 ¥6 (0.7%)
