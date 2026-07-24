@@ -548,6 +548,70 @@ def _ma(closes: list[float], window: int) -> float | None:
     return sum(closes[-window:]) / window
 
 
+def _check_take_profit_breakout(
+    current: float,
+    historical: list[dict],
+    cost_basis: float | None,
+    cfg: dict,
+    surge: dict | None,
+) -> dict | None:
+    """止盈候选: 急涨 + 破N日新高 + 浮盈≥阈值, 三条件同时."""
+    if cost_basis is None or len(historical) < 10:
+        return None
+    if cfg["require_surge"]:
+        if not surge or surge.get("direction") != "up":
+            return None
+    lookback = int(cfg["breakout_lookback_days"])
+    window = historical[-lookback:] if len(historical) >= lookback else list(historical)
+    high_n = max(p["close"] for p in window)
+    if current <= high_n:
+        return None
+    profit_pct = (current - cost_basis) / cost_basis
+    if profit_pct < cfg["min_profit_pct"]:
+        return None
+    return {
+        "type": "take_profit_breakout",
+        "high_n": high_n,
+        "lookback": lookback,
+        "profit_pct": profit_pct,
+    }
+
+
+def _check_dip_buy_opportunity(
+    current: float,
+    state: dict,
+    historical: list[dict],
+    cfg: dict,
+) -> dict | None:
+    """买入候选: 破N日低点 或 边沿进入关键价位带 (带外→带内才触发).
+
+    每次调用都把 state["in_band_levels"] 更新为当前在带内的价位列表.
+    """
+    if len(historical) < 10:
+        return None
+    band = cfg["key_level_band_pct"]
+    levels = [float(lv) for lv in cfg["key_levels"]]
+    in_band_now = [lv for lv in levels if abs(current - lv) / lv <= band]
+    prev_in_band = [float(lv) for lv in state.get("in_band_levels", [])]
+    entered = [lv for lv in in_band_now if lv not in prev_in_band]
+    state["in_band_levels"] = in_band_now
+
+    lookback = int(cfg["dip_lookback_days"])
+    window = historical[-lookback:] if len(historical) >= lookback else list(historical)
+    low_n = min(p["close"] for p in window)
+    broke_low = current < low_n
+
+    if not broke_low and not entered:
+        return None
+    return {
+        "type": "dip_buy_opportunity",
+        "broke_low": broke_low,
+        "low_n": low_n,
+        "lookback": lookback,
+        "key_level": entered[0] if entered else None,
+    }
+
+
 # 通知: macOS 桌面通知 (osascript) + Hermes weixin (如已配置)
 # 无告警时静默退出, 有告警时多渠道推送
 
