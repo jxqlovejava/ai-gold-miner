@@ -851,6 +851,13 @@ class AnalysisPipeline:
             f"  维度方向汇总: {bull_dims}维看多 | {bear_dims}维看空 | {insuf_dims}维数据不足"
         )
 
+        # --- 4b. 信号快照落盘 (供 adaptive_gold_monitor 理由引擎读取) ---
+        try:
+            from gold_miner.signals.snapshot import save_signal_snapshot
+            save_signal_snapshot(bundle, getattr(result, "current_price", 0.0))
+        except Exception as e:
+            logger.warning(f"[3/9] 信号快照落盘失败: {e}")
+
         # --- 5. 事实/解释分类汇总 ---
         self._print_fact_type_summary(bundle)
 
