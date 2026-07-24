@@ -18,20 +18,21 @@ class DimensionWeights:
     决定性信号不会被同维度弱信号（如印度关税调整）稀释。
     """
 
-    technical: float = 0.18
+    technical: float = 0.14
     fundamental: float = 0.22
-    news: float = 0.18
+    news: float = 0.14
     sentiment: float = 0.12
     event: float = 0.10
     polymarket: float = 0.05
     anomaly: float = 0.05
     scenario: float = 0.10
+    oil: float = 0.08
 
     def __post_init__(self) -> None:
         total = (
             self.technical + self.fundamental + self.news
             + self.sentiment + self.event + self.polymarket
-            + self.anomaly + self.scenario
+            + self.anomaly + self.scenario + self.oil
         )
         if abs(total - 1.0) > 0.001:
             raise ValueError(f"权重之和必须等于1，当前={total}")
@@ -88,6 +89,7 @@ class ScoringEngine:
             ("polymarket", self.weights.polymarket),
             ("anomaly", self.weights.anomaly),
             ("scenario", self.weights.scenario),
+            ("oil", self.weights.oil),
         ]:
             if dim in dim_avg:
                 composite += dim_avg[dim] * weight

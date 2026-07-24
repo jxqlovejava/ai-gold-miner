@@ -109,7 +109,7 @@ class DashboardFormatter:
             )
 
         score_details: dict[str, float] = {}
-        for dim in ["technical", "fundamental", "smart_money", "news", "sentiment", "hype_bias", "event", "polymarket", "anomaly", "scenario"]:
+        for dim in ["technical", "fundamental", "smart_money", "news", "sentiment", "hype_bias", "event", "polymarket", "anomaly", "scenario", "oil"]:
             if dim == "smart_money":
                 # 聪明钱资金流: 从 sentiment/fundamental 维度中按 source 筛选
                 smart_sigs = [

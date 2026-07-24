@@ -52,6 +52,7 @@ from gold_miner.signals.fundamental import FundamentalAnalyzer
 from gold_miner.signals.institutional_signal import InstitutionalSignalGenerator
 from gold_miner.signals.monitor_signal import MonitorSignalGenerator
 from gold_miner.signals.news_signal import NewsSignalGenerator
+from gold_miner.signals.oil_signal import OilSignalGenerator
 from gold_miner.signals.recent_events import RecentEventSignalGenerator
 from gold_miner.signals.sentiment_signal import SentimentAnalyzer
 from gold_miner.signals.technical import TechnicalAnalyzer
@@ -553,6 +554,11 @@ class AnalysisPipeline:
             futures[pool.submit(
                 lambda: CotSignalGenerator().generate_signals()
             )] = "cot"
+
+            # 油价传导 (通胀预期→利率预期渠道)
+            futures[pool.submit(
+                lambda: OilSignalGenerator().generate_signals()
+            )] = "oil"
 
             # 聪明钱合成: 13F / 投行 / COMEX 大户 / 综合
             spot_for_inst = float(result.current_price or 0) or 3300.0
