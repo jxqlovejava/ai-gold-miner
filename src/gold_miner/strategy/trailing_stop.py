@@ -1,10 +1,13 @@
 """ATR 双轨移动止损/止盈模块.
 
 实现基于真实波幅(ATR)的双轨策略:
-- 浮盈轨: 止损价 = max(持仓期间最高价 - profit_multiplier × ATR, 成本价)
+- 浮盈轨: 止损价 = max(持仓期间最高价 - profit_multiplier × ATR, 净保本价)
 - 浮亏轨: 止损价 = max(成本价 - loss_multiplier × ATR, 硬止损价)
 - 价格创新高, 浮盈轨跟随上移
 - 价格持续下跌, 浮亏轨限制亏损扩大
+
+净保本价 = 成本价 / (1 - sell_fee_pct) — 卖出扣手续费后真正回本的价格 (r032 摩擦成本).
+sell_fee_pct 默认为 0, 此时净保本价退化为成本价, 行为与旧版完全一致.
 """
 from __future__ import annotations
 
@@ -41,10 +44,11 @@ class ATRTrailingStop:
         atr_period: ATR 计算周期, 默认 14
         profit_multiplier: 浮盈轨 ATR 乘数, 默认 2.5
         loss_multiplier: 浮亏轨 ATR 乘数, 默认 3.0
-        cost_basis: 成本价, 浮盈轨不低于成本价
+        cost_basis: 成本价, 浮盈轨不低于净保本价
         hard_stop_price: 硬止损价, 不可突破
         profit_action: 浮盈轨触发动作, 默认 "reduce_half"
         loss_action: 浮亏轨触发动作, 默认 "reduce_half"
+        sell_fee_pct: 卖出费率(小数, 0.004=0.4%), 用于净保本价保护, 默认 0
     """
 
     def __init__(
@@ -56,6 +60,7 @@ class ATRTrailingStop:
         hard_stop_price: float | None = None,
         profit_action: str = "reduce_half",
         loss_action: str = "reduce_half",
+        sell_fee_pct: float = 0.0,
     ) -> None:
         if atr_period <= 0:
             raise ValueError("atr_period 必须大于 0")
@@ -63,6 +68,8 @@ class ATRTrailingStop:
             raise ValueError("profit_multiplier 必须大于 0")
         if loss_multiplier <= 0:
             raise ValueError("loss_multiplier 必须大于 0")
+        if not 0 <= sell_fee_pct < 1:
+            raise ValueError("sell_fee_pct 必须在 [0, 1) 区间")
 
         self.atr_period = atr_period
         self.profit_multiplier = profit_multiplier
@@ -71,6 +78,15 @@ class ATRTrailingStop:
         self.hard_stop_price = hard_stop_price
         self.profit_action = profit_action
         self.loss_action = loss_action
+        self.sell_fee_pct = sell_fee_pct
+
+    def _breakeven(self) -> float | None:
+        """净保本价 — 卖出扣费后真正回本的价格; 无成本价时返回 None."""
+        if self.cost_basis is None:
+            return None
+        if self.sell_fee_pct <= 0:
+            return self.cost_basis
+        return self.cost_basis / (1 - self.sell_fee_pct)
 
     def calculate(
         self,
@@ -112,13 +128,14 @@ class ATRTrailingStop:
             highest_high = historical_high
 
         cost_basis = self.cost_basis
-        in_profit = cost_basis is not None and current_price > cost_basis
+        breakeven = self._breakeven()
+        in_profit = breakeven is not None and current_price > breakeven
 
         # 计算双轨止损价
         if in_profit:
-            # 浮盈轨: 从最高点回撤 profit_multiplier×ATR, 但不低于成本价
+            # 浮盈轨: 从最高点回撤 profit_multiplier×ATR, 但不低于净保本价(扣卖出手续费后仍保本)
             profit_stop = highest_high - self.profit_multiplier * latest_atr
-            trailing_stop = profit_stop if cost_basis is None else max(profit_stop, cost_basis)
+            trailing_stop = profit_stop if breakeven is None else max(profit_stop, breakeven)
             track = "profit"
             action = self.profit_action
         else:
@@ -158,6 +175,7 @@ class ATRTrailingStop:
                 track,
                 in_profit,
                 cost_basis,
+                breakeven,
             )
         else:
             triggered = False
@@ -209,6 +227,7 @@ class ATRTrailingStop:
         track: str,
         in_profit: bool,
         cost_basis: float | None,
+        breakeven: float | None = None,
     ) -> str:
         """构建触发说明."""
         if track == "hard_stop":
@@ -218,10 +237,14 @@ class ATRTrailingStop:
             )
 
         if in_profit and cost_basis is not None:
+            protect = breakeven if breakeven is not None else cost_basis
+            fee_note = (
+                f"(含{self.sell_fee_pct:.1%}卖出费)" if self.sell_fee_pct > 0 else ""
+            )
             return (
                 f"价格 {current_price:.2f} 触及浮盈止损位 {effective_stop:.2f} "
                 f"(从高点 {highest_high:.2f} 回撤 {self.profit_multiplier}×ATR="
-                f"{self.profit_multiplier * latest_atr:.2f}, 已保本 {cost_basis:.2f})"
+                f"{self.profit_multiplier * latest_atr:.2f}, 已保净本 {protect:.2f}{fee_note})"
             )
 
         if cost_basis is not None:

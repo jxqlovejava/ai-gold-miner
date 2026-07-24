@@ -20,6 +20,14 @@ class Position:
     avg_cost: float
     hard_stop: float
     warn_line: float
+    sell_fee_pct: float = 0.0  # 卖出费率(小数): 0.004 = 0.4%
+
+    @property
+    def breakeven_price(self) -> float:
+        """净保本价 — 卖出扣费后刚好回本的价格 (r032 摩擦成本)."""
+        if not 0 <= self.sell_fee_pct < 1:
+            return self.avg_cost
+        return self.avg_cost / (1 - self.sell_fee_pct)
 
     def market_value(self, current_price: float) -> float:
         return self.grams * current_price
@@ -29,6 +37,13 @@ class Position:
 
     def pnl_pct(self, current_price: float) -> float:
         return (current_price - self.avg_cost) / self.avg_cost * 100
+
+    def net_pnl(self, current_price: float) -> float:
+        """扣卖出手续费后的实际到手盈亏."""
+        return (current_price * (1 - self.sell_fee_pct) - self.avg_cost) * self.grams
+
+    def net_pnl_pct(self, current_price: float) -> float:
+        return (current_price * (1 - self.sell_fee_pct) - self.avg_cost) / self.avg_cost * 100
 
     def distance_to_stop(self, current_price: float) -> float:
         return (current_price - self.hard_stop) / current_price * 100
@@ -85,6 +100,7 @@ class PortfolioTracker:
                 avg_cost=float(cfg["avg_cost"]),
                 hard_stop=float(cfg["hard_stop"]),
                 warn_line=float(cfg["warn_line"]),
+                sell_fee_pct=float(cfg.get("sell_fee_pct", 0.0)) / 100,
             ))
 
     def reload(self) -> None:
@@ -135,10 +151,17 @@ class PortfolioTracker:
         snap = self.snapshot(current_price)
         violations = self.check_rules(current_price)
         metrics = self.risk_metrics(current_price)
-        lines = [
+        pnl_line = (
             f"持仓: {sum(p.grams for p in snap.positions):.1f}克 | "
             f"市值¥{snap.total_value:,.0f} | "
-            f"盈亏{snap.total_pnl:+,.0f}元({snap.total_pnl_pct:+.1f}%)",
+            f"盈亏{snap.total_pnl:+,.0f}元({snap.total_pnl_pct:+.1f}%)"
+        )
+        if any(p.sell_fee_pct > 0 for p in snap.positions):
+            net_total = sum(p.net_pnl(current_price) for p in snap.positions)
+            net_pct = (net_total / snap.total_cost * 100) if snap.total_cost else 0
+            pnl_line += f" | 净(扣费){net_total:+,.0f}元({net_pct:+.1f}%)"
+        lines = [
+            pnl_line,
             f"黄金占比: {snap.gold_allocation_pct:.0f}% | "
             f"现金: ¥{snap.cash:,.0f} | "
             f"风险: {self.risk_profile}",

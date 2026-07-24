@@ -302,6 +302,15 @@ RULE_KELLY_POSITION = InvestmentRule(
     check_fn="check_kelly_position",
 )
 
+RULE_FRICTION_COST = InvestmentRule(
+    id="r032",
+    name="摩擦成本核算",
+    description="卖出/止盈/条件单决策必须按扣除卖出手续费后的净收益计算；净保本价=成本价÷(1-卖出费率)，费率见 portfolio.yaml sell_fee_pct",
+    severity="warn",
+    category="process",
+    check_fn="check_friction_cost",
+)
+
 
 # ------------------------------------------------------------------
 # 全部规则集合
@@ -339,6 +348,7 @@ ALL_RULES: list[InvestmentRule] = [
     RULE_VALUATION_MARGIN,
     RULE_MARGIN_OF_SAFETY,
     RULE_KELLY_POSITION,
+    RULE_FRICTION_COST,
 ]
 
 

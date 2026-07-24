@@ -86,12 +86,12 @@ PEAK_DRAWDOWN_THRESHOLDS = [
     (0.08, "🔴 距{window}d高点回撤8%, 趋势可能反转"),
 ]
 
-# 成本逼近预警级别
+# 成本逼近预警级别 (参照净保本价: 已扣 0.4% 卖出手续费)
 COST_PROXIMITY_BANDS = [
-    (0.03, "🔴 仅剩3%盈利! 距成本线一步之遥"),
-    (0.02, "🚨 仅剩2%盈利! 获利盘快速出逃"),
-    (0.01, "💀 仅剩1%盈利! 即将亏损"),
-    (0.00, "❌ 跌破成本线!"),
+    (0.03, "🔴 仅剩3%净盈利! 距净保本线一步之遥"),
+    (0.02, "🚨 仅剩2%净盈利! 获利盘快速出逃"),
+    (0.01, "💀 仅剩1%净盈利! 即将实亏"),
+    (0.00, "❌ 跌破净保本线!"),
 ]
 
 # 冷却: 告警推送最小间隔 (秒)
@@ -212,6 +212,24 @@ def _get_cost_basis() -> float | None:
         return float(p["positions"]["gold_jd"]["avg_cost"])
     except (KeyError, ValueError, TypeError):
         return None
+
+
+def _get_sell_fee_pct() -> float:
+    """卖出费率(小数): 民生积存金 0.4% → 0.004. 读 portfolio.yaml sell_fee_pct."""
+    p = _load_portfolio()
+    if not p:
+        return 0.0
+    try:
+        return float(p["positions"]["gold_jd"].get("sell_fee_pct", 0.0)) / 100
+    except (KeyError, ValueError, TypeError, AttributeError):
+        return 0.0
+
+
+def _net_breakeven(cost_basis: float | None, sell_fee: float) -> float | None:
+    """净保本价 — 卖出扣费后真正回本的价格 (r032)."""
+    if cost_basis is None:
+        return None
+    return cost_basis / (1 - sell_fee) if sell_fee > 0 else cost_basis
 
 
 def _get_historical(days: int = 30) -> list[dict]:
@@ -360,11 +378,12 @@ def _determine_escalation(current: float, state: dict) -> str:
 # ═══════════════════════════════════════════════════════════════
 
 def _check_cost_proximity(current: float, cost: float) -> dict | None:
+    """成本逼近检测. cost 传入净保本价(扣卖出手续费后的回本线), 不是毛成本价."""
     if current <= cost:
         loss_pct = (cost - current) / cost * 100
         return {
             "type": "cost_below",
-            "message": f"❌ 跌破成本线 {cost:.0f}元! 当前 {current:.2f}, 浮亏 {loss_pct:.1f}%",
+            "message": f"❌ 跌破净保本线 {cost:.0f}元! 当前 {current:.2f}, 卖出即实亏 {loss_pct:.1f}%",
             "severity": "CRITICAL",
         }
     profit_margin = (current - cost) / cost
@@ -372,7 +391,7 @@ def _check_cost_proximity(current: float, cost: float) -> dict | None:
         if profit_margin <= threshold:
             return {
                 "type": "cost_proximity",
-                "message": f"{msg} ({cost:.0f}元成本线, 当前 {current:.2f}, 仅剩 {profit_margin*100:.1f}%盈利)",
+                "message": f"{msg} (净保本线 {cost:.0f}元, 当前 {current:.2f}, 净盈利仅剩 {profit_margin*100:.1f}%)",
                 "severity": "HIGH" if threshold <= 0.02 else "MEDIUM",
             }
     return None
@@ -1045,12 +1064,19 @@ def _format_card(
     change_pct = price_info["change_pct"]
     lines.append(f"💰 {price_info['price']:.2f}元/克 ({change_pct:+.2f}%)")
 
-    # ── 成本/盈亏 (破成本线时同行警示, 全卡片成本只说这一次) ──
+    # ── 成本/盈亏 (破净保本线时同行警示, 全卡片成本只说这一次) ──
     if cost_basis:
-        pnl = (price_info["price"] - cost_basis) / cost_basis * 100
+        price = price_info["price"]
+        sell_fee = _get_sell_fee_pct()
+        pnl = (price - cost_basis) / cost_basis * 100
         line = f"📊 成本¥{cost_basis:.0f} | 浮{'盈' if pnl >= 0 else '亏'} {abs(pnl):.1f}%"
-        if pnl < 0:
-            line += " ⚠️ 已破成本线, 注意止损位"
+        net_pnl = pnl
+        if sell_fee > 0:
+            net_breakeven = _net_breakeven(cost_basis, sell_fee)
+            net_pnl = (price * (1 - sell_fee) - cost_basis) / cost_basis * 100
+            line += f" | 净{net_pnl:+.1f}%(已扣{sell_fee*100:.1f}%卖出费) 净保本¥{net_breakeven:.0f}"
+        if net_pnl < 0:
+            line += " ⚠️ 已破净保本线, 卖出即实亏"
         lines.append(line)
 
     # ── 趋势摘要: 从告警中提取去重展示 ──
@@ -1148,9 +1174,10 @@ def main() -> int:
     if surge:
         alerts.append(surge)
 
-    # 4b. 成本逼近
+    # 4b. 成本逼近 (用净保本价: 卖出扣 0.4% 手续费后真正回本的价格)
     if cost_basis:
-        cost_alert = _check_cost_proximity(current, cost_basis)
+        net_breakeven = _net_breakeven(cost_basis, _get_sell_fee_pct())
+        cost_alert = _check_cost_proximity(current, net_breakeven)
         if cost_alert and cost_alert["severity"] in ("CRITICAL", "HIGH"):
             alerts.append(cost_alert)
 

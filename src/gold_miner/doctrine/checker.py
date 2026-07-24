@@ -341,6 +341,26 @@ class DoctrineChecker:
             details={"margin_of_safety": justification},
         )
 
+    def check_friction_cost(self, decision: dict, ctx: dict) -> RuleViolation:
+        """r032: 卖出类决策必须按扣除卖出手续费后的净收益核算."""
+        rule = self._get_rule("check_friction_cost")
+        sell_actions = {"sell", "reduce", "reduce_half", "close", "close_all", "take_profit"}
+        action = str(decision.get("action", "")).lower()
+        if action not in sell_actions:
+            return RuleViolation(rule=rule, passed=True, message="非卖出决策，无需核算摩擦成本")
+        fee = float(ctx.get("sell_fee_pct", 0) or 0)
+        considered = bool(ctx.get("friction_cost_considered", False)) or fee > 0
+        return RuleViolation(
+            rule=rule,
+            passed=considered,
+            message=(
+                f"卖出费率 {fee:.1%} 已纳入净收益核算（净保本价=成本÷(1-费率)）"
+                if considered
+                else "卖出决策未考虑卖出手续费！净保本价=成本价÷(1-费率)，费率见 portfolio.yaml sell_fee_pct"
+            ),
+            details={"sell_fee_pct": fee, "action": action},
+        )
+
     # ------------------------------------------------------------------
     # r016-r029 补全
     # ------------------------------------------------------------------
