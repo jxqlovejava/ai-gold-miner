@@ -451,7 +451,7 @@ def _check_rebound(current: float, state: dict, cost_basis: float | None = None)
     """检测下跌后的反弹.
 
     触发条件: 之前在下行 (trend_low 存在且 < trend_high) + 当前在回升.
-    返回反弹摘要: 从低点回升幅度/百分比, 距成本距离.
+    返回反弹摘要: 从低点回升幅度/百分比 + 收复进度 (成本信息由卡片header统一展示).
     """
     trend_low = state.get("trend_low")
     trend_high = state.get("trend_high")
@@ -471,18 +471,19 @@ def _check_rebound(current: float, state: dict, cost_basis: float | None = None)
 
     drop_total = trend_high - trend_low
     drop_pct = drop_total / trend_high * 100
+    if drop_total > 0 and rebound >= drop_total:
+        progress = "已收复全部跌幅 ✅"
+    elif drop_total > 0:
+        progress = f"已收复 {rebound/drop_total*100:.0f}%"
+    else:
+        progress = ""
 
+    # 成本信息由卡片 header 统一展示, 这里不重复
     lines = [
         f"📈 反弹 {rebound_pct:+.1f}% | {trend_low:.0f}→{current:.0f} (低点回升 ¥{rebound:.0f})",
-        f"   本轮跌幅: {trend_high:.0f}→{trend_low:.0f} ({drop_pct:.1f}%), "
-        f"已收复 {rebound/drop_total*100:.0f}%",
+        f"   本轮跌幅: {trend_high:.0f}→{trend_low:.0f} ({drop_pct:.1f}%)"
+        + (f", {progress}" if progress else ""),
     ]
-    if cost_basis and current < cost_basis:
-        to_cost = cost_basis - current
-        lines.append(f"   距成本线还差 ¥{to_cost:.0f} ({to_cost/cost_basis*100:.1f}%)")
-    elif cost_basis:
-        above_cost = (current - cost_basis) / cost_basis * 100
-        lines.append(f"   已回到成本线上方 (+{above_cost:.1f}%) ✅")
 
     return {
         "type": "rebound",
@@ -1039,10 +1040,13 @@ def _format_card(
     change_pct = price_info["change_pct"]
     lines.append(f"💰 {price_info['price']:.2f}元/克 ({change_pct:+.2f}%)")
 
-    # ── 成本/盈亏 (compact) ──
+    # ── 成本/盈亏 (破成本线时同行警示, 全卡片成本只说这一次) ──
     if cost_basis:
         pnl = (price_info["price"] - cost_basis) / cost_basis * 100
-        lines.append(f"📊 成本¥{cost_basis:.0f} | 浮{'盈' if pnl >= 0 else '亏'} {abs(pnl):.1f}%")
+        line = f"📊 成本¥{cost_basis:.0f} | 浮{'盈' if pnl >= 0 else '亏'} {abs(pnl):.1f}%"
+        if pnl < 0:
+            line += " ⚠️ 已破成本线, 注意止损位"
+        lines.append(line)
 
     # ── 趋势摘要: 从告警中提取去重展示 ──
     # 分类告警: 趋势类 (合并到摘要行) vs 事件类 (单独展示)
@@ -1052,7 +1056,6 @@ def _format_card(
     trend_parts = []
     consecutive = alert_by_type.get("consecutive_down")
     peak = alert_by_type.get("peak_drawdown")
-    cost_alert = alert_by_type.get("cost_proximity") or alert_by_type.get("cost_below")
 
     if consecutive:
         # 提取关键数字: "连续N日下跌! X→Y (Z%)"
@@ -1066,11 +1069,6 @@ def _format_card(
     elif change_pct < -0.15 and not trend_parts:
         # 轻微下跌但无连续/回撤告警 — 给个简洁的一日趋势
         lines.append(f"📉 日内走弱 ({price_info['change_pct']:+.2f}%)")
-
-    # 成本告警: 仅首次破成本线时简洁提醒 (不再重复数字)
-    if cost_alert and cost_alert["type"] in ("cost_below",):
-        loss_pct = (cost_basis - price_info["price"]) / cost_basis * 100
-        lines.append(f"⚠️ 已破成本线 (浮亏{loss_pct:.1f}%), 注意止损位")
 
     # ── 频率调整 ──
     if old_level != level:
