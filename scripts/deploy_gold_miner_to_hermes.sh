@@ -12,6 +12,8 @@ if [ -z "$PEM" ] || [ -z "$HOST" ]; then
   CONFIG="$ROOT/data/private/hermes_config.sh"
   if [ -f "$CONFIG" ]; then
     source "$CONFIG"
+    PEM="${PEM:-${HERMES_PEM:-}}"
+    HOST="${HOST:-${HERMES_HOST:-}}"
   fi
 fi
 
