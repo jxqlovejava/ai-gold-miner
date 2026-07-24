@@ -71,6 +71,12 @@ if [[ -f "$ROOT/data/calendar_events.jsonl" ]]; then
 else
   echo "  本地无 data/calendar_events.jsonl，跳过"
 fi
+# 信号快照 (本地 pipeline 产出 → 服务器监控理由引擎读取)
+if [[ -f "$ROOT/data/signal_snapshot.json" ]]; then
+  "${SCP[@]}" "$ROOT/data/signal_snapshot.json" "$HOST:$REMOTE_ROOT/data/signal_snapshot.json"
+else
+  echo "  本地无 data/signal_snapshot.json，跳过 (下次 pipeline 运行后产生)"
+fi
 
 echo "==> 写入默认配置"
 "${SSH[@]}" "$HOST" "test -f '$REMOTE_CFG' || cp '$REMOTE_ROOT/scripts/hermes_gold_miner_config.json' '$REMOTE_CFG'"
