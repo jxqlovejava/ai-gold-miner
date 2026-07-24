@@ -114,6 +114,40 @@ LOG_FILE = Path(os.environ.get(
     str(PROJECT_ROOT / "logs/adaptive_monitor.log"),
 ))
 
+# ═══════════════════════════════════════════════════════════════
+# 机会提醒配置 (止盈/抄底) — 可选 data/private/opportunity_config.yaml 覆盖
+# ═══════════════════════════════════════════════════════════════
+
+OPP_DEFAULTS: dict = {
+    "require_surge": True,          # 止盈是否需要急涨速度条件
+    "breakout_lookback_days": 20,   # N日新高窗口
+    "min_profit_pct": 0.05,         # 浮盈阈值
+    "dip_lookback_days": 20,        # N日低点窗口
+    "key_levels": [921.0, 850.0],   # 元/克; 921≈$4000/oz (USD/CNY≈7.16)
+    "key_level_band_pct": 0.01,     # 关键价位带宽 ±1%
+    "cooldown_take_profit_min": 60,
+    "cooldown_dip_low_min": 60,
+    "realert_move_pct": 0.01,       # 冷却内同向再走1%可再提醒
+    "snapshot_stale_hours": 48,     # 信号快照过期阈值
+}
+OPP_CONFIG_PATH = PROJECT_ROOT / "data/private/opportunity_config.yaml"
+SIGNAL_SNAPSHOT_PATH = PROJECT_ROOT / "data/signal_snapshot.json"
+ORDERS_PATH = PROJECT_ROOT / "data/private/conditional_orders.jsonl"
+
+
+def _load_opp_config() -> dict:
+    """顶部默认值 + 可选 YAML 覆盖 (只覆盖已知键)."""
+    cfg = dict(OPP_DEFAULTS)
+    if OPP_CONFIG_PATH.exists():
+        try:
+            import yaml
+            user_cfg = yaml.safe_load(OPP_CONFIG_PATH.read_text(encoding="utf-8")) or {}
+            if isinstance(user_cfg, dict):
+                cfg.update({k: v for k, v in user_cfg.items() if k in cfg})
+        except Exception:
+            pass
+    return cfg
+
 
 def _now() -> datetime:
     return datetime.now(BEIJING)
@@ -210,6 +244,12 @@ DEFAULT_STATE = {
     "trend_low": None,       # 本次下跌的最低点
     "trend_high": None,      # 下跌起点(阶段高点)
     "prev_change_pct": 0.0,  # 上次检查的涨跌幅
+    # 机会提醒 (止盈/抄底)
+    "tp_alert_at": None,
+    "tp_alert_price": None,
+    "dip_alert_at": None,
+    "dip_alert_price": None,
+    "in_band_levels": [],
 }
 
 
@@ -398,6 +438,8 @@ def _check_surge(current: float, state: dict) -> dict | None:
         direction = "up" if change_pct > 0 else "down"
         return {
             "type": "price_surge",
+            "direction": direction,
+            "change_pct": round(change_pct, 2),
             "message": f"{'📈' if direction == 'up' else '📉'} 价格{'急涨' if direction == 'up' else '急跌'}! "
                        f"{last_price:.0f}→{current:.0f} ({change_pct:+.2f}%)",
             "severity": "CRITICAL" if abs(change_pct) > 1.0 else "HIGH",
@@ -472,6 +514,38 @@ def _update_trend_bookkeeping(current: float, prev_price: float | None, state: d
         if recovery_pct > 2.0:
             state["trend_low"] = None
             state["trend_high"] = None
+
+
+def _rsi(closes: list[float], period: int = 14) -> float | None:
+    """Wilder RSI; 数据不足返回 None."""
+    if len(closes) < period + 1:
+        return None
+    avg_gain = 0.0
+    avg_loss = 0.0
+    for i in range(1, period + 1):
+        d = closes[i] - closes[i - 1]
+        if d >= 0:
+            avg_gain += d
+        else:
+            avg_loss -= d
+    avg_gain /= period
+    avg_loss /= period
+    for i in range(period + 1, len(closes)):
+        d = closes[i] - closes[i - 1]
+        gain = d if d > 0 else 0.0
+        loss = -d if d < 0 else 0.0
+        avg_gain = (avg_gain * (period - 1) + gain) / period
+        avg_loss = (avg_loss * (period - 1) + loss) / period
+    if avg_loss == 0:
+        return 100.0
+    rs = avg_gain / avg_loss
+    return 100.0 - 100.0 / (1.0 + rs)
+
+
+def _ma(closes: list[float], window: int) -> float | None:
+    if len(closes) < window:
+        return None
+    return sum(closes[-window:]) / window
 
 
 # 通知: macOS 桌面通知 (osascript) + Hermes weixin (如已配置)
