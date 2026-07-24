@@ -269,3 +269,73 @@ def test_load_snapshot_zero_active_dims(tmp_path, monkeypatch):
                               "direction_clarity": "mixed"}), encoding="utf-8")
     monkeypatch.setattr(m, "SIGNAL_SNAPSHOT_PATH", p)
     assert m._load_signal_snapshot(_cfg()) is None
+
+
+# ── 冷却/再提醒 ──
+
+def test_cooldown_blocks_within_window():
+    state = {"tp_alert_at": (datetime.now(BEIJING) - timedelta(minutes=30)).isoformat(),
+             "tp_alert_price": 900.0}
+    assert m._opp_cooldown_ok(state, "tp", 905.0, "up", _cfg()) is False
+
+
+def test_cooldown_passes_after_window():
+    state = {"tp_alert_at": (datetime.now(BEIJING) - timedelta(minutes=90)).isoformat(),
+             "tp_alert_price": 900.0}
+    assert m._opp_cooldown_ok(state, "tp", 905.0, "up", _cfg()) is True
+
+
+def test_cooldown_realert_on_further_rise():
+    state = {"tp_alert_at": (datetime.now(BEIJING) - timedelta(minutes=30)).isoformat(),
+             "tp_alert_price": 900.0}
+    # 900→910 = +1.11% ≥ 1% → 再提醒
+    assert m._opp_cooldown_ok(state, "tp", 910.0, "up", _cfg()) is True
+
+
+def test_cooldown_realert_on_further_drop():
+    state = {"dip_alert_at": (datetime.now(BEIJING) - timedelta(minutes=30)).isoformat(),
+             "dip_alert_price": 900.0}
+    # 900→890 = -1.11% → 再提醒
+    assert m._opp_cooldown_ok(state, "dip", 890.0, "down", _cfg()) is True
+
+
+def test_cooldown_first_time_ok():
+    assert m._opp_cooldown_ok({}, "tp", 900.0, "up", _cfg()) is True
+
+
+# ── 告警构造 ──
+
+def test_build_tp_alert_strong():
+    cand = {"lookback": 20, "high_n": 900.0, "profit_pct": 0.062}
+    verdict = {"strength": "strong", "reasons": ["信号快照：多4 空4，方向不明，落袋为安"],
+               "veto_note": ""}
+    alert = m._build_opp_alert("take_profit", cand, verdict, _ev(), 945.0, 890.0)
+    assert alert["type"] == "take_profit_breakout"
+    assert alert["severity"] == "HIGH"
+    assert "机动仓15g" in alert["message"]
+    assert "理由强度: 强" in alert["message"]
+
+
+def test_build_tp_alert_veto():
+    cand = {"lookback": 20, "high_n": 900.0, "profit_pct": 0.062}
+    verdict = {"strength": "veto", "reasons": [], "veto_note": "信号快照：多5空2，方向仍偏多，未触发止盈建议"}
+    alert = m._build_opp_alert("take_profit", cand, verdict, _ev(), 945.0, 890.0)
+    assert alert["type"] == "take_profit_vetoed"
+    assert "未触发止盈建议" in alert["message"]
+
+
+def test_build_dip_alert_resonance():
+    cand = {"broke_low": True, "low_n": 915.0, "lookback": 20, "key_level": 921.0}
+    verdict = {"strength": "strong", "reasons": ["破20日低点与关键价位921共振"], "veto_note": ""}
+    alert = m._build_opp_alert("dip_buy", cand, verdict, _ev(), 918.0, 894.25)
+    assert alert["type"] == "dip_buy_opportunity"
+    assert "共振" in alert["message"]
+    assert "理由强度: 强" in alert["message"]
+
+
+def test_build_dip_alert_key_level_only():
+    cand = {"broke_low": False, "low_n": 800.0, "lookback": 20, "key_level": 850.0}
+    verdict = {"strength": "medium", "reasons": ["信号快照：多4空4"], "veto_note": ""}
+    alert = m._build_opp_alert("dip_buy", cand, verdict, _ev(), 852.0, 894.25)
+    assert "关键价位 850" in alert["message"]
+    assert "理由强度: 中" in alert["message"]

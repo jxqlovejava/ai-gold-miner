@@ -744,6 +744,87 @@ def _evaluate_reason(action: str, candidate: dict, ev: dict, cfg: dict) -> dict:
     return {"strength": strength, "reasons": reasons, "veto_note": ""}
 
 
+def _opp_cooldown_ok(state: dict, prefix: str, current: float, direction: str, cfg: dict) -> bool:
+    """冷却判定: 过冷却期 或 冷却内同向价格再走 realert_move_pct."""
+    last_at = state.get(f"{prefix}_alert_at")
+    if not last_at:
+        return True
+    try:
+        elapsed_min = (_now() - datetime.fromisoformat(last_at)).total_seconds() / 60
+    except (ValueError, TypeError):
+        return True
+    minutes = cfg["cooldown_take_profit_min"] if prefix == "tp" else cfg["cooldown_dip_low_min"]
+    if elapsed_min >= minutes:
+        return True
+    last_price = state.get(f"{prefix}_alert_price")
+    if last_price:
+        move = (current - last_price) / last_price
+        if direction == "up" and move >= cfg["realert_move_pct"]:
+            return True
+        if direction == "down" and move <= -cfg["realert_move_pct"]:
+            return True
+    return False
+
+
+def _build_opp_alert(
+    action: str,
+    candidate: dict,
+    verdict: dict,
+    ev: dict,
+    current: float,
+    cost_basis: float | None,
+) -> dict:
+    """构造机会提醒告警 (含📋理由节). veto 时返回 vetoed 类型."""
+    strength = verdict["strength"]
+    lines: list[str] = []
+
+    if action == "take_profit":
+        if strength == "veto":
+            return {
+                "type": "take_profit_vetoed",
+                "message": f"🔕 急涨破{candidate['lookback']}日新高，但{verdict['veto_note']}",
+                "severity": "INFO",
+            }
+        profit_pct = candidate["profit_pct"] * 100
+        lines.append(
+            f"🎯 止盈机会 | 急涨破{candidate['lookback']}日新高 "
+            f"{candidate['high_n']:.0f}→{current:.2f}，浮盈{profit_pct:+.1f}%"
+        )
+        lines.append("   💡 建议: 卖出机动仓15g的1/3~1/2锁定利润，核心仓不动")
+        lines.append("   📏 纪律: 卖出后若继续新高不追回，等回调再接")
+    else:
+        if strength == "veto":
+            return {
+                "type": "dip_buy_vetoed",
+                "message": f"🔕 价格触及买入区，但{verdict['veto_note']}",
+                "severity": "INFO",
+            }
+        if candidate.get("broke_low") and candidate.get("key_level") is not None:
+            cond = (f"破{candidate['lookback']}日低点 {candidate['low_n']:.0f} "
+                    f"+ 关键价位{candidate['key_level']:.0f}共振")
+        elif candidate.get("broke_low"):
+            cond = f"跌破{candidate['lookback']}日低点 {candidate['low_n']:.0f}"
+        else:
+            cond = f"接近关键价位 {candidate['key_level']:.0f}"
+        lines.append(f"🛒 买入机会 | {cond}，当前 {current:.2f}")
+        lines.append("   💡 建议: 分批低吸(参考活跃条件单)，单品种仓位≤20万上限")
+
+    if verdict["reasons"]:
+        lines.append("   📋 理由(客观事实):")
+        for r in verdict["reasons"]:
+            lines.append(f"   • {r}")
+    if ev.get("active_orders"):
+        lines.append(f"   📑 活跃条件单: {'；'.join(ev['active_orders'][:3])}")
+    label = {"strong": "强", "medium": "中", "weak": "弱"}.get(strength, strength)
+    lines.append(f"   理由强度: {label}")
+
+    return {
+        "type": "take_profit_breakout" if action == "take_profit" else "dip_buy_opportunity",
+        "message": "\n".join(lines),
+        "severity": "HIGH" if strength == "strong" else "MEDIUM",
+    }
+
+
 # 通知: macOS 桌面通知 (osascript) + Hermes weixin (如已配置)
 # 无告警时静默退出, 有告警时多渠道推送
 
@@ -1056,7 +1137,7 @@ def main() -> int:
 
     # 4. 完整检查 (在当前状态下)
     cost_basis = _get_cost_basis()
-    historical = _get_historical(days=30)
+    historical = _get_historical(days=90)
     alerts: list[dict] = []
 
     # 4a. 价格急变 (所有级别都检测, 这是快速通道)
@@ -1091,6 +1172,27 @@ def main() -> int:
     rebound = _check_rebound(current, state, cost_basis)
     if rebound:
         alerts.append(rebound)
+
+    # 4g. 机会提醒 (止盈/抄底) — 触发层 + 理由引擎
+    opp_cfg = _load_opp_config()
+    tp_candidate = _check_take_profit_breakout(current, historical, cost_basis, opp_cfg, surge)
+    dip_candidate = _check_dip_buy_opportunity(current, state, historical, opp_cfg)
+    if tp_candidate or dip_candidate:
+        ev = _gather_evidence(current, historical, opp_cfg)
+        if tp_candidate and _opp_cooldown_ok(state, "tp", current, "up", opp_cfg):
+            verdict = _evaluate_reason("take_profit", tp_candidate, ev, opp_cfg)
+            alerts.append(
+                _build_opp_alert("take_profit", tp_candidate, verdict, ev, current, cost_basis)
+            )
+            state["tp_alert_at"] = _now().isoformat()
+            state["tp_alert_price"] = current
+        if dip_candidate and _opp_cooldown_ok(state, "dip", current, "down", opp_cfg):
+            verdict = _evaluate_reason("dip_buy", dip_candidate, ev, opp_cfg)
+            alerts.append(
+                _build_opp_alert("dip_buy", dip_candidate, verdict, ev, current, cost_basis)
+            )
+            state["dip_alert_at"] = _now().isoformat()
+            state["dip_alert_price"] = current
 
     # 5. 🆕 下跌原因分析 — 检测是否是机构在抛售
     #    价格下跌超阈值时触发, 结果缓存30分钟
