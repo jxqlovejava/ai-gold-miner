@@ -75,6 +75,9 @@ CONSECUTIVE_DOWN_DAYS = 3
 # 日内逆转阈值
 INTRADAY_REVERSAL_PCT = 1.5
 
+# 反弹消息中"本轮跌幅"上下文的最小跌幅 — 低于此值的分钟级抖动不解释
+REBOUND_CONTEXT_MIN_DROP_PCT = 1.0
+
 # 高点回撤检测
 PEAK_DRAWDOWN_WINDOWS = [3, 5, 7, 14]
 PEAK_DRAWDOWN_THRESHOLDS = [
@@ -471,19 +474,21 @@ def _check_rebound(current: float, state: dict, cost_basis: float | None = None)
 
     drop_total = trend_high - trend_low
     drop_pct = drop_total / trend_high * 100
-    if drop_total > 0 and rebound >= drop_total:
-        progress = "已收复全部跌幅 ✅"
-    elif drop_total > 0:
-        progress = f"已收复 {rebound/drop_total*100:.0f}%"
-    else:
-        progress = ""
 
-    # 成本信息由卡片 header 统一展示, 这里不重复
+    # 主行: 低点→现价, 与卡片 💰 行同精度 (2位小数), 只陈述事实
     lines = [
-        f"📈 反弹 {rebound_pct:+.1f}% | {trend_low:.0f}→{current:.0f} (低点回升 ¥{rebound:.0f})",
-        f"   本轮跌幅: {trend_high:.0f}→{trend_low:.0f} ({drop_pct:.1f}%)"
-        + (f", {progress}" if progress else ""),
+        f"📈 低点反弹 +{rebound_pct:.1f}% | {trend_low:.2f} → {current:.2f} (回升 ¥{rebound:.2f})",
     ]
+
+    # 上下文行: 仅真实下跌 (≥阈值) 才解释收复进度; 分钟级微跌不制造噪音
+    if drop_pct >= REBOUND_CONTEXT_MIN_DROP_PCT and drop_total > 0:
+        if rebound >= drop_total:
+            progress = "已收复全部跌幅 ✅"
+        else:
+            progress = f"已收复 {rebound/drop_total*100:.0f}%"
+        lines.append(
+            f"   本轮 {trend_high:.2f} → {trend_low:.2f} 跌 {drop_pct:.1f}%, {progress}"
+        )
 
     return {
         "type": "rebound",

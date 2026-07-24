@@ -11,18 +11,32 @@ def _rebound_state(low=878.0, high=882.0):
 
 
 def test_rebound_full_recovery_wording():
-    # 回升超过跌幅起点 → 不说"已收复247%", 说"已收复全部跌幅"
-    alert = m._check_rebound(888.0, _rebound_state(), 894.0)
+    # 真实下跌 (890→878 = 1.3%) 且回升超过起点 → "已收复全部跌幅"
+    alert = m._check_rebound(890.0, _rebound_state(low=878.0, high=890.0), 894.0)
     assert alert is not None
     assert "已收复全部跌幅" in alert["message"]
-    assert "247%" not in alert["message"]
 
 
 def test_rebound_partial_recovery_percent():
-    # 回升未超过跌幅起点 → 保留百分比 (870→874 反弹0.46%≥0.3%阈值, 收复4/16=25%)
+    # 真实下跌 (886→870 = 1.8%) 回升未收复 → 保留百分比 (870→874 收复4/16=25%)
     alert = m._check_rebound(874.0, _rebound_state(low=870.0, high=886.0), None)
     assert alert is not None
     assert "已收复 25%" in alert["message"]
+
+
+def test_rebound_micro_drop_no_context_line():
+    # 分钟级微跌 (882→878 = 0.45% < 1%) → 只有主行, 不解释"本轮跌幅"
+    alert = m._check_rebound(887.59, _rebound_state(), 894.0)
+    assert alert is not None
+    assert "本轮" not in alert["message"]
+    assert "已收复" not in alert["message"]
+
+
+def test_rebound_price_precision_matches_card():
+    # 现价 2 位小数, 与卡片 💰 行一致 (不再出现 888 vs 887.59)
+    alert = m._check_rebound(887.59, _rebound_state(), 894.0)
+    assert "887.59" in alert["message"]
+    assert "→ 888" not in alert["message"]
 
 
 def test_rebound_no_cost_lines():
