@@ -154,3 +154,118 @@ def test_dip_no_condition_no_trigger():
 def test_dip_short_history_skipped():
     state = {"in_band_levels": []}
     assert m._check_dip_buy_opportunity(870.0, state, _hist([880.0] * 5), _cfg()) is None
+
+
+# ── 理由引擎 ──
+
+def _snap(bull, bear, clarity):
+    return {"bull": bull, "bear": bear, "clarity": clarity,
+            "age_h": 2.0, "timestamp": "2026-07-24T09:30:00+08:00"}
+
+
+def _ev(snapshot=None, rsi=55.0, events=None, orders=None):
+    return {"rsi14": rsi, "ma20": 890.0, "ma60": 885.0,
+            "snapshot": snapshot, "events": events or [],
+            "active_orders": orders or []}
+
+
+def test_reason_tp_mixed_is_strong():
+    v = m._evaluate_reason("take_profit", {"lookback": 20, "high_n": 900.0, "profit_pct": 0.06},
+                           _ev(snapshot=_snap(4, 4, "mixed")), _cfg())
+    assert v["strength"] == "strong"
+    assert any("方向不明" in r for r in v["reasons"])
+
+
+def test_reason_tp_bearish_is_strong():
+    v = m._evaluate_reason("take_profit", {"lookback": 20, "high_n": 900.0, "profit_pct": 0.06},
+                           _ev(snapshot=_snap(2, 5, "bearish")), _cfg())
+    assert v["strength"] == "strong"
+    assert any("信号转空" in r for r in v["reasons"])
+
+
+def test_reason_tp_bullish_veto():
+    v = m._evaluate_reason("take_profit", {"lookback": 20, "high_n": 900.0, "profit_pct": 0.06},
+                           _ev(snapshot=_snap(5, 2, "bullish"), rsi=55.0), _cfg())
+    assert v["strength"] == "veto"
+    assert "未触发止盈建议" in v["veto_note"]
+
+
+def test_reason_tp_bullish_but_overbought_is_medium():
+    v = m._evaluate_reason("take_profit", {"lookback": 20, "high_n": 900.0, "profit_pct": 0.06},
+                           _ev(snapshot=_snap(5, 2, "bullish"), rsi=75.0), _cfg())
+    assert v["strength"] == "medium"
+    assert any("超买" in r for r in v["reasons"])
+
+
+def test_reason_tp_missing_snapshot_is_weak():
+    v = m._evaluate_reason("take_profit", {"lookback": 20, "high_n": 900.0, "profit_pct": 0.06},
+                           _ev(snapshot=None), _cfg())
+    assert v["strength"] == "weak"
+
+
+def test_reason_dip_bearish_veto():
+    cand = {"broke_low": True, "low_n": 880.0, "lookback": 20, "key_level": None}
+    v = m._evaluate_reason("dip_buy", cand, _ev(snapshot=_snap(1, 5, "bearish")), _cfg())
+    assert v["strength"] == "veto"
+    assert "支撑未确认" in v["veto_note"]
+
+
+def test_reason_dip_resonance_oversold_strong():
+    cand = {"broke_low": True, "low_n": 880.0, "lookback": 20, "key_level": 921.0}
+    v = m._evaluate_reason("dip_buy", cand, _ev(snapshot=_snap(4, 4, "mixed"), rsi=28.0), _cfg())
+    assert v["strength"] == "strong"
+    assert any("共振" in r for r in v["reasons"])
+    assert any("超卖" in r for r in v["reasons"])
+
+
+def test_reason_dip_single_condition_medium():
+    cand = {"broke_low": True, "low_n": 880.0, "lookback": 20, "key_level": None}
+    v = m._evaluate_reason("dip_buy", cand, _ev(snapshot=_snap(4, 4, "mixed"), rsi=45.0), _cfg())
+    assert v["strength"] == "medium"
+
+
+def test_reason_event_caution_on_dip():
+    cand = {"broke_low": False, "low_n": 800.0, "lookback": 20, "key_level": 850.0}
+    events = [{"name": "FOMC决议", "time": "07-25 02:00", "impact": "high"}]
+    v = m._evaluate_reason("dip_buy", cand, _ev(snapshot=_snap(4, 4, "mixed"), events=events), _cfg())
+    assert any("不接飞刀" in r for r in v["reasons"])
+
+
+# ── 快照读取 ──
+
+def test_load_snapshot_missing_file(tmp_path, monkeypatch):
+    monkeypatch.setattr(m, "SIGNAL_SNAPSHOT_PATH", tmp_path / "nope.json")
+    assert m._load_signal_snapshot(_cfg()) is None
+
+
+def test_load_snapshot_stale(tmp_path, monkeypatch):
+    import json as _json
+    old = (datetime.now(BEIJING) - timedelta(hours=72)).isoformat()
+    p = tmp_path / "snap.json"
+    p.write_text(_json.dumps({"timestamp": old, "bull_dims": 4, "bear_dims": 4,
+                              "direction_clarity": "mixed"}), encoding="utf-8")
+    monkeypatch.setattr(m, "SIGNAL_SNAPSHOT_PATH", p)
+    assert m._load_signal_snapshot(_cfg()) is None
+
+
+def test_load_snapshot_fresh(tmp_path, monkeypatch):
+    import json as _json
+    fresh = (datetime.now(BEIJING) - timedelta(hours=2)).isoformat()
+    p = tmp_path / "snap.json"
+    p.write_text(_json.dumps({"timestamp": fresh, "bull_dims": 5, "bear_dims": 2,
+                              "direction_clarity": "bullish"}), encoding="utf-8")
+    monkeypatch.setattr(m, "SIGNAL_SNAPSHOT_PATH", p)
+    snap = m._load_signal_snapshot(_cfg())
+    assert snap is not None
+    assert snap["clarity"] == "bullish"
+    assert snap["bull"] == 5
+
+
+def test_load_snapshot_zero_active_dims(tmp_path, monkeypatch):
+    import json as _json
+    fresh = (datetime.now(BEIJING) - timedelta(hours=1)).isoformat()
+    p = tmp_path / "snap.json"
+    p.write_text(_json.dumps({"timestamp": fresh, "bull_dims": 0, "bear_dims": 0,
+                              "direction_clarity": "mixed"}), encoding="utf-8")
+    monkeypatch.setattr(m, "SIGNAL_SNAPSHOT_PATH", p)
+    assert m._load_signal_snapshot(_cfg()) is None

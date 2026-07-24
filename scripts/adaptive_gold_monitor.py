@@ -612,6 +612,138 @@ def _check_dip_buy_opportunity(
     }
 
 
+def _load_signal_snapshot(cfg: dict) -> dict | None:
+    """读取 pipeline 信号快照; 缺失/损坏/超时/无有效维度 → None."""
+    if not SIGNAL_SNAPSHOT_PATH.exists():
+        return None
+    try:
+        snap = json.loads(SIGNAL_SNAPSHOT_PATH.read_text(encoding="utf-8"))
+        ts = datetime.fromisoformat(snap["timestamp"])
+        age_h = (_now() - ts).total_seconds() / 3600
+        if age_h > cfg["snapshot_stale_hours"]:
+            return None
+        bull = int(snap.get("bull_dims", 0))
+        bear = int(snap.get("bear_dims", 0))
+        if bull + bear == 0:
+            return None
+        return {
+            "bull": bull,
+            "bear": bear,
+            "clarity": snap.get("direction_clarity", "mixed"),
+            "age_h": age_h,
+            "timestamp": snap["timestamp"],
+        }
+    except (OSError, json.JSONDecodeError, KeyError, ValueError):
+        return None
+
+
+def _gather_evidence(current: float, historical: list[dict], cfg: dict) -> dict:
+    """理由引擎证据包: 技术面 + 信号快照 + 48h事件 + 活跃条件单. 各源失败独立降级."""
+    closes = [p["close"] for p in historical] + [current]
+    ev: dict = {
+        "rsi14": _rsi(closes),
+        "ma20": _ma(closes, 20),
+        "ma60": _ma(closes, 60),
+        "snapshot": _load_signal_snapshot(cfg),
+        "events": [],
+        "active_orders": [],
+    }
+    try:
+        from gold_miner.data.calendar import EventCalendar, EventImpact
+        cal = EventCalendar()
+        ev["events"] = [
+            {"name": e.name, "time": e.beijing_time_str, "impact": e.impact.value}
+            for e in cal.get_upcoming(days=2, min_impact=EventImpact.MEDIUM)[:3]
+        ]
+    except Exception:
+        pass
+    try:
+        if ORDERS_PATH.exists():
+            for line in ORDERS_PATH.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                o = json.loads(line)
+                if o.get("status") != "active":
+                    continue
+                if o.get("type") == "oco" and o.get("oco"):
+                    tp = o["oco"]["take_profit"]["price"]
+                    sl = o["oco"]["stop_loss"]["price"]
+                    ev["active_orders"].append(f"OCO止盈{tp:.0f}/止损{sl:.0f}")
+                else:
+                    ev["active_orders"].append(
+                        f"{o.get('direction', '?')}@{o.get('trigger_price', 0):.0f}"
+                    )
+    except Exception:
+        pass
+    return ev
+
+
+def _evaluate_reason(action: str, candidate: dict, ev: dict, cfg: dict) -> dict:
+    """理由强度判定: strong/medium/weak/veto."""
+    snap = ev.get("snapshot")
+    rsi = ev.get("rsi14")
+    events = ev.get("events") or []
+
+    if snap is None:
+        return {
+            "strength": "weak",
+            "reasons": ["无近期信号快照(>48h或未运行pipeline)，理由弱，请自行确认"],
+            "veto_note": "",
+        }
+
+    bull, bear, clarity = snap["bull"], snap["bear"], snap["clarity"]
+    snap_line = f"信号快照({snap['timestamp'][5:16].replace('T', ' ')})：多{bull}维 空{bear}维"
+    reasons: list[str] = []
+
+    if action == "take_profit":
+        if clarity == "bullish" and (rsi is None or rsi < 70):
+            return {
+                "strength": "veto",
+                "reasons": [],
+                "veto_note": f"{snap_line}，方向仍偏多，未触发止盈建议",
+            }
+        if clarity == "mixed":
+            reasons.append(f"{snap_line}，方向不明，落袋为安")
+            strength = "strong"
+        elif clarity == "bearish":
+            reasons.append(f"{snap_line}，信号转空，反弹止盈")
+            strength = "strong"
+        else:
+            reasons.append(f"{snap_line}，偏多但超买")
+            strength = "medium"
+        if rsi is not None and rsi >= 70:
+            reasons.append(f"RSI(14)={rsi:.0f}，超买区")
+        if events:
+            names = "、".join(e["name"] for e in events[:2])
+            reasons.append(f"48h内事件：{names}，数据前落袋符合军规")
+        return {"strength": strength, "reasons": reasons, "veto_note": ""}
+
+    # action == "dip_buy"
+    if clarity == "bearish":
+        return {
+            "strength": "veto",
+            "reasons": [],
+            "veto_note": f"{snap_line}，信号仍偏空，支撑未确认，未触发买入建议",
+        }
+    resonance = bool(candidate.get("broke_low")) and candidate.get("key_level") is not None
+    if resonance and rsi is not None and rsi < 30:
+        reasons.append(
+            f"破{candidate['lookback']}日低点与关键价位{candidate['key_level']:.0f}共振"
+        )
+        reasons.append(f"RSI(14)={rsi:.0f}，超卖区")
+        strength = "strong"
+    else:
+        strength = "medium"
+        reasons.append(snap_line)
+        if rsi is not None and rsi < 30:
+            reasons.append(f"RSI(14)={rsi:.0f}，超卖区")
+    if events:
+        names = "、".join(e["name"] for e in events[:2])
+        reasons.append(f"⚠️ 48h内事件：{names}，数据前不接飞刀，建议等落地")
+    return {"strength": strength, "reasons": reasons, "veto_note": ""}
+
+
 # 通知: macOS 桌面通知 (osascript) + Hermes weixin (如已配置)
 # 无告警时静默退出, 有告警时多渠道推送
 
