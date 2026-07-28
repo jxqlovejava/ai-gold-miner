@@ -324,6 +324,23 @@ class EventCalendar:
         def _missing_months(etype: str, expected: set[int]) -> set[int]:
             return expected - existing.get(etype, set())
 
+        def _supplement_by_name(
+            evs: list[CalendarEvent],
+            gen,
+            name_prefix: str,
+            yr: int,
+        ) -> None:
+            """按事件名称补全缺失月份，避免同月同名重复."""
+            _ = name_prefix  # 保留参数用于可读性
+            existing_names = {
+                (e.name, e.scheduled_at.month)
+                for e in evs
+            }
+            for candidate in gen(yr):
+                key = (candidate.name, candidate.scheduled_at.month)
+                if key not in existing_names:
+                    evs.append(candidate)
+
         # ---- NFP (每月第一个周五) ----
         nfp_missing = _missing_months("nfp", set(range(1, 13)))
         if nfp_missing:
@@ -416,6 +433,30 @@ class EventCalendar:
         for e in all_jobless:
             if e.scheduled_at.date() not in existing_jobless_dates:
                 events.append(e)
+
+        # ---- 美国谘商会消费者信心 (每月最后一个周二, MEDIUM) ----
+        _supplement_by_name(events, EventCalendar._generate_us_consumer_confidence_events,
+                            "美国谘商会消费者信心指数", year)
+
+        # ---- 里奇蒙德联储制造业 (每月第4个周二, MEDIUM) ----
+        _supplement_by_name(events, EventCalendar._generate_richmond_fed_manufacturing_events,
+                            "美国里奇蒙德联储制造业指数", year)
+
+        # ---- FHFA房价指数 (每月最后一个周二, MEDIUM) ----
+        _supplement_by_name(events, EventCalendar._generate_housing_price_indices_events,
+                            "美国FHFA房价指数月率", year)
+
+        # ---- S&P/CS 20城房价指数 (每月最后一个周二, MEDIUM) ----
+        _supplement_by_name(events, EventCalendar._generate_housing_price_indices_events,
+                            "美国S&P/CS20座大城市房价指数年率", year)
+
+        # ---- 商品贸易帐初值 (每月约26日, MEDIUM) ----
+        _supplement_by_name(events, EventCalendar._generate_goods_trade_balance_events,
+                            "美国商品贸易帐(初值)", year)
+
+        # ---- 密歇根消费者信心初值 (每月第2个周五, MEDIUM) ----
+        _supplement_by_name(events, EventCalendar._generate_michigan_sentiment_events,
+                            "美国密歇根大学消费者信心指数初值", year)
 
     def check_event_outcome(self, event_name: str, actual: str, forecast: str) -> None:
         """更新事件的实际结果."""
@@ -1237,6 +1278,139 @@ class EventCalendar:
         return events
 
     # ------------------------------------------------------------------
+    # 二级美国经济事件生成器（消费者信心、制造业调查、贸易帐、房价等）
+    # 注：这些事件的日期为推算值，实际发布日期可能因节假日微调±1天
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _nth_weekday_of_month(year: int, month: int, weekday: int, n: int) -> datetime:
+        """月份内第 n 个 weekday (0=Mon) 的 date."""
+        first_day = datetime(year, month, 1)
+        days_until = (weekday - first_day.weekday()) % 7
+        day = 1 + days_until + 7 * (n - 1)
+        return datetime(year, month, day)
+
+    @staticmethod
+    def _last_weekday_of_month(year: int, month: int, weekday: int) -> datetime:
+        """月份内最后一个 weekday (0=Mon) 的 date."""
+        if month == 12:
+            last_day = datetime(year, 12, 31)
+        else:
+            last_day = datetime(year, month + 1, 1) - timedelta(days=1)
+        days_back = (last_day.weekday() - weekday) % 7
+        return last_day - timedelta(days=days_back)
+
+    @staticmethod
+    def _generate_us_consumer_confidence_events(year: int) -> list[CalendarEvent]:
+        """美国谘商会消费者信心指数 — 每月最后一个周二 10:00 ET.
+        影响: MEDIUM (消费信心→消费支出预期→经济预期)
+        """
+        events: list[CalendarEvent] = []
+        for month in range(1, 13):
+            dt = EventCalendar._last_weekday_of_month(year, month, 1)  # 1=Tuesday
+            dt = dt.replace(hour=10, minute=0, tzinfo=_et_offset(dt))
+            events.append(CalendarEvent(
+                name="美国谘商会消费者信心指数",
+                event_type=EventType.PMI,
+                scheduled_at=dt,
+                impact=EventImpact.MEDIUM,
+                source="Conference Board (approx.)",
+                description="谘商会消费者信心指数，反映消费者对经济/就业/收入的预期（推算）",
+            ))
+        return events
+
+    @staticmethod
+    def _generate_richmond_fed_manufacturing_events(year: int) -> list[CalendarEvent]:
+        """里奇蒙德联储制造业指数 — 每月第4个周二 10:00 ET.
+        影响: MEDIUM (地区制造业景气指标)
+        """
+        events: list[CalendarEvent] = []
+        for month in range(1, 13):
+            dt = EventCalendar._nth_weekday_of_month(year, month, 1, 4)  # 1=Tuesday, 4th
+            dt = dt.replace(hour=10, minute=0, tzinfo=_et_offset(dt))
+            events.append(CalendarEvent(
+                name="美国里奇蒙德联储制造业指数",
+                event_type=EventType.PMI,
+                scheduled_at=dt,
+                impact=EventImpact.MEDIUM,
+                source="Richmond Fed (approx.)",
+                description="里奇蒙德联储制造业指数，反映美东中部地区制造业景气（推算）",
+            ))
+        return events
+
+    @staticmethod
+    def _generate_housing_price_indices_events(year: int) -> list[CalendarEvent]:
+        """房价指数 — FHFA + S&P/Case-Shiller 每月最后一个周二 09:00 ET.
+        两个指数同日发布。
+        影响: MEDIUM (房价→财富效应→通胀/消费)
+        """
+        events: list[CalendarEvent] = []
+        for month in range(1, 13):
+            dt = EventCalendar._last_weekday_of_month(year, month, 1)  # 1=Tuesday
+            dt = dt.replace(hour=9, minute=0, tzinfo=_et_offset(dt))
+            events.append(CalendarEvent(
+                name="美国FHFA房价指数月率",
+                event_type=EventType.PMI,
+                scheduled_at=dt,
+                impact=EventImpact.MEDIUM,
+                source="FHFA (approx.)",
+                description="联邦住房金融局房价指数月度环比（推算）",
+            ))
+            events.append(CalendarEvent(
+                name="美国S&P/CS20座大城市房价指数年率",
+                event_type=EventType.PMI,
+                scheduled_at=dt,
+                impact=EventImpact.MEDIUM,
+                source="S&P/Case-Shiller (approx.)",
+                description="标普/凯斯席勒20城市房价指数同比（推算）",
+            ))
+        return events
+
+    @staticmethod
+    def _generate_goods_trade_balance_events(year: int) -> list[CalendarEvent]:
+        """商品贸易帐初值 — 每月约25-28日 08:30 ET.
+        实际发布日期为该月倒数第3-5个工作日（此处推算取26日作为近似）。
+        影响: MEDIUM (贸易逆差→GDP核算→汇率)
+        """
+        events: list[CalendarEvent] = []
+        for month in range(1, 13):
+            # 取当月26日，如逢周末则前移至前一个工作日
+            dt = datetime(year, month, 26, 8, 30)
+            if dt.weekday() >= 5:  # 周末
+                dt -= timedelta(days=dt.weekday() - 4)  # 回退到周五
+            dt = dt.replace(tzinfo=_et_offset(dt))
+            events.append(CalendarEvent(
+                name="美国商品贸易帐(初值)",
+                event_type=EventType.PMI,
+                scheduled_at=dt,
+                impact=EventImpact.MEDIUM,
+                source="Census Bureau (approx.)",
+                description="月度商品贸易逆差初值（推算约26日）",
+            ))
+        return events
+
+    @staticmethod
+    def _generate_michigan_sentiment_events(year: int) -> list[CalendarEvent]:
+        """密歇根消费者信心指数 — 每月第2个周五 10:00 ET.
+        初值(Fri, week 2) + 终值(Fri, last week or next month)。
+        此处仅生成初值，终值覆盖在下一个月的初值附近。
+        影响: MEDIUM (消费者情绪→消费预期)
+        """
+        events: list[CalendarEvent] = []
+        for month in range(1, 13):
+            dt = EventCalendar._nth_weekday_of_month(year, month, 4, 2)  # 4=Friday, 2nd
+            dt = dt.replace(hour=10, minute=0, tzinfo=_et_offset(dt))
+            events.append(CalendarEvent(
+                name="美国密歇根大学消费者信心指数初值",
+                event_type=EventType.PMI,
+                scheduled_at=dt,
+                impact=EventImpact.MEDIUM,
+                source="University of Michigan (approx.)",
+                description="密歇根消费者信心指数月度初值（推算第2个周五）",
+            ))
+        return events
+
+    # ------------------------------------------------------------------
     # 回退：无数据源的动态推算
     # ------------------------------------------------------------------
 
@@ -1322,6 +1496,13 @@ class EventCalendar:
                 source="S&P Global / ISM (approx.)",
                 description="服务业景气度指标（推算日期）",
             ))
+
+        # ---- 美国二级事件 ----
+        events.extend(EventCalendar._generate_us_consumer_confidence_events(year))
+        events.extend(EventCalendar._generate_richmond_fed_manufacturing_events(year))
+        events.extend(EventCalendar._generate_housing_price_indices_events(year))
+        events.extend(EventCalendar._generate_goods_trade_balance_events(year))
+        events.extend(EventCalendar._generate_michigan_sentiment_events(year))
 
         # ---- 欧洲事件 ----
         events.extend(EventCalendar._generate_ecb_events(year))
