@@ -255,7 +255,8 @@
 
 ### 工具路径
 - 优先使用 web-access skill 的 CDP 浏览器访问一手来源官网
-- 一手官网不可达时，用 WebSearch 定位官方发布页面，再用 WebFetch/curl 读取
+- 获取一手官网页面时：优先用 `ctx_fetch_and_index(url, source)` 获取并索引页面，再用 `ctx_search(queries: [...])` 查询关键内容；或在 `ctx_execute` 中用代码解析提取数据（数据不进对话，减少上下文消耗）
+- 若 context-mode 未拦截（无"redirected"提示），可用 WebFetch 直接获取，或 curl 在 Bash 中读取提取
 - 严禁仅依赖搜索结果摘要就写入分析或交易建议
 
 ### 匿名源与源独立性规则（2026-07-22 新增）
