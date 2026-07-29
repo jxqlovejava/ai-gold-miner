@@ -516,6 +516,58 @@ def _check_rebound(current: float, state: dict, cost_basis: float | None = None)
     }
 
 
+# ═══════════════════════════════════════════════════════════════
+# 进行中高影响事件检测
+# ═══════════════════════════════════════════════════════════════
+
+def _check_ongoing_events() -> list[dict]:
+    """检查是否有正在进行中的高/极影响宏观事件 (FOMC/CPI/PCE/非农等).
+
+    窗口: 事件时间前后 N 小时, extreme 事件 ±2h, high 事件 ±1h.
+    用于 main() 中触发推送, 确保 Hermes cron 在重大数据发布时通知到微信.
+    """
+    try:
+        from gold_miner.data.calendar import EventCalendar, EventImpact
+
+        cal = EventCalendar()
+        now = datetime.now(BEIJING)  # 北京时间用于比较
+        events: list[dict] = []
+
+        for e in cal.events:
+            if not e.scheduled_at:
+                continue
+            # 北京时间差值
+            delta_h = abs((e.scheduled_at - now).total_seconds() / 3600)
+            # 窗口: extreme ±2h, high ±1h, 其余跳过
+            if e.impact == EventImpact.EXTREME:
+                window = 2.0
+            elif e.impact == EventImpact.HIGH:
+                window = 1.0
+            else:
+                continue
+            if delta_h > window:
+                continue
+
+            from gold_miner.data.calendar_time_rules import dual_clock_str
+
+            clock = dual_clock_str(e.scheduled_at)
+            when = "即将" if e.scheduled_at > now else "正在进行"
+            # events 已有 actual → 已有结果, 标"结果已出"
+            result_tag = " · 结果已出 ✓" if e.actual else ""
+            events.append({
+                "type": "ongoing_event",
+                "message": (
+                    f"📅 {when}: {e.name} | {clock}{result_tag}"
+                ),
+                "severity": "HIGH",
+                "_event_name": e.name,
+                "_impact": e.impact.value,
+            })
+        return events
+    except Exception:
+        return []
+
+
 def _update_trend_bookkeeping(current: float, prev_price: float | None, state: dict) -> None:
     """维护反弹检测所需的趋势状态.
 
@@ -1223,6 +1275,12 @@ def main() -> int:
             )
             state["dip_alert_at"] = _now().isoformat()
             state["dip_alert_price"] = current
+
+    # 4h. 进行中高影响宏观事件 (FOMC/CPI/PCE/非农等)
+    # 每次完整检查都运行, 确保重大数据发布时推送通知到微信
+    ongoing_events = _check_ongoing_events()
+    for evt in ongoing_events:
+        alerts.append(evt)
 
     # 5. 🆕 下跌原因分析 — 检测是否是机构在抛售
     #    价格下跌超阈值时触发, 结果缓存30分钟
