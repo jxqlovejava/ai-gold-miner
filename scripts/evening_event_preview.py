@@ -109,16 +109,16 @@ def _get_tonight_events() -> list[dict]:
                     "description": e.description[:100] if e.description else "",
                 })
 
-        # 活跃 Monitor
+        # 活跃 Monitor — 只取名称, 精简展示 (触发条件不在推送中展开)
         monitors = cal.get_active_monitors()
         for m in monitors:
             events.append({
-                "name": f"📡 {m.name}",
+                "name": m.name.replace("观测: ", ""),
                 "time_bj": "—",
                 "time_et": "—",
                 "impact": "monitor",
-                "icon": "📡",
-                "description": (m.trigger_condition or "")[:100],
+                "icon": "",
+                "description": "",
             })
 
     except Exception:
@@ -158,47 +158,35 @@ def main() -> int:
     price_info = _fetch_price_jd()
     portfolio = _get_portfolio_snapshot()
 
-    # ── 格式化 ──
-    lines = [
-        f"🌙 今晚事件预告 | {now.strftime('%m/%d %H:%M')}",
-        f"━━━━━━━━━━━━━━━━━━━",
-    ]
+    # ── 格式化 (精简版: 少图标·少行·紧凑) ──
+    lines = [f"🌙 今晚事件预告 · {now.strftime('%m/%d')}"]
 
-    if price_info:
-        lines.append(f"💰 积存金: ¥{price_info['price']:.2f} ({price_info['change_pct']:+.2f}%)")
-    if portfolio:
-        lines.append(f"📦 持仓: {portfolio}")
-    lines.append("")
+    price_str = f"¥{price_info['price']:.2f} ({price_info['change_pct']:+.2f}%)" if price_info else ""
+    port_str = f"持仓 {portfolio}" if portfolio else ""
+    summary = " | ".join(x for x in [price_str, port_str] if x)
+    if summary:
+        lines.append(summary)
 
     # 分类事件
     data_events = [e for e in events if e["impact"] != "monitor"]
     monitor_events = [e for e in events if e["impact"] == "monitor"]
 
     if data_events:
-        lines.append("📅 今晚数据/事件 (18:00~次日06:00 BJT):")
-        for e in data_events:
-            lines.append(
-                f"  {e['icon']} {e['time_bj']} BJT ({e['time_et']}) | {e['name']}"
-            )
-            if e.get("description"):
-                lines.append(f"     {e['description']}")
         lines.append("")
+        lines.append("📅 今晚数据")
+        for e in data_events:
+            lines.append(f"  {e['time_bj']} BJT | {e['name']}")
 
     if monitor_events:
-        lines.append("📡 活跃监控条件:")
-        for m in monitor_events[:5]:
-            lines.append(f"  {m['name']}")
-            if m.get("description"):
-                lines.append(f"     {m['description']}")
         lines.append("")
+        lines.append("📡 关注信号")
+        for m in monitor_events[:3]:
+            lines.append(f"  · {m['name']}")
 
     lines.extend([
-        "💡 提醒:",
-        "• 重大数据前检查条件单是否合理",
-        "• r004: 数据前2小时不新建重仓(>10%)",
-        "• 盈亏超过阈值及时调整OCO",
         "",
-        f"🤖 自动推送 · {now.strftime('%H:%M')}",
+        "💡 数据前不重仓(r004) · 条件单守门员",
+        f"🤖 {now.strftime('%H:%M')}",
     ])
 
     card = "\n".join(lines)
