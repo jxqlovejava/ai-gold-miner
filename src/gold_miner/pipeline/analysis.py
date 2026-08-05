@@ -1467,6 +1467,61 @@ class AnalysisPipeline:
         if rationale:
             print(f"\n  📋 决策理由: {rationale}")
 
+        # 散户情绪温度计 (市场先生模型, 2026-08-05 新增)
+        # 散户行为是反指非跟随: 用信号代理指标判断散户当前倾向
+        retail_gauge = self._assess_retail_thermometer(result)
+        if retail_gauge:
+            print(f"\n  🌡️ 散户情绪温度计: {retail_gauge}")
+
+    def _assess_retail_thermometer(self, result: AnalysisResult) -> str:
+        """市场先生·散户情绪温度计 — 散户行为是反指非跟随.
+
+        用信号代理指标推断散户当前倾向，作为决策的「情绪温度」读数。
+        结合 CLAUDE.md 纪律: 散户落袋/恐高 → 中继(别跟随卖);
+        散户追高/抢筹 → 顶部特征(警惕); 散户恐慌割肉 → 接近底部(关注加仓).
+
+        Returns:
+            温度计读数描述; 数据不足时返回空字符串(不强制输出).
+        """
+        bundle = result.bundle
+        if bundle is None:
+            return ""
+
+        # 代理指标: 情绪面方向、聪明钱(COT)方向、投行共识
+        def _score_dim(name: str) -> float | None:
+            sigs = bundle.by_dimension(name) if hasattr(bundle, "by_dimension") else []
+            if not sigs:
+                return None
+            return sum(s.score for s in sigs) / len(sigs)
+
+        sentiment = _score_dim("sentiment")
+        smart = _score_dim("smart_money")
+        # 事件/消息面作为散户关注热度的代理
+        news = _score_dim("news")
+
+        if sentiment is None:
+            return "数据不足，本次跳过"
+
+        # 散户追高信号: 情绪面强(>0.15) + 聪明钱偏空(<-0.1) + 消息面热 → 过热
+        if sentiment > 0.15 and (smart is not None and smart < -0.1):
+            return (
+                f"散户偏热 🔥 (情绪面 {sentiment:+.2f} vs 聪明钱 {smart:+.2f}) — "
+                f"情绪面热但管理基金在减仓，警惕追高；配合投行看空(7家)属顶部特征，"
+                f"如持有可考虑纪律线减仓，不建议新追"
+            )
+        # 散户落袋/恐高: 情绪面偏弱 + 聪明钱偏多 + 价格新高 → 中继
+        if sentiment < 0 and (smart is not None and smart > 0.1):
+            return (
+                f"散户落袋/恐高 ❄️ (情绪面 {sentiment:+.2f} vs 聪明钱 {smart:+.2f}) — "
+                f"散户犹豫但机构资金流入，上涨驱动仍在，别跟随卖，让 ATR 线决定"
+            )
+        # 中间态
+        return (
+            f"中性 (情绪面 {sentiment:+.2f}" +
+            (f" vs 聪明钱 {smart:+.2f}" if smart is not None else "") +
+            ") — 散户行为分歧，信号弱，以驱动链+纪律线为准"
+        )
+
     def _print_risk_check(self, result: AnalysisResult) -> None:
         if result.final_decision.get("risk_override"):
             print(f"\n  ⚠️ 风控干预: {result.final_decision['risk_override']}")
