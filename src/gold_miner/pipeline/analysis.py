@@ -1394,6 +1394,9 @@ class AnalysisPipeline:
             instrument=instrument_label,
             current_price=result.current_price,
         )
+
+        # ATR 移动止盈 (r025) — 用积存金实时数据动态计算，覆盖固定百分比止损位
+        self._inject_atr_trailing_stop(result)
         print()
         print(DashboardFormatter.format(result.trade_decision))
 
@@ -1417,6 +1420,69 @@ class AnalysisPipeline:
     # ------------------------------------------------------------------
     # 辅助方法
     # ------------------------------------------------------------------
+
+    def _inject_atr_trailing_stop(self, result: AnalysisResult) -> None:
+        """用积存金实时数据动态计算 ATR 移动止盈位 (r025), 覆盖固定百分比止损.
+
+        之前 dashboard 的止损位是 current_price × 0.97 的固定百分比,
+        不随新高上移。这里调用 ATRTrailingStop 用积存金历史计算:
+          止损位 = max(持仓期最高价 - 2.5×14日ATR, 净保本价)
+        使 scan 决策输出真正体现 ATR 动态止损。
+
+        失败时静默降级为原固定百分比止损 (不阻断分析).
+        """
+        try:
+            from gold_miner.strategy.trailing_stop import ATRTrailingStop
+            from gold_miner.data.jd_accumulation_gold import JdAccumulationGoldFetcher
+
+            # 1. 积存金历史 (用户实际交易品种)
+            jd = JdAccumulationGoldFetcher(bank="MS")
+            df = jd.fetch(days=90)
+            if df is None or len(df) < 14:
+                return
+
+            # 2. 持仓参数 (portfolio.yaml)
+            cost_basis = None
+            hard_stop = None
+            sell_fee_pct = 0.0
+            portfolio = result.portfolio or {}
+            for pos in (portfolio.get("positions") or {}).values():
+                if isinstance(pos, dict):
+                    cost_basis = pos.get("avg_cost") or cost_basis
+                    hard_stop = pos.get("hard_stop") or hard_stop
+                    sell_fee_pct = float(pos.get("sell_fee_pct") or sell_fee_pct)
+
+            # 3. 计算 ATR 信号
+            ts = ATRTrailingStop(
+                atr_period=14,
+                profit_multiplier=2.5,
+                loss_multiplier=3.0,
+                cost_basis=cost_basis,
+                hard_stop_price=hard_stop,
+                profit_action="reduce_half",
+                loss_action="reduce_half",
+                sell_fee_pct=sell_fee_pct,
+            )
+            signal = ts.calculate(df)
+            stop_price = getattr(signal, "stop_price", None) or 0.0
+            atr_val = getattr(signal, "atr", None) or 0.0
+            triggered = getattr(signal, "triggered", False)
+
+            # 4. 覆盖 dashboard 止损位 + 标注移动止损
+            if stop_price > 0:
+                result.trade_decision.stop_loss = stop_price
+                result.trade_decision.trailing_stop = True
+                result.trade_decision.action_list.append(
+                    f"ATR 移动止盈: 止损位 {stop_price:.2f}"
+                    f"{' (⚠️已触发→减仓一半)' if triggered else ' (未触发, 持有)'}"
+                )
+                print(
+                    f"\n  📐 ATR 移动止盈 (r025): 止损位 {stop_price:.2f} | "
+                    f"14日ATR {atr_val:.2f} | "
+                    f"{'⚠️ 已触发 → 建议减仓一半' if triggered else '未触发, 持有'}"
+                )
+        except Exception as e:
+            logger.warning(f"ATR 移动止盈计算失败, 使用固定百分比止损: {e}")
 
     def _print_agent_debate(self, result: AnalysisResult) -> None:
         bull = result.bull_opinion
