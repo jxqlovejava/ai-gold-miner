@@ -12727,3 +12727,7 @@ $BRRR: possibly delisted; no price data found  (period=5d)
   📈 低点反弹 +0.3% | 919.48 → 922.52 (回升 ¥3.04)
 2026-08-05 23:50:01.103 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
 2026-08-05 23:50:01.238 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 14 条
+2026-08-05 23:56:01.340 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-05 23:56:01.478 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 14 条
+2026-08-06 00:02:02.297 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-06 00:02:02.430 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条

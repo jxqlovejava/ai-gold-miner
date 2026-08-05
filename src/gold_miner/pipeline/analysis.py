@@ -1442,15 +1442,19 @@ class AnalysisPipeline:
                 return
 
             # 2. 持仓参数 (portfolio.yaml)
+            #   注意: portfolio.yaml 的 sell_fee_pct 是百分比数值 (0.4 = 0.4%),
+            #   需除以 100 转为小数 (0.004) 才符合 ATRTrailingStop 的契约 (参考 agent/portfolio.py:103).
             cost_basis = None
             hard_stop = None
             sell_fee_pct = 0.0
+            entry_date = None
             portfolio = result.portfolio or {}
             for pos in (portfolio.get("positions") or {}).values():
                 if isinstance(pos, dict):
                     cost_basis = pos.get("avg_cost") or cost_basis
                     hard_stop = pos.get("hard_stop") or hard_stop
-                    sell_fee_pct = float(pos.get("sell_fee_pct") or sell_fee_pct)
+                    sell_fee_pct = float(pos.get("sell_fee_pct") or sell_fee_pct) / 100
+                    entry_date = pos.get("entry_date") or entry_date
 
             # 3. 计算 ATR 信号
             ts = ATRTrailingStop(
@@ -1462,6 +1466,7 @@ class AnalysisPipeline:
                 profit_action="reduce_half",
                 loss_action="reduce_half",
                 sell_fee_pct=sell_fee_pct,
+                entry_date=entry_date,
             )
             signal = ts.calculate(df)
             stop_price = getattr(signal, "stop_price", None) or 0.0

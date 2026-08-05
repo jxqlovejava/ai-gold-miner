@@ -162,6 +162,95 @@ def test_missing_columns():
         ts.calculate(df)
 
 
+def test_entry_date_filters_historical_high():
+    """建仓日(entry_date)之后的数据中最高价才计入持仓期间最高价.
+
+    回归场景: 全窗口存在建仓前的高价(如 6/15 的 940.69), 但建仓日之后
+    实际高点更低, 移动止盈锚点应取建仓后的最高价.
+    """
+    # 前 3 天高价 150 (建仓前), 建仓日后横盘于 110, 最后创新高 112
+    # 建仓日(索引3)之后须 >=14 条数据, 才能满足 ATR 计算不触发回退
+    prices = [100.0, 150.0, 150.0] + [110.0] * 15 + [112.0]
+    df = _make_df(prices)
+
+    # 建仓日为第 4 天 (索引 3, 即 2026-06-04)
+    entry_date = (datetime(2026, 6, 1) + timedelta(days=3)).strftime("%Y-%m-%d")
+    ts = ATRTrailingStop(
+        atr_period=14,
+        profit_multiplier=2.5,
+        entry_date=entry_date,
+    )
+    signal = ts.calculate(df)
+
+    # 建仓前高价 152 (=150+2) 不应计入; 建仓后最高为 114 (=112+2)
+    assert signal.highest_high == 114.0, (
+        f"持仓期间最高价应从建仓日起算, 得到 {signal.highest_high} 而非 152.0"
+    )
+
+
+def test_entry_date_none_keeps_full_window():
+    """entry_date 为 None 时行为不变, 使用全窗口最高价 (向后兼容)."""
+    prices = [100.0, 150.0, 150.0] + [110.0] * 15 + [112.0]
+    df = _make_df(prices)
+
+    ts = ATRTrailingStop(atr_period=14, profit_multiplier=2.5)
+    signal = ts.calculate(df)
+
+    assert signal.highest_high == 152.0  # 150 + 2 全窗口最高
+
+
+def test_sell_fee_percent_units_keep_profit_track():
+    """sell_fee_pct 是小数 (0.004=0.4%) 时, 浮盈应走浮盈轨.
+
+    回归场景: analysis.py 曾直接把 portfolio 的百分比数值 (0.4) 传入,
+    导致净保本 = 成本/(1-0.4) 被严重高估, 当前价看似浮亏走错轨道.
+    """
+    prices = [1000.0] * 13 + [1070.0, 1040.0]  # 创新高后小幅回落, 浮盈
+    df = _make_df(prices)
+
+    # 正确: sell_fee_pct=0.004 (0.4%) → 净保本 1000/0.996=1004.02, 当前 1040>1004 浮盈
+    ts = ATRTrailingStop(
+        atr_period=14,
+        profit_multiplier=2.5,
+        cost_basis=1000.0,
+        hard_stop_price=700.0,
+        sell_fee_pct=0.004,
+    )
+    signal = ts.calculate(df, entry_price=1000.0)
+    assert signal.track == "profit", (
+        f"0.4% 手续费下浮盈应走浮盈轨, 得到 {signal.track}"
+    )
+
+    # 错误: sell_fee_pct=0.4 (本应是百分比数值 40% 的误解) → 净保本 1000/0.6=1666.7
+    # 当前 1040 < 1666.7 被误判为浮亏, 走浮亏轨 — 这是分析管线曾出现的 bug 形态
+    ts_bad = ATRTrailingStop(
+        atr_period=14,
+        profit_multiplier=2.5,
+        cost_basis=1000.0,
+        hard_stop_price=700.0,
+        sell_fee_pct=0.4,
+    )
+    bad_signal = ts_bad.calculate(df, entry_price=1000.0)
+    assert bad_signal.track == "loss"  # 固化 bug 形态, 防止误以为 0.4 是正确值
+
+
+def test_entry_date_filters_insufficient_falls_back():
+    """建仓日过滤后数据不足 ATR 周期时, 回退到全窗口计算, 不报错."""
+    # 建仓日设得很晚, 过滤后只剩 3 条 < 14 周期
+    prices = [100.0] * 20
+    df = _make_df(prices)
+    late_entry = (datetime(2026, 6, 1) + timedelta(days=25)).strftime("%Y-%m-%d")
+
+    ts = ATRTrailingStop(
+        atr_period=14,
+        profit_multiplier=2.5,
+        entry_date=late_entry,
+    )
+    # 不应抛异常
+    signal = ts.calculate(df)
+    assert isinstance(signal, TrailingStopSignal)
+
+
 def test_insufficient_data():
     """数据不足应抛出异常."""
     df = _make_df([100.0] * 5)

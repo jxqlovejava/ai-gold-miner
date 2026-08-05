@@ -49,6 +49,7 @@ class ATRTrailingStop:
         profit_action: 浮盈轨触发动作, 默认 "reduce_half"
         loss_action: 浮亏轨触发动作, 默认 "reduce_half"
         sell_fee_pct: 卖出费率(小数, 0.004=0.4%), 用于净保本价保护, 默认 0
+        entry_date: 建仓日(YYYY-MM-DD), 持仓期间最高价从该日起算, 排除建仓前历史价格; 默认 None 使用全窗口
     """
 
     def __init__(
@@ -61,6 +62,7 @@ class ATRTrailingStop:
         profit_action: str = "reduce_half",
         loss_action: str = "reduce_half",
         sell_fee_pct: float = 0.0,
+        entry_date: str | None = None,
     ) -> None:
         if atr_period <= 0:
             raise ValueError("atr_period 必须大于 0")
@@ -79,6 +81,7 @@ class ATRTrailingStop:
         self.profit_action = profit_action
         self.loss_action = loss_action
         self.sell_fee_pct = sell_fee_pct
+        self.entry_date = entry_date
 
     def _breakeven(self) -> float | None:
         """净保本价 — 卖出扣费后真正回本的价格; 无成本价时返回 None."""
@@ -113,6 +116,20 @@ class ATRTrailingStop:
             )
 
         df = df.copy()
+
+        # 建仓日锚点: 持仓期间最高价从建仓日(entry_date)起算, 排除建仓前的历史价格.
+        # 若过滤后数据不足以计算 ATR, 则回退到全窗口 (保证可用性).
+        anchor_df = df
+        if self.entry_date is not None:
+            entry_ts = pd.to_datetime(self.entry_date)
+            if "timestamp" in df.columns:
+                mask = df["timestamp"] >= entry_ts
+            else:
+                mask = df.index >= entry_ts
+            filtered = df[mask]
+            if len(filtered) >= self.atr_period:
+                anchor_df = filtered
+
         df["tr"] = self._true_range(df)
         df["atr"] = df["tr"].rolling(window=self.atr_period).mean()
 
@@ -120,8 +137,8 @@ class ATRTrailingStop:
         current_price = float(latest["close"])
         latest_atr = float(latest["atr"])
 
-        # 持仓期间最高价: 进场价与历史高点的较大值
-        historical_high = float(df["high"].max())
+        # 持仓期间最高价: 进场价与建仓后历史高点的较大值 (r025 锚点从建仓日起算)
+        historical_high = float(anchor_df["high"].max())
         if entry_price is not None:
             highest_high = max(entry_price, historical_high)
         else:
