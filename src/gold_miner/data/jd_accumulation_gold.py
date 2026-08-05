@@ -113,8 +113,10 @@ class JdAccumulationGoldFetcher(DataFetcher):
         start = start or (end - timedelta(days=days))
 
         # 1. 加载本地历史并尝试补充最新价
+        #    当天已有记录也要刷新：积存金日线快照盘中多次变化（如早上 897 → 晚上 923），
+        #    若只在本条缺失时补，ATR 移动止盈将基于过时价格计算，止损线无法随新高上移。
         df = self._load_history()
-        if df.empty or df["timestamp"].max().date() < end.date():
+        if df.empty or df["timestamp"].max().date() <= end.date():
             df = self._backfill_with_latest(df)
 
         # 2. 如果本地历史条数仍不足 min_rows, 用 SGE 代理回填
