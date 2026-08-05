@@ -290,5 +290,48 @@ def _from_eastmoney() -> dict | None:
 
 
 def _fetch_usdcny_cn() -> float:
-    """USD/CNY 汇率. 默认 ~7.28."""
+    """USD/CNY 实时汇率 (国内可访问).
+
+    依次尝试:
+      1. 腾讯外汇 whUSDCNY — 字段 [3]=最新价, [7]=昨收
+      2. 新浪外汇 fx_susdcny — 字段 [1]=最新价 (在岸人民币)
+    全部失败返回默认 7.28 (过时, 仅兜底).
+    """
+    # 1. 腾讯外汇
+    try:
+        resp = httpx.get(
+            "https://qt.gtimg.cn/q=whUSDCNY",
+            headers={"User-Agent": "Mozilla/5.0"},
+            timeout=8.0,
+        )
+        if resp.status_code == 200:
+            fields = resp.text.split("~")
+            if len(fields) > 3:
+                rate = float(fields[3])
+                if 5.0 < rate < 9.0:
+                    return rate
+    except Exception:
+        pass
+
+    # 2. 新浪外汇 (在岸人民币)
+    try:
+        resp = httpx.get(
+            "https://hq.sinajs.cn/list=fx_susdcny",
+            headers={
+                "User-Agent": "Mozilla/5.0",
+                "Referer": "https://finance.sina.com.cn/",
+            },
+            timeout=8.0,
+        )
+        if resp.status_code == 200:
+            match = re.search(r'"([^"]+)"', resp.text)
+            if match:
+                fields = match.group(1).split(",")
+                if len(fields) > 1:
+                    rate = float(fields[1])
+                    if 5.0 < rate < 9.0:
+                        return rate
+    except Exception:
+        pass
+
     return 7.28
