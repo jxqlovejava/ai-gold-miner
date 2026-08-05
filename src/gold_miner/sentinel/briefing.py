@@ -30,59 +30,65 @@ def generate_daily_briefing(config: SentinelConfig) -> str:
 
     # ── 1. 行情快照 ──
     if result.quotes:
-        lines.append("━━━ 行情快照 ━━━")
+        quotes = []
         for q in result.quotes:
-            emoji = "🔴" if q.change_pct < 0 else "🟢"
-            lines.append(
-                f"{emoji} {q.symbol}: {q.price:.2f} {q.currency} "
-                f"({q.change_pct:+.2f}%) | 来源: {q.source}"
+            arrow = "🔴" if q.change_pct < 0 else "🟢"
+            quotes.append(
+                f"{q.symbol} {q.price:.2f} ({arrow} {q.change_pct:+.2f}%)"
             )
+        lines.append("行情: " + " | ".join(quotes))
 
     # ── 2. 持仓状态 ──
     if result.portfolio:
         p = result.portfolio
         lines.append("")
-        lines.append("━━━ 持仓状态 ━━━")
         pnl_emoji = "🔴" if p.unrealized_pnl < 0 else "🟢"
-        lines.append(f"📊 {p.instrument} ({p.platform})")
-        lines.append(f"   持仓: {p.grams:.2f}g @ ¥{p.avg_cost:.0f}")
-        lines.append(f"   市值: ¥{p.market_value:.0f}")
-        lines.append(f"   浮盈: {pnl_emoji} ¥{p.unrealized_pnl:+.0f} ({p.unrealized_pnl_pct:+.1f}%)")
+        lines.append(f"持仓 {p.instrument}")
+        lines.append(f"   {p.grams:.2f}g @ ¥{p.avg_cost:.0f} | 市值 ¥{p.market_value:.0f}")
+        lines.append(f"   浮盈 {pnl_emoji} ¥{p.unrealized_pnl:+.0f} ({p.unrealized_pnl_pct:+.1f}%)")
 
         # 止损距离
         if p.secondary_stop > 0:
             dist = (p.current_price - p.secondary_stop) / p.secondary_stop * 100
-            status = "🟢 安全" if dist > 5 else ("🟡 接近" if dist > 2 else "🔴 危险")
-            lines.append(f"   止损: ¥{p.secondary_stop} (距{status} {dist:+.1f}%)")
+            status = "✅ 安全" if dist > 5 else ("🟡 接近" if dist > 2 else "🔴 危险")
+            lines.append(f"   止损 ¥{p.secondary_stop} ({status} {dist:+.1f}%)")
 
     # ── 3. 活跃条件单 ──
     orders = load_active_orders(config.orders_path)
     if orders:
         lines.append("")
-        lines.append("━━━ 活跃条件单 ━━━")
+        lines.append("条件单")
         for o in orders:
-            tp_str = ""
-            if o.type == "oco" and o.oco:
-                tp = o.oco.get("take_profit", {})
-                sl = o.oco.get("stop_loss", {})
-                if isinstance(tp, dict) and isinstance(sl, dict):
-                    tp_str = f" 止盈¥{tp.get('price','?')}/止损¥{sl.get('price','?')}"
-            lines.append(
-                f"  • {o.type.upper()} {o.direction} "
-                f"@¥{o.trigger_price:.0f} ×{o.quantity_g}g{tp_str}"
-            )
+            if o.type == "oco":
+                tp_str = sl_str = ""
+                qty = o.quantity_g
+                if o.oco:
+                    tp = o.oco.get("take_profit", {})
+                    sl = o.oco.get("stop_loss", {})
+                    if isinstance(tp, dict):
+                        tp_str = f"¥{tp.get('price','?')}"
+                        tp_qty = tp.get("quantity_g")
+                        if isinstance(tp_qty, (int, float)) and tp_qty > 0:
+                            qty = tp_qty
+                    if isinstance(sl, dict):
+                        sl_str = f"¥{sl.get('price','?')}"
+                qty_str = f"{qty:g}g" if qty else "—"
+                lines.append(f"   OCO 止盈{tp_str}/止损{sl_str} ×{qty_str}")
+            else:
+                lines.append(
+                    f"   买入 @¥{o.trigger_price:.0f} ×{o.quantity_g:g}g"
+                )
     else:
         lines.append("")
-        lines.append("━━━ 活跃条件单 ━━━")
-        lines.append("  (无活跃条件单)")
+        lines.append("条件单: (无)")
 
-    # ── 4. 今日事件 ──
+    # ── 4. 今日事件 (排除 monitor) ──
     events = _get_today_events(config)
+    today_data = [e for e in events if e.get("event_type") != "monitor"]
     lines.append("")
-    lines.append("━━━ 今日事件 ━━━")
-    if events:
-        for e in events:
-            impact_icon = {"high": "🔴", "medium": "🟡", "low": "🟢"}.get(e.get("impact", ""), "⚪")
+    lines.append("今日事件")
+    if today_data:
+        for e in today_data:
             name = e.get("name", "")
             sat_str = e.get("scheduled_at", "")
             bj_time = ""
@@ -92,45 +98,45 @@ def generate_daily_briefing(config: SentinelConfig) -> str:
                     bj_time = sat.astimezone(BEIJING).strftime("%H:%M")
                 except ValueError:
                     pass
-            lines.append(f"  {impact_icon} {name} ({bj_time} 北京)" if bj_time else f"  {impact_icon} {name}")
+            lines.append(f"   {bj_time} {name}" if bj_time else f"   {name}")
     else:
-        lines.append("  ✅ 今日无重大事件")
+        lines.append("   今日无重大事件")
 
-    # ── 5. 本周展望 ──
-    lines.append("")
-    lines.append("━━━ 本周关注 ━━━")
+    # ── 5. 本周展望 (排除 monitor) ──
     upcoming = _get_upcoming_events(config, days=7)
-    if upcoming:
-        for e in upcoming[:5]:
+    upcoming_data = [e for e in upcoming if e.get("event_type") != "monitor"]
+    lines.append("")
+    lines.append("本周关注")
+    if upcoming_data:
+        for e in upcoming_data[:5]:
             name = e.get("name", "")
             sat_str = e.get("scheduled_at", "")
             if sat_str:
                 try:
                     sat = datetime.fromisoformat(sat_str)
                     bj = sat.astimezone(BEIJING)
-                    lines.append(f"  📅 {bj.strftime('%m-%d %H:%M')} {name}")
+                    lines.append(f"   {bj.strftime('%m-%d %H:%M')} {name}")
                 except ValueError:
                     pass
+    else:
+        lines.append("   本周暂无重大事件")
 
     # ── 6. 快速参考 ──
     lines.append("")
-    lines.append("━━━ 关键价位 ━━━")
+    lines.append("关键价位")
     if result.portfolio:
         p = result.portfolio
-        lines.append(f"  成本均价: ¥{p.avg_cost:.0f}")
-        lines.append(f"  二级止损: ¥{p.secondary_stop:.0f}")
-        lines.append(f"  硬止损:   ¥{p.hard_stop:.0f}")
+        lines.append(f"   成本 ¥{p.avg_cost:.0f} | 二级止损 ¥{p.secondary_stop:.0f} | 硬止损 ¥{p.hard_stop:.0f}")
 
     # 告警摘要
     if result.alerts:
         lines.append("")
-        lines.append("━━━ ⚠️ 活跃告警 ━━━")
-        for a in result.alerts[:5]:
-            lines.append(f"  [{a.level.value.upper()}] {a.title}")
+        lines.append("告警")
+        for a in result.alerts[:3]:
+            lines.append(f"   [{a.level.value.upper()}] {a.title}")
 
     lines.append("")
-    lines.append("─" * 20)
-    lines.append("💡 黄金哨兵自动推送 · 下次更新: 明日盘前")
+    lines.append(f"💡 黄金哨兵 · {now.strftime('%H:%M')}")
 
     return "\n".join(lines)
 

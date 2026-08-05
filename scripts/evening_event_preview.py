@@ -87,18 +87,19 @@ def _get_tonight_events() -> list[dict]:
     events: list[dict] = []
     try:
         sys.path.insert(0, str(PROJECT_ROOT / "src"))
-        from gold_miner.data.calendar import EventCalendar, EventImpact
+        from gold_miner.data.calendar import EventCalendar, EventImpact, EventType
 
         cal = EventCalendar()
         now = _now()
-        tonight_end = now + timedelta(hours=12)
+        # 数据事件窗口放宽到 24h, 避免凌晨/盘前运行漏掉今晚数据事件
+        tonight_end = now + timedelta(hours=24)
 
-        # 高影响事件
+        # 高影响事件 (经济数据为主, 排除 monitor)
         upcoming = cal.get_upcoming(days=1, min_impact=EventImpact.MEDIUM)
         for e in upcoming:
             et = e.scheduled_at
             bj = et.astimezone(BEIJING)
-            if now <= bj <= tonight_end:
+            if now <= bj <= tonight_end and e.event_type != EventType.MONITOR:
                 impact_icon = {"high": "🔴", "extreme": "💀", "medium": "🟡", "low": "⚪"}
                 events.append({
                     "name": e.name,
@@ -183,15 +184,25 @@ def main() -> int:
     if monitor_events:
         lines.append("")
         lines.append("📡 关注信号")
-        for m in monitor_events[:3]:
+        shown = monitor_events[:3]
+        for m in shown:
             desc = m.get("description", "")
-            # 压缩触发条件: 单行, 截断到 ~34 字符
-            cond = desc[:34] + ("…" if len(desc) > 34 else "") if desc else ""
-            if cond:
-                lines.append(f"· {m['name']}")
+            lines.append(f"· {m['name']}")
+            if desc:
+                # 多条件并列(/分隔)只保留前3个, 不截断字符
+                cond_parts = [p for p in desc.split("/") if p.strip()]
+                if len(cond_parts) > 3:
+                    cond = " / ".join(cond_parts[:3]) + f" (+{len(cond_parts)-3})"
+                else:
+                    cond = desc
                 lines.append(f"   → {cond}")
-            else:
-                lines.append(f"· {m['name']}")
+        # 其余 Monitor 只列名字 (每行3个, 避免单行溢出)
+        rest = monitor_events[3:]
+        if rest:
+            lines.append(f"   … 另有 {len(rest)} 个:")
+            for i in range(0, len(rest), 3):
+                group = "、".join(m["name"] for m in rest[i:i + 3])
+                lines.append(f"     {group}")
 
     lines.extend([
         "",

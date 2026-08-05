@@ -38,12 +38,12 @@ SSH=(ssh -i "$PEM" -o StrictHostKeyChecking=no)
 SCP=(scp -i "$PEM" -o StrictHostKeyChecking=no)
 
 echo "==> 创建远程目录"
-"${SSH[@]}" "$HOST" "mkdir -p '$REMOTE_ROOT/src/gold_miner/sentinel' '$REMOTE_ROOT/scripts' '$(dirname "$REMOTE_PORTFOLIO")' '$(dirname "$REMOTE_SURGE_STATE")'"
+"${SSH[@]}" "$HOST" "mkdir -p '$REMOTE_ROOT/src/gold_miner' '$REMOTE_ROOT/scripts' '$(dirname "$REMOTE_PORTFOLIO")' '$(dirname "$REMOTE_SURGE_STATE")'"
 
-echo "==> 同步哨兵代码"
+echo "==> 同步 gold_miner 代码 (全量, 含 sentinel/data/signals 等)"
 "${SCP[@]}" -r \
-  "$ROOT/src/gold_miner/sentinel" \
-  "$HOST:$REMOTE_ROOT/src/gold_miner/"
+  "$ROOT/src/gold_miner" \
+  "$HOST:$REMOTE_ROOT/src/"
 # 确保包可导入
 "${SSH[@]}" "$HOST" "touch '$REMOTE_ROOT/src/gold_miner/__init__.py' 2>/dev/null || true"
 "${SSH[@]}" "$HOST" "touch '$REMOTE_ROOT/src/__init__.py' 2>/dev/null || true"
@@ -67,7 +67,9 @@ else
   echo "  本地无 data/private/conditional_orders.jsonl，跳过"
 fi
 if [[ -f "$ROOT/data/calendar_events.jsonl" ]]; then
+  # 双路径同步: .hermes/gold/ (Hermes哨兵) + 项目 data/ (EventCalendar 默认读取)
   "${SCP[@]}" "$ROOT/data/calendar_events.jsonl" "$HOST:$REMOTE_CALENDAR"
+  "${SCP[@]}" "$ROOT/data/calendar_events.jsonl" "$HOST:$REMOTE_ROOT/data/calendar_events.jsonl"
 else
   echo "  本地无 data/calendar_events.jsonl，跳过"
 fi
