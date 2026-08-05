@@ -12731,3 +12731,31 @@ $BRRR: possibly delisted; no price data found  (period=5d)
 2026-08-05 23:56:01.478 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 14 条
 2026-08-06 00:02:02.297 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
 2026-08-06 00:02:02.430 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
+2026-08-06 00:08:01.627 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-06 00:08:01.801 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
+2026-08-06 00:14:01.755 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-06 00:14:01.883 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
+2026-08-06 00:20:01.923 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-06 00:20:02.059 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
+2026-08-06 00:26:01.422 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-06 00:26:01.544 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
+2026-08-06 00:32:02.053 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-06 00:32:02.257 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
+2026-08-06 00:38:01.801 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-06 00:38:01.936 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
+2026-08-06 00:44:02.697 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-06 00:44:02.856 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
+2026-08-06 00:50:01.737 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-06 00:50:01.892 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
+2026-08-06 00:56:01.833 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-06 00:56:01.961 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
+2026-08-06 01:02:02.398 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-06 01:02:02.552 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
+2026-08-06 01:08:01.940 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-06 01:08:02.186 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
+2026-08-06 01:14:02.253 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-06 01:14:02.403 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
+2026-08-06 01:20:02.156 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-06 01:20:02.303 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
+2026-08-06 01:26:01.630 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-06 01:26:02.000 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
