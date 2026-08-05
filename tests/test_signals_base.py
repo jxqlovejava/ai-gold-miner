@@ -241,6 +241,28 @@ class TestSignalBundle:
         assert "news" in table
         assert "有效维度方向对比" in table  # 汇总行必须有
 
+    def test_format_dimension_table_dual_totals(self) -> None:
+        """双口径汇总: 维度数对比 + 信号数对比并存, 揭示维度粒度掩盖的背离.
+
+        场景: 资金流 4 子项同归 sentiment 维度, 维度口径看空但信号口径看多,
+        双行并列为用户揭示这种背离.
+        """
+        bundle = SignalBundle()
+        # sentiment 维度内 2 多 3 空 → 维度主导看空
+        bundle.add(Signal(name="etf_flow", dimension="sentiment", direction=SignalDirection.BULLISH, strength=SignalStrength.STRONG, score=0.6))
+        bundle.add(Signal(name="comex", dimension="sentiment", direction=SignalDirection.BULLISH, strength=SignalStrength.WEAK, score=0.1))
+        bundle.add(Signal(name="cot", dimension="sentiment", direction=SignalDirection.BEARISH, strength=SignalStrength.STRONG, score=-0.8))
+        bundle.add(Signal(name="bank", dimension="sentiment", direction=SignalDirection.BEARISH, strength=SignalStrength.MODERATE, score=-0.5))
+        bundle.add(Signal(name="mood", dimension="sentiment", direction=SignalDirection.BEARISH, strength=SignalStrength.WEAK, score=-0.2))
+        # 另一维度 1 多 → 维度看多
+        bundle.add(Signal(name="gold_demand", dimension="fundamental", direction=SignalDirection.BULLISH, strength=SignalStrength.MODERATE, score=0.3))
+
+        table = bundle.format_dimension_table()
+        # 维度口径: 看多 1 维 vs 看空 1 维
+        assert "有效维度方向对比: 看多 1维 vs 看空 1维" in table
+        # 信号口径: 3 多 3 空
+        assert "有效信号方向对比: 看多 3个 vs 看空 3个" in table
+
     def test_format_dimension_table_empty_bundle(self) -> None:
         """空 bundle → 返回占位字符串."""
         bundle = SignalBundle()

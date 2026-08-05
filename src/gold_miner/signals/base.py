@@ -228,7 +228,10 @@ class SignalBundle:
         """生成程序化维度方向总览表，LLM 可直接嵌入报告。
 
         表格包含每个维度的方向、看多/看空/中性信号数、均分，
-        以及汇总行（有效维度间的方向对比）。
+        以及双口径汇总行：
+          - 维度数对比（有效维度间的方向对比）
+          - 信号数对比（全部信号的看多/看空/中性计数）
+        双口径并列为用户提供两种视角：维度粒度看方向共识, 信号粒度看内部背离.
 
         Returns:
             str: 格式化的中文表格字符串
@@ -261,7 +264,7 @@ class SignalBundle:
 
         lines.append("└──────────────────┴────────────────────┴──────┴──────┴──────┴────────┘")
 
-        # 汇总行
+        # 汇总行 1: 维度数对比（有效维度间的方向对比）
         bull_dims, bear_dims, insuf_dims = self.dimension_direction_counts()
         active = bull_dims + bear_dims
         if active > 0:
@@ -275,6 +278,17 @@ class SignalBundle:
             consensus_note = "无有效方向维度"
         if insuf_dims > 0:
             consensus_note += f"（{insuf_dims}维数据不足）"
-
         lines.append(f"  有效维度方向对比: {consensus_note}")
+
+        # 汇总行 2: 信号数对比（全部信号的看多/看空/中性计数）
+        # 揭示维度粒度掩盖的背离 —— 资金流各子项常被归入同一维度
+        sig_bull = sum(1 for s in self.signals if s.direction == SignalDirection.BULLISH)
+        sig_bear = sum(1 for s in self.signals if s.direction == SignalDirection.BEARISH)
+        sig_neutral = sum(1 for s in self.signals if s.direction == SignalDirection.NEUTRAL)
+        if sig_bull or sig_bear or sig_neutral:
+            sig_note = f"看多 {sig_bull}个 vs 看空 {sig_bear}个"
+            if sig_neutral > 0:
+                sig_note += f"（{sig_neutral}个中性）"
+            lines.append(f"  有效信号方向对比: {sig_note}")
+
         return "\n".join(lines)
