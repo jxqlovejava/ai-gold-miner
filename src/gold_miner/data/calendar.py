@@ -480,6 +480,7 @@ class EventCalendar:
             e for e in self.events
             if now <= e.scheduled_at <= cutoff
             and impact_order.get(e.impact, 0) >= min_level
+            and e.status not in ("expired", "closed")
         ]
 
     def get_today(self) -> list[CalendarEvent]:
@@ -561,9 +562,11 @@ class EventCalendar:
 
         now_iso = datetime.now(tz=UTC).isoformat()
         updated = False
+        updated_events: list[CalendarEvent] = []
 
         for e in self.events:
             if e.name == name and e.scheduled_at == scheduled_at:
+                updated_events.append(e)
                 # 保存历史: 对 fast-evolving 事件，旧值推入 actual_history
                 if (
                     e.actual is not None
@@ -595,6 +598,9 @@ class EventCalendar:
 
         if updated:
             self._rewrite_jsonl()
+            # 若更新的事件是程序化生成（load_fixed_calendar）不在 JSONL 文件中，
+            # _rewrite_jsonl 不会写入它 → actual 无法持久化。此时需追加新行。
+            self._persist_programmatic_updates(updated_events)
         return updated
 
     def add_event(self, event: CalendarEvent, *, force: bool = False) -> None:
@@ -991,6 +997,54 @@ class EventCalendar:
                         f.write(line + "\n")
         except OSError as e:
             logger.warning(f"重写日历文件失败: {e}")
+
+    def _persist_programmatic_updates(
+        self, updated_events: list[CalendarEvent]
+    ) -> None:
+        """将程序化生成（不在 JSONL 文件中）的事件更新追加为 JSONL 新行.
+
+        load_fixed_calendar() 算法生成的事件（如每周初请失业金）只存在于
+        内存中，_rewrite_jsonl() 只更新文件里已有的行，因此这些事件的
+        actual/forecast 等字段无法持久化。本方法在 update_event_result()
+        更新后，把这些事件追加为 JSONL 新行，保证下次启动时 actual 仍在。
+
+        Args:
+            updated_events: 本次被更新的事件列表
+        """
+        if not updated_events:
+            return
+
+        # 读取文件已有的 (name, naive_time) 集合，避免重复追加
+        try:
+            with open(self._data_path, encoding="utf-8") as f:
+                existing_lines = [line.strip() for line in f if line.strip()]
+        except (OSError, FileNotFoundError):
+            existing_lines = []
+
+        existing_keys: set[tuple[str, str]] = set()
+        for line in existing_lines:
+            try:
+                data = json.loads(line)
+                dt = _parse_et_datetime(data["scheduled_at"])
+                existing_keys.add((data["name"], dt.strftime("%Y-%m-%dT%H:%M:%S")))
+            except (json.JSONDecodeError, KeyError, ValueError):
+                continue
+
+        try:
+            with open(self._data_path, "a", encoding="utf-8") as f:
+                for event in updated_events:
+                    et_dt = event.scheduled_at.astimezone(
+                        _et_offset(event.scheduled_at)
+                    )
+                    key = (event.name, et_dt.strftime("%Y-%m-%dT%H:%M:%S"))
+                    if key not in existing_keys:
+                        f.write(
+                            json.dumps(self._to_dict(event), ensure_ascii=False)
+                            + "\n"
+                        )
+                        existing_keys.add(key)
+        except OSError as e:
+            logger.warning(f"追加程序化事件到日历失败: {e}")
 
     # ------------------------------------------------------------------
     # JSONL 读写

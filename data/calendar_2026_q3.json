@@ -17,7 +17,11 @@
     {"date": "2026-07-14", "name": "美国6月CPI", "type": "cpi", "impact": "high", "status": "upcoming", "gold_effect": "若连续两个月>4%→滞胀叙事→复杂影响"},
     {"date": "2026-07-29", "name": "FOMC利率决议", "type": "fed_rate", "impact": "high", "status": "upcoming", "gold_effect": "下半年第一次决议"},
     {"date": "2026-07-30", "name": "核心PCE(6月)", "type": "pce", "impact": "high", "status": "upcoming"},
+    {"date": "2026-08-05", "name": "ADP就业数据(7月)", "type": "adp", "impact": "high", "status": "upcoming", "gold_effect": "非农前哨，远低预期→就业降温→利好黄金"},
+    {"date": "2026-08-05", "name": "ISM服务业PMI(7月)", "type": "pmi", "impact": "medium", "status": "upcoming"},
+    {"date": "2026-08-06", "name": "初请失业金人数", "type": "jobless", "impact": "medium", "status": "upcoming"},
     {"date": "2026-08-07", "name": "非农就业(7月)", "type": "nfp", "impact": "high", "status": "upcoming"},
+    {"date": "2026-08-13", "name": "初请失业金人数", "type": "jobless", "impact": "medium", "status": "upcoming"},
     {"date": "2026-08-12", "name": "美国7月CPI", "type": "cpi", "impact": "high", "status": "upcoming"},
     {"date": "2026-08-14", "name": "美国7月PPI", "type": "ppi", "impact": "high", "status": "upcoming"},
     {"date": "2026-08-27", "name": "核心PCE(7月)", "type": "pce", "impact": "high", "status": "upcoming"}
