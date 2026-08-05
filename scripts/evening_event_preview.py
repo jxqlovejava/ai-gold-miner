@@ -109,7 +109,7 @@ def _get_tonight_events() -> list[dict]:
                     "description": e.description[:100] if e.description else "",
                 })
 
-        # 活跃 Monitor — 只取名称, 精简展示 (触发条件不在推送中展开)
+        # 活跃 Monitor — 名称 + 精简触发条件
         monitors = cal.get_active_monitors()
         for m in monitors:
             events.append({
@@ -118,7 +118,7 @@ def _get_tonight_events() -> list[dict]:
                 "time_et": "—",
                 "impact": "monitor",
                 "icon": "",
-                "description": "",
+                "description": (m.trigger_condition or "").strip(),
             })
 
     except Exception:
@@ -158,7 +158,7 @@ def main() -> int:
     price_info = _fetch_price_jd()
     portfolio = _get_portfolio_snapshot()
 
-    # ── 格式化 (精简版: 少图标·少行·紧凑) ──
+    # ── 格式化: 信息完整但排版紧凑 ──
     lines = [f"🌙 今晚事件预告 · {now.strftime('%m/%d')}"]
 
     price_str = f"¥{price_info['price']:.2f} ({price_info['change_pct']:+.2f}%)" if price_info else ""
@@ -175,13 +175,23 @@ def main() -> int:
         lines.append("")
         lines.append("📅 今晚数据")
         for e in data_events:
-            lines.append(f"  {e['time_bj']} BJT | {e['name']}")
+            name = e["name"]
+            if "(" in name and name.endswith(")"):
+                name = name.split(" (")[0]
+            lines.append(f"· {e['time_bj']} | {name}")
 
     if monitor_events:
         lines.append("")
         lines.append("📡 关注信号")
         for m in monitor_events[:3]:
-            lines.append(f"  · {m['name']}")
+            desc = m.get("description", "")
+            # 压缩触发条件: 单行, 截断到 ~34 字符
+            cond = desc[:34] + ("…" if len(desc) > 34 else "") if desc else ""
+            if cond:
+                lines.append(f"· {m['name']}")
+                lines.append(f"   → {cond}")
+            else:
+                lines.append(f"· {m['name']}")
 
     lines.extend([
         "",
