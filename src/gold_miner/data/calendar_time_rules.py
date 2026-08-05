@@ -257,7 +257,6 @@ _NAME_DOW_OVERRIDES: dict[str, set[int]] = {
 }
 
 _WEEKDAY_CN = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
-_WEEKDAY_EN = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
 
 def expected_dow(event_type: str, name: str = "") -> set[int] | None:
@@ -301,7 +300,7 @@ def check_event_dow(
         findings.append(TimeCheckFinding(
             "error",
             "weekend_event",
-            f"[{event_type}] {name}: 安排在周末 (ET {_WEEKDAY_EN[dow]})。"
+            f"[{event_type}] {name}: 安排在周末 (ET {dow_cn})。"
             f" 官方数据/会议不会在周末发布。{dual}",
         ))
         return findings
@@ -310,14 +309,14 @@ def check_event_dow(
     if expected is not None and dow not in expected:
         expected_str = ", ".join(_WEEKDAY_CN[d] for d in sorted(expected))
 
-        # 名称覆盖匹配 → 已知确定性事件, DOW 错误 = error 阻断
+        # 名称覆盖匹配 → 已知确定性事件, 星期错误 = error 阻断
         is_name_override = any(kw in name for kw in _NAME_DOW_OVERRIDES)
         sev = "error" if is_name_override else "warning"
 
         findings.append(TimeCheckFinding(
             sev,
             "dow_anomaly",
-            f"[{event_type}] {name}: ET 星期={dow_cn}({_WEEKDAY_EN[dow]}), "
+            f"[{event_type}] {name}: ET 星期={dow_cn}, "
             f"该类型通常为 {expected_str}。请确认日期是否正确。{dual}",
         ))
 
@@ -330,9 +329,9 @@ def generate_dow_reference_table(
     events: list[dict],
     days_ahead: int = 30,
 ) -> str:
-    """生成未来事件的 DOW 参考表 (Markdown), 供分析报告引用.
+    """生成未来事件的星期(DOW)参考表 (Markdown), 供分析报告引用.
 
-    每行包含: 事件名 | ET日期 | ET星期 | 北京时间 | 北京星期 | 期望DOW
+    每行包含: 事件名 | ET日期 | ET星期 | 北京时间 | 北京星期 | 期望星期
     异常行会在末尾标注 ⚠️。
     """
 
@@ -341,8 +340,8 @@ def generate_dow_reference_table(
 
     rows: list[str] = []
     header = (
-        "| 事件名称 | ET 日期 | ET 星期 | 北京时间 | 北京星期 | 期望 | 校验 |\n"
-        "|----------|---------|---------|----------|----------|------|------|"
+        "| 事件名称 | ET 日期 | ET 星期 | 北京时间 | 北京星期 | 期望星期 | 校验 |\n"
+        "|----------|---------|---------|----------|----------|----------|------|"
     )
     rows.append(header)
 
@@ -363,7 +362,6 @@ def generate_dow_reference_table(
 
         bj = to_beijing(dt) if dt.tzinfo else dt
         et_dow_cn = _WEEKDAY_CN[dt.weekday()]
-        et_dow_en = _WEEKDAY_EN[dt.weekday()]
         bj_dow_cn = _WEEKDAY_CN[bj.weekday()]
 
         expected = expected_dow(etype, name)
@@ -374,14 +372,14 @@ def generate_dow_reference_table(
         if dt.weekday() >= 5 and etype not in ("geo", "monitor"):
             flags.append("🔴周末")
         elif expected is not None and dt.weekday() not in expected:
-            flags.append(f"⚠️DOW异常(期望{expected_str})")
+            flags.append(f"⚠️星期异常(期望{expected_str})")
         status = " ".join(flags) if flags else "✅"
 
         et_date = dt.strftime("%m-%d %H:%M")
         bj_date = bj.strftime("%m-%d %H:%M")
 
         rows.append(
-            f"| {name[:30]} | {et_date} | {et_dow_cn}({et_dow_en}) "
+            f"| {name[:30]} | {et_date} | {et_dow_cn} "
             f"| {bj_date} | {bj_dow_cn} | {expected_str} | {status} |"
         )
 

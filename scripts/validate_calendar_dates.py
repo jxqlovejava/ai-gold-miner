@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""日历事件日期+钟点+DOW 三重校验 — 每次分析前自动运行。
+"""日历事件日期+钟点+星期(DOW) 三重校验 — 每次分析前自动运行。
 
 拦截:
-  1. 周末/错误星期 (DOW) — 防止「周三初请失业金」类输出错误
+  1. 周末/错误星期 — 防止「周三初请失业金」类输出错误
   2. **钟点双重换算** (北京钟点误当美东写入) — 2026-07-15 沃什听证事故
   3. 宏观数据非 08:30 一带的异常钟点
 
@@ -20,14 +20,14 @@
 模式:
   - 默认: 检查所有事件, 输出 errors + warnings
   - --strict: warnings 也导致 exit(1)
-  - --ref-table N: 输出未来 N 天的 DOW 参考表 (Markdown), 供分析报告引用
+  - --ref-table N: 输出未来 N 天的星期(DOW) 参考表 (Markdown), 供分析报告引用
 
 写入前强制 checklist (与 CLAUDE.md 第〇步一致):
   [ ] 官网/notice 原文钟点是哪个时区?
   [ ] 已用 make_et_iso / 美东本地钟点写入?
   [ ] 校验打印的「ET | 北京」两列都合理?
   [ ] 国会听证不应出现 ET 晚上 18:00+ (那是北京次日上午的典型错误形态)
-  [ ] 已用 --ref-table 确认所有事件 DOW 正确
+  [ ] 已用 --ref-table 确认所有事件星期正确
 """
 
 from __future__ import annotations
@@ -126,15 +126,15 @@ def print_ref_table(days_ahead: int = 30) -> None:
 
 def _print_status(errors: list[str], warnings: list[str]) -> None:
     if errors:
-        print("🔴 日期/钟点/DOW 校验失败 — 以下事件必须修复 (禁止带错时继续分析):")
+        print("🔴 日期/钟点/星期校验失败 — 以下事件必须修复 (禁止带错时继续分析):")
         for e in errors:
             print(f"  ❌ {e}")
     if warnings:
-        print("🟡 日期/钟点/DOW 校验警告 — 请人工确认:")
+        print("🟡 日期/钟点/星期校验警告 — 请人工确认:")
         for w in warnings:
             print(f"  ⚠️  {w}")
     if not errors and not warnings:
-        print("✅ 日历日期+钟点+DOW 校验全部通过")
+        print("✅ 日历日期+钟点+星期校验全部通过")
 
 
 def validate_completeness() -> tuple[list[str], list[str]]:
@@ -164,7 +164,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="日历事件日期+钟点+DOW 三重校验"
+        description="日历事件日期+钟点+星期(DOW) 三重校验"
     )
     parser.add_argument(
         "--strict", action="store_true",
@@ -172,7 +172,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--ref-table", type=int, default=0, metavar="DAYS",
-        help="输出未来 DAYS 天的 DOW 参考表 (Markdown) 并退出"
+        help="输出未来 DAYS 天的星期(DOW) 参考表 (Markdown) 并退出"
     )
     args = parser.parse_args()
 
@@ -182,8 +182,8 @@ if __name__ == "__main__":
 
     errors, warnings = validate()
 
-    # 总是先输出 DOW 参考表头 (帮助 AI/人类校验输出)
-    print("━━━ 日历 DOW 参考表 (未来 30 天) ━━━")
+    # 总是先输出星期参考表头 (帮助 AI/人类校验输出)
+    print("━━━ 日历星期参考表 (未来 30 天) ━━━")
     print_ref_table(days_ahead=30)
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
 

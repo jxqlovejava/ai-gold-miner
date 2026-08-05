@@ -1425,8 +1425,9 @@ class AnalysisPipeline:
             return
 
         direction_cn = {"long": "做多", "short": "做空", "neutral": "观望"}
+        stance_cn = {"bullish": "看多", "bearish": "看空", "neutral": "观望"}
         print(f"\n  🐂 {bull.agent_name} (信心 {bull.confidence:.0%})")
-        print(f"     立场: {bull.stance}  建议仓位: {bull.suggested_position_pct:.0%}")
+        print(f"     立场: {stance_cn.get(bull.stance, bull.stance)}  建议仓位: {bull.suggested_position_pct:.0%}")
         if bull.arguments:
             print("     论据:")
             for arg in bull.arguments:
@@ -1435,7 +1436,7 @@ class AnalysisPipeline:
             print("      (无强看涨信号)")
 
         print(f"\n  🐻 {bear.agent_name} (信心 {bear.confidence:.0%})")
-        print(f"     立场: {bear.stance}  建议仓位: {bear.suggested_position_pct:.0%}")
+        print(f"     立场: {stance_cn.get(bear.stance, bear.stance)}  建议仓位: {bear.suggested_position_pct:.0%}")
         if bear.arguments:
             print("     论据:")
             for arg in bear.arguments:
