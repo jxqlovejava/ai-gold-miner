@@ -44,6 +44,7 @@ from gold_miner.improvement.tracker import PredictionRecord, PredictionTracker
 from gold_miner.llm.client import LLMClient
 from gold_miner.signals.base import FactType, Signal, SignalBundle, SignalDirection, SignalStrength
 from gold_miner.signals.candlestick import CandlestickPatternDetector
+from gold_miner.signals.chanlun_signal import ChanlunSignalGenerator
 from gold_miner.signals.cot_signal import CotSignalGenerator
 from gold_miner.signals.economic_calendar import EconomicCalendarSignalGenerator
 from gold_miner.signals.engine import ScoringEngine
@@ -114,6 +115,7 @@ class AnalysisResult:
     profile_match: dict[str, Any] = field(default_factory=dict)
     conditional_order_review: list[dict[str, Any]] = field(default_factory=list)
     scenario_plan: dict[str, Any] = field(default_factory=dict)
+    chanlun_summary: dict[str, Any] = field(default_factory=dict)  # 缠论结构摘要（报告板块）
 
 
 class AnalysisPipeline:
@@ -522,6 +524,14 @@ class AnalysisPipeline:
                 lambda: CandlestickPatternDetector(result.gold_df).generate_signals()
             )] = "candlestick"
 
+            # 缠论结构分析 (K线结构增强: 分型/笔/中枢/背驰/买卖点, 信号归 dimension="technical")
+            def _chanlun_task() -> list[Signal]:
+                gen = ChanlunSignalGenerator(result.gold_df, symbol="Au99.99", name="黄金")
+                result.chanlun_summary = gen.summary_dict()  # 供报告板块渲染
+                return gen.generate_signals()
+
+            futures[pool.submit(_chanlun_task)] = "chanlun"
+
             # 基本面
             futures[pool.submit(
                 lambda: FundamentalAnalyzer(
@@ -857,6 +867,13 @@ class AnalysisPipeline:
             f"  维度方向汇总: {bull_dims}维看多 | {bear_dims}维看空 | {insuf_dims}维数据不足"
         )
 
+        # --- 4a. 缠论结构板块 (K线结构增强: 中枢/买卖点/背驰) ---
+        if result.chanlun_summary:
+            chanlun_block = self._format_chanlun_structure(result.chanlun_summary)
+            if chanlun_block:
+                result.messages.append(chanlun_block)
+                logger.info(f"\n{chanlun_block}")
+
         # --- 4b. 信号快照落盘 (供 adaptive_gold_monitor 理由引擎读取) ---
         try:
             from gold_miner.signals.snapshot import save_signal_snapshot
@@ -866,6 +883,46 @@ class AnalysisPipeline:
 
         # --- 5. 事实/解释分类汇总 ---
         self._print_fact_type_summary(bundle)
+
+    @staticmethod
+    def _format_chanlun_structure(summary: dict) -> str:
+        """格式化缠论结构板块 — 中枢区间/现价位置/最近买卖点/背驰.
+
+        数据不足（含 gap）返回空串，不污染报告。
+        """
+        if summary.get("current_state", {}).get("gap"):
+            return ""
+        lines = ["📊 缠论结构（日线 · K线结构增强 · 技术面参考）"]
+        cs = summary.get("current_state", {})
+        last_zs = summary.get("last_zs")
+
+        # 中枢 + 现价位置
+        if last_zs:
+            lines.append(
+                f"  最近中枢: ZD {last_zs['zd']:.1f} | 中轴 {last_zs['zz']:.1f} "
+                f"| ZG {last_zs['zg']:.1f}（{last_zs['state']}）"
+            )
+            lines.append(f"  现价位置: {cs.get('position', '未知')}")
+        else:
+            lines.append(f"  中枢: 未形成（当前 {summary.get('bi_count', 0)} 笔）")
+
+        # 最近买卖点（按时间取最新 2 个）
+        points = summary.get("points", [])
+        if points:
+            lines.append("  最近买卖点:")
+            ordered = sorted(points, key=lambda p: p.get("dt", ""), reverse=True)
+            for p in ordered[:2]:
+                kind = p["kind"]
+                role = "分批建仓锚点参考" if kind in ("一买", "二买", "三买") else "减仓/止盈参考"
+                lines.append(
+                    f"    · {kind} @ {p['price']:.1f}（{p['dt']}）"
+                    f" 置信度 {p['confidence']:.0%} → {role}"
+                )
+        else:
+            lines.append("  最近买卖点: 无（结构未确认）")
+
+        lines.append(f"  * 缠论置信度 {summary.get('confidence', 0):.0%} | 仅作结构参考，不改宏观基本面主决策")
+        return "\n".join(lines)
 
     @staticmethod
     def _classify_fact_types(bundle: SignalBundle) -> None:
@@ -1432,8 +1489,8 @@ class AnalysisPipeline:
         失败时静默降级为原固定百分比止损 (不阻断分析).
         """
         try:
-            from gold_miner.strategy.trailing_stop import ATRTrailingStop
             from gold_miner.data.jd_accumulation_gold import JdAccumulationGoldFetcher
+            from gold_miner.strategy.trailing_stop import ATRTrailingStop
 
             # 1. 积存金历史 (用户实际交易品种)
             jd = JdAccumulationGoldFetcher(bank="MS")
