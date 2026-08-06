@@ -13366,3 +13366,293 @@ $BRRR: possibly delisted; no price data found  (period=5d)
 2026-08-06 21:20:01.911 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
 2026-08-06 21:26:02.039 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
 2026-08-06 21:26:02.191 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
+2026-08-06 21:32:01.318 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-06 21:32:01.463 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
+🟢 金价监控 | 21:32:01
+💰 922.51元/克 (+0.40%)
+📊 成本¥891 | 浮盈 3.6% | 净+3.1%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.3% | 919.48 → 922.51 (回升 ¥3.03)
+2026-08-06 21:38:01.894 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-06 21:38:02.066 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
+🟢 金价监控 | 21:38:02
+💰 924.60元/克 (+0.63%)
+📊 成本¥891 | 浮盈 3.8% | 净+3.4%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.6% | 919.48 → 924.60 (回升 ¥5.12)
+2026-08-06 21:44:01.248 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-06 21:44:01.423 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
+🟢 金价监控 | 21:44:01
+💰 927.47元/克 (+0.94%)
+📊 成本¥891 | 浮盈 4.1% | 净+3.7%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.9% | 919.48 → 927.47 (回升 ¥7.99)
+2026-08-06 21:50:01.614 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-06 21:50:01.787 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
+🟢 金价监控 | 21:50:01
+💰 925.73元/克 (+0.75%)
+📊 成本¥891 | 浮盈 3.9% | 净+3.5%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.7% | 919.48 → 925.73 (回升 ¥6.25)
+2026-08-06 21:56:02.193 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-06 21:56:02.345 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
+🟢 金价监控 | 21:56:02
+💰 926.64元/克 (+0.85%)
+📊 成本¥891 | 浮盈 4.0% | 净+3.6%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.8% | 919.48 → 926.64 (回升 ¥7.16)
+2026-08-06 22:02:01.876 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-06 22:02:02.008 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
+🟢 金价监控 | 22:02:02
+💰 926.63元/克 (+0.85%)
+📊 成本¥891 | 浮盈 4.0% | 净+3.6%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.8% | 919.48 → 926.63 (回升 ¥7.15)
+  📅 即将: 伊阿霍尔木兹原则协议(8/6) | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+2026-08-06 22:08:01.330 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-06 22:08:01.481 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
+🟢 金价监控 | 22:08:01
+💰 927.16元/克 (+0.90%)
+📊 成本¥891 | 浮盈 4.1% | 净+3.7%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.8% | 919.48 → 927.16 (回升 ¥7.68)
+  📅 即将: 伊阿霍尔木兹原则协议(8/6) | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+2026-08-06 22:14:02.241 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-06 22:14:02.489 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
+🟢 金价监控 | 22:14:02
+💰 927.46元/克 (+0.94%)
+📊 成本¥891 | 浮盈 4.1% | 净+3.7%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.9% | 919.48 → 927.46 (回升 ¥7.98)
+  📅 即将: 伊阿霍尔木兹原则协议(8/6) | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+2026-08-06 22:20:01.884 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-06 22:20:02.042 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
+🟢 金价监控 | 22:20:02
+💰 926.44元/克 (+0.83%)
+📊 成本¥891 | 浮盈 4.0% | 净+3.6%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.8% | 919.48 → 926.44 (回升 ¥6.96)
+  📅 即将: 伊阿霍尔木兹原则协议(8/6) | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+2026-08-06 22:26:01.694 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-06 22:26:01.860 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
+🟢 金价监控 | 22:26:01
+💰 925.55元/克 (+0.73%)
+📊 成本¥891 | 浮盈 3.9% | 净+3.5%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.7% | 919.48 → 925.55 (回升 ¥6.07)
+  📅 即将: 伊阿霍尔木兹原则协议(8/6) | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+2026-08-06 22:32:01.824 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-06 22:32:01.977 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
+🟢 金价监控 | 22:32:01
+💰 926.68元/克 (+0.85%)
+📊 成本¥891 | 浮盈 4.0% | 净+3.6%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.8% | 919.48 → 926.68 (回升 ¥7.20)
+  📅 即将: 伊阿霍尔木兹原则协议(8/6) | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+2026-08-06 22:38:01.721 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-06 22:38:01.894 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
+🟢 金价监控 | 22:38:01
+💰 927.29元/克 (+0.92%)
+📊 成本¥891 | 浮盈 4.1% | 净+3.7%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.8% | 919.48 → 927.29 (回升 ¥7.81)
+  📅 即将: 伊阿霍尔木兹原则协议(8/6) | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+2026-08-06 22:44:01.771 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-06 22:44:01.931 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
+🟢 金价监控 | 22:44:01
+💰 927.63元/克 (+0.96%)
+📊 成本¥891 | 浮盈 4.1% | 净+3.7%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.9% | 919.48 → 927.63 (回升 ¥8.15)
+  📅 即将: 伊阿霍尔木兹原则协议(8/6) | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+2026-08-06 22:50:01.741 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-06 22:50:01.891 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
+🟢 金价监控 | 22:50:01
+💰 926.03元/克 (+0.78%)
+📊 成本¥891 | 浮盈 4.0% | 净+3.5%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.7% | 919.48 → 926.03 (回升 ¥6.55)
+  📅 即将: 伊阿霍尔木兹原则协议(8/6) | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+2026-08-06 22:56:01.331 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-06 22:56:01.484 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
+🟢 金价监控 | 22:56:01
+💰 927.05元/克 (+0.89%)
+📊 成本¥891 | 浮盈 4.1% | 净+3.7%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.8% | 919.48 → 927.05 (回升 ¥7.57)
+  📅 即将: 伊阿霍尔木兹原则协议(8/6) | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+2026-08-06 23:02:02.218 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-06 23:02:02.362 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
+🟢 金价监控 | 23:02:02
+💰 927.16元/克 (+0.90%)
+📊 成本¥891 | 浮盈 4.1% | 净+3.7%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.8% | 919.48 → 927.16 (回升 ¥7.68)
+  📅 即将: 伊阿霍尔木兹原则协议(8/6) | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+  📅 即将: 观测: 伊阿原则协议→正式签署落地→溢价回吐路径 | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+2026-08-06 23:08:02.181 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-06 23:08:02.820 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
+🟢 金价监控 | 23:08:02
+💰 927.07元/克 (+0.89%)
+📊 成本¥891 | 浮盈 4.1% | 净+3.7%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.8% | 919.48 → 927.07 (回升 ¥7.59)
+  📅 即将: 伊阿霍尔木兹原则协议(8/6) | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+  📅 即将: 观测: 伊阿原则协议→正式签署落地→溢价回吐路径 | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+2026-08-06 23:14:01.406 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-06 23:14:01.558 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
+🟢 金价监控 | 23:14:01
+💰 925.76元/克 (+0.75%)
+📊 成本¥891 | 浮盈 3.9% | 净+3.5%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.7% | 919.48 → 925.76 (回升 ¥6.28)
+  📅 即将: 伊阿霍尔木兹原则协议(8/6) | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+  📅 即将: 观测: 伊阿原则协议→正式签署落地→溢价回吐路径 | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+2026-08-06 23:20:02.143 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-06 23:20:02.276 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
+🟢 金价监控 | 23:20:02
+💰 924.79元/克 (+0.65%)
+📊 成本¥891 | 浮盈 3.8% | 净+3.4%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.6% | 919.48 → 924.79 (回升 ¥5.31)
+  📅 即将: 伊阿霍尔木兹原则协议(8/6) | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+  📅 即将: 观测: 伊阿原则协议→正式签署落地→溢价回吐路径 | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+2026-08-06 23:26:01.911 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-06 23:26:02.076 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
+🟢 金价监控 | 23:26:02
+💰 924.20元/克 (+0.58%)
+📊 成本¥891 | 浮盈 3.7% | 净+3.3%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.5% | 919.48 → 924.20 (回升 ¥4.72)
+  📅 即将: 伊阿霍尔木兹原则协议(8/6) | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+  📅 即将: 观测: 伊阿原则协议→正式签署落地→溢价回吐路径 | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+2026-08-06 23:32:01.891 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-06 23:32:02.160 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
+🟢 金价监控 | 23:32:02
+💰 923.88元/克 (+0.55%)
+📊 成本¥891 | 浮盈 3.7% | 净+3.3%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.5% | 919.48 → 923.88 (回升 ¥4.40)
+  📅 即将: 伊阿霍尔木兹原则协议(8/6) | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+  📅 即将: 观测: 伊阿原则协议→正式签署落地→溢价回吐路径 | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+2026-08-06 23:38:01.867 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-06 23:38:02.109 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
+🟢 金价监控 | 23:38:02
+💰 922.93元/克 (+0.44%)
+📊 成本¥891 | 浮盈 3.6% | 净+3.2%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.4% | 919.48 → 922.93 (回升 ¥3.45)
+  📅 即将: 伊阿霍尔木兹原则协议(8/6) | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+  📅 即将: 观测: 伊阿原则协议→正式签署落地→溢价回吐路径 | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+2026-08-06 23:44:01.749 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-06 23:44:01.897 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
+🟢 金价监控 | 23:44:01
+💰 922.98元/克 (+0.45%)
+📊 成本¥891 | 浮盈 3.6% | 净+3.2%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.4% | 919.48 → 922.98 (回升 ¥3.50)
+  📅 即将: 伊阿霍尔木兹原则协议(8/6) | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+  📅 即将: 观测: 伊阿原则协议→正式签署落地→溢价回吐路径 | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+2026-08-06 23:50:01.774 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-06 23:50:01.927 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
+🟢 金价监控 | 23:50:01
+💰 922.85元/克 (+0.44%)
+📊 成本¥891 | 浮盈 3.6% | 净+3.2%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.4% | 919.48 → 922.85 (回升 ¥3.37)
+  📅 即将: 伊阿霍尔木兹原则协议(8/6) | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+  📅 即将: 观测: 伊阿原则协议→正式签署落地→溢价回吐路径 | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+2026-08-06 23:56:01.370 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-06 23:56:01.515 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
+🟡 金价监控 | 23:56:01
+💰 920.05元/克 (+0.13%)
+📊 成本¥891 | 浮盈 3.3% | 净+2.9%(已扣0.4%卖出费) 净保本¥894
+⚡ 监控频率调整: NORMAL → WATCHING
+   当前检查间隔: 2分0秒
+
+  📅 即将: 伊阿霍尔木兹原则协议(8/6) | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+  📅 即将: 观测: 伊阿原则协议→正式签署落地→溢价回吐路径 | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+2026-08-06 23:59:01.305 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-06 23:59:01.440 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 15 条
+🟡 金价监控 | 23:59:01
+💰 920.45元/克 (+0.17%)
+📊 成本¥891 | 浮盈 3.3% | 净+2.9%(已扣0.4%卖出费) 净保本¥894
+
+  📅 即将: 伊阿霍尔木兹原则协议(8/6) | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+  📅 即将: 观测: 伊阿原则协议→正式签署落地→溢价回吐路径 | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+2026-08-07 00:02:01.544 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-07 00:02:01.728 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 16 条
+🟡 金价监控 | 00:02:01
+💰 920.19元/克 (-0.02%)
+📊 成本¥891 | 浮盈 3.3% | 净+2.9%(已扣0.4%卖出费) 净保本¥894
+
+  📅 正在进行: 伊阿霍尔木兹原则协议(8/6) | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+  📅 正在进行: 观测: 伊阿原则协议→正式签署落地→溢价回吐路径 | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+2026-08-07 00:05:01.524 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-07 00:05:01.647 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 16 条
+🟡 金价监控 | 00:05:01
+💰 920.62元/克 (+0.03%)
+📊 成本¥891 | 浮盈 3.3% | 净+2.9%(已扣0.4%卖出费) 净保本¥894
+
+  📅 正在进行: 伊阿霍尔木兹原则协议(8/6) | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+  📅 正在进行: 观测: 伊阿原则协议→正式签署落地→溢价回吐路径 | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+2026-08-07 00:08:01.517 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-07 00:08:01.649 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 16 条
+🟢 金价监控 | 00:08:01
+💰 921.15元/克 (+0.08%)
+📊 成本¥891 | 浮盈 3.4% | 净+3.0%(已扣0.4%卖出费) 净保本¥894
+⚡ 监控频率调整: WATCHING → NORMAL
+   当前检查间隔: 5分0秒
+
+  📅 正在进行: 伊阿霍尔木兹原则协议(8/6) | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+  📅 正在进行: 观测: 伊阿原则协议→正式签署落地→溢价回吐路径 | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+2026-08-07 00:14:01.827 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-07 00:14:01.966 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 16 条
+🟢 金价监控 | 00:14:01
+💰 919.96元/克 (-0.04%)
+📊 成本¥891 | 浮盈 3.3% | 净+2.9%(已扣0.4%卖出费) 净保本¥894
+
+  📅 正在进行: 伊阿霍尔木兹原则协议(8/6) | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+  📅 正在进行: 观测: 伊阿原则协议→正式签署落地→溢价回吐路径 | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+2026-08-07 00:20:01.194 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-07 00:20:01.334 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 16 条
+🟢 金价监控 | 00:20:01
+💰 918.60元/克 (-0.19%)
+📊 成本¥891 | 浮盈 3.1% | 净+2.7%(已扣0.4%卖出费) 净保本¥894
+📉 日内走弱 (-0.19%)
+
+  📅 正在进行: 伊阿霍尔木兹原则协议(8/6) | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+  📅 正在进行: 观测: 伊阿原则协议→正式签署落地→溢价回吐路径 | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+2026-08-07 00:26:01.706 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-07 00:26:01.841 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 16 条
+🟢 金价监控 | 00:26:01
+💰 918.41元/克 (-0.21%)
+📊 成本¥891 | 浮盈 3.1% | 净+2.7%(已扣0.4%卖出费) 净保本¥894
+📉 日内走弱 (-0.21%)
+
+  📅 正在进行: 伊阿霍尔木兹原则协议(8/6) | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+  📅 正在进行: 观测: 伊阿原则协议→正式签署落地→溢价回吐路径 | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+2026-08-07 00:32:02.288 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-07 00:32:02.516 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 16 条
+🟢 金价监控 | 00:32:02
+💰 919.65元/克 (-0.08%)
+📊 成本¥891 | 浮盈 3.2% | 净+2.8%(已扣0.4%卖出费) 净保本¥894
+
+  📅 正在进行: 伊阿霍尔木兹原则协议(8/6) | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+  📅 正在进行: 观测: 伊阿原则协议→正式签署落地→溢价回吐路径 | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+2026-08-07 00:38:01.872 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-07 00:38:02.188 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 16 条
+🟢 金价监控 | 00:38:02
+💰 920.09元/克 (-0.03%)
+📊 成本¥891 | 浮盈 3.3% | 净+2.9%(已扣0.4%卖出费) 净保本¥894
+
+  📅 正在进行: 伊阿霍尔木兹原则协议(8/6) | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+  📅 正在进行: 观测: 伊阿原则协议→正式签署落地→溢价回吐路径 | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+2026-08-07 00:44:01.747 | INFO     | gold_miner.proxy.manager:_find_binary:80 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-07 00:44:01.891 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 16 条
+🟢 金价监控 | 00:44:01
+💰 920.30元/克 (-0.01%)
+📊 成本¥891 | 浮盈 3.3% | 净+2.9%(已扣0.4%卖出费) 净保本¥894
+
+  📅 正在进行: 伊阿霍尔木兹原则协议(8/6) | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
+  📅 正在进行: 观测: 伊阿原则协议→正式签署落地→溢价回吐路径 | ET 2026-08-06 12:00 (EDT) | 北京 2026-08-07 00:00 · 结果已出 ✓
