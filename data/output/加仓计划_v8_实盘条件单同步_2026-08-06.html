@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>黄金加仓计划 V8 · 实盘条件单同步版 · 2026-08-06</title>
+<style>
+body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; line-height: 1.7; color: #222; }
+h1 { border-bottom: 3px solid #d4a017; padding-bottom: 10px; }
+h2 { border-left: 5px solid #d4a017; padding-left: 10px; margin-top: 32px; background: #faf6ec; }
+table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+th, td { border: 1px solid #ddd; padding: 8px 10px; text-align: left; font-size: 14px; }
+th { background: #f4e9c8; }
+tr:nth-child(even) { background: #fafaf5; }
+blockquote { background: #fff8e6; border-left: 4px solid #d4a017; margin: 12px 0; padding: 10px 14px; }
+strong { color: #8a6d00; }
+</style>
+</head>
+<body>
+<h1>黄金加仓计划 V8 · 实盘条件单同步版 · 2026-08-06</h1>
+<blockquote>
+<p>V8 变更核心：①实盘条件单从「OCO+双档小单」重设为「880×15+860×15 纯低吸，无卖出保护」；②协议签署概率 35%→45%；③补 ATR 移动止盈实测值 894.38（净保本地板）
+⚠️ 无卖出保护：上涨无自动止盈、急跌无自动止损（OCO 已撤），靠画像硬止损 802 兜底，急涨需手动决策</p>
+</blockquote>
+<h2>核心参数</h2>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>总资金</td>
+<td>¥200,000</td>
+</tr>
+<tr>
+<td>当前持仓</td>
+<td>12.4483g @ 890.80（¥11,081 / 5.5%，8/6 再卖出10g@930.35后）</td>
+</tr>
+<tr>
+<td>拆分</td>
+<td>核心仓 11.88g（长线不动）+ 机动仓 0.57g（可忽略，未挂单）</td>
+</tr>
+<tr>
+<td>浮盈</td>
+<td>+3.7%（923.84 现价），&gt; 净保本 894.38</td>
+</tr>
+<tr>
+<td>现金</td>
+<td>~¥188,634（94.3%）</td>
+</tr>
+<tr>
+<td><strong>活跃条件单</strong></td>
+<td>✅ 买880×15g（¥13,200/6.6%）+ 买860×15g（¥12,900/6.5%）；其余全部已撤</td>
+</tr>
+<tr>
+<td><strong>卖出保护</strong></td>
+<td>❌ 无（OCO 已撤，机动仓 0.57g 未挂止盈）</td>
+</tr>
+<tr>
+<td><strong>ATR 移动止盈</strong></td>
+<td><strong>894.38 元/克</strong>（=净保本价地板；14日ATR 15.07；最高价923.84−2.5×15.07=886.17 &lt; 894.38 → 地板生效）未触发→持有</td>
+</tr>
+</tbody>
+</table>
+<h2>双驱动链（MK1 核心）</h2>
+<table>
+<thead>
+<tr>
+<th>链</th>
+<th>方向</th>
+<th>强度</th>
+<th>状态</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>央行购金+结构性需求</td>
+<td>🟢 看多</td>
+<td>strong (+0.80)</td>
+<td>持续</td>
+</tr>
+<tr>
+<td>油价↓→通胀↓→加息概率↓（8/5-8/6 主驱动，WTI 79.8）</td>
+<td>🟢 看多</td>
+<td>strong (+0.40)</td>
+<td>活跃·协议签署即逆转</td>
+</tr>
+<tr>
+<td>ETF 流入（GLD +3.43吨）</td>
+<td>🟢 看多</td>
+<td>strong (+0.68)</td>
+<td>活跃</td>
+</tr>
+<tr>
+<td>COT 聪明钱减仓（-19.1%）</td>
+<td>🔴 看空</td>
+<td>strong (-0.80)</td>
+<td>持续背离·闸门开启</td>
+</tr>
+<tr>
+<td>技术超买（RSI 73+布林上轨）</td>
+<td>🔴 看空</td>
+<td>weak (-0.19)</td>
+<td>短线不追</td>
+</tr>
+<tr>
+<td>协议签署→溢价回吐（尾部）</td>
+<td>🔴 看空</td>
+<td>概率45%</td>
+<td>待8/6-8/7验证</td>
+</tr>
+</tbody>
+</table>
+<p><strong>铁律（MK1）</strong>：主导链（油价-利率）若因协议签署逆转，必须立即切换评估。</p>
+<h2>分批执行时间表（MK3 条件化，实盘条件单驱动）</h2>
+<table>
+<thead>
+<tr>
+<th>批次</th>
+<th>触发条件</th>
+<th>动作</th>
+<th>不满足时</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>持有</td>
+<td>协议+非农待决（8/6-8/7）</td>
+<td>不动</td>
+<td>—</td>
+</tr>
+<tr>
+<td>P1</td>
+<td>金价≤880（未签+强非农 D 情景）</td>
+<td><strong>880单自动成交15g</strong></td>
+<td>未到价→续挂</td>
+</tr>
+<tr>
+<td>P2</td>
+<td>金价≤860（签署+弱非农 A 下沿）</td>
+<td><strong>860单自动成交15g</strong></td>
+<td>未到价→续挂</td>
+</tr>
+<tr>
+<td>P3</td>
+<td>8/7 双窗落地后</td>
+<td>评估是否市价补仓（视情景重估）</td>
+<td>无质变→观望</td>
+</tr>
+</tbody>
+</table>
+<p><strong>预算纪律（MK5）</strong>：单档 6.6%/6.5%，两档合计 30g/¥26,100/13.1%，无追涨单。</p>
+<h2>情景概率矩阵（MK2 双轴，8/6 重估版）</h2>
+<table>
+<thead>
+<tr>
+<th>轴1 协议</th>
+<th>轴2 非农</th>
+<th>概率</th>
+<th>金价</th>
+<th>动作</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>未签 (50%)</td>
+<td>弱 (&lt;100K)</td>
+<td>25%</td>
+<td>930-960</td>
+<td>持有，机动仓可选高位兑现</td>
+</tr>
+<tr>
+<td>未签 (50%)</td>
+<td>强 (&gt;150K)</td>
+<td>25%</td>
+<td>880-905</td>
+<td>880单被动成交15g</td>
+</tr>
+<tr>
+<td>签署 (45%)</td>
+<td>弱</td>
+<td>22.5%</td>
+<td>870-900</td>
+<td>860/880 接货</td>
+</tr>
+<tr>
+<td>签署 (45%)</td>
+<td>强</td>
+<td>22.5%</td>
+<td>840-870</td>
+<td>860单成交+评估（无840档）</td>
+</tr>
+<tr>
+<td>破裂 (5%)</td>
+<td>—</td>
+<td>5%</td>
+<td>940+</td>
+<td>⚠️无止盈单，需手动评估</td>
+</tr>
+</tbody>
+</table>
+<p><strong>概率重估规则（MK2）</strong>：协议签署 45% 为 8/6 实盘重估（伊朗与阿曼新航线协议=结构性让步）；非农结果→对应列归1。每次分析必须重估。</p>
+<h2>ATR 移动止盈（r025，2026-08-06 实测）</h2>
+<ul>
+<li><strong>止损位：894.38 元/克</strong>（净保本地板 = 890.80/(1-0.004)）</li>
+<li>14日 ATR：15.07 | 持仓期最高价：923.84（8/6）| 当前价：923.84</li>
+<li>公式：max(923.84 − 2.5×15.07, 894.38) = max(886.17, 894.38) = <strong>894.38</strong></li>
+<li>状态：未触发 → 持有；若创新高则止损位随之上移（+37.68/档）</li>
+<li>⚠️ r025 动作 reduce_half 需手动执行（无卖出条件单自动触发）</li>
+</ul>
+<h2>军规检查</h2>
+<p>r001/r002/r004/r005/r028/r029/r030/r032 全部 ✅。当前 923 高位+RSI超买→不追涨是铁律。无卖出单不违反 r014（ATR 894.38 即止损位）。</p>
+<h2>风险矩阵（V8 更新：无卖出保护）</h2>
+<table>
+<thead>
+<tr>
+<th>风险</th>
+<th>概率</th>
+<th>最大损失</th>
+<th>应对</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>协议签署→溢价回吐+油价反弹</td>
+<td>45%</td>
+<td>浮盈回吐至860（-3.5%）</td>
+<td>880/860 低吸单自动接货</td>
+</tr>
+<tr>
+<td>非农强劲→加息回升</td>
+<td>25%</td>
+<td>浮盈回吐</td>
+<td>880单成交，等CPI</td>
+</tr>
+<tr>
+<td>技术超买回调</td>
+<td>30%</td>
+<td>小幅回吐</td>
+<td>不追高等回调</td>
+</tr>
+<tr>
+<td>协议破裂→冲突再起</td>
+<td>5%</td>
+<td>踏空+无止盈</td>
+<td>⚠️需手动盯盘评估（无自动止盈）</td>
+</tr>
+<tr>
+<td><strong>无卖出保护（结构性）</strong></td>
+<td>—</td>
+<td>急涨后无自动兑现、急跌破894无法自动减仓</td>
+<td>ATR 894.38 为底线；急涨需手动 r018 减仓</td>
+</tr>
+</tbody>
+</table>
+<h2>使用时规则（沿用 V7）</h2>
+<ol>
+<li>读取本计划，确认当前决策点（协议落地前/P1后/P2后）</li>
+<li>按 MK2 重估概率（协议签署/非农/CPI）</li>
+<li>对照分批表确认下一批（880/860 单为实盘自动执行主体）</li>
+<li>检查质变事件（协议签署/非农/CPI）</li>
+<li>条件单核对：无卖出保护，急涨急跌都需手动决策</li>
+<li>输出格式：当前状态 → 最新概率 → 下一批建议 → 条件单调整</li>
+<li>r032 摩擦成本：净保本价 = 890.80/(1-0.004) ≈ 894.38 = ATR 止损地板</li>
+</ol>
+<footer style="margin-top:40px;color:#999;font-size:12px;">Generated 2026-08-06 · 实盘条件单同步版 V8</footer>
+</body>
+</html>
