@@ -52,6 +52,14 @@ echo "==> 同步 gold_miner 代码 (全量, 含 sentinel/data/signals 等)"
   "$ROOT/scripts/hermes_gold_miner_config.json" \
   "$HOST:$REMOTE_ROOT/scripts/"
 
+# 同步 .env (DeepSeek key 等), 供语义推理层 (AI 判定传导链) 在服务器端使用
+if [[ -f "$ROOT/.env" ]]; then
+  "${SCP[@]}" "$ROOT/.env" "$HOST:$REMOTE_ROOT/.env"
+  echo "  ✅ .env (含 LLM_API_KEY, 突发新闻语义层)"
+else
+  echo "  ⚠️ 本地无 .env, 语义层在服务器端将回退关键词规则"
+fi
+
 echo "==> 同步持仓数据"
 if [[ -f "$ROOT/data/private/portfolio.yaml" ]]; then
   "${SCP[@]}" "$ROOT/data/private/portfolio.yaml" "$HOST:$REMOTE_PORTFOLIO"
