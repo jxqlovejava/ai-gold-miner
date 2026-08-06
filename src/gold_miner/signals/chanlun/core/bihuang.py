@@ -19,10 +19,10 @@ def detect_divergence(bis: list[Bi]) -> dict[int, dict]:
     div: dict[int, dict] = {}
     for i in range(2, len(bis)):
         b, prev = bis[i], bis[i - 2]
-        if b.direction == "down" and prev.direction == "down":
-            if b.low < prev.low and b.macd_area < prev.macd_area:
-                div[i] = {"type": "bottom", "bi_index": i}
-        elif b.direction == "up" and prev.direction == "up":
-            if b.high > prev.high and b.macd_area < prev.macd_area:
-                div[i] = {"type": "top", "bi_index": i}
+        if (b.direction == "down" and prev.direction == "down"
+                and b.low < prev.low and b.macd_area < prev.macd_area):
+            div[i] = {"type": "bottom", "bi_index": i}
+        elif (b.direction == "up" and prev.direction == "up"
+              and b.high > prev.high and b.macd_area < prev.macd_area):
+            div[i] = {"type": "top", "bi_index": i}
     return div
