@@ -685,6 +685,8 @@ def analyze_headlines(
                         "label": label,
                         "matched_kw": matched_text,
                         "source": h.get("source", ""),
+                        "time": h.get("time", ""),
+                        "ts": h.get("ts"),
                         "hash": thash,
                     }
                 )
@@ -720,6 +722,15 @@ def _save_dedup(cache: dict[str, float]) -> None:
 
 def _title_hash(title: str) -> str:
     return hashlib.md5(title.strip().encode()).hexdigest()[:12]
+
+
+def _short_time(alert: dict) -> str:
+    """从告警提取短时间 (HH:MM 或空). 优先 ts 转北京时间, 其次解析原始 time 字段."""
+    ts = alert.get("ts")
+    if ts:
+        return datetime.fromtimestamp(ts, BEIJING).strftime("%H:%M")
+    m = re.search(r"\d{1,2}:\d{2}", alert.get("time", ""))
+    return m.group(0) if m else ""
 
 
 def format_news_alerts(alerts: list[dict], gold_price: float = 0, gold_change: float = 0) -> str:
@@ -763,7 +774,9 @@ def format_news_alerts(alerts: list[dict], gold_price: float = 0, gold_change: f
         lines.append("🚨 重大突发:")
         for a in p0:
             cat = categories.get(a.get("category", ""), "")
-            lines.append(f"  • [{cat}] {a['title'][:80]}")
+            t = _short_time(a)
+            tag = f"{cat} {t}" if t else cat
+            lines.append(f"  • [{tag}] {a['title'][:80]}")
             lines.append(_impact_line(a))
 
     if p1:
@@ -771,12 +784,15 @@ def format_news_alerts(alerts: list[dict], gold_price: float = 0, gold_change: f
         lines.append("⚠️ 关注:")
         for a in p1:
             cat = categories.get(a.get("category", ""), "")
-            lines.append(f"  • [{cat}] {a['title'][:80]}")
+            t = _short_time(a)
+            tag = f"{cat} {t}" if t else cat
+            lines.append(f"  • [{tag}] {a['title'][:80]}")
             lines.append(_impact_line(a))
 
     lines.append("")
-    sources = {a.get("source", "") for a in p0 + p1}
-    lines.append(f"📡 {', '.join(sources)} | 🕐 自动监控")
+    sources = sorted({a.get("source", "") for a in p0 + p1})
+    now_str = datetime.now(BEIJING).strftime("%m-%d %H:%M")
+    lines.append(f"📡 来源: {', '.join(sources)} | 🕐 {now_str}")
     return "\n".join(lines)
 
 

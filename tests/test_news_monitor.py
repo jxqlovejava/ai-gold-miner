@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from gold_miner.sentinel import news_monitor as nm
@@ -129,6 +131,44 @@ def test_format_contains_direction_label():
     out = _format(alerts)
     assert "💡 🟢[利多·重大]" in out
     assert "🚨 重大突发" in out
+
+
+def test_format_includes_item_and_footer_time():
+    alerts = [
+        {
+            "title": "伊阿霍尔木兹原则上达成协议",
+            "impact": "霍尔木兹协议→油价↓→利多金价",
+            "level": "P0",
+            "category": "energy",
+            "direction": "bullish",
+            "severity": "major",
+            "label": "利多·重大",
+            "source": "测试",
+            "ts": 1780000000,
+        },
+    ]
+    out = _format(alerts)
+    assert re.search(r"\[能源危机 \d{2}:\d{2}\]", out)  # 单条新闻时间
+    assert re.search(r"🕐 \d{2}-\d{2} \d{2}:\d{2}", out)  # 生成时间
+    assert "📡 来源: 测试" in out  # 来源标注清晰
+    assert "自动监控" not in out
+
+
+def test_format_omits_item_time_when_unknown():
+    alerts = [
+        {
+            "title": "伊阿霍尔木兹原则上达成协议",
+            "impact": "霍尔木兹协议→油价↓→利多金价",
+            "level": "P0",
+            "category": "energy",
+            "direction": "bullish",
+            "severity": "major",
+            "label": "利多·重大",
+            "source": "测试",
+        },
+    ]
+    out = _format(alerts)
+    assert "[能源危机] 伊阿霍尔木兹" in out  # 无时间字段 → 保持原样
 
 
 def test_format_p1_has_label():
