@@ -12,16 +12,39 @@ import pytest
 from gold_miner.sentinel import news_monitor as nm
 
 
+class _DisabledSemantic:
+    """语义层禁用桩 — 现有用例按纯关键词规则跑."""
+
+    enabled = False
+    categories: set[str] = set()
+
+
+class _FakeSemantic:
+    """可编程语义分析器桩 — 预置 classify_many 返回结果."""
+
+    enabled = True
+    categories = {"geopolitical", "energy", "trade", "policy", "election"}
+
+    def __init__(self, results=None):
+        self.results = results or {}
+
+    def classify_many(self, routed):
+        return dict(self.results)
+
+
 @pytest.fixture(autouse=True)
 def _isolated_dedup(tmp_path, monkeypatch):
-    """每次测试用独立的去重文件, 避免全局 /tmp 缓存污染."""
+    """每次测试用独立的去重文件, 避免全局 /tmp 缓存污染; 默认禁用语义层."""
     monkeypatch.setattr(nm, "_DEDUP_FILE", tmp_path / "dedup.json")
+    monkeypatch.setattr(nm, "_semantic_analyzer", lambda: _DisabledSemantic())
     yield
 
 
-def _analyze(title: str) -> dict | None:
+def _analyze(title: str, semantic=None) -> dict | None:
     """分析单条标题, 返回首条告警 (或 None=被过滤)."""
-    alerts = nm.analyze_headlines([{"title": title, "ts": None, "source": "测试"}])
+    alerts = nm.analyze_headlines(
+        [{"title": title, "ts": None, "source": "测试"}], semantic=semantic
+    )
     return alerts[0] if alerts else None
 
 
@@ -221,3 +244,96 @@ def test_format_p1_has_label():
     out = _format(alerts)
     assert "⚠️ 关注" in out
     assert "💡 ⚪[中性·轻度]" in out
+
+
+# ── AI 语义推理层 (三层架构 Stage 2/3) ──
+
+
+def test_semantic_corrects_hormuz_restriction():
+    """事故标题: '不得通过'=通行限制(非缓和), AI 覆盖 regex 的'供应危机缓解'链."""
+    title = "伊朗披露阿曼协议细节：美国和以色列船只不得通过霍尔木兹海峡"
+    fake = _FakeSemantic({
+        title: {
+            "direction": "bullish", "severity": "major", "priority": "P0",
+            "category": "energy",
+            "transmission_chain": "霍尔木兹通行限制→供应中断风险→油价↑→利多金价(避险+抗通胀)；若油价↑持续推升加息预期则远期承压",
+            "is_real_event": True, "is_pending": False, "confidence": 0.85,
+        },
+    })
+    a = _analyze(title, semantic=fake)
+    assert a is not None
+    assert a["direction"] == "bullish"
+    assert "通行限制" in a["impact"]
+    assert "供应危机缓解" not in a["impact"]  # 修复前误链
+    assert "利多金价" in a["impact"]
+
+
+def test_semantic_drops_pure_mention():
+    """纯提及(候选B) → AI 判 is_real_event=false → 不告警."""
+    title = "美股周四午盘走低，交易员关注伊朗局势"
+    fake = _FakeSemantic({
+        title: {
+            "is_real_event": False, "is_pending": False, "direction": "neutral",
+            "severity": "minor", "priority": "P2", "category": "geopolitical",
+            "transmission_chain": "纯提及/关注，无实质动作→不告警", "confidence": 0.9,
+        },
+    })
+    assert _analyze(title, semantic=fake) is None
+
+
+def test_semantic_broad_mention_real_event_becomes_alert():
+    """候选B (无 strict 命中) 被 AI 判为真实事件 → 生成告警 (提升召回)."""
+    title = "伊朗外长下周访问莫斯科 讨论地区局势"
+    fake = _FakeSemantic({
+        title: {
+            "is_real_event": True, "is_pending": False, "direction": "neutral",
+            "severity": "minor", "priority": "P1", "category": "geopolitical",
+            "transmission_chain": "外交动向→局势不确定性→短期金价方向未定",
+            "confidence": 0.8,
+        },
+    })
+    a = _analyze(title, semantic=fake)
+    assert a is not None
+    assert a["category"] == "geopolitical"
+    assert "金价方向未定" in a["impact"]
+
+
+def test_pending_guard_overrides_llm_direction():
+    """确定性守卫: 标题命中未落地/溢价回吐 → 强制中性, 覆盖 AI 给的利多."""
+    title = "美伊达成停火协议 战争溢价开始回吐"
+    fake = _FakeSemantic({
+        title: {
+            "is_real_event": True, "is_pending": False, "direction": "bullish",
+            "severity": "major", "priority": "P0", "category": "geopolitical",
+            "transmission_chain": "停火→长期降息利多", "confidence": 0.9,
+        },
+    })
+    a = _analyze(title, semantic=fake)
+    assert a is not None
+    assert a["direction"] == "neutral"
+    assert "方向未定" in a["impact"]
+
+
+def test_semantic_failure_falls_back_to_regex():
+    """AI 失败/无返回 → 回退关键词规则, 告警不丢失."""
+    title = "伊阿霍尔木兹原则上达成协议 分道航行重开海峡"
+    fake = _FakeSemantic({})  # classify_many 返回空 → 无 LLM 结果
+    a = _analyze(title, semantic=fake)
+    assert a is not None
+    assert a["direction"] == "bullish"  # 保留 regex 上下文修正结果
+    assert "利多金价" in a["impact"]
+
+
+def test_semantic_low_confidence_falls_back_to_regex():
+    """置信度过低(<0.5) → 不采用 AI 结果, 保留 regex."""
+    title = "伊朗披露阿曼协议细节：美国和以色列船只不得通过霍尔木兹海峡"
+    fake = _FakeSemantic({
+        title: {
+            "direction": "neutral", "severity": "minor", "priority": "P1",
+            "category": "energy", "transmission_chain": "低置信结果",
+            "is_real_event": True, "is_pending": False, "confidence": 0.3,
+        },
+    })
+    a = _analyze(title, semantic=fake)
+    assert a is not None
+    assert "供应危机缓解" in a["impact"]  # 回退 regex 的覆盖链

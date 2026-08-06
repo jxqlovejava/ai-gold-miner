@@ -20,15 +20,34 @@ class LLMClient:
 
     def __init__(self) -> None:
         self.api_key = settings.llm_api_key
-        self.base_url = settings.llm_api_base.rstrip("/")
         self.model = settings.llm_model
+        self.base_url = self._resolve_messages_base(settings.llm_api_base)
         self.enabled = bool(self.api_key)
+
+    @staticmethod
+    def _resolve_messages_base(raw_base: str) -> str:
+        """解析 Anthropic-compatible Messages API 的 base URL.
+
+        DeepSeek 的 Anthropic 兼容端点为 {host}/anthropic/v1/messages。
+        环境变量可能只给了裸域名 (如 api.deepseek.com), 需补 /anthropic 前缀,
+        否则会拼出 {host}/v1/messages → 404。
+        """
+        base = (raw_base or "").strip().rstrip("/")
+        if (
+            base
+            and "api.deepseek.com" in base
+            and "/anthropic" not in base
+            and not base.endswith("/v1")
+        ):
+            return base + "/anthropic"
+        return base
 
     def chat(
         self,
         messages: list[dict[str, str]],
         max_tokens: int = 4096,
         temperature: float = 0.3,
+        timeout: float = 60.0,
     ) -> str | None:
         """调用 DeepSeek Anthropic-compatible Messages API."""
         if not self.enabled:
@@ -49,7 +68,7 @@ class LLMClient:
         }
 
         try:
-            resp = httpx.post(url, json=payload, headers=headers, timeout=60)
+            resp = httpx.post(url, json=payload, headers=headers, timeout=timeout)
             if resp.status_code != 200:
                 logger.warning(f"LLM API 错误 ({resp.status_code}): {resp.text[:200]}")
                 return None
@@ -69,6 +88,47 @@ class LLMClient:
             return None
         except httpx.HTTPError as e:
             logger.warning(f"LLM API 请求失败: {e}")
+            return None
+
+    def chat_json(
+        self,
+        prompt: str,
+        *,
+        timeout: float = 30.0,
+        max_tokens: int = 3000,
+        temperature: float = 0.0,
+    ) -> dict | None:
+        """单轮对话并返回结构化 JSON (容错解析).
+
+        失败或解析不出 JSON 时返回 None, 由调用方回退.
+        """
+        if not self.enabled:
+            return None
+        result = self.chat(
+            [{"role": "user", "content": prompt}],
+            max_tokens=max_tokens,
+            temperature=temperature,
+            timeout=timeout,
+        )
+        if not result:
+            return None
+
+        import json
+        import re
+
+        # 优先提取 ```json 代码块; 否则取首个 { 到末个 }
+        m = re.search(r"```(?:json)?\s*([\s\S]*?)```", result)
+        if m:
+            result = m.group(1).strip()
+        else:
+            start, end = result.find("{"), result.rfind("}")
+            if start != -1 and end > start:
+                result = result[start : end + 1]
+        try:
+            data = json.loads(result)
+            return data if isinstance(data, dict) else None
+        except json.JSONDecodeError:
+            logger.warning(f"LLM 返回无法解析的JSON: {result[:200]}")
             return None
 
     def analyze_article(

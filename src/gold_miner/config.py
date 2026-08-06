@@ -56,6 +56,11 @@ class Settings(BaseSettings):
     llm_api_base: str = "https://api.deepseek.com/anthropic"
     llm_model: str = "deepseek-v4-pro"  # 或 deepseek-v4-flash
 
+    # 突发新闻语义推理层 (AI 判定传导链; 无 key 或关闭时自动回退关键词规则)
+    news_llm_enabled: bool = True
+    news_llm_categories: list[str] = ["geopolitical", "energy", "trade", "policy", "election"]
+    news_llm_max_headlines: int = 12  # 每轮最多送 AI 的候选条数 (控成本)
+
     # Price Alerts
     alert_big_move_pct: float = 2.0         # 大波动阈值 (%)
     alert_dxy_move_pct: float = 1.0         # DXY异动阈值 (%)

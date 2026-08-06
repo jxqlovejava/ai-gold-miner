@@ -20,6 +20,9 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import httpx
+from loguru import logger
+
+from gold_miner.config import settings
 
 BEIJING = timezone(timedelta(hours=8))
 _DEDUP_FILE = Path("/tmp/gold_news_dedup.json")
@@ -463,6 +466,38 @@ _HIGH_IMPACT_RULES: list[ImpactRule] = [
     ),
 ]
 
+# ── 语义推理层 (Stage 2) ──
+_LLM_CONF_THRESHOLD = 0.5  # AI 置信度门槛, 低于则回退关键词规则
+
+# 宽泛提及桶 (候选B): 未命中严格规则但提及风险主体/主题 → 交 AI 裁决"纯提及 vs 真实事件"
+_BROAD_MENTION_PATTERNS: list[str] = [
+    r"伊朗|以色列|胡塞|霍尔木兹|红海|曼德海峡|波斯湾|沙特|叙利亚|黎巴嫩|真主党"
+    r"|俄乌|乌克兰|俄罗斯|朝鲜|台海|南海",
+    r"制裁|关税|停火|和谈|谈判|外交|军事|冲突|战争|袭击|导弹|空袭|封锁|威胁",
+    r"油价|原油|天然气|能源危机|美联储|FOMC|CPI|非农|PCE|降息|加息|央行|利率决议",
+]
+
+
+def _semantic_analyzer():
+    """构建语义分析器 (惰性导入, 避免监控链路强制依赖 LLM)."""
+    from .news_semantic import SemanticNewsAnalyzer
+
+    return SemanticNewsAnalyzer()
+
+
+def _market_adjust(level: str, gold_change_pct: float, impact: str) -> tuple[str, str]:
+    """市场联动: 利多新闻+金价已跌=可能错杀(升级P0); 利空+金价反涨=已被定价(降级P1)."""
+    extra = ""
+    if abs(gold_change_pct) > 1.5:
+        if gold_change_pct < 0 and "利多" in impact:
+            extra = f" (金价已跌{gold_change_pct:.1f}%, 可能尚未定价)"
+            level = "P0"
+        elif gold_change_pct > 0 and "利空" in impact:
+            extra = f" (金价反涨{gold_change_pct:.1f}%, 市场可能已预期)"
+            level = "P1"
+    return level, extra
+
+
 # 中等优先级 — 仅做背景，不推送
 _MED_IMPACT_PATTERNS: list[str] = [
     r"黄金ETF|GLD|SPDR|gold.*etf",
@@ -622,20 +657,29 @@ def fetch_gold_headlines() -> list[dict]:
 def analyze_headlines(
     headlines: list[dict],
     gold_change_pct: float = 0.0,
+    semantic: object | None = None,
 ) -> list[dict]:
-    """智能分析头条: 否定句过滤 + 时间过滤 + 语义去重 + 市场联动.
+    """智能分析头条: 否定句过滤 + 时间过滤 + 语义去重 + 市场联动 + AI 语义推理.
+
+    三层架构:
+      Stage 1  关键词快筛 (strict 候选A + 宽泛提及候选B)
+      Stage 2  AI 语义推理判定方向/程度/传导链 (批量一次)
+      Stage 3  校验与降级 (枚举白名单 + confidence 门槛 + 确定性守卫 + 回退 regex)
 
     Args:
         headlines: 新闻列表
         gold_change_pct: 当前金价日内涨跌幅 (用于市场联动)
+        semantic: 语义分析器实例 (测试注入), None 时自动构建并仅在可用时启用
 
     Returns:
         [{"title":..., "impact":..., "level":"P0"/"P1", "matched_kw":..., "category":...}]
     """
     dedup_cache = _load_dedup()
     now = time.time()
-    alerts: list[dict] = []
+    strict: list[dict] = []  # 候选A: 关键词规则命中 (带预分类)
+    broad: list[dict] = []   # 候选B: 宽泛提及, 交 AI 裁决纯提及 vs 真实事件
 
+    # ── Stage 1a: 关键词规则命中 (候选A) ──
     for h in headlines:
         title = h.get("title", "")
         if not title or len(title) < 6:
@@ -663,9 +707,9 @@ def analyze_headlines(
                 if _contains_negation(title):
                     continue
 
-                # 去重: 检查与已有告警的关键词重合度
+                # 去重: 检查与已有候选的关键词重合度
                 is_dup = False
-                for existing in alerts:
+                for existing in strict:
                     if _keyword_overlap(title, existing["title"]) > _MIN_KEYWORD_OVERLAP:
                         is_dup = True
                         break
@@ -689,40 +733,123 @@ def analyze_headlines(
                     severity = "minor"
                     impact = "事件方向未定(未落地或利多/利空对冲)，等待明确信号再评估"
 
-                # ── 市场联动: 调整优先级 ──
-                final_level = rule.priority
-                context = impact
-                if abs(gold_change_pct) > 1.5:
-                    if gold_change_pct < 0 and "利多" in impact:
-                        context += f" (金价已跌{gold_change_pct:.1f}%, 可能尚未定价)"
-                        final_level = "P0"  # 升级: 利多新闻+金价已跌=可能错杀
-                    elif gold_change_pct > 0 and "利空" in impact:
-                        context += f" (金价反涨{gold_change_pct:.1f}%, 市场可能已预期)"
-                        final_level = "P1"  # 降级: 利空新闻+金价反涨=已被定价
-
-                label = f"{_DIRECTION_LABELS.get(direction, '中性')}·{_SEVERITY_LABELS.get(severity, '轻度')}"
-                alerts.append(
+                strict.append(
                     {
                         "title": title,
-                        "impact": context,
-                        "level": final_level,
+                        "ts": ts,
+                        "source": h.get("source", ""),
+                        "time": h.get("time", ""),
+                        "hash": thash,
+                        "matched_kw": matched_text,
                         "category": rule.category,
                         "direction": direction,
                         "severity": severity,
-                        "label": label,
-                        "matched_kw": matched_text,
-                        "source": h.get("source", ""),
-                        "time": h.get("time", ""),
-                        "ts": h.get("ts"),
-                        "hash": thash,
+                        "impact": impact,
+                        "level": rule.priority,
                     }
                 )
-                dedup_cache[thash] = now
                 break
             except re.error:
                 continue
 
-    # 清理过期去重条目
+    # ── Stage 1b: 宽泛提及 (候选B) — 未 strict 命中但提及风险主体/主题 ──
+    strict_titles = {c["title"] for c in strict}
+    for h in headlines:
+        title = h.get("title", "")
+        if not title or len(title) < 6 or title in strict_titles:
+            continue
+        ts = h.get("ts")
+        if ts is not None and now - ts > _NEWS_MAX_AGE:
+            continue
+        if _title_hash(title) in dedup_cache or _contains_negation(title):
+            continue
+        if any(re.search(p, title) for p in _BROAD_MENTION_PATTERNS):
+            broad.append(
+                {
+                    "title": title,
+                    "ts": ts,
+                    "source": h.get("source", ""),
+                    "time": h.get("time", ""),
+                    "hash": _title_hash(title),
+                    "matched_kw": "",
+                    "category": None,
+                    "level": "P1",  # 默认 P1, 由 LLM priority 覆盖
+                }
+            )
+
+    # ── Stage 2: AI 语义推理 (批量一次, 仅路由类目 + 候选B) ──
+    analyzer = semantic if semantic is not None else _semantic_analyzer()
+    routed_categories = getattr(analyzer, "categories", None) or set(
+        settings.news_llm_categories
+    )
+    routed = [c for c in strict if c.get("category") in routed_categories] + broad
+    llm_results: dict[str, dict] = {}
+    if routed and getattr(analyzer, "enabled", False):
+        try:
+            llm_results = analyzer.classify_many(routed) or {}
+        except Exception:
+            logger.exception("语义推理异常, 回退关键词规则")
+            llm_results = {}
+
+    # ── Stage 3: 校验与降级, 生成最终告警 ──
+    alerts: list[dict] = []
+
+    def _finalize(c: dict, llm: dict | None) -> dict | None:
+        """合并 LLM 字段并应用确定性守卫. 返回告警 dict 或 None(丢弃)."""
+        conf = llm.get("confidence", 0.0) if llm else 0.0
+        if llm is not None and conf >= _LLM_CONF_THRESHOLD:
+            # AI 判定为纯提及 → 丢弃
+            if llm.get("is_real_event") is False:
+                return None
+            # 逐字段采用 (仅白名单校验过的有效字段覆盖)
+            if "direction" in llm:
+                c["direction"] = llm["direction"]
+            if "severity" in llm:
+                c["severity"] = llm["severity"]
+            if "priority" in llm:
+                c["level"] = llm["priority"]
+            if "category" in llm:
+                c["category"] = llm["category"]
+            if "transmission_chain" in llm:
+                c["impact"] = llm["transmission_chain"]
+            # 未落地守卫: LLM 或确定性信号任一命中 → 强制中性 (覆盖 LLM 方向)
+            if llm.get("is_pending") or _is_pending(c["title"]):
+                c["direction"] = "neutral"
+                c["severity"] = "minor"
+                c["impact"] = "事件方向未定(未落地或利多/利空对冲)，等待明确信号再评估"
+        # 候选B 无有效类目 → 无法归档, 丢弃
+        if c.get("category") is None:
+            return None
+        # ── 市场联动: 调整优先级 ──
+        level, extra = _market_adjust(c["level"], gold_change_pct, c["impact"])
+        c["level"] = level
+        c["impact"] = c["impact"] + extra
+        c["label"] = (
+            f"{_DIRECTION_LABELS.get(c['direction'], '中性')}"
+            f"·{_SEVERITY_LABELS.get(c['severity'], '轻度')}"
+        )
+        return c
+
+    for c in strict:
+        fin = _finalize(dict(c), llm_results.get(c["title"]))
+        if fin is not None:
+            alerts.append(fin)
+
+    for c in broad:
+        llm = llm_results.get(c["title"])
+        if llm is None or llm.get("confidence", 0) < _LLM_CONF_THRESHOLD:
+            continue  # AI 不可用/低置信 → 宁缺毋滥
+        if llm.get("is_real_event") is False:
+            continue
+        if "category" not in llm:
+            continue  # 无有效类目 → 丢弃
+        fin = _finalize(c, llm)
+        if fin is not None:
+            alerts.append(fin)
+
+    # 更新去重缓存 (含被评估标题, 避免 6h 内重复 LLM 计费)
+    for c in strict + broad:
+        dedup_cache[c["hash"]] = now
     dedup_cache = {k: v for k, v in dedup_cache.items() if now - v < _DEDUP_TTL}
     _save_dedup(dedup_cache)
 
