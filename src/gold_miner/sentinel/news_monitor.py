@@ -37,9 +37,11 @@ _NEGATION_PATTERNS: list[str] = [
 
 # ── 未落地模式 (命中则降级为中性: 等待/尚未/悬而未决 = 方向未定) ──
 _PENDING_PATTERNS: list[str] = [
-    r"等待.*明朗|等待.*结果|等待.*落地|尚未.*达成|尚未.*签署|悬而未决",
-    r"谈判.*进行中|谈判.*仍|仍在.*磋商|接近.*但.*未",
+    r"等待.*明朗|等待.*结果|等待.*落地|等待.*进展|尚未.*达成|尚未.*签署|悬而未决",
+    r"谈判.*进行中|谈判.*仍|仍在.*磋商|接近.*但.*未|等待.*谈判",
     r"不确定|未定|待定|观望|静观",
+    # 方向矛盾信号: 协议已谈成但溢价回吐/利好出尽 = 短期利空 vs 长期利多对冲 → 中性
+    r"溢价回吐|回吐|获利了结|利多出尽|利好兑现|sell.?the.?news|买预期卖事实",
 ]
 
 # ── 否定词 + 动作词 (全标题否定检测, 不依赖 matched_text 范围) ──
@@ -133,28 +135,29 @@ def _is_pending(title: str) -> bool:
 _HIGH_IMPACT_RULES: list[ImpactRule] = [
     # ═ 地缘冲突 ═
     ImpactRule(
-        pattern=r"美伊|美.*伊朗|伊朗.*美|美.*谈判|美国伊朗",
+        pattern=r"美伊.*(?:冲突|升级|袭击|空袭|导弹|威胁|开火|对峙|封锁|战争|交火)"
+        r"|(?:伊朗|美国).*(?:冲突升级|袭击|空袭|开战|战争扩大)",
         category="geopolitical",
         priority="P0",
-        direction="bearish",
+        direction="bullish",
         severity="major",
-        reason="美伊冲突升级→战争溢价→油价↑→通胀↑→利空金价",
+        reason="美伊冲突升级→避险买盘+战争溢价↑→利多金价(若油价↑推升加息预期则远期承压)",
         context_rules=[
             ContextOverride(
                 r"协议|达成|停火|缓和|和谈|谈判.*进展|原则.*同意|签署",
                 "bullish",
                 "major",
-                "美伊缓和→战争溢价回吐→油价↓→通胀↓→降息预期↑→利多金价",
+                "美伊缓和→降息预期↑+油价↓→通胀↓→利多金价(短期溢价回吐, 长期降息利多)",
             ),
         ],
     ),
     ImpactRule(
-        pattern=r"霍尔木兹|海峡.*封锁|油轮.*爆炸|油轮.*触雷|海峡.*关闭",
+        pattern=r"霍尔木兹(?:.*(?:封锁|关闭|袭击|触雷|爆炸|中断))?|海峡.*封锁|油轮.*爆炸|油轮.*触雷|海峡.*关闭",
         category="energy",
         priority="P0",
-        direction="bearish",
+        direction="bullish",
         severity="major",
-        reason="霍尔木兹封锁→原油供应危机→油价↑→通胀↑→利空金价",
+        reason="霍尔木兹封锁→避险+供应危机→利多金价(若油价↑推升加息预期则远期承压)",
         context_rules=[
             ContextOverride(
                 r"协议|达成|停火|缓和|重开|重放|开放|谈判.*进展|原则.*同意|签署|明朗",
@@ -162,39 +165,63 @@ _HIGH_IMPACT_RULES: list[ImpactRule] = [
                 "major",
                 "霍尔木兹协议/缓和→供应危机缓解→油价↓→通胀↓→降息预期↑→利多金价",
             ),
+            # 无封锁/袭击动作词的"提及式"标题 → 不标利多, 交未落地/中性处理
+            ContextOverride(
+                r"(?:交易员|投资者|市场).*(?:等待|关注|观望|留意).*霍尔木兹",
+                "neutral",
+                "minor",
+                "霍尔木兹局势未落地(等待/观望)→方向未定，等待明确信号",
+            ),
+        ],
+    ),
+    # 红海/胡塞/油轮袭击 (P0 主题 israel_houthi 对应代码规则)
+    ImpactRule(
+        pattern=r"红海.*(?:袭击|封锁|关闭|中断)|胡塞.*(?:袭击|攻击|导弹|无人机)|油轮.*(?:遭.*袭击|被.*袭击|遇袭|触雷|爆炸)",
+        category="geopolitical",
+        priority="P0",
+        direction="bullish",
+        severity="major",
+        reason="红海/胡塞冲突→避险+供应中断→利多金价(若油价↑推升加息预期则远期承压)",
+        context_rules=[
+            ContextOverride(
+                r"协议|达成|停火|缓和|重开|开放|谈判.*进展|原则.*同意|签署|明朗",
+                "bullish",
+                "major",
+                "红海/胡塞缓和→供应中断缓解→油价↓→通胀↓→降息预期↑→利多金价",
+            ),
         ],
     ),
     ImpactRule(
         pattern=r"空袭|导弹.*袭击|无人机.*攻击|轰炸|军事.*打击",
         category="geopolitical",
         priority="P0",
-        direction="bearish",
+        direction="bullish",
         severity="major",
-        reason="军事冲突升级→避险与油价共振→通胀↑→利空金价(短期避险利多, 净利空)",
+        reason="军事冲突→避险买盘+战争溢价↑→利多金价(若油价↑推升加息预期则远期承压)",
     ),
     ImpactRule(
         pattern=r"宣战|全面.*战争|军事.*升级|战争.*扩大",
         category="geopolitical",
         priority="P0",
-        direction="bearish",
+        direction="bullish",
         severity="major",
-        reason="战争升级→油价↑→通胀↑→避险与加息对冲→净利空金价",
+        reason="战争升级→避险买盘+战争溢价↑→利多金价(若油价↑推升加息预期则远期承压)",
     ),
     ImpactRule(
         pattern=r"美军.*增派|航母.*部署|部队.*调动",
         category="geopolitical",
         priority="P1",
-        direction="bearish",
+        direction="bullish",
         severity="moderate",
-        reason="军事部署升级→地缘风险↑→油价↑→利空金价(短期避险利多)",
+        reason="军事部署→地缘风险↑→避险买盘→利多金价",
     ),
     ImpactRule(
         pattern=r"科威特|巴林|卡塔尔|约旦|阿联酋|沙特.*遭.*袭击",
         category="geopolitical",
         priority="P1",
-        direction="bearish",
+        direction="bullish",
         severity="moderate",
-        reason="冲突外溢→区域不稳定→油价↑→利空金价",
+        reason="冲突外溢→区域不稳定→避险买盘→利多金价",
     ),
     # ═ 地缘降级 (独立规则, 供共用) ═
     ImpactRule(
@@ -371,9 +398,9 @@ _HIGH_IMPACT_RULES: list[ImpactRule] = [
         context_rules=[
             ContextOverride(
                 r"霍尔木兹|原油|供应危机",
-                "bearish",
+                "bullish",
                 "moderate",
-                "能源供应危机→油价↑→通胀↑→利空金价",
+                "能源供应危机→避险+油价↑→利多金价(若油价↑推升加息预期则远期承压)",
             ),
             ContextOverride(
                 r"下跌|回落|降",
@@ -660,7 +687,7 @@ def analyze_headlines(
                 if _is_pending(title):
                     direction = "neutral"
                     severity = "minor"
-                    impact = "事件尚未落地/方向未定，等待明确信号再评估"
+                    impact = "事件方向未定(未落地或利多/利空对冲)，等待明确信号再评估"
 
                 # ── 市场联动: 调整优先级 ──
                 final_level = rule.priority

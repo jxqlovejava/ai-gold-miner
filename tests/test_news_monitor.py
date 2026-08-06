@@ -40,12 +40,12 @@ def test_hormuz_agreement_is_bullish():
     assert "利多" in a["label"]
 
 
-def test_hormuz_blockade_is_bearish():
+def test_hormuz_blockade_is_bullish():
     a = _analyze("霍尔木兹海峡遭封锁 油轮触雷爆炸")
     assert a is not None
-    assert a["direction"] == "bearish"
+    assert a["direction"] == "bullish"
     assert a["severity"] == "major"
-    assert "利空" in a["label"]
+    assert "利多" in a["label"]
 
 
 # ── 美联储 ──
@@ -88,6 +88,40 @@ def test_pending_hormuz_is_neutral():
     assert "方向未定" in a["impact"]
 
 
+# ── 2026-08-07 系统性修复: 战争溢价传导链方向 + 过度解读 ──
+
+
+def test_us_iran_conflict_is_bullish():
+    """冲突升级→避险+战争溢价→利多 (修复前误标利空)."""
+    for t in ["美军对伊朗核设施发动空袭", "伊朗向以色列发射导弹袭击", "美伊在霍尔木兹海峡附近交火"]:
+        a = _analyze(t)
+        assert a is not None, t
+        assert a["direction"] == "bullish", t
+        assert "利多" in a["label"], t
+
+
+def test_merely_mentioning_iran_is_not_escalation():
+    """仅提及/关注伊朗, 无冲突动作词 → 不告警 (修复前过度解读为冲突升级)."""
+    for t in ["美股周四午盘走低，交易员关注伊朗局势", "伊朗局势受关注 美股早盘走高", "美伊紧张局势引发市场担忧"]:
+        assert _analyze(t) is None, t
+
+
+def test_houthi_red_sea_attack_is_bullish():
+    """红海/胡塞/油轮袭击 → 利多 (新增 P0 规则, 此前无覆盖)."""
+    for t in ["胡塞武装袭击沙特油轮 红海局势紧张", "红海商船遭袭 曼德海峡航运中断"]:
+        a = _analyze(t)
+        assert a is not None, t
+        assert a["direction"] == "bullish", t
+
+
+def test_hormuz_premium_retrace_is_neutral():
+    """协议达成但战争溢价回吐 → 中性 (利多/利空对冲, 修复前误标利多)."""
+    for t in ["美伊达成停火协议 战争溢价开始回吐", "霍尔木兹协议签署 金价利好兑现获利了结"]:
+        a = _analyze(t)
+        assert a is not None, t
+        assert a["direction"] == "neutral", t
+
+
 # ── 欧洲天然气 (传导弱, 不再误判利空) ──
 
 
@@ -98,10 +132,10 @@ def test_eu_gas_price_neutral():
     assert a["severity"] == "minor"
 
 
-def test_eu_gas_with_oil_context_bearish():
+def test_eu_gas_with_oil_context_bullish():
     a = _analyze("欧洲天然气价格大涨 原油供应危机升级")
     assert a is not None
-    assert a["direction"] == "bearish"
+    assert a["direction"] == "bullish"
 
 
 # ── 否定句过滤 ──
