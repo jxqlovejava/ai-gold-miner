@@ -169,9 +169,12 @@ def test_format_chanlun_structure_block():
     assert "三买" in block and "分批建仓锚点参考" in block
 
 
-def test_format_chanlun_structure_gap_returns_empty():
+def test_format_chanlun_structure_gap_renders_note():
+    """gap 时板块仍可见：输出原因行而非空串，避免模块静默消失。"""
     from gold_miner.pipeline.analysis import AnalysisPipeline
 
     summary = {"current_state": {"gap": "[DATA_GAP] 缠论: 数据不足30根"},
                "confidence": 0.0}
-    assert AnalysisPipeline._format_chanlun_structure(summary) == ""
+    block = AnalysisPipeline._format_chanlun_structure(summary)
+    assert "缠论结构" in block
+    assert "数据不足30根" in block

@@ -24,7 +24,9 @@ logger = logging.getLogger(__name__)
 # 部分数据源（akshare 等）返回 RangeIndex，真实日期在「日期」列。
 # 全管道（去包含/分型/笔/中枢/买卖点）依赖 index 作为 dt，
 # 故入口统一归一化为 DatetimeIndex，保证 dt 语义与报告日期渲染。
-_DATETIME_COLS = ("date", "datetime", "日期", "trade_date", "Date", "time")
+# timestamp 列是 SpotGoldFetcher 的默认日期列，缺失会导致索引停留在
+# 整数 RangeIndex，买卖点 dt 渲染成整数（如 371）而非真实日期。
+_DATETIME_COLS = ("date", "datetime", "日期", "trade_date", "Date", "time", "timestamp")
 
 
 def _ensure_datetime_index(df) -> pd.DataFrame:

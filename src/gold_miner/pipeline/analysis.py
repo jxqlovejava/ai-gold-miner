@@ -496,6 +496,26 @@ class AnalysisPipeline:
             logger.debug(f"near_data_event 检查失败: {e}")
         return False
 
+    # 缠论需足够 K 线才能形成笔/中枢结构：600 自然日 ≈ 400 根日线，
+    # 实测短窗口(43 根)仅 0 笔、600 天可产出 4 笔 + 1 中枢 + 买卖点。
+    _CHANLUN_HISTORY_DAYS = 600
+
+    @staticmethod
+    def _fetch_chanlun_history(gold_df: pd.DataFrame) -> pd.DataFrame:
+        """拉取缠论专用长历史窗口；失败时回退当前 gold_df.
+
+        背景: scan 的 gold_df 由 --days 30 控制，实际仅 ~22 根日线，
+        既 <30 根触发 DATA_GAP 静默吞掉板块，也远不足以形成结构。
+        """
+        try:
+            hist = SpotGoldFetcher().fetch(days=AnalysisPipeline._CHANLUN_HISTORY_DAYS)
+            if hist is not None and not hist.empty and len(hist) >= 30:
+                logger.info(f"缠论历史窗口: {len(hist)} 根日线")
+                return hist
+        except Exception as e:
+            logger.warning(f"缠论长历史拉取失败，回退短窗口: {e}")
+        return gold_df
+
     # ------------------------------------------------------------------
     # Step 2: 信号生成 (8维)
     # ------------------------------------------------------------------
@@ -526,7 +546,10 @@ class AnalysisPipeline:
 
             # 缠论结构分析 (K线结构增强: 分型/笔/中枢/背驰/买卖点, 信号归 dimension="technical")
             def _chanlun_task() -> list[Signal]:
-                gen = ChanlunSignalGenerator(result.gold_df, symbol="Au99.99", name="黄金")
+                # 短窗口(如 --days 30 → ~22 根日线)不足以形成笔/中枢，
+                # 且 <30 根会触发 DATA_GAP 导致板块静默消失 → 独立拉长历史。
+                chanlun_df = self._fetch_chanlun_history(result.gold_df)
+                gen = ChanlunSignalGenerator(chanlun_df, symbol="Au99.99", name="黄金")
                 result.chanlun_summary = gen.summary_dict()  # 供报告板块渲染
                 return gen.generate_signals()
 
@@ -888,10 +911,13 @@ class AnalysisPipeline:
     def _format_chanlun_structure(summary: dict) -> str:
         """格式化缠论结构板块 — 中枢区间/现价位置/最近买卖点/背驰.
 
-        数据不足（含 gap）返回空串，不污染报告。
+        数据不足（含 gap）时仍输出一行原因，避免模块静默消失
+        （用户无法分辨「缠论没做」还是「缠论未接入」）。
         """
-        if summary.get("current_state", {}).get("gap"):
-            return ""
+        gap = summary.get("current_state", {}).get("gap")
+        if gap:
+            reason = str(gap).replace("[DATA_GAP] 缠论: ", "")
+            return "📊 缠论结构（日线 · K线结构增强）\n  ⚠️ 本次跳过：" + reason
         lines = ["📊 缠论结构（日线 · K线结构增强 · 技术面参考）"]
         cs = summary.get("current_state", {})
         last_zs = summary.get("last_zs")

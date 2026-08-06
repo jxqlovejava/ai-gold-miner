@@ -60,6 +60,22 @@ def test_empty_df_returns_empty():
     assert merge_bars(df) == []
 
 
+def test_ensure_datetime_index_recognizes_timestamp_column():
+    """SpotGoldFetcher 返回 timestamp 列 → 索引归一化为 DatetimeIndex，
+    否则买卖点 dt 渲染成整数（如 371）而非真实日期。"""
+    from gold_miner.signals.chanlun.analyzer import _ensure_datetime_index
+
+    df = pd.DataFrame({
+        "timestamp": pd.to_datetime(["2026-08-01", "2026-08-02"]),
+        "open": [1.0, 2.0], "high": [2.0, 3.0],
+        "low": [0.0, 1.0], "close": [1.5, 2.5], "volume": [100, 100],
+    })
+    out = _ensure_datetime_index(df)
+    assert isinstance(out.index, pd.DatetimeIndex)
+    assert out.index[0] == pd.Timestamp("2026-08-01")
+    assert "timestamp" not in out.columns
+
+
 def test_partial_overlap_not_merged():
     # 前根 [10,12], 当前 [7,9] → 当前整体低于前根, 非包含 → 不合并
     df = _make_ohlc_df([(10, 12, 9, 10.5), (8, 9, 7, 8)])
