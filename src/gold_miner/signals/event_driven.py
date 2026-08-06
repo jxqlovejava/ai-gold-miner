@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -33,6 +34,18 @@ EVENT_DIRECTION_MAP: dict[EventType, dict[str, SignalDirection]] = {
         "below_forecast": SignalDirection.BULLISH,
         "in_line": SignalDirection.NEUTRAL,
     },
+    # PPI 与 CPI 同逻辑: 通胀数据超预期 → 加息预期 → 利空黄金
+    EventType.PPI: {
+        "above_forecast": SignalDirection.BEARISH,
+        "below_forecast": SignalDirection.BULLISH,
+        "in_line": SignalDirection.NEUTRAL,
+    },
+    # PMI/ADP/ISM/消费者信心等经济数据: 超预期 → 经济强 → 加息预期 → 利空黄金
+    EventType.PMI: {
+        "above_forecast": SignalDirection.BEARISH,
+        "below_forecast": SignalDirection.BULLISH,
+        "in_line": SignalDirection.NEUTRAL,
+    },
     EventType.FOMC_MINUTES: {
         "hawkish": SignalDirection.BEARISH,
         "dovish": SignalDirection.BULLISH,
@@ -56,17 +69,20 @@ def _infer_event_direction(
     if outcome in mapping:
         return mapping[outcome]
 
-    if event_type in (EventType.CPI, EventType.PCE, EventType.NFP):
-        if actual and forecast:
-            try:
-                a, f = float(actual.replace("%", "")), float(forecast.replace("%", ""))
-                if a > f:
-                    return SignalDirection.BEARISH
-                if a < f:
-                    return SignalDirection.BULLISH
-                return SignalDirection.NEUTRAL
-            except ValueError:
-                pass
+    if event_type in (
+        EventType.CPI,
+        EventType.PCE,
+        EventType.NFP,
+        EventType.PPI,
+        EventType.PMI,
+    ):
+        a = _extract_number(actual)
+        f = _extract_number(forecast)
+        if a is not None and f is not None:
+            if a > f:
+                return SignalDirection.BEARISH
+            if a < f:
+                return SignalDirection.BULLISH
         return SignalDirection.NEUTRAL
 
     return SignalDirection.NEUTRAL
@@ -168,7 +184,13 @@ class EventDrivenSignalGenerator:
             )
 
             surprise_bonus = self._surprise_magnitude(event.event_type, actual_value, forecast_value)
-            score = (base_score + surprise_bonus) * (1 if direction == SignalDirection.BULLISH else -1)
+            if direction == SignalDirection.BULLISH:
+                score = base_score + surprise_bonus
+            elif direction == SignalDirection.BEARISH:
+                score = -(base_score + surprise_bonus)
+            else:
+                # NEUTRAL（数据事件未出方向/无法解析）：不给正负分，避免系统性拉低 event 维度
+                score = 0.0
 
             signals.append(Signal(
                 name=f"事件结果: {event.name}",
@@ -282,15 +304,38 @@ class EventDrivenSignalGenerator:
         forecast: str,
     ) -> float:
         """计算预期偏差幅度."""
-        try:
-            a = float(actual.replace("%", "").replace("K", "").replace("M", ""))
-            f = float(forecast.replace("%", "").replace("K", "").replace("M", ""))
-            if f == 0:
-                return 0.0
-            deviation = abs(a - f) / abs(f)
-            return min(deviation * 0.5, 0.5)
-        except (ValueError, AttributeError):
+        a = _extract_number(actual)
+        f = _extract_number(forecast)
+        if a is None or f is None or f == 0:
             return 0.0
+        deviation = abs(a - f) / abs(f)
+        return min(deviation * 0.5, 0.5)
+
+
+_NUMBER_RE = re.compile(r"[-+]?\d+(?:\.\d+)?")
+_UNIT_MULT = {"万": 1e4, "亿": 1e8, "K": 1e3, "M": 1e6, "%": 1.0}
+
+
+def _extract_number(text: str) -> float | None:
+    """从事件结果文本中提取第一个数值，并换算中文/英文单位.
+
+    事件 actual/forecast 常混入描述文本（如 "实际 +4.4万 (预期6.5-7.5万...)"），
+    直接 float() 会抛 ValueError。本函数用正则取首个数值并按后缀单位换算：
+    - "实际 +4.4万" → 44000.0
+    - "55.6(预期54.0)" → 55.6
+    - "6.5万" → 65000.0；"3.3%" → 3.3
+    """
+    if not text:
+        return None
+    m = _NUMBER_RE.search(text)
+    if not m:
+        return None
+    val = float(m.group())
+    tail = text[m.end():]
+    for unit, mult in _UNIT_MULT.items():
+        if tail.startswith(unit):
+            return val * mult
+    return val
 
 
 def _classify_outcome(
@@ -325,16 +370,21 @@ def _classify_outcome(
             return "escalation"
         return "deescalation"
 
-    if event_type in (EventType.CPI, EventType.PCE, EventType.NFP):
-        try:
-            a = float(actual.replace("%", ""))
-            f = float(forecast.replace("%", "")) if forecast else 0
-            if a > f * 1.005:
-                return "above_forecast"
-            if a < f * 0.995:
-                return "below_forecast"
+    if event_type in (
+        EventType.CPI,
+        EventType.PCE,
+        EventType.NFP,
+        EventType.PPI,
+        EventType.PMI,
+    ):
+        a = _extract_number(actual)
+        f = _extract_number(forecast)
+        if a is None or f is None:
             return "in_line"
-        except ValueError:
-            return "in_line"
+        if a > f * 1.005:
+            return "above_forecast"
+        if a < f * 0.995:
+            return "below_forecast"
+        return "in_line"
 
     return "in_line"
