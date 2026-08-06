@@ -15,6 +15,7 @@ import hashlib
 import json
 import re
 import time
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -34,45 +35,405 @@ _NEGATION_PATTERNS: list[str] = [
     r"(降溫|緩和|降溫|缓和|停火|协议达成|谈判取得)",
 ]
 
-# ── 高优先级关键词 → (方向, 置信度, 类别) ──
-_HIGH_IMPACT_RULES: list[tuple[str, str, str, str]] = [
-    # (关键词正则, 金价影响说明, 类别, 级别)
-    # ─ 地缘冲突 ─
-    (r"美伊|美.*伊朗|伊朗.*美", "地缘升级→短期避险利多, 但油价↑→加息预期↑→净影响需判断", "geopolitical", "P0"),
-    (r"霍尔木兹|海峡.*封锁|油轮.*爆炸|油轮.*触雷", "原油供应危机→油价↑→通胀↑→利空金价", "energy", "P0"),
-    (r"空袭|导弹.*袭击|无人机.*攻击", "军事冲突升级→避险情绪↑", "geopolitical", "P0"),
-    (r"宣战|全面.*战争|军事.*打击", "战争升级→极端避险→金价剧烈波动", "geopolitical", "P0"),
-    (r"美军.*增派|航母.*部署|部队.*调动", "军事部署升级→地缘风险↑", "geopolitical", "P1"),
-    (r"科威特|巴林|卡塔尔|约旦|阿联酋|沙特.*遭.*袭击", "冲突外溢→区域不稳定↑", "geopolitical", "P1"),
-    # ─ 美联储 ─
-    (r"美联储.*加息|Fed.*hike|FOMC.*加息", "加息→实际利率↑→强烈利空金价", "fed", "P0"),
-    (r"美联储.*降息|Fed.*cut|FOMC.*降息", "降息→实际利率↓→强烈利多金价", "fed", "P0"),
-    (r"美联储.*维持|按兵不动|hold.*rate", "维持利率→短期中性, 关注点阵图", "fed", "P1"),
-    (r"沃什|Warsh|美联储主席", "联储主席讲话→政策信号→影响加息预期", "fed", "P0"),
-    (r"点阵图|dot.plot|利率.*预测", "利率路径预期→中长期金价方向", "fed", "P1"),
-    # ─ 宏观数据 ─
-    (r"非农.*大幅|就业.*崩|失业.*飙升", "劳动力恶化→经济衰退→利多金价", "macro", "P0"),
-    (r"CPI.*超预期|通胀.*超预期|PCE.*超预期", "通胀超预期→加息压力↑→利空金价", "macro", "P0"),
-    (r"CPI.*低于预期|通胀.*放缓|PCE.*低于", "通胀回落→加息压力↓→利多金价", "macro", "P0"),
-    # ─ 极端行情 ─
-    (r"金价.*暴跌.*[5-9]%|黄金.*大跌.*[5-9]%|gold.*crash", "极端行情→恐慌抛售→关注止损", "market", "P0"),
-    (r"金价.*暴涨.*[3-9]%|黄金.*大涨.*[3-9]%|gold.*surge", "极端行情→快速拉升→关注止盈", "market", "P0"),
-    (r"金价.*跌破.*[34]\d{3}|gold.*below.*[34]\d{3}", "跌破关键位→技术面恶化", "market", "P0"),
-    # ─ 央行 ─
-    (r"央行.*购金.*[1-9]\d{2}吨|央行.*增持.*黄金", "央行购金→结构性利多→长期支撑", "central_bank", "P1"),
-    (r"去美元化|de-dollarization|外汇储备.*黄金", "货币体系变化→长期利多金价", "central_bank", "P1"),
-    # ─ 油价 ─
-    (r"油价.*飙|原油.*暴涨|Brent.*[89]\d|WTI.*[89]\d", "能源危机→通胀预期↑→加息→利空金价", "energy", "P1"),
-    (r"油价.*崩|原油.*暴跌|Brent.*跌破.*[56]\d", "能源降价→通胀降温→利多金价", "energy", "P1"),
-    # ─ 贸易/制裁 ─
-    (r"关税.*加征|trade.*war|贸易.*战|制裁.*升级", "贸易战升级→避险利多但通胀复杂", "trade", "P1"),
-    (r"资本.*管制|外汇.*管制|资金.*封锁", "流动性危机→短期利空一切资产", "policy", "P1"),
-    # ─ 印度黄金需求 (2026-07-22新增) ─
-    (r"印度.*关税|India.*tariff|India.*duty.*gold", "印度关税调整→需求变化→边际影响金价", "india_gold", "P2"),
-    (r"印度.*黄金.*进口|India.*gold.*import", "印度进口数据→全球第二大需求国动向", "india_gold", "P2"),
-    # ─ 美国选举 (2026-07-22新增) ─
-    (r"中期选举|midterm.*election|美国.*选举", "政策不确定性→避险买盘→利多金价", "election", "P1"),
-    (r"民调|poll.*congress|选举.*民调", "选举民调→不确定性定价→影响金价", "election", "P1"),
+# ── 未落地模式 (命中则降级为中性: 等待/尚未/悬而未决 = 方向未定) ──
+_PENDING_PATTERNS: list[str] = [
+    r"等待.*明朗|等待.*结果|等待.*落地|尚未.*达成|尚未.*签署|悬而未决",
+    r"谈判.*进行中|谈判.*仍|仍在.*磋商|接近.*但.*未",
+    r"不确定|未定|待定|观望|静观",
+]
+
+# ── 否定词 + 动作词 (全标题否定检测, 不依赖 matched_text 范围) ──
+_NEGATIVE_WORDS: tuple[str, ...] = (
+    "不会",
+    "没有",
+    "否认",
+    "排除",
+    "暂不",
+    "未必",
+    "难以",
+    "不太可能",
+    "推迟",
+    "搁置",
+    "取消",
+    "叫停",
+    "暂缓",
+    "暂停",
+    "拒绝",
+)
+_ACTION_WORDS: tuple[str, ...] = (
+    "加息",
+    "降息",
+    "维持",
+    "协议",
+    "达成",
+    "停火",
+    "封锁",
+    "袭击",
+    "轰炸",
+    "批准",
+    "签署",
+    "谈判",
+    "关税",
+    "制裁",
+    "购金",
+    "增持",
+    "攻击",
+    "威胁",
+    "决议",
+    "决策",
+)
+
+
+def _contains_negation(title: str) -> bool:
+    """全标题否定检测: 否定词前后窗口内出现动作词 → 判定为否定句."""
+    for neg in _NEGATIVE_WORDS:
+        idx = title.find(neg)
+        if idx == -1:
+            continue
+        window = title[max(0, idx - 14) : idx + 14 + len(neg)]
+        if any(w in window for w in _ACTION_WORDS):
+            return True
+    return False
+
+
+# ── 方向/程度 → 中文标签映射 ──
+_DIRECTION_LABELS = {"bullish": "利多", "bearish": "利空", "neutral": "中性"}
+_SEVERITY_LABELS = {"major": "重大", "moderate": "中度", "minor": "轻度"}
+
+
+@dataclass(frozen=True)
+class ContextOverride:
+    """上下文修正规则 — 命中 context_pattern 时覆盖基础方向/程度/因果链."""
+
+    context_pattern: str
+    direction: str  # "bullish"/"bearish"/"neutral"
+    severity: str  # "major"/"moderate"/"minor"
+    reason: str  # 覆盖后的因果链说明
+
+
+@dataclass(frozen=True)
+class ImpactRule:
+    """结构化高影响新闻规则."""
+
+    pattern: str  # 关键词正则
+    category: str  # geopolitical/fed/macro/...
+    priority: str  # "P0"/"P1" (排序用)
+    direction: str  # 基础方向 bullish/bearish/neutral
+    severity: str  # 基础程度 major/moderate/minor
+    reason: str  # 基础因果链说明 (方向已修正)
+    context_rules: list[ContextOverride] = field(default_factory=list)
+
+
+def _is_pending(title: str) -> bool:
+    """未落地信号 → 方向未定, 降级为中性."""
+    return any(re.search(pat, title) for pat in _PENDING_PATTERNS)
+
+
+# ── 高优先级关键词 → (结构化规则: 方向 + 程度 + 因果链 + 上下文修正) ──
+_HIGH_IMPACT_RULES: list[ImpactRule] = [
+    # ═ 地缘冲突 ═
+    ImpactRule(
+        pattern=r"美伊|美.*伊朗|伊朗.*美|美.*谈判|美国伊朗",
+        category="geopolitical",
+        priority="P0",
+        direction="bearish",
+        severity="major",
+        reason="美伊冲突升级→战争溢价→油价↑→通胀↑→利空金价",
+        context_rules=[
+            ContextOverride(
+                r"协议|达成|停火|缓和|和谈|谈判.*进展|原则.*同意|签署",
+                "bullish",
+                "major",
+                "美伊缓和→战争溢价回吐→油价↓→通胀↓→降息预期↑→利多金价",
+            ),
+        ],
+    ),
+    ImpactRule(
+        pattern=r"霍尔木兹|海峡.*封锁|油轮.*爆炸|油轮.*触雷|海峡.*关闭",
+        category="energy",
+        priority="P0",
+        direction="bearish",
+        severity="major",
+        reason="霍尔木兹封锁→原油供应危机→油价↑→通胀↑→利空金价",
+        context_rules=[
+            ContextOverride(
+                r"协议|达成|停火|缓和|重开|重放|开放|谈判.*进展|原则.*同意|签署|明朗",
+                "bullish",
+                "major",
+                "霍尔木兹协议/缓和→供应危机缓解→油价↓→通胀↓→降息预期↑→利多金价",
+            ),
+        ],
+    ),
+    ImpactRule(
+        pattern=r"空袭|导弹.*袭击|无人机.*攻击|轰炸|军事.*打击",
+        category="geopolitical",
+        priority="P0",
+        direction="bearish",
+        severity="major",
+        reason="军事冲突升级→避险与油价共振→通胀↑→利空金价(短期避险利多, 净利空)",
+    ),
+    ImpactRule(
+        pattern=r"宣战|全面.*战争|军事.*升级|战争.*扩大",
+        category="geopolitical",
+        priority="P0",
+        direction="bearish",
+        severity="major",
+        reason="战争升级→油价↑→通胀↑→避险与加息对冲→净利空金价",
+    ),
+    ImpactRule(
+        pattern=r"美军.*增派|航母.*部署|部队.*调动",
+        category="geopolitical",
+        priority="P1",
+        direction="bearish",
+        severity="moderate",
+        reason="军事部署升级→地缘风险↑→油价↑→利空金价(短期避险利多)",
+    ),
+    ImpactRule(
+        pattern=r"科威特|巴林|卡塔尔|约旦|阿联酋|沙特.*遭.*袭击",
+        category="geopolitical",
+        priority="P1",
+        direction="bearish",
+        severity="moderate",
+        reason="冲突外溢→区域不稳定→油价↑→利空金价",
+    ),
+    # ═ 地缘降级 (独立规则, 供共用) ═
+    ImpactRule(
+        pattern=r"协议|达成|停火|和谈|谈判.*进展|原则.*同意|签署",
+        category="geopolitical",
+        priority="P0",
+        direction="bullish",
+        severity="major",
+        reason="地缘降级/协议达成→战争溢价回吐→油价↓→通胀↓→降息预期↑→利多金价",
+    ),
+    # ═ 美联储 ═
+    ImpactRule(
+        pattern=r"美联储.*加息|Fed.*hike|FOMC.*加息|加息.*预期.*升温",
+        category="fed",
+        priority="P0",
+        direction="bearish",
+        severity="major",
+        reason="加息→实际利率↑→强烈利空金价",
+    ),
+    ImpactRule(
+        pattern=r"美联储.*降息|Fed.*cut|FOMC.*降息|降息.*预期.*升温",
+        category="fed",
+        priority="P0",
+        direction="bullish",
+        severity="major",
+        reason="降息→实际利率↓→强烈利多金价",
+    ),
+    ImpactRule(
+        pattern=r"美联储.*维持|按兵不动|hold.*rate",
+        category="fed",
+        priority="P1",
+        direction="neutral",
+        severity="moderate",
+        reason="维持利率→短期中性, 关注点阵图",
+    ),
+    ImpactRule(
+        pattern=r"沃什|Warsh|美联储主席|鲍威尔|Powell",
+        category="fed",
+        priority="P0",
+        direction="neutral",
+        severity="minor",
+        reason="联储主席讲话→政策信号→方向取决于措辞",
+        context_rules=[
+            ContextOverride(
+                r"鹰派|加息|抗通胀|缩表|维持紧缩",
+                "bearish",
+                "moderate",
+                "联储主席鹰派→加息预期↑→利空金价",
+            ),
+            ContextOverride(
+                r"鸽派|降息|支持.*降息|宽松",
+                "bullish",
+                "moderate",
+                "联储主席鸽派→降息预期↑→利多金价",
+            ),
+        ],
+    ),
+    ImpactRule(
+        pattern=r"点阵图|dot.plot|利率.*预测",
+        category="fed",
+        priority="P1",
+        direction="neutral",
+        severity="moderate",
+        reason="利率路径预期→方向取决于鹰/鸽分布",
+    ),
+    # ═ 宏观数据 ═
+    ImpactRule(
+        pattern=r"非农.*大幅.*超预期|就业.*强劲|失业.*下降",
+        category="macro",
+        priority="P0",
+        direction="bearish",
+        severity="major",
+        reason="就业强劲→加息压力↑→利空金价",
+        context_rules=[
+            ContextOverride(
+                r"不及预期|低于预期|疲软|放缓",
+                "bullish",
+                "major",
+                "就业疲软→加息压力↓→利多金价",
+            ),
+        ],
+    ),
+    ImpactRule(
+        pattern=r"就业.*崩|失业.*飙升|非农.*大跌|非农.*不及预期",
+        category="macro",
+        priority="P0",
+        direction="bullish",
+        severity="major",
+        reason="劳动力恶化→衰退风险→降息预期↑→利多金价",
+    ),
+    ImpactRule(
+        pattern=r"CPI.*超预期|通胀.*超预期|PCE.*超预期",
+        category="macro",
+        priority="P0",
+        direction="bearish",
+        severity="major",
+        reason="通胀超预期→加息压力↑→利空金价",
+    ),
+    ImpactRule(
+        pattern=r"CPI.*低于预期|通胀.*放缓|PCE.*低于|通胀.*回落",
+        category="macro",
+        priority="P0",
+        direction="bullish",
+        severity="major",
+        reason="通胀回落→加息压力↓→利多金价",
+    ),
+    # ═ 极端行情 ═
+    ImpactRule(
+        pattern=r"金价.*暴跌.*[5-9]%|黄金.*大跌.*[5-9]%|gold.*crash",
+        category="market",
+        priority="P0",
+        direction="bearish",
+        severity="major",
+        reason="极端行情→恐慌抛售→技术面恶化→利空(关注止损)",
+    ),
+    ImpactRule(
+        pattern=r"金价.*暴涨.*[3-9]%|黄金.*大涨.*[3-9]%|gold.*surge",
+        category="market",
+        priority="P0",
+        direction="bullish",
+        severity="major",
+        reason="极端行情→快速拉升→动量利多(关注止盈)",
+    ),
+    ImpactRule(
+        pattern=r"金价.*跌破.*[34]\d{3}|gold.*below.*[34]\d{3}",
+        category="market",
+        priority="P0",
+        direction="bearish",
+        severity="moderate",
+        reason="跌破关键位→技术面恶化→利空",
+    ),
+    # ═ 央行 ═
+    ImpactRule(
+        pattern=r"央行.*购金.*[1-9]\d{2}吨|央行.*增持.*黄金",
+        category="central_bank",
+        priority="P1",
+        direction="bullish",
+        severity="moderate",
+        reason="央行购金→结构性利多→长期支撑",
+    ),
+    ImpactRule(
+        pattern=r"去美元化|de-dollarization|外汇储备.*黄金",
+        category="central_bank",
+        priority="P1",
+        direction="bullish",
+        severity="moderate",
+        reason="货币体系变化→长期利多金价",
+    ),
+    # ═ 油价 ═
+    ImpactRule(
+        pattern=r"油价.*飙|原油.*暴涨|Brent.*[89]\d|WTI.*[89]\d",
+        category="energy",
+        priority="P1",
+        direction="bearish",
+        severity="moderate",
+        reason="油价↑→通胀预期↑→加息→利空金价",
+    ),
+    ImpactRule(
+        pattern=r"油价.*崩|原油.*暴跌|Brent.*跌破.*[56]\d|油价.*回落",
+        category="energy",
+        priority="P1",
+        direction="bullish",
+        severity="moderate",
+        reason="油价↓→通胀降温→加息压力↓→利多金价",
+    ),
+    # ═ 欧洲能源 (传导弱, 避免误判) ═
+    ImpactRule(
+        pattern=r"欧洲.*天然气|天然气.*上涨|欧洲.*能源|能源.*价格",
+        category="energy",
+        priority="P1",
+        direction="neutral",
+        severity="minor",
+        reason="欧洲天然气价格对美国金价传导弱→方向未定",
+        context_rules=[
+            ContextOverride(
+                r"霍尔木兹|原油|供应危机",
+                "bearish",
+                "moderate",
+                "能源供应危机→油价↑→通胀↑→利空金价",
+            ),
+            ContextOverride(
+                r"下跌|回落|降",
+                "bullish",
+                "moderate",
+                "能源价格回落→通胀降温→利多金价",
+            ),
+        ],
+    ),
+    # ═ 贸易/制裁 ═
+    ImpactRule(
+        pattern=r"关税.*加征|trade.*war|贸易.*战|制裁.*升级",
+        category="trade",
+        priority="P1",
+        direction="bullish",
+        severity="moderate",
+        reason="贸易战升级→避险利多(但通胀复杂)",
+    ),
+    ImpactRule(
+        pattern=r"资本.*管制|外汇.*管制|资金.*封锁",
+        category="policy",
+        priority="P1",
+        direction="bearish",
+        severity="moderate",
+        reason="流动性危机→短期利空一切资产",
+    ),
+    # ═ 印度黄金需求 ═
+    ImpactRule(
+        pattern=r"印度.*关税|India.*tariff|India.*duty.*gold",
+        category="india_gold",
+        priority="P2",
+        direction="neutral",
+        severity="minor",
+        reason="印度关税调整→需求变化→边际影响金价",
+    ),
+    ImpactRule(
+        pattern=r"印度.*黄金.*进口|India.*gold.*import",
+        category="india_gold",
+        priority="P2",
+        direction="neutral",
+        severity="minor",
+        reason="印度进口数据→全球第二大需求国动向",
+    ),
+    # ═ 美国选举 ═
+    ImpactRule(
+        pattern=r"中期选举|midterm.*election|美国.*选举",
+        category="election",
+        priority="P1",
+        direction="bullish",
+        severity="moderate",
+        reason="政策不确定性→避险买盘→利多金价",
+    ),
+    ImpactRule(
+        pattern=r"民调|poll.*congress|选举.*民调",
+        category="election",
+        priority="P1",
+        direction="neutral",
+        severity="minor",
+        reason="选举民调→不确定性定价→影响金价",
+    ),
 ]
 
 # 中等优先级 — 仅做背景，不推送
@@ -84,28 +445,6 @@ _MED_IMPACT_PATTERNS: list[str] = [
     r"金银比|gold.silver",
     r"技术分析|technical.*analysis.*gold",
 ]
-
-
-def _make_negation_re(keyword: str) -> str:
-    """构造否定句正则: '不会{keyword}' 等."""
-    escaped = re.escape(keyword)
-    patterns = [
-        rf"(不|没有|否认|排除|暂不|未必|难以|不太可能|推迟|搁置|取消|叫停)\s*{escaped}",
-    ]
-    return "|".join(patterns)
-
-
-def _is_negated(title: str, keyword: str) -> bool:
-    """检查标题中关键词是否被否定."""
-    patterns = [
-        rf"(不|没有|否认|排除|暂不|未必|难以|不太可能|推迟|搁置|取消|叫停)\s*{re.escape(keyword)}",
-        rf"{re.escape(keyword)}.*(?:不会|没有|否认|排除|暂缓|暂停|取消)",
-    ]
-    for pat in patterns:
-        if re.search(pat, title):
-            return True
-    # 和谈/停火类标题 → 冲突降级, 不算地缘升级
-    return bool(keyword in ("美伊", "伊朗", "空袭", "袭击", "战争", "封锁") and re.search(r"降溫|緩和|缓和|停火|协议.*达成|谈判.*取得.*进展|和谈|peace.*talk|ceasefire", title))
 
 
 def _parse_sina_time(ctime_str: str) -> float | None:
@@ -131,6 +470,7 @@ def _parse_sina_time(ctime_str: str) -> float | None:
 
 def _keyword_overlap(title1: str, title2: str) -> float:
     """两条标题的关键词重合度 (0-1)."""
+
     # 简单分词: 取 2-gram 字符
     def _ngrams(s: str, n: int = 2) -> set[str]:
         s = re.sub(r"[^一-鿿\w]", "", s)
@@ -153,8 +493,7 @@ def fetch_gold_headlines() -> list[dict]:
 
     def _fetch(url: str, source: str, parser, headers=None) -> int:
         try:
-            h = headers or {"User-Agent": "Mozilla/5.0",
-                           "Referer": "https://finance.sina.com.cn/"}
+            h = headers or {"User-Agent": "Mozilla/5.0", "Referer": "https://finance.sina.com.cn/"}
             resp = httpx.get(url, headers=h, timeout=8.0)
             if resp.status_code == 200:
                 return parser(resp, source)
@@ -170,24 +509,29 @@ def fetch_gold_headlines() -> list[dict]:
             ctime = item.get("ctime", "")
             ts = _parse_sina_time(ctime)
             if title and (ts is None or now - ts < _NEWS_MAX_AGE):
-                headlines.append({
-                    "title": title, "time": ctime, "ts": ts,
-                    "source": src, "url": item.get("url", ""),
-                })
+                headlines.append(
+                    {
+                        "title": title,
+                        "time": ctime,
+                        "ts": ts,
+                        "source": src,
+                        "url": item.get("url", ""),
+                    }
+                )
                 added += 1
         return added
 
     _fetch(
-        "https://feed.mix.sina.com.cn/api/roll/get"
-        "?pageid=153&lid=2516&k=&num=20&page=1",
-        "新浪黄金", _parse_sina,
+        "https://feed.mix.sina.com.cn/api/roll/get?pageid=153&lid=2516&k=&num=20&page=1",
+        "新浪黄金",
+        _parse_sina,
     )
 
     # 2. 7×24 快讯
     _fetch(
-        "https://feed.mix.sina.com.cn/api/roll/get"
-        "?pageid=154&lid=2637&k=&num=30&page=1",
-        "7×24快讯", _parse_sina,
+        "https://feed.mix.sina.com.cn/api/roll/get?pageid=154&lid=2637&k=&num=30&page=1",
+        "7×24快讯",
+        _parse_sina,
     )
 
     # 3. 东方财富黄金
@@ -196,17 +540,23 @@ def fetch_gold_headlines() -> list[dict]:
         for item in resp.json().get("data", {}).get("diff", []):
             title = item.get("f14", "").strip()
             if title:
-                headlines.append({
-                    "title": title, "time": "", "ts": None,
-                    "source": src, "url": "",
-                })
+                headlines.append(
+                    {
+                        "title": title,
+                        "time": "",
+                        "ts": None,
+                        "source": src,
+                        "url": "",
+                    }
+                )
                 added += 1
         return added
 
     _fetch(
         "https://push2.eastmoney.com/api/qt/clist/get"
         "?np=1&fltt=2&fields=f13,f14&fid=f13&fs=m:116&pn=1&pz=15",
-        "东方财富", _parse_em,
+        "东方财富",
+        _parse_em,
     )
 
     # 4. 金十数据 (flash news)
@@ -219,19 +569,24 @@ def fetch_gold_headlines() -> list[dict]:
             for item in items[:20]:
                 title = (item.get("content") or item.get("title") or "").strip()
                 if title:
-                    headlines.append({
-                        "title": title, "time": item.get("time", ""), "ts": None,
-                        "source": src, "url": "",
-                    })
+                    headlines.append(
+                        {
+                            "title": title,
+                            "time": item.get("time", ""),
+                            "ts": None,
+                            "source": src,
+                            "url": "",
+                        }
+                    )
                     added += 1
         except Exception:
             pass
         return added
 
     _fetch(
-        "https://flash-api.jin10.com/get_flash_list?channel=-8200&vip=1&_="
-        + str(int(now * 1000)),
-        "金十数据", _parse_jin10,
+        "https://flash-api.jin10.com/get_flash_list?channel=-8200&vip=1&_=" + str(int(now * 1000)),
+        "金十数据",
+        _parse_jin10,
     )
 
     return headlines
@@ -269,16 +624,16 @@ def analyze_headlines(
         if thash in dedup_cache:
             continue
 
-        # ── 关键词匹配 + 否定句过滤 ──
-        for kw_regex, impact, category, level in _HIGH_IMPACT_RULES:
+        # ── 关键词匹配 + 否定句过滤 + 上下文修正 ──
+        for rule in _HIGH_IMPACT_RULES:
             try:
-                match = re.search(kw_regex, title)
+                match = re.search(rule.pattern, title)
                 if not match:
                     continue
 
                 matched_text = match.group(0)
-                # 否定句检查
-                if _is_negated(title, matched_text):
+                # 否定句检查 (全标题否定词检测)
+                if _contains_negation(title):
                     continue
 
                 # 去重: 检查与已有告警的关键词重合度
@@ -290,8 +645,25 @@ def analyze_headlines(
                 if is_dup:
                     continue
 
+                # ── 上下文修正: 命中 context_rules → 覆盖方向/程度/因果链 ──
+                direction, severity, impact = rule.direction, rule.severity, rule.reason
+                for ctx in rule.context_rules:
+                    if re.search(ctx.context_pattern, title):
+                        direction, severity, impact = (
+                            ctx.direction,
+                            ctx.severity,
+                            ctx.reason,
+                        )
+                        break
+
+                # ── 未落地信号: 等待/尚未/悬而未决 → 降级中性 (方向未定) ──
+                if _is_pending(title):
+                    direction = "neutral"
+                    severity = "minor"
+                    impact = "事件尚未落地/方向未定，等待明确信号再评估"
+
                 # ── 市场联动: 调整优先级 ──
-                final_level = level
+                final_level = rule.priority
                 context = impact
                 if abs(gold_change_pct) > 1.5:
                     if gold_change_pct < 0 and "利多" in impact:
@@ -301,15 +673,21 @@ def analyze_headlines(
                         context += f" (金价反涨{gold_change_pct:.1f}%, 市场可能已预期)"
                         final_level = "P1"  # 降级: 利空新闻+金价反涨=已被定价
 
-                alerts.append({
-                    "title": title,
-                    "impact": context,
-                    "level": final_level,
-                    "category": category,
-                    "matched_kw": matched_text,
-                    "source": h.get("source", ""),
-                    "hash": thash,
-                })
+                label = f"{_DIRECTION_LABELS.get(direction, '中性')}·{_SEVERITY_LABELS.get(severity, '轻度')}"
+                alerts.append(
+                    {
+                        "title": title,
+                        "impact": context,
+                        "level": final_level,
+                        "category": rule.category,
+                        "direction": direction,
+                        "severity": severity,
+                        "label": label,
+                        "matched_kw": matched_text,
+                        "source": h.get("source", ""),
+                        "hash": thash,
+                    }
+                )
                 dedup_cache[thash] = now
                 break
             except re.error:
@@ -344,8 +722,7 @@ def _title_hash(title: str) -> str:
     return hashlib.md5(title.strip().encode()).hexdigest()[:12]
 
 
-def format_news_alerts(alerts: list[dict], gold_price: float = 0,
-                       gold_change: float = 0) -> str:
+def format_news_alerts(alerts: list[dict], gold_price: float = 0, gold_change: float = 0) -> str:
     """格式化新闻告警为微信卡片."""
     if not alerts:
         return ""
@@ -363,9 +740,23 @@ def format_news_alerts(alerts: list[dict], gold_price: float = 0,
         emoji = "🔴" if gold_change < 0 else "🟢"
         lines.append(f"当前 XAUUSD: ${gold_price:.0f} ({emoji} {gold_change:+.1f}%)")
 
-    categories = {"geopolitical": "地缘冲突", "fed": "美联储", "macro": "宏观数据",
-                   "market": "极端行情", "energy": "能源危机", "central_bank": "央行动向",
-                   "trade": "贸易制裁", "policy": "政策变动"}
+    categories = {
+        "geopolitical": "地缘冲突",
+        "fed": "美联储",
+        "macro": "宏观数据",
+        "market": "极端行情",
+        "energy": "能源危机",
+        "central_bank": "央行动向",
+        "trade": "贸易制裁",
+        "policy": "政策变动",
+    }
+
+    def _impact_line(a: dict) -> str:
+        """生成 💡 [方向·程度] 因果链 一行 (方向 emoji 前缀)."""
+        emoji = {"bullish": "🟢", "bearish": "🔴", "neutral": "⚪"}.get(
+            a.get("direction", "neutral"), "⚪"
+        )
+        return f"    💡 {emoji}[{a.get('label', '中性·轻度')}] {a.get('impact', '')}"
 
     if p0:
         lines.append("")
@@ -373,7 +764,7 @@ def format_news_alerts(alerts: list[dict], gold_price: float = 0,
         for a in p0:
             cat = categories.get(a.get("category", ""), "")
             lines.append(f"  • [{cat}] {a['title'][:80]}")
-            lines.append(f"    💡 {a['impact']}")
+            lines.append(_impact_line(a))
 
     if p1:
         lines.append("")
@@ -381,6 +772,7 @@ def format_news_alerts(alerts: list[dict], gold_price: float = 0,
         for a in p1:
             cat = categories.get(a.get("category", ""), "")
             lines.append(f"  • [{cat}] {a['title'][:80]}")
+            lines.append(_impact_line(a))
 
     lines.append("")
     sources = {a.get("source", "") for a in p0 + p1}
@@ -398,6 +790,7 @@ def run_news_check() -> str:
     gold_change = 0.0
     try:
         from .quotes import _from_sina
+
         xau = _from_sina()
         if xau:
             gold_price = xau["price"]
