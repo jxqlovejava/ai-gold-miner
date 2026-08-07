@@ -35,13 +35,15 @@ def _calc_rsi(close: pd.Series, period: int = 14) -> float:
     return float(100.0 - (100.0 / (1.0 + avg_gain / avg_loss)))
 
 
-def print_technical(gold_df: pd.DataFrame, bundle: SignalBundle) -> None:
+def print_technical(
+    gold_df: pd.DataFrame, bundle: SignalBundle, trend_gate: dict | None = None
+) -> None:
     if gold_df.empty:
         return
     close = gold_df["close"]
     latest = close.iloc[-1]
     rsi_val = _calc_rsi(close)
-    rsi_label = "超卖" if rsi_val < 30 else "超买" if rsi_val > 70 else "中性"
+    rsi_label = "超卖" if rsi_val < 20 else "超买" if rsi_val > 80 else "中性"
     ema12 = close.ewm(span=12).mean().iloc[-1]
     ema26 = close.ewm(span=26).mean().iloc[-1]
     macd = ema12 - ema26
@@ -63,6 +65,25 @@ def print_technical(gold_df: pd.DataFrame, bundle: SignalBundle) -> None:
     print(f"  MACD: {macd:+.2f} ({macd_label})")
     print(f"  布林带: {bb_pos:.0f}% ({bb_label})  上{upper:.0f}  中{sma20:.0f}  下{lower:.0f}")
     print(f"  20日区间: {low_20:.0f} ~ {high_20:.0f}  距支撑{((latest-low_20)/low_20*100):+.1f}%  距阻力{((high_20-latest)/high_20*100):+.1f}%")
+
+    # 长期趋势闸门 (MA50/100/200) — 军规 r026 可视化
+    if trend_gate and trend_gate.get("state") != "insufficient_data":
+        gate_icon = {
+            "bull": "\U0001f7e2 开启(多头排列)",
+            "bear": "\U0001f534 关闭",
+            "mixed": "\U0001f7e1 中性(排列未确认)",
+        }.get(trend_gate["state"], trend_gate["state"])
+        _pam = trend_gate.get("price_above_ma200")
+        pos_label = "站上" if _pam else "跌破" if _pam is not None else "未知"
+        print(
+            f"  长期趋势闸门(MA50/100/200): {gate_icon}  | 现价{pos_label}MA200"
+            f" | 乖离MA200 {trend_gate.get('vs_ma200_pct', 0):+.1f}%"
+        )
+        print(
+            f"    MA50 {trend_gate.get('ma50')}  "
+            f"MA100 {trend_gate.get('ma100')}  "
+            f"MA200 {trend_gate.get('ma200')}"
+        )
 
     sigs = bundle.by_dimension("technical")
     print(f"  {'-'*56}")
@@ -296,9 +317,9 @@ def print_smart_money(bundle: SignalBundle) -> None:
 
 def print_all_dimensions(
     gold_df, dxy_df, rate_df, breakeven_df, silver_df,
-    news_items, au_df, bundle,
+    news_items, au_df, bundle, trend_gate: dict | None = None,
 ) -> None:
-    print_technical(gold_df, bundle)
+    print_technical(gold_df, bundle, trend_gate)
     print_fundamental(dxy_df, rate_df, breakeven_df, gold_df, silver_df, bundle)
     print_smart_money(bundle)
     print_news(news_items, bundle)

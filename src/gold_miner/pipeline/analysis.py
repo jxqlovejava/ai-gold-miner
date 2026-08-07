@@ -52,6 +52,7 @@ from gold_miner.signals.etf_flow_signal import EtfFlowSignalGenerator
 from gold_miner.signals.fundamental import FundamentalAnalyzer
 from gold_miner.signals.institutional_signal import InstitutionalSignalGenerator
 from gold_miner.signals.monitor_signal import MonitorSignalGenerator
+from gold_miner.signals.ma_trend_gate import MaTrendGateSignal
 from gold_miner.signals.news_signal import NewsSignalGenerator
 from gold_miner.signals.oil_signal import OilSignalGenerator
 from gold_miner.signals.recent_events import RecentEventSignalGenerator
@@ -116,6 +117,7 @@ class AnalysisResult:
     conditional_order_review: list[dict[str, Any]] = field(default_factory=list)
     scenario_plan: dict[str, Any] = field(default_factory=dict)
     chanlun_summary: dict[str, Any] = field(default_factory=dict)  # 缠论结构摘要（报告板块）
+    trend_gate: dict[str, Any] = field(default_factory=dict)  # MA50/100/200 长期趋势闸门状态（军规 r026 + 报告）
 
 
 class AnalysisPipeline:
@@ -516,6 +518,22 @@ class AnalysisPipeline:
             logger.warning(f"缠论长历史拉取失败，回退短窗口: {e}")
         return gold_df
 
+    @staticmethod
+    def _fetch_trend_gate_history(gold_df: pd.DataFrame) -> pd.DataFrame:
+        """拉取长期均线闸门专用长历史窗口；失败时回退当前 gold_df.
+
+        背景: MA200 需要 ≥200 根日线, 但 scan 的 gold_df 仅 ~22 根 (--days 30)。
+        复用缠论同一长历史窗口 (600 天), 保证均线计算稳定。
+        """
+        try:
+            hist = SpotGoldFetcher().fetch(days=AnalysisPipeline._CHANLUN_HISTORY_DAYS)
+            if hist is not None and not hist.empty and len(hist) >= AnalysisPipeline._CHANLUN_HISTORY_DAYS // 3:
+                logger.info(f"趋势闸门历史窗口: {len(hist)} 根日线")
+                return hist
+        except Exception as e:
+            logger.warning(f"趋势闸门长历史拉取失败，回退短窗口: {e}")
+        return gold_df
+
     # ------------------------------------------------------------------
     # Step 2: 信号生成 (8维)
     # ------------------------------------------------------------------
@@ -554,6 +572,15 @@ class AnalysisPipeline:
                 return gen.generate_signals()
 
             futures[pool.submit(_chanlun_task)] = "chanlun"
+
+            # 长期均线趋势闸门 (MA50/100/200, 需 ≥200 根日线 → 独立拉长历史)
+            def _trend_gate_task() -> list[Signal]:
+                gate_df = self._fetch_trend_gate_history(result.gold_df)
+                gen = MaTrendGateSignal(gate_df)
+                result.trend_gate = gen.analyze()  # 供军规 r026 ctx + 报告板块
+                return gen.generate_signals()
+
+            futures[pool.submit(_trend_gate_task)] = "trend_gate"
 
             # 基本面
             futures[pool.submit(
@@ -1275,6 +1302,19 @@ class AnalysisPipeline:
             flow_info = _flow.to_dict()
             inst_selling = signals_indicate_institutional_selling(_flow)
 
+        # 长期均线趋势闸门 (MA50/100/200) → 军规 r026 的 price_above_200ma
+        # 注意 key: analyze() 返回 price_above_ma200 (现价高于MA200)
+        trend_gate = result.trend_gate or {}
+        _pam = trend_gate.get("price_above_ma200")
+        # 数据不足(insufficient_data)时视为"未确认", 不注入 False 触发 r026 误报
+        price_above_200ma = _pam if _pam is not None else True
+        # r026 要求"基本面/资金流向至少一个维度确认"才允许跌破200日均线后做多
+        has_fundamental_confirm = bool(
+            result.bundle.by_dimension("fundamental")
+            or result.bundle.by_dimension("long_term")
+            or flow_info.get("status", "unknown") != "unknown"
+        )
+
         result.doctrine_ctx = {
             "current_exposure": current_gold_pct,
             "gold_allocation_pct": current_gold_pct,
@@ -1303,6 +1343,10 @@ class AnalysisPipeline:
             "retail_buying": action == "add",  # 建议加仓时视为散户买意
             "institutional_flow_status": flow_info.get("status", "unknown"),
             "institutional_flow_score": flow_info.get("net_score", 0.0),
+            # r026 均线趋势过滤 (MA50/100/200 趋势闸门)
+            "price_above_200ma": price_above_200ma,
+            "has_fundamental_confirm": has_fundamental_confirm,
+            "trend_gate_state": trend_gate.get("state", "insufficient_data"),
         }
 
         checker = DoctrineChecker()
@@ -1443,6 +1487,7 @@ class AnalysisPipeline:
             news_items=result.news_raw if ctx.with_news else [],
             au_df=result.au_df if ctx.with_sentiment else None,
             bundle=result.bundle,
+            trend_gate=result.trend_gate or None,
         )
 
         # Agent 辩论输出
