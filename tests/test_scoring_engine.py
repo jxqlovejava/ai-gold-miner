@@ -8,7 +8,7 @@ from gold_miner.signals.engine import DimensionWeights, ScoringEngine
 
 _ZEROS = dict(
     technical=0.0, fundamental=0.0, news=0.0, sentiment=0.0,
-    event=0.0, polymarket=0.0, anomaly=0.0, scenario=0.0,
+    event=0.0, polymarket=0.0, anomaly=0.0, scenario=0.0, oil=0.0,
 )
 
 
@@ -17,14 +17,14 @@ class TestDimensionWeights:
         w = DimensionWeights()
         total = sum([
             w.technical, w.fundamental, w.news, w.sentiment,
-            w.event, w.polymarket, w.anomaly, w.scenario,
+            w.event, w.polymarket, w.anomaly, w.scenario, w.oil,
         ])
         assert abs(total - 1.0) < 0.001
 
     def test_custom_valid_weights(self) -> None:
         w = DimensionWeights(
             technical=0.25, fundamental=0.25, news=0.20, sentiment=0.10,
-            event=0.10, polymarket=0.05, anomaly=0.03, scenario=0.02,
+            event=0.10, polymarket=0.05, anomaly=0.03, scenario=0.02, oil=0.0,
         )
         assert abs(w.technical - 0.25) < 0.001
 
