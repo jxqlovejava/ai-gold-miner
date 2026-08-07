@@ -105,6 +105,74 @@ class TestPolymarketFetcher:
         assert not fetcher._matches_keywords(m, ["bitcoin", "crypto"])
 
 
+class TestPolymarketKeysetFallback:
+    """/markets 弃用后 keyset 兜底逻辑测试."""
+
+    @staticmethod
+    def _keyset_page() -> dict:
+        return {
+            "$schema": "test",
+            "markets": [{
+                "id": "123",
+                "question": "Will Fed cut rates in 2027?",
+                "conditionId": "cond1",
+                "slug": "fed-cut-2027",
+                "outcomes": ["Yes", "No"],
+                "outcomePrices": ["0.65", "0.35"],
+                "volume": "5000",
+                "liquidity": "2000",
+                "endDate": "2027-01-01T00:00:00Z",
+                "active": True,
+                "closed": False,
+            }],
+            "next_cursor": "cursor2",
+        }
+
+    def test_primary_path_uses_markets(self, monkeypatch) -> None:
+        fetcher = PolymarketFetcher()
+        calls: list[str] = []
+
+        def fake_get(url: str):
+            calls.append(url)
+            assert "/markets/keyset" not in url
+            return [self._keyset_page()["markets"][0]]
+
+        monkeypatch.setattr(fetcher, "_get_json", fake_get)
+        result = fetcher._fetch_active_markets(1)
+        assert len(result) == 1
+        assert calls[0].startswith(fetcher.base_url + "/markets?")
+        assert result[0].volume_24h == 0.0  # 主路径有 volume24hr 才非零
+
+    def test_falls_back_to_keyset(self, monkeypatch) -> None:
+        """主路径失败 → 兜底 /markets/keyset, 用 volume 近似 volume24hr."""
+        fetcher = PolymarketFetcher()
+        page = self._keyset_page()
+
+        def fake_get(url: str):
+            if "/markets/keyset" in url:
+                return page
+            raise ConnectionError("simulated /markets failure (sunset)")
+
+        monkeypatch.setattr(fetcher, "_get_json", fake_get)
+        result = fetcher._fetch_active_markets(1)
+        assert len(result) == 1
+        assert result[0].question == "Will Fed cut rates in 2027?"
+        assert result[0].volume_24h == 5000.0  # keyset 用 volume 近似
+
+    def test_keyset_stops_on_no_next_cursor(self, monkeypatch) -> None:
+        """无 next_cursor 时停止分页, 不无限循环."""
+        fetcher = PolymarketFetcher()
+        page = self._keyset_page()
+        page["next_cursor"] = ""
+
+        def fake_get(url: str):
+            return page
+
+        monkeypatch.setattr(fetcher, "_get_json", fake_get)
+        result = fetcher._fetch_active_markets(10)
+        assert len(result) == 1
+
+
 class TestPolymarketSignalGenerator:
     """PolymarketSignalGenerator 测试."""
 
