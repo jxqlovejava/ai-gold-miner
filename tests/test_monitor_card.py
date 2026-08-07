@@ -57,7 +57,9 @@ def test_card_cost_mentioned_once_below_cost():
     cost_lines = [ln for ln in card.splitlines() if "成本" in ln]
     assert len(cost_lines) == 1
     assert "浮亏 0.7%" in cost_lines[0]
-    assert "⚠️ 已破成本线" in cost_lines[0]  # 警示合并进 header 同行
+    # r032 摩擦成本核算后为净保本线语义 (扣 0.4% 卖出费, 卖出即实亏), 不再是毛成本线
+    assert "⚠️ 已破净保本线" in cost_lines[0]  # 警示合并进 header 同行
+    assert "卖出即实亏" in cost_lines[0]
 
 
 def test_card_cost_clean_when_profitable():

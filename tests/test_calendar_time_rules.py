@@ -186,21 +186,30 @@ class TestDowCheck:
         """generate_dow_reference_table 输出 Markdown 表格."""
         from gold_miner.data.calendar_time_rules import generate_dow_reference_table
 
+        ET = timezone(timedelta(hours=-4))
+
+        def _next_dow_et(target_dow: int, hour: int, minute: int = 30) -> str:
+            """下一个指定星期几(0=周一)的 ET ISO 时间 — 避免硬编码日期过期被过滤."""
+            today = datetime.now(timezone.utc).astimezone(ET).date()
+            days_ahead = (target_dow - today.weekday()) % 7 or 7  # 今天则取下周
+            d = today + timedelta(days=days_ahead)
+            return datetime(d.year, d.month, d.day, hour, minute, tzinfo=ET).isoformat()
+
         events = [
-            {
+            {  # 初请: 周四 08:30 ET
                 "name": "初请失业金人数",
                 "event_type": "nfp",
-                "scheduled_at": "2026-07-23T08:30:00-04:00",
+                "scheduled_at": _next_dow_et(3, 8, 30),
             },
-            {
+            {  # FOMC: 周三 14:00 ET
                 "name": "FOMC利率决议",
                 "event_type": "fed_rate",
-                "scheduled_at": "2026-07-29T14:00:00-04:00",
+                "scheduled_at": _next_dow_et(2, 14, 0),
             },
-            {
+            {  # PCE: 周四 08:30 ET (官方通常周四)
                 "name": "核心PCE物价指数",
                 "event_type": "pce",
-                "scheduled_at": "2026-07-30T08:30:00-04:00",
+                "scheduled_at": _next_dow_et(3, 8, 30),
             },
         ]
         table = generate_dow_reference_table(events, days_ahead=30)
