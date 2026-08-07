@@ -18,6 +18,7 @@ import re as _re
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
+from urllib.parse import quote
 
 from loguru import logger
 
@@ -183,17 +184,58 @@ class PolymarketFetcher:
     # ------------------------------------------------------------------
 
     def _fetch_active_markets(self, limit: int) -> list[PredictionMarket]:
-        """获取所有活跃市场."""
-        url = f"{self.base_url}/markets?active=true&closed=false&limit={limit}"
+        """获取所有活跃市场.
+
+        gamma-api /markets 已弃用 (sunset 2026-05-01), 但字段最全 (volume24hr/价格变化),
+        作为主路径; 失败时兜底 /markets/keyset 光标分页.
+        """
+        # 1) 主路径: /markets (弃用但可用, 字段最全)
         try:
+            url = f"{self.base_url}/markets?active=true&closed=false&limit={limit}"
             data = self._get_json(url)
-            if not isinstance(data, list):
-                logger.warning(f"Polymarket API 返回非列表: {type(data)}")
-                return []
-            return [self._parse_market(m) for m in data if isinstance(m, dict)]
+            if isinstance(data, list):
+                return [self._parse_market(m) for m in data if isinstance(m, dict)]
+            logger.warning(f"Polymarket /markets 返回非列表: {type(data)}")
         except Exception as e:
-            logger.warning(f"Polymarket 市场列表获取失败: {e}")
+            logger.warning(f"Polymarket /markets 获取失败({e}), 兜底 /markets/keyset")
+
+        # 2) 兜底: /markets/keyset (官方推荐端点)
+        try:
+            return self._fetch_active_markets_keyset(limit)
+        except Exception as e:
+            logger.warning(f"Polymarket /markets/keyset 获取失败: {e}")
             return []
+
+    def _fetch_active_markets_keyset(self, limit: int) -> list[PredictionMarket]:
+        """/markets/keyset 光标分页获取活跃市场.
+
+        响应: {"markets": [...], "next_cursor": "..."}.
+        keyset 端点无 volume24hr/价格变化字段, 用总 volume 近似 volume24hr
+        以保留 `min_volume_24h` 过滤能力; 价格变化等字段置空.
+        """
+        markets: list[PredictionMarket] = []
+        after_cursor = ""
+        page_size = min(limit, 100)
+        while len(markets) < limit:
+            url = f"{self.base_url}/markets/keyset?closed=false&limit={page_size}"
+            if after_cursor:
+                url += f"&after_cursor={quote(after_cursor)}"
+            data = self._get_json(url)
+            if not isinstance(data, dict):
+                break
+            page = data.get("markets") or []
+            for m in page:
+                if not isinstance(m, dict):
+                    continue
+                m = dict(m)  # 不改原数据
+                if "volume24hr" not in m and m.get("volume") is not None:
+                    m["volume24hr"] = m["volume"]
+                markets.append(self._parse_market(m))
+            next_cursor = data.get("next_cursor")
+            if not page or not next_cursor or next_cursor == after_cursor:
+                break
+            after_cursor = next_cursor
+        return markets[:limit]
 
     def _get_json(self, url: str) -> Any:
         """发起 HTTP GET 并返回 JSON."""
