@@ -33,7 +33,7 @@ pipeline/             — Analysis engine
 ├── analysis.py       — AnalysisPipeline (9-step), 88KB core
 └── long_term.py      — LongTermAnalyzer (1-36 month)
 
-signals/              — 8-dimensional signal generation
+signals/              — 17-channel parallel signal generation
 ├── base.py           — Signal, SignalBundle, SignalDirection, FactType
 ├── technical.py      — RSI, MACD, Bollinger Bands
 ├── fundamental.py    — DXY, rates, inflation, India signals

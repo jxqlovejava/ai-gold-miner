@@ -20,15 +20,24 @@ Calendar DOW validation + event sync + deep news search + data collection.
 - Collects price data (spot gold, DXY, rates, silver, breakeven, JD accumulation gold)
 
 ### Step 2: generate_signals
-Generates 8-dimensional signals:
-1. **technical** — RSI, MACD, Bollinger Bands, 20-day range
-2. **fundamental** — DXY, real rates, breakeven, gold-silver ratio, central bank buying, **India GDP/INR**
-3. **news** — 24h news sentiment scoring
-4. **sentiment** — AU futures open interest & volume-price relationships
-5. **smart_money** — CFTC COT, ETF flow, COMEX large traders, 13F, composite score
-6. **event** — Economic calendar signal generation
-7. **polymarket** — Prediction market probabilities
-8. **anomaly/scenario** — Divergence detection, volume surge, scenario analysis
+Generates 17 parallel signal channels (Phase 1 ThreadPoolExecutor, max_workers=14):
+1. **technical** — RSI, MACD, Bollinger Bands, 20-day range, K-line patterns
+2. **chanlun** — Daily 分型/笔/中枢/背驰/买卖点 structure (technical enhancement)
+3. **trend_gate** — Long-term MA50/100/200 trend gate (doctrine r026)
+4. **fundamental** — DXY, real rates, breakeven, gold-silver ratio, central bank buying, **India GDP/INR**
+5. **news** — 24h news sentiment scoring + raw news items
+6. **sentiment** — AU futures open interest & volume-price relationships (spot OHLCV fallback)
+7. **oil** — Oil pass-through channel (inflation → rate expectations)
+8. **smart_money** — CFTC COT, ETF flow, COMEX large traders, 13F, composite score
+9. **event** — Economic calendar + event-driven post-event signals
+10. **recent_events** — Time-decay weighting, stale event auto-downgrade
+11. **polymarket** — Prediction market probabilities (keyset fallback)
+12. **hype_bias** — Over-hype detection, retail noise filter
+13. **long_term** — Trend direction, fundamental score, scenario matrix
+14. **scenario** — Black swan / what-if scenario analysis
+15. **anomaly** — Divergence detection, volume surge
+16. **monitor** — Active monitor trigger evaluation
+17. **deepseek** — LLM deep analysis (with `--deep`)
 
 ### Step 3: source_truth
 Source verification + fact-vs-interpretation classification.

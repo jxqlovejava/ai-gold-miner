@@ -43,9 +43,9 @@ This runs the full 9-step pipeline in demo mode, skipping any API-dependent feat
 | Section | Description |
 |---------|-------------|
 | [Architecture Overview](architecture/overview.md) | Module map, data flow, key design decisions |
-| [9-Step Analysis Pipeline](pipeline/analysis-pipeline.md) | Core analysis engine: prepare → signals → debate → decide |
+| [9-Step Analysis Pipeline](pipeline/analysis-pipeline.md) | Core analysis engine: prepare → generate_signals → debate → decide |
 | [Long-Term Analysis](pipeline/long_term.md) | 1-36 month trend analysis |
-| [Signal System](signals/overview.md) | 8-dimensional signal generation and consensus |
+| [Signal System](signals/overview.md) | 17-channel parallel signal generation and consensus |
 | [CLI Commands](cli/commands.md) | All `gold-miner` commands and options |
 | [Data Sources](data-sources/overview.md) | FRED, Yahoo Finance, AKShare, CFTC, JD, news, proxy |
 | [Investment Doctrines](doctrine/overview.md) | r001-r030 rules, Munger models, investor profile |
