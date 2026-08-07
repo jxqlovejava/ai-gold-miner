@@ -30,7 +30,7 @@ class DashboardFormatter:
     def format(cls, decision: TradeDecision) -> str:
         lines = [
             "=" * 50,
-            "           黄金投资决策仪表盘",
+            "           黄金投资决策仪表盘 · 青蚨",
             "=" * 50,
             "",
             f"  信号: {'买入' if decision.signal == 'buy' else '卖出' if decision.signal == 'sell' else '持有'}",

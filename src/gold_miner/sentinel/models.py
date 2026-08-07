@@ -156,7 +156,7 @@ def format_alerts(
     beijing = __import__('datetime').timezone(__import__('datetime').timedelta(hours=8))
     now = datetime.now(beijing).strftime("%m-%d %H:%M")
 
-    lines = [f"🪙 黄金哨兵 · {now}"]
+    lines = [f"🪙 黄金哨兵 · 青蚨 · {now}"]
 
     # ── 行情 ──
     if quotes:

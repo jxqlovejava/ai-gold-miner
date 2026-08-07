@@ -138,7 +138,7 @@ def generate_daily_briefing(config: SentinelConfig) -> str:
             lines.append(f"   [{a.level.value.upper()}] {a.title}")
 
     lines.append("")
-    lines.append(f"💡 黄金哨兵 · {now.strftime('%H:%M')}")
+    lines.append(f"💡 黄金哨兵 · 青蚨 · {now.strftime('%H:%M')}")
 
     return "\n".join(lines)
 
