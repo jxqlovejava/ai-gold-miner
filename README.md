@@ -8,7 +8,7 @@
 
 买金前不知道怎么看？怕追高、怕抄底、怕消息骗炮？AI Gold Miner 把金价拆成多个维度，让 AI 帮你**看数据、做辩论、查纪律、给建议**，最后输出一份你能看懂的投资报告。
 
-它不做替你下单的"黑箱"，而是做你的**投资副驾驶**：告诉你现在能不能买、该买多少、哪里设止损、接下来要盯哪些大事。支持**现货黄金 + JD 积存金**双标的投资分析。
+它不做替你下单的"黑箱"，而是做你的**投资副驾驶**：告诉你现在能不能买、该买多少、哪里设止损、接下来要盯哪些大事。支持**现货黄金 + JD 积存金**双标的投资分析，并通过 Hermes 哨兵 7×24 监控自动把急跌、异动、止损、隔夜大事推送到你的微信。
 
 ---
 
@@ -16,7 +16,7 @@
 
 | 你遇到的难题 | AI Gold Miner 怎么做 |
 |---|---|
-| 金价涨跌看不懂 | 自动采集金价、美元、实际利率、央行购金等数据，16 个信号生成器并行扫描 |
+| 金价涨跌看不懂 | 自动采集金价、美元、实际利率、央行购金等数据，17 路信号生成器并行扫描 |
 | 消息太多不知道信谁 | 每条信息打"可信度标签"（T0 官方 / T1 终端 / T2 媒体 / T3 自媒体），FactChecker 多源交叉验证 |
 | 一涨就想追、一跌就想割 | 30 条投资军规自动审查（r001–r030），情绪上头时拦住你 |
 | 不知道买多少 | Agent 多空三方辩论（🐮Bull / 🐻Bear / 💼PM）+ Kelly 公式仓位计算 |
@@ -25,6 +25,7 @@
 | 机构资金流向看不懂 | 独立评估 CFTC COT + ETF 资金流 + COMEX 大户 + 13F，生成聪明钱评分 |
 | 中长期趋势看不清 | 1/6/12/24/36 个月多维度趋势判断，情景矩阵 + 概率加权预期 |
 | 突发新闻不会判断 | Sentinel 突发新闻监控，NLP 否定句过滤 + 语义去重，FactChecker 核查 |
+| 没时间天天盯盘 | Hermes 哨兵 7×24 监控：急跌/异动/止损位/隔夜大事自动微信推送，无事静默不打扰 |
 | 怕环境配不好 | `doctor` / `setup` 一键诊断，`proxy-install` 自动配置代理 |
 
 ---
@@ -34,14 +35,14 @@
 ### 1. 9 步统一分析管线 (`gold-miner scan`)
 
 ```
-prepare → signals → source_truth → doctrine_check → munger_models
+prepare → generate_signals → source_truth → doctrine_check → munger_models
   → profile_match → agent_debate → decide → plan
 ```
 
 | 步骤 | 名称 | 核心输出 |
 |------|------|---------|
 | 1 | **prepare** | 日历 DOW 校验 + 事件同步 + 深度新闻 + 7 路数据采集（4 路并行） |
-| 2 | **generate_signals** | 16 个信号生成器并行扫描（全部含 Monitor + 新闻原文 + LLM） |
+| 2 | **generate_signals** | 17 路信号生成器并行扫描（全部含 Monitor + 新闻原文 + DeepSeek） |
 | 3 | **source_truth** | 来源验证（T0-T3）+ 事实 vs 解释分类 + 置信度标注 |
 | 4 | **doctrine_check** | 军规审查（r001-r030）+ 风控审查（风险预算/波动率/集中度） |
 | 5 | **munger_models** | 自动选择 3 个最相关 Munger 思维模型 + 仓位约束 |
@@ -50,38 +51,45 @@ prepare → signals → source_truth → doctrine_check → munger_models
 | 8 | **decide** | 交易建议 + Kelly 仓位计算 + 条件单审查 |
 | 9 | **plan** | 未来 14 天事件关注 + 情景预案 + Monitor 创建 |
 
-### 2. 多维度信号系统（16 个信号生成器）
+### 2. 多维度信号系统（17 路信号生成器并行）
 
 #### 核心维度
 | 维度 | 生成器 | 数据来源 | 核心指标 |
 |------|--------|---------|---------|
-| **technical** | `TechnicalSignal` | Yahoo Finance | RSI、MACD、布林带、20 日区间、200/60 日均线、ATR |
-| **fundamental** | `FundamentalSignal` | FRED / Yahoo | ICE 美元指数(~100)、10Y TIPS 实际利率、盈亏平衡通胀、金银比、央行购金、印度 GDP/INR |
-| **news** | `NewsSignal` + `FactChecker` | NewsAPI / Tavily / WebSearch | 24h 新闻情感 + 事实核查 + 地缘风险溢价 + 可信度警告 |
-| **sentiment** | `SentimentSignal` | AKShare 上期所 | AU 期货持仓量、量价关系、日内偏向 |
+| **technical** | `TechnicalAnalyzer` + `CandlestickPatternDetector` | Yahoo Finance | RSI、MACD、布林带、K线形态、20 日区间、200/60 日均线、ATR |
+| **fundamental** | `FundamentalAnalyzer` | FRED / Yahoo | ICE 美元指数(~100)、10Y TIPS 实际利率、盈亏平衡通胀、金银比、央行购金、印度 GDP/INR |
+| **news** | `NewsSignalGenerator` + `FactChecker` | NewsAPI / Tavily / WebSearch | 24h 新闻情感 + 事实核查 + 地缘风险溢价 + 可信度警告 + 新闻原文 |
+| **sentiment** | `SentimentAnalyzer` | AKShare 上期所 | AU 期货持仓量、量价关系、日内偏向（期货缺失时降级现货 OHLCV） |
+| **oil** | `OilSignalGenerator` | Yahoo / AKShare | 油价传导（通胀预期→利率预期渠道） |
+
+#### 🀄 缠论结构分析（技术面增强，非独立主信号）
+| 维度 | 生成器 | 说明 |
+|------|--------|------|
+| **chanlun** | `ChanlunSignalGenerator` | 日线分型/笔/中枢/背驰/买卖点结构识别，买卖点映射分批建仓锚点，45 天窗口过滤；结果同时供报告板块渲染 |
 
 #### 👔 聪明钱维度（资金流独立评估，不与常规论据混排）
 | 维度 | 生成器 | 数据来源 | 核心指标 |
 |------|--------|---------|---------|
-| **cot** | `COTSignal` | CFTC.gov | 非商业净多/空仓、投机持仓变化、商业套保头寸 |
-| **etf_flow** | `ETFGoldFlowSignal` | AKShare | 国内黄金 ETF 申赎资金流 |
-| **institutional** | `InstitutionalSignal` | CFTC / AKShare / 13F | COMEX 大户集中度、机构多空比、综合评分 |
+| **cot** | `CotSignalGenerator` | CFTC.gov | 非商业净多/空仓、投机持仓变化、商业套保头寸 |
+| **etf_flow** | `EtfFlowSignalGenerator` | AKShare | 国内黄金 ETF 申赎资金流 |
+| **smart_money** | `InstitutionalSignalGenerator` | CFTC / AKShare / 13F | 13F/投行/COMEX 大户/综合评分，Agent 博弈中独立小节展示 |
 
 #### 事件与预测维度
 | 维度 | 生成器 | 数据来源 | 核心指标 |
 |------|--------|---------|---------|
-| **event** | `EventDrivenSignal` + `EconomicCalendarSignal` | 内置日历引擎 | 未来高影响事件检测 + 历史冲击量化 |
-| **recent_events** | `RecentEventsSignal` | 日历事件 | 已发布事件时效性加权（<24h=1.0 → >7d=0），stale 事件自动降权 |
-| **polymarket** | `PolymarketSignal` | Polymarket API | 预测市场隐含概率 |
-| **hype_bias** | `HypeBiasSignal` | 新闻 + 搜索量 | 过度炒作检测，散户情绪噪音过滤 |
+| **event** | `EventDrivenSignalGenerator` + `EconomicCalendarSignalGenerator` | 内置日历引擎 | 未来高影响事件检测 + 历史冲击量化（DOW 硬校验） |
+| **recent_events** | `RecentEventSignalGenerator` | 日历事件 | 已发布事件时效性加权（<24h=1.0 → >7d=0），stale 事件自动降权 |
+| **polymarket** | `PolymarketSignalGenerator` | Polymarket API | 预测市场隐含概率（/markets 弃用自动兜底 keyset） |
+| **hype_bias** | `HypeBiasSignalGenerator` | 新闻 + 搜索量 | 过度炒作检测，散户情绪噪音过滤 |
 
 #### 中长期 & 异常维度
 | 维度 | 生成器 | 数据来源 | 核心指标 |
 |------|--------|---------|---------|
 | **long_term** | `LongTermTrendSignal` + `LongTermFundamentalSignal` + `LongTermScenarioSignal` | 历史数据 + 宏观 | 趋势方向 + 基本面评分 + 情景矩阵 |
+| **trend_gate** | `MaTrendGateSignal` | 历史价格 | 长期均线闸门 MA50/100/200 多头排列过滤（对齐军规 r026） |
 | **scenario** | `ScenarioSignal` | 价格 / 用户输入 | 情景分析（如"美伊冲突升级"） |
 | **anomaly** | `AnomalySignal` | 价格数据 | 背离检测、放量异常 |
-| **monitor** | `MonitorSignal` | 日历 Monitor | 持续监控条件触发检测 |
+| **monitor** | `MonitorSignalGenerator` | 日历 Monitor | 持续监控条件触发检测 |
 
 ### 3. Agent 多空三方博弈
 不是由一个 AI 拍脑袋，而是让三个角色"吵一架"：
@@ -119,6 +127,21 @@ prepare → signals → source_truth → doctrine_check → munger_models
 ### 7. 中长期趋势分析 (`gold-miner longterm`)
 
 输出情景矩阵（bull/base/bear）、概率加权预期价格范围、触发条件与再平衡规则，覆盖 1/6/12/24/36 个月周期。
+
+### 8. 7×24 监控与微信推送（Hermes 哨兵）
+
+服务器端常驻多路监控脚本，通过 [Hermes](https://github.com/jxqlovejava/hermes) 推送到个人微信。**约定：有情况输出人话卡片推送，无事静默（空 stdout），绝不打扰。**
+
+| 脚本 | 频率 | 功能 |
+|------|------|------|
+| `adaptive_gold_monitor.py` | cron 每分钟（状态机驱动） | 自适应频率金价监控：价格平稳 5 分钟/次 → 开始下跌 2 分钟/次 → 急跌 1 分钟/次 |
+| `overnight_news_scanner.py` | 工作日 7:30 | 盘前隔夜重大事件扫描（美伊、停火、美联储、非农等） |
+| `evening_event_preview.py` | 18:00 | 今晚美国时段重要事件预告（PCE、CPI、FOMC 等） |
+| `price_surge_monitor.py` | 每 2 分钟（9-23 点） | 实时金价快速涨跌异动检测 |
+| `profit_protection_monitor.py` | 每 5 分钟 | 盈利保护 + 聪明钱撤退监控（成本逼近/高点回撤/连续收阴/日内逆转） |
+| `gold_stop_level_alert.py` | 工作日 20:00 | 四级止损位提醒（现价是否触及/逼近预设止损） |
+
+部署：`bash scripts/deploy_gold_miner_to_hermes.sh` — 一键同步代码 + 持仓/条件单/日历 + 监控脚本 + Hermes cron，并注册服务器 crontab。
 
 ---
 
@@ -282,8 +305,25 @@ gold-miner track --price 3200 --direction bullish --confidence 0.7
 # 结算预测
 gold-miner track --resolve-id <id>
 
+# 人工确认结算 / 无效化预测（可生成验证报告）
+gold-miner verify --confirm <id>
+gold-miner verify --report
+
+# 查看发现/预判列表
+gold-miner findings
+
 # 审查预测准确率
 gold-miner review
+```
+
+### 投资顾问
+
+```bash
+# 今日行动指令（自动跑完整管线 → 输出可执行指令）
+gold-miner advisor --position 0.5 --cost 886
+
+# 投资咨询（问一句话，得到顾问报告）
+gold-miner advisor --question "现在还能加仓吗？"
 ```
 
 ### 日志 & 记录
@@ -291,6 +331,11 @@ gold-miner review
 ```bash
 # 记录交易
 gold-miner record --action buy --price 886.74 --amount 10
+
+# 保存/批量保存经济数据
+gold-miner record save --symbol AU --value 4334
+gold-miner record batch --file data.json
+gold-miner record batches   # 列出所有批次
 
 # 查看交易日志
 gold-miner journal --list
@@ -381,7 +426,7 @@ AGENT_ENABLED=false              # Agent 定时调度
 ```
 数据采集层 ──► 信号处理层 ──► 分析管线 (9步) ──► 决策输出
      ↓               ↓               ↓               ↓
-   FRED/FX      16 个信号生成器    prepare         Agent 三方辩论
+   FRED/FX      17 路信号生成器    prepare         Agent 三方辩论
    News/COT       技术/基本面      signals         军规审查 (30条)
    AKShare/JD     聪明钱/事件      source_truth    交易建议 + Kelly
    CFTC/13F       情绪/异常        doctrine        情景预案 + Monitor
@@ -398,7 +443,7 @@ AGENT_ENABLED=false              # Agent 定时调度
 src/gold_miner/
 ├── cli/          # 命令行入口（20+ 命令）
 ├── pipeline/     # 统一分析管线（9 步 AnalysisPipeline + LongTermAnalyzer）
-├── signals/      # 16 个信号生成器（技术/基本面/聪明钱/新闻/情绪/事件/异常/中长期）
+├── signals/      # 17 路信号生成器（技术/缠论/基本面/聪明钱/新闻/情绪/事件/异常/中长期/油价）
 ├── decision/     # Agent 博弈（Bull/Bear/PM）+ 机构资金流独立评估
 ├── agent/        # 多 Agent 协调调度
 ├── intelligence/ # 情报分析（多源融合 + 交叉验证）
@@ -463,7 +508,7 @@ src/gold_miner/
 
 ```
 ==================================================
-           黄金投资决策仪表盘
+           黄金投资决策仪表盘 · 青蚨
 ==================================================
   信号: 持有
   标的: 积存金 Au99.99 (元/克) | 国际 $4,062/oz
