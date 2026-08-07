@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>黄金 1-2 年长期投资布局 · V9</title>
+<style>
+:root {
+  --gold: #d4a017;
+  --gold-dark: #8a6d00;
+  --gold-light: #f4e9c8;
+  --bg: #faf8f2;
+  --card: #ffffff;
+  --text: #2b2b2b;
+  --muted: #6b6b6b;
+  --green: #1a7f37;
+  --green-bg: #e6f4ea;
+  --red: #b3261e;
+  --red-bg: #fdecea;
+  --amber-bg: #fff8e6;
+  --border: #e5e0d5;
+  --radius: 12px;
+  --shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: var(--bg); color: var(--text); line-height: 1.7;
+  padding: 24px 16px 60px;
+}
+.page { max-width: 920px; margin: 0 auto; }
+/* 头部 */
+.hero {
+  background: linear-gradient(135deg, #2b2110 0%, #4a3a15 60%, #6b551d 100%);
+  color: #fff; border-radius: 16px; padding: 32px 28px; margin-bottom: 24px;
+  box-shadow: var(--shadow);
+}
+.hero h1 { font-size: 26px; margin-bottom: 8px; letter-spacing: 1px; }
+.hero .sub { color: #e8d9a8; font-size: 14px; }
+.hero .tag {
+  display: inline-block; background: rgba(212,160,23,0.25); color: #f4e9c8;
+  border: 1px solid rgba(212,160,23,0.5); border-radius: 20px;
+  padding: 2px 12px; font-size: 12px; margin-top: 12px;
+}
+/* 状态卡 */
+.status-bar {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px; margin-bottom: 24px;
+}
+.status-item {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 14px 16px; box-shadow: var(--shadow);
+}
+.status-item .label { font-size: 12px; color: var(--muted); }
+.status-item .value { font-size: 18px; font-weight: 700; margin-top: 4px; }
+.status-item .value.gold { color: var(--gold-dark); }
+.status-item .value.green { color: var(--green); }
+.status-item .value.red { color: var(--red); }
+/* 区块 */
+.section {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 24px; margin-bottom: 20px; box-shadow: var(--shadow);
+}
+h2 {
+  font-size: 19px; margin-bottom: 16px; padding-bottom: 8px;
+  border-bottom: 2px solid var(--gold); color: var(--gold-dark);
+  display: flex; align-items: center; gap: 8px;
+}
+h3 { font-size: 15px; margin: 16px 0 8px; color: var(--text); }
+/* 表格 */
+table { border-collapse: collapse; width: 100%; margin: 8px 0 16px; }
+th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; font-size: 13px; vertical-align: top; }
+th { background: var(--gold-light); font-weight: 600; color: var(--gold-dark); }
+tr:nth-child(even) { background: #fcfbf7; }
+/* 三池卡片 */
+.pool-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
+.pool {
+  border-radius: var(--radius); padding: 18px; border: 1px solid var(--border);
+  border-top: 4px solid var(--gold);
+}
+.pool.core { border-top-color: var(--gold); }
+.pool.tactical { border-top-color: #5b7c99; }
+.pool.opp { border-top-color: var(--red); background: var(--red-bg); }
+.pool h3 { margin-top: 0; }
+.pool .pct { font-size: 22px; font-weight: 800; margin: 4px 0; }
+.pool .amount { color: var(--muted); font-size: 13px; }
+.pool .desc { font-size: 12px; color: var(--muted); margin-top: 8px; }
+/* S协议标准 */
+.criteria { list-style: none; counter-reset: crit; }
+.criteria li {
+  counter-increment: crit; background: var(--amber-bg); border: 1px solid #ecd9a0;
+  border-radius: 8px; padding: 10px 12px 10px 40px; margin-bottom: 8px;
+  position: relative; font-size: 13px;
+}
+.criteria li::before {
+  content: counter(crit); position: absolute; left: 10px; top: 10px;
+  width: 22px; height: 22px; border-radius: 50%; background: var(--gold);
+  color: #fff; font-size: 12px; font-weight: 700; text-align: center; line-height: 22px;
+}
+/* 引文/强调 */
+blockquote {
+  background: var(--amber-bg); border-left: 4px solid var(--gold);
+  padding: 12px 16px; margin: 12px 0; border-radius: 0 8px 8px 0; font-size: 13px;
+}
+.highlight { background: #fff8e6; border: 1px solid #ecd9a0; border-radius: 8px; padding: 10px 14px; margin: 12px 0; font-size: 13px; }
+/* 清单 */
+ul, ol { padding-left: 22px; margin: 8px 0 12px; }
+li { margin: 4px 0; font-size: 13px; }
+.ok { color: var(--green); font-weight: 600; }
+.warn { color: var(--red); font-weight: 600; }
+/* 页脚 */
+footer { text-align: center; color: #aaa; font-size: 12px; margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--border); }
+footer a { color: var(--gold-dark); }
+@media (max-width: 600px) {
+  .hero h1 { font-size: 21px; }
+  .section { padding: 16px; }
+  table { font-size: 12px; }
+  th, td { padding: 6px 8px; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+<div class="hero">
+  <h1>黄金 1-2 年长期投资布局 · V9</h1>
+  <div class="sub">目标驱动的长期配置 · 机会池 S-协议 · 2026-08-08 建立</div>
+  <div class="tag">🔄 替代 V8.1「周级」方案 · 顺序：风险→仓位→目标</div>
+</div>
+
+<div class="status-bar">
+  <div class="status-item"><div class="label">当前现价</div><div class="value gold">939.45 元/克</div></div>
+  <div class="status-item"><div class="label">持仓浮盈</div><div class="value green">+5.5%（净+5.1%）</div></div>
+  <div class="status-item"><div class="label">ATR 移动止盈</div><div class="value">≈901.78</div></div>
+  <div class="status-item"><div class="label">仓位占比</div><div class="value">5.5% → 目标80%</div></div>
+  <div class="status-item"><div class="label">8/7 非农</div><div class="value red">-2.3万 弱利多</div></div>
+</div>
+
+<div class="section">
+  <h2>一、核心参数</h2>
+  <table>
+    <thead><tr><th>参数</th><th>值</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td>风险承受</td><td><strong>平衡型，回撤 ≤15%</strong></td><td>画像维持</td></tr>
+      <tr><td>基准本钱</td><td><strong>¥200,000</strong></td><td>未来有增量 → 弹性规则按比例放大</td></tr>
+      <tr><td>仓位上限</td><td><strong>80% = ¥160,000</strong></td><td>r002 顶格，平时 60-70% 留缓冲</td></tr>
+      <tr><td>盈利目标(2年)</td><td><strong>基准 ¥30,000</strong></td><td>区间 ¥20k-50k · 期望值非 KPI</td></tr>
+      <tr><td>硬止损</td><td>624（成本 -30%）</td><td>长期 ≠ 不管理风险</td></tr>
+      <tr><td>拆分</td><td>核心40% + 机动20% + 机会20%</td><td>混合风格 + S 协议</td></tr>
+    </tbody>
+  </table>
+  <h3>当前持仓</h3>
+  <table>
+    <tbody>
+      <tr><td>持仓</td><td>12.4483g @ 890.80 = ¥11,081（5.5%）</td></tr>
+      <tr><td>拆分</td><td>核心 11.88g + 机动 0.57g</td></tr>
+      <tr><td>现金</td><td>~¥188,634（94.3%）</td></tr>
+      <tr><td>活跃条件单</td><td>买 905×5g + 880×15g（8/14 过期，均保留）</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="section">
+  <h2>二、本钱与盈利目标倒推</h2>
+  <p style="font-size:13px;margin-bottom:12px;">仓位上限 80% × 基准本钱 ¥200k = <strong>¥160,000</strong>。分批建仓爬坡期平均仓位 ~40-45%（非第一天满仓）。已计入 0.4% 卖出手续费（r032）。</p>
+  <table>
+    <thead><tr><th>金价年化涨幅</th><th>满仓毛收益(80%)</th><th>计入爬坡期 2 年期望</th></tr></thead>
+    <tbody>
+      <tr><td>保守 8%</td><td>¥25,600</td><td>~¥14,000</td></tr>
+      <tr><td><strong>基准 15%</strong></td><td><strong>¥48,000</strong></td><td><strong>~¥28,000-33,000</strong></td></tr>
+      <tr><td>乐观 25%</td><td>¥80,000</td><td>~¥45,000-50,000</td></tr>
+    </tbody>
+  </table>
+  <div class="highlight">💡 <strong>结论</strong>：20 万 + 80% 仓位，2 年诚实期望 <strong>¥30,000（基准）</strong>。若要 ¥50k+，需追加本钱或 3 年周期——不在本计划内硬凑。</div>
+</div>
+
+<div class="section">
+  <h2>三、三池拆分（80% 总额 ¥160k）</h2>
+  <div class="pool-grid">
+    <div class="pool core">
+      <h3>🏦 核心池</h3>
+      <div class="pct">40%</div>
+      <div class="amount">¥80k · ≈89g</div>
+      <div class="desc">长期底仓，央行购金结构性逻辑。建仓后基本不动，硬止损 624 兜底。</div>
+    </div>
+    <div class="pool tactical">
+      <h3>🔄 机动池</h3>
+      <div class="pct">20%</div>
+      <div class="amount">¥40k · ≈44g</div>
+      <div class="desc">波段交易，ATR 移动止盈 + OCO 条件单管理。</div>
+    </div>
+    <div class="pool opp">
+      <h3>⚡ 机会池</h3>
+      <div class="pct">20%</div>
+      <div class="amount">¥40k · ≈44g</div>
+      <div class="desc">大机会激进仓，平时留现金，<strong>S 协议触发才动用</strong>。</div>
+    </div>
+  </div>
+  <div class="highlight">增量资金到账：三池按比例放大，机会池始终保留 20% 弹性。</div>
+</div>
+
+<div class="section">
+  <h2>四、分批加仓时间表（MK3 条件化）</h2>
+  <table>
+    <thead><tr><th>阶段</th><th>仓位目标</th><th>触发条件</th><th>不满足时（降级）</th></tr></thead>
+    <tbody>
+      <tr><td><strong>2026 H2</strong></td><td>5.5% → <strong>20%</strong></td><td>条件单(905/880)落地 + 回调至 880-905 分批低吸</td><td>未到价续挂；COT 背离只被动接货</td></tr>
+      <tr><td><strong>2027 H1</strong></td><td>20% → <strong>40%</strong></td><td>驱动链未逆转 + 回调至支撑分批</td><td>驱动链逆转暂停加仓转防御</td></tr>
+      <tr><td><strong>2027 H2</strong></td><td>40% → <strong>60%</strong></td><td>趋势确认 + 回调整理分批</td><td>滞涨/背离停在 40% 观望</td></tr>
+      <tr><td><strong>触顶</strong></td><td>60% → <strong>80%</strong></td><td>仅高置信 + S 协议放行</td><td>维持 60-70% 留缓冲</td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:12px;color:var(--muted);">每档预算纪律（MK5）：单档 ≤5% 总资金试错，触发条件满足再放大；无追涨单。</p>
+</div>
+
+<div class="section">
+  <h2>五、机会池与 S-协议（大机会激进加仓）</h2>
+  <blockquote>⚠️ 用户新增要求（8/8）：不能一直温吞吞错失良机。S 协议 = 平时弹药在手，大机会确认时一次性打入，同时保证激进≠无纪律。</blockquote>
+  <h3>触发标准（≥3 条同时成立，全部客观可验证）</h3>
+  <ol class="criteria">
+    <li><strong>双驱动链共振</strong>：≥2 条强链同向（MK1）</li>
+    <li><strong>聪明钱闸门打开</strong>：COT 停止减仓转流入 / GLD 流入且不再背离（MK4）——<span class="warn">背离时 S 协议禁用</span></li>
+    <li><strong>技术面共振</strong>：放量突破关键阻力 或 深度回调至强支撑（缠论买点/60日线）</li>
+    <li><strong>事件催化已验证</strong>：降息确认/协议落地/地缘质变（T0/T2 多源验证，非传闻）</li>
+    <li><strong>概率重估收敛</strong>：MK2 情景矩阵高收益情景概率 >60% 且路径收敛</li>
+  </ol>
+  <h3>S 档执行规则</h3>
+  <table>
+    <thead><tr><th>规则</th><th>值</th></tr></thead>
+    <tbody>
+      <tr><td>预算</td><td>机会池 ¥40k，单次 ≤20% 总资金，用完即止</td></tr>
+      <tr><td>建仓方式</td><td><strong>一次性建到档位上限，不分批</strong></td></tr>
+      <tr><td>快速止损</td><td><span class="warn">ATR×2 或 -8%，不拖到 -30%</span></td></tr>
+      <tr><td>证伪撤销</td><td>1 个月内驱动逻辑证伪（MK1 铁律）→ 无条件撤仓</td></tr>
+      <tr><td>上限锁死</td><td>总敞口 ≤80%（r002）绝对天花板</td></tr>
+    </tbody>
+  </table>
+  <div class="highlight">💡 <strong>哲学</strong>：S 协议不是无视闸门，而是<strong>闸门打开时的全力一击</strong>。之前温吞吞的根因之一是 COT 减仓闸门常开——当它转向流入时，就是你该激进的时候。</div>
+</div>
+
+<div class="section">
+  <h2>六、情景矩阵（长期三轴）</h2>
+  <table>
+    <thead><tr><th>情景</th><th>驱动</th><th>概率</th><th>金价路径</th><th>动作</th></tr></thead>
+    <tbody>
+      <tr><td>🟢 结构牛</td><td>央行购金持续 + 降息周期开启</td><td>40%</td><td>慢牛至 1000+</td><td>分批建满 80%，核心池不动</td></tr>
+      <tr><td>🟡 高位震荡</td><td>加息维持 + COT 减仓</td><td>40%</td><td>800-950 宽幅</td><td>机动池波段，核心池持有</td></tr>
+      <tr><td>🔴 深度回调</td><td>加息超预期 + 流动性收紧</td><td>20%</td><td>700-850</td><td>低吸接货，机会池等 S 协议</td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:12px;color:var(--muted);">MK2：概率随事件状态每季重估，路径收敛信号 = 低概率情景快速变为现实。</p>
+</div>
+
+<div class="section">
+  <h2>七、止损体系</h2>
+  <table>
+    <thead><tr><th>层级</th><th>止损位</th><th>适用池</th></tr></thead>
+    <tbody>
+      <tr><td>硬止损</td><td><strong>624</strong>（成本 -30%）</td><td>核心池，任何情况无条件清仓</td></tr>
+      <tr><td>ATR 移动止盈</td><td><strong>≈901.78</strong>（最高价939.45−2.5×15.07）</td><td>核心池，未触发</td></tr>
+      <tr><td>OCO 条件单</td><td>TP/SL 自动</td><td>机动池</td></tr>
+      <tr><td>快速止损</td><td><strong>-8%（ATR×2）</strong></td><td>机会池 S 档，证伪即撤</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="section">
+  <h2>八、军规自查（r001-r032 核心项）</h2>
+  <table>
+    <thead><tr><th>军规</th><th>判定</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td>r001 单笔 ≤20%</td><td class="ok">✅</td><td>S 档单次 ≤20%</td></tr>
+      <tr><td>r002 总敞口 ≤80%</td><td class="warn">⚠️</td><td>上限 = 80% 顶格，触及即满仓无缓冲</td></tr>
+      <tr><td>r004 数据前不重仓</td><td class="ok">✅</td><td>8/7 非农前已缩至 5.5%</td></tr>
+      <tr><td>r014 必须设止损</td><td class="ok">✅</td><td>ATR 901.78 + 硬止损 624 + S 档 -8%</td></tr>
+      <tr><td>r020/r021/r024 不接飞刀</td><td class="ok">✅</td><td>MK4 闸门嵌入 S 协议</td></tr>
+      <tr><td>r025 ATR 移动止盈</td><td class="ok">✅</td><td>当前 ≈901.78 未触发</td></tr>
+      <tr><td>r028 分批建仓</td><td class="ok">✅</td><td>常规档分批 + S 档例外（一次性）</td></tr>
+      <tr><td>r029 安全边际</td><td class="ok">✅</td><td>不追高，低吸为主</td></tr>
+      <tr><td>r032 摩擦成本</td><td class="ok">✅</td><td>净保本已计入</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="section">
+  <h2>九、Munger 模型</h2>
+  <ol>
+    <li><strong>延迟效应</strong>：加息→金价影响需 12-18 个月显现——这就是 1-2 年持仓周期的依据，不因短期波动放弃长期逻辑。</li>
+    <li><strong>坐等投资法</strong>：核心池建完后什么都不做，执行最难——V9 的核心纪律。</li>
+    <li><strong>少下注下大注</strong>：机会池 S 协议正是此模型——平时不动，大机会一次性重仓（仍带止损）。</li>
+  </ol>
+</div>
+
+<div class="section">
+  <h2>十、系统纪律（让系统指引）</h2>
+  <ol>
+    <li><strong>monitor</strong>：长期趋势过滤（60/200 日线）+ COT 月度闸门 + ATR 移动止盈位 + S 协议 5 条标准</li>
+    <li><strong>条件单</strong>：常规档低吸单 + 机动池 OCO + 机会池 S 档（触发时挂）</li>
+    <li><strong>复盘节奏</strong>：月度复盘 + 每季重估概率/目标</li>
+    <li><strong>金价分析</strong>：每次分析自动结合 V9，输出当前阶段 → 下一批 → S 协议是否放行</li>
+  </ol>
+</div>
+
+<div class="section">
+  <h2>十一、风险矩阵</h2>
+  <table>
+    <thead><tr><th>风险</th><th>概率</th><th>最大损失</th><th>应对</th></tr></thead>
+    <tbody>
+      <tr><td>S 协议误判"大机会"</td><td>中</td><td>机会池 -8%</td><td>≥3 条硬标准 + 快速止损 + 证伪撤销</td></tr>
+      <tr><td>追高建仓买在山顶</td><td>高</td><td>浮盈回吐</td><td>分批低吸，不市价追</td></tr>
+      <tr><td>9 月加息落地承压</td><td>中</td><td>回调</td><td>r004 数据前不重仓</td></tr>
+      <tr><td>COT 聪明钱持续减仓</td><td>中</td><td>阴跌</td><td>闸门开启，S 协议禁用</td></tr>
+      <tr><td>协议签署溢价回吐</td><td>中</td><td>浮盈回吐至860</td><td>880 低吸承接</td></tr>
+      <tr><td>机动池无自动卖出保护</td><td>中</td><td>急跌</td><td>ATR 901.78 + 手动纪律</td></tr>
+      <tr><td>增量资金不确定</td><td>中</td><td>目标打折</td><td>弹性规则，未到账不预支</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="section">
+  <h2>十二、MK1-MK6 检查清单</h2>
+  <table>
+    <thead><tr><th>元知识</th><th>落实</th></tr></thead>
+    <tbody>
+      <tr><td>MK1 双驱动链 ≥2 多 / ≥2 空</td><td class="ok">✅ 双驱动链模型内置</td></tr>
+      <tr><td>MK2 概率随事件重估</td><td class="ok">✅ 每季重估</td></tr>
+      <tr><td>MK3 每批客观触发 + 降级路径</td><td class="ok">✅ 分批表</td></tr>
+      <tr><td>MK4 聪明钱闸门 → S 协议禁用</td><td class="ok">✅ 背离时禁用</td></tr>
+      <tr><td>MK5 价位只作锚点，不误当硬条件</td><td class="ok">✅</td></tr>
+      <tr><td>MK6 单批 ≤5% 试错；S 档带止损</td><td class="ok">✅</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<footer>
+  <p>AI Gold Miner · 黄金长期布局 V9 · 2026-08-08</p>
+  <p>完整计划：<a href="https://github.com/jxqlovejava/ai-gold-miner" target="_blank" rel="noopener">ai-gold-miner 仓库</a> · 私密数据不入库</p>
+  <p style="margin-top:6px;">⚠️ 本页面为个人投资计划参考，不构成投资建议</p>
+</footer>
+
+</div>
+</body>
+</html>
