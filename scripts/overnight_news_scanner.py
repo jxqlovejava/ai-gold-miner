@@ -32,6 +32,8 @@ from pathlib import Path
 
 import httpx
 
+from gold_miner.sentinel.models import symbol_cn
+
 BEIJING = timezone(timedelta(hours=8))
 
 
@@ -810,15 +812,16 @@ def _build_transmission_card(
     channel_label, down_hint, up_hint = _classify_channel(intl_findings)
     hint = down_hint if chg < 0 else up_hint
 
+    direction_word = "上涨" if chg >= 0 else "下跌"
     lines = [
         "━━━ 🌊 隔夜美盘传导 ━━━",
-        f"XAUUSD 隔夜 {chg:+.2f}% (${xauusd['price']:.0f})",
+        f"{symbol_cn('XAUUSD')}隔夜{direction_word} {abs(chg):.2f}%（现 {xauusd['price']:.0f} 美元）",
     ]
     est_open: float | None = None
     if jd_price and jd_price.get("price"):
         est_open = round(jd_price["price"] * (1 + chg / 100), 2)
         lines.append(
-            f"积存金预计{direction_txt}: {jd_price['price']:.2f} → ~{est_open:.2f}元/克"
+            f"{symbol_cn('积存金(MS)')}预计{direction_txt}: {jd_price['price']:.2f} → ~{est_open:.2f}元/克"
         )
     lines.append(f"驱动渠道: {channel_label}")
     if est_open:
@@ -855,12 +858,12 @@ def _format_report(
         if xauusd:
             emoji = "🔴" if xauusd["change_pct"] < 0 else "🟢"
             lines.append(
-                f"XAUUSD: ${xauusd['price']:.0f} "
+                f"{symbol_cn('XAUUSD')}: {xauusd['price']:.0f} 美元 "
                 f"({xauusd['change_pct']:+.2f}%) {emoji}"
             )
         if jd_price:
             lines.append(
-                f"积存金: {jd_price['price']:.2f}元/克"
+                f"{symbol_cn('积存金(MS)')}: {jd_price['price']:.2f}元/克"
             )
         lines.append("")
 

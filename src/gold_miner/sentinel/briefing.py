@@ -6,6 +6,7 @@ import json
 from datetime import datetime, timedelta, timezone
 
 from .engine import SentinelConfig, SentinelEngine
+from .models import currency_cn, symbol_cn
 from .orders import load_active_orders
 
 BEIJING = timezone(timedelta(hours=8))
@@ -34,7 +35,8 @@ def generate_daily_briefing(config: SentinelConfig) -> str:
         for q in result.quotes:
             arrow = "🔴" if q.change_pct < 0 else "🟢"
             quotes.append(
-                f"{q.symbol} {q.price:.2f} ({arrow} {q.change_pct:+.2f}%)"
+                f"{symbol_cn(q.symbol)} {q.price:.2f} {currency_cn(q.currency)} "
+                f"({arrow} {q.change_pct:+.2f}%)"
             )
         lines.append("行情: " + " | ".join(quotes))
 
@@ -73,7 +75,7 @@ def generate_daily_briefing(config: SentinelConfig) -> str:
                     if isinstance(sl, dict):
                         sl_str = f"¥{sl.get('price','?')}"
                 qty_str = f"{qty:g}g" if qty else "—"
-                lines.append(f"   OCO 止盈{tp_str}/止损{sl_str} ×{qty_str}")
+                lines.append(f"   止盈止损单 止盈{tp_str}/止损{sl_str} ×{qty_str}")
             else:
                 lines.append(
                     f"   买入 @¥{o.trigger_price:.0f} ×{o.quantity_g:g}g"
@@ -158,7 +160,7 @@ def generate_weekly_summary(config: SentinelConfig) -> str:
     # 行情
     if result.quotes:
         for q in result.quotes:
-            lines.append(f"{q.symbol}: {q.price:.2f} {q.currency} (周变 {q.change_pct:+.2f}%)")
+            lines.append(f"{symbol_cn(q.symbol)} {q.price:.2f} {currency_cn(q.currency)} (周变 {q.change_pct:+.2f}%)")
 
     # 持仓
     if result.portfolio:

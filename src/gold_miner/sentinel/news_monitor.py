@@ -24,6 +24,8 @@ from loguru import logger
 
 from gold_miner.config import settings
 
+from .models import symbol_cn
+
 BEIJING = timezone(timedelta(hours=8))
 _DEDUP_FILE = Path("/tmp/gold_news_dedup.json")
 _DEDUP_TTL = 21600  # 6 小时去重
@@ -947,7 +949,7 @@ def format_news_alerts(alerts: list[dict], gold_price: float = 0, gold_change: f
     # 行情背景
     if gold_price > 0:
         emoji = "🔴" if gold_change < 0 else "🟢"
-        lines.append(f"当前 XAUUSD: ${gold_price:.0f} ({emoji} {gold_change:+.1f}%)")
+        lines.append(f"当前{symbol_cn('XAUUSD')}: {gold_price:.0f} 美元 ({emoji} {gold_change:+.1f}%)")
 
     categories = {
         "geopolitical": "地缘冲突",

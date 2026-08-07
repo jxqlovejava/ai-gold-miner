@@ -14,6 +14,8 @@ from .models import (
     SentinelAlert,
     SentinelConfig,
     SentinelResult,
+    currency_cn,
+    symbol_cn,
 )
 from .orders import check_order_proximity, load_active_orders
 from .quotes import fetch_quotes
@@ -45,10 +47,20 @@ class SentinelEngine:
             if abs(q.change_pct) >= self.cfg.day_drop_pct:
                 direction = "大跌" if q.change_pct < 0 else "大涨"
                 level = AlertLevel.P1 if abs(q.change_pct) < self.cfg.day_rise_pct + 2 else AlertLevel.P0
+                unit = currency_cn(q.currency)
+                # 国际金价异动 → 提示国内开盘联动（国内银行未开盘时积存金是昨收）
+                suggestion = ""
+                if q.symbol == "XAUUSD":
+                    suggestion = (
+                        "明天国内开盘大概率补涨，留意开盘价"
+                        if q.change_pct > 0
+                        else "关注明天国内开盘是否补跌"
+                    )
                 alerts.append(SentinelAlert(
                     level=level,
-                    title=f"{q.symbol} 日内{direction} {q.change_pct:+.2f}%",
-                    detail=f"当前 {q.price:.2f} {q.currency}, 前收 {q.prev_close:.2f}",
+                    title=f"{symbol_cn(q.symbol)}日内{direction} {abs(q.change_pct):.2f}%",
+                    detail=f"当前 {q.price:.2f} {unit}，前收 {q.prev_close:.2f} {unit}",
+                    suggestion=suggestion,
                 ))
 
         # 3. 持仓分析
@@ -138,7 +150,7 @@ class SentinelEngine:
             alerts.append(SentinelAlert(
                 level=AlertLevel.P0,
                 title="🔴 二级止损触发!",
-                detail=f"当前价{p.current_price:.0f}元 ≤ OCO止损{p.secondary_stop}元",
+                detail=f"当前价{p.current_price:.0f}元 ≤ 二级止损{p.secondary_stop}元",
                 suggestion="检查条件单 co_20260716_003 是否已触发卖出9g",
             ))
         elif p.secondary_stop > 0:
@@ -177,12 +189,14 @@ class SentinelEngine:
         """条件单接近检查."""
         alerts: list[SentinelAlert] = []
         nearby = check_order_proximity(orders, current_price, self.cfg.order_near_pct)
+        order_type_cn = {"oco": "止盈止损单", "limit_buy": "限价买入单"}
         for o, dist in nearby[:3]:  # 最多3条
             direction_sym = "↓" if o.direction == "卖出" else "↑"
+            type_cn = order_type_cn.get(o.type, o.type)
             alerts.append(SentinelAlert(
                 level=AlertLevel.P2,
-                title=f"条件单接近: {o.type} {o.direction} "
-                      f"@{o.trigger_price}元 ({direction_sym}{dist:.1f}%)",
+                title=f"条件单接近: {type_cn} {o.direction} "
+                      f"@{o.trigger_price:.0f}元 ({direction_sym}{dist:.1f}%)",
                 detail=f"{o.note[:50] if o.note else o.id}",
             ))
         return alerts
@@ -233,10 +247,16 @@ class SentinelEngine:
                     ))
                 # ── 即将到来 (24h内) → P2 提醒 ──
                 elif now <= sat <= window and impact == "high":
+                    if name.startswith("观测:"):
+                        title = "例行观察 · " + name[len("观测:"):].strip()
+                        detail = ""
+                    else:
+                        title = f"📅 即将: {name}"
+                        detail = f"时间: {bj_time}（北京）"
                     alerts.append(SentinelAlert(
                         level=AlertLevel.P2,
-                        title=f"📅 即将: {name}",
-                        detail=f"时间: {bj_time} (北京)",
+                        title=title,
+                        detail=detail,
                     ))
         except Exception:
             return []

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
@@ -108,12 +109,48 @@ class SentinelResult:
         return format_alerts(self.alerts, self.quotes, self.portfolio)
 
 
+_BANK_CN = {"MS": "民生银行", "JD": "京东金融"}
+
+
+def symbol_cn(symbol: str) -> str:
+    """报价代码 → 中文名称（人话）.
+
+    XAUUSD → 国际金价（XAUUSD）; 积存金(MS) → 积存金（民生银行）
+    """
+    if symbol == "XAUUSD":
+        return "国际金价（XAUUSD）"
+    m = re.fullmatch(r"积存金\((\w+)\)", symbol)
+    if m:
+        bank = _BANK_CN.get(m.group(1), m.group(1))
+        return f"积存金（{bank}）"
+    return symbol
+
+
+def currency_cn(currency: str) -> str:
+    """货币代码 → 中文单位."""
+    return {"USD": "美元", "CNY": "元/克"}.get(currency, currency)
+
+
+def _quote_line(q: GoldQuote) -> str:
+    """单条行情 → 人话."""
+    if q.change_pct == 0:
+        chg = "持平"
+    elif q.change_pct > 0:
+        chg = f"上涨 {q.change_pct:.2f}%"
+    else:
+        chg = f"下跌 {abs(q.change_pct):.2f}%"
+    return (
+        f"{symbol_cn(q.symbol)} {q.price:.2f} {currency_cn(q.currency)}，"
+        f"较昨收 {q.prev_close:.2f} {chg}"
+    )
+
+
 def format_alerts(
     alerts: list[SentinelAlert],
     quotes: list[GoldQuote],
     portfolio: PortfolioSnapshot | None = None,
 ) -> str:
-    """格式化告警为人话卡片."""
+    """格式化告警为人话卡片（Hermes 微信推送）."""
     from datetime import datetime
 
     beijing = __import__('datetime').timezone(__import__('datetime').timedelta(hours=8))
@@ -121,51 +158,54 @@ def format_alerts(
 
     lines = [f"🪙 黄金哨兵 · {now}"]
 
-    # 行情快照
-    for q in quotes:
-        emoji = "🔴" if q.change_pct < 0 else "🟢"
-        lines.append(
-            f"{emoji} {q.symbol}: {q.price:.2f} {q.currency} "
-            f"({q.change_pct:+.2f}%)"
-        )
+    # ── 行情 ──
+    if quotes:
+        lines.append("")
+        lines.append("📈 行情")
+        for q in quotes:
+            lines.append(f"  {_quote_line(q)}")
 
+    # ── 持仓 ──
     if portfolio:
         p = portfolio
-        pnl_emoji = "🔴" if p.unrealized_pnl < 0 else "🟢"
-        lines.append(
-            f"📊 持仓: {p.grams:.2f}g @ {p.avg_cost:.0f}元 "
-            f"| 市值 ¥{p.market_value:.0f} "
-            f"| {pnl_emoji} {p.unrealized_pnl:+.0f}元 ({p.unrealized_pnl_pct:+.1f}%)"
+        lines.append("")
+        lines.append("📊 你的持仓")
+        pnl_text = (
+            f"浮盈 {p.unrealized_pnl:+.0f} 元（{p.unrealized_pnl_pct:+.1f}%）"
+            if p.unrealized_pnl >= 0
+            else f"浮亏 {abs(p.unrealized_pnl):.0f} 元（{p.unrealized_pnl_pct:.1f}%）"
         )
-        # 止损距离
-        dist_to_stop = (p.current_price - p.secondary_stop) / p.secondary_stop * 100
-        lines.append(f"🛑 止损距: {dist_to_stop:+.1f}% (止损{p.secondary_stop}元)")
+        lines.append(
+            f"  你持有 {p.grams:.2f} 克，成本均价 {p.avg_cost:.0f} 元/克，"
+            f"当前市值 ¥{p.market_value:.0f}，{pnl_text}"
+        )
+        if p.secondary_stop > 0:
+            dist = (p.current_price - p.secondary_stop) / p.secondary_stop * 100
+            if dist > 5:
+                status = "，安全"
+            elif dist > 2:
+                status = "，已接近止损位"
+            else:
+                status = "，⚠️ 危险"
+            lines.append(f"  止损线 {p.secondary_stop:.0f} 元，现价距止损还有 {dist:.1f}%{status}")
 
-    # 分级告警
-    p0_alerts = [a for a in alerts if a.level == AlertLevel.P0]
-    p1_alerts = [a for a in alerts if a.level == AlertLevel.P1]
-    p2_alerts = [a for a in alerts if a.level == AlertLevel.P2]
-
-    if p0_alerts:
+    # ── 分级提醒（人话标题，不带 P 代码）──
+    sections = [
+        (AlertLevel.P0, "🚨 紧急处理", "•"),
+        (AlertLevel.P1, "⚠️ 需要关注", "•"),
+        (AlertLevel.P2, "💡 例行提醒", "•"),
+    ]
+    for level, header, bullet in sections:
+        group = [a for a in alerts if a.level == level]
+        if not group:
+            continue
         lines.append("")
-        lines.append("🚨 P0 紧急:")
-        for a in p0_alerts:
-            lines.append(f"  ❌ {a.title}")
-            lines.append(f"     {a.detail}")
+        lines.append(header)
+        for a in group:
+            lines.append(f"{bullet} {a.title}")
+            if a.detail:
+                lines.append(f"    {a.detail}")
             if a.suggestion:
-                lines.append(f"     💡 {a.suggestion}")
-
-    if p1_alerts:
-        lines.append("")
-        lines.append("⚠️ P1 关注:")
-        for a in p1_alerts:
-            lines.append(f"  • {a.title}")
-            lines.append(f"    {a.detail}")
-
-    if p2_alerts:
-        lines.append("")
-        lines.append("ℹ️ P2 提醒:")
-        for a in p2_alerts:
-            lines.append(f"  • {a.title}")
+                lines.append(f"    💡 {a.suggestion}")
 
     return "\n".join(lines)
