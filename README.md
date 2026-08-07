@@ -1,6 +1,8 @@
-# AI Gold Miner
+# AI Gold Miner · 青蚨 🐛
 
 [![CI](https://github.com/jxqlovejava/ai-gold-miner/actions/workflows/ci.yml/badge.svg)](https://github.com/jxqlovejava/ai-gold-miner/actions/workflows/ci.yml)
+
+> **中文代号：青蚨** — 典出《淮南子》「青蚨还钱」：母子青蚨分离必自动飞回，古人以母血涂钱、钱花出后复还。寓意长期持有的每一分投入，终会带着收益回流。
 
 **给黄金投资小白的 AI 投资副驾驶。**
 
