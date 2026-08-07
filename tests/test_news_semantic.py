@@ -140,6 +140,21 @@ def test_classify_many_includes_broad_mentions():
     assert "美联储降息" not in p
 
 
+def test_classify_many_includes_escalated_fed():
+    """确定性类目(fed)带 escalate 标记 → 也送 AI 裁决 (反转信号升级路由)."""
+    client = _FakeClient({"results": []})
+    a = ns.SemanticNewsAnalyzer(client=client, max_headlines=10)
+    hs = [
+        {"title": "非农爆冷削弱美联储加息预期", "category": "fed", "escalate": True},
+        {"title": "美联储宣布加息", "category": "fed"},  # 无 escalate → 仍过滤
+    ]
+    a.classify_many(hs)
+    assert len(client.calls) == 1
+    p = client.calls[0]
+    assert "削弱美联储加息预期" in p
+    assert "宣布加息" not in p
+
+
 def test_classify_many_caps_headlines():
     client = _FakeClient({"results": []})
     a = ns.SemanticNewsAnalyzer(client=client, max_headlines=2)

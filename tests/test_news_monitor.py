@@ -161,6 +161,50 @@ def test_eu_gas_with_oil_context_bullish():
     assert a["direction"] == "bullish"
 
 
+# ── 2026-08-08 系统性修复: '削弱/降温/回落加息预期'方向反转 (修复前误标利空) ──
+
+
+def test_weakened_hike_expectation_is_bullish():
+    """非农爆冷削弱美联储加息预期 → 加息预期减弱 → 实际利率预期↓ → 利多 (修复前误标利空·重大)."""
+    a = _analyze("非农爆冷削弱美联储加息预期 通胀数据接棒成为市场焦点")
+    assert a is not None
+    assert a["direction"] == "bullish"
+    assert a["severity"] == "major"
+    assert "利多" in a["label"]
+    assert "利多金价" in a["impact"]
+
+
+def test_cooling_hike_expectation_is_bullish():
+    """加息预期降温/回落 (无美联储前缀) → 利多."""
+    for t in ["加息预期降温 金价走高", "加息预期回落 美债收益率下行"]:
+        a = _analyze(t)
+        assert a is not None, t
+        assert a["direction"] == "bullish", t
+
+
+def test_weakened_cut_expectation_is_bearish():
+    """削弱降息预期 → 降息预期减弱 → 实际利率预期↑ → 利空 (对称反转)."""
+    a = _analyze("非农超预期削弱美联储降息预期")
+    assert a is not None
+    assert a["direction"] == "bearish"
+    assert a["severity"] == "major"
+    assert "利空" in a["label"]
+
+
+def test_nfp_cold_standalone_is_bullish():
+    """非农爆冷 (无加息字眼) → 劳动力恶化 → 降息预期↑ → 利多."""
+    a = _analyze("美国7月非农爆冷 失业率意外上升")
+    assert a is not None
+    assert a["direction"] == "bullish"
+
+
+def test_hike_expectation_heating_stays_bearish():
+    """加息预期升温 → 仍利空 (反转规则不误伤升温情形)."""
+    a = _analyze("美联储加息预期升温 黄金承压")
+    assert a is not None
+    assert a["direction"] == "bearish"
+
+
 # ── 否定句过滤 ──
 
 
@@ -337,3 +381,20 @@ def test_semantic_low_confidence_falls_back_to_regex():
     a = _analyze(title, semantic=fake)
     assert a is not None
     assert "供应危机缓解" in a["impact"]  # 回退 regex 的覆盖链
+
+
+def test_semantic_corrects_weakened_hike_via_escalation():
+    """fed 类目带反转信号 → 升级路由 LLM, AI 裁决覆盖 regex."""
+    title = "非农爆冷削弱美联储加息预期 通胀数据接棒成为市场焦点"
+    fake = _FakeSemantic({
+        title: {
+            "direction": "bullish", "severity": "major", "priority": "P0",
+            "category": "fed",
+            "transmission_chain": "非农爆冷→削弱加息预期→实际利率预期↓→利多金价",
+            "is_real_event": True, "is_pending": False, "confidence": 0.9,
+        },
+    })
+    a = _analyze(title, semantic=fake)
+    assert a is not None
+    assert a["direction"] == "bullish"
+    assert "利多金价" in a["impact"]

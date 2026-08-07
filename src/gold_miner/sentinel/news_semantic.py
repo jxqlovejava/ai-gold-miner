@@ -53,7 +53,8 @@ _SYSTEM_FRAMEWORK = """你是一个黄金市场突发新闻语义分析员。给
    - 例："伊朗披露阿曼协议细节：美国和以色列船只不得通过霍尔木兹海峡" 是【通行限制/升级】，不是缓和
 2. 纯提及/关注/分析/预测/疑问（无实质动作）→ is_real_event=false，不告警
 3. 未落地（等待/谈判中/未签署/悬而未决/观望/待定）→ is_pending=true，方向中性
-4. 否定句（不会/否认/取消/推迟/暂不）→ 按否定后的实际含义判断，拿不准判中性
+4. 否定/减弱句（不会/否认/取消/推迟/暂不/削弱/降温/回落/放缓/减弱/降低 + 预期）→ 按减弱后的实际含义判断方向，方向反转：
+   '削弱/降温/回落加息预期' = 加息预期↓ = 实际利率预期↓ = 利多（不是利空）；'削弱/降温/回落降息预期' = 降息预期↓ = 实际利率预期↑ = 利空；拿不准判中性
 5. 传导链必须完整：原因→机制→对金价方向(含caveat)，禁止只给方向不给链
 
 ## 输出格式（严格 JSON，不要任何多余文字）
@@ -149,7 +150,9 @@ class SemanticNewsAnalyzer:
         # 仅过滤带类目的严格候选; category=None 的候选B (宽泛提及) 一律交 AI 裁决
         routed = [
             h for h in headlines
-            if h.get("category") is None or h.get("category") in self.categories
+            if h.get("category") is None
+            or h.get("category") in self.categories
+            or h.get("escalate")
         ]
         if not routed:
             return {}

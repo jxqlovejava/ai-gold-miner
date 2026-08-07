@@ -235,6 +235,25 @@ _HIGH_IMPACT_RULES: list[ImpactRule] = [
         severity="major",
         reason="地缘降级/协议达成→战争溢价回吐→油价↓→通胀↓→降息预期↑→利多金价",
     ),
+    # ═ 加息/降息预期反转 (2026-08-08: '削弱/降温/回落加息预期'=方向反转, 修复前误标利空) ═
+    # 置于 '美联储.*加息' 规则之前, 优先命中反转构式, 免于被裸'加息'子串误判利空
+    ImpactRule(
+        pattern=r"削弱.*加息预期|加息预期.*(?:降温|回落|放缓|减弱|降低|消退|下调|下修)"
+        r"|加息(?:压力|概率).*(?:缓解|减轻|下降|回落|降温)",
+        category="fed",
+        priority="P0",
+        direction="bullish",
+        severity="major",
+        reason="加息预期减弱→实际利率预期↓→降息预期↑→利多金价",
+    ),
+    ImpactRule(
+        pattern=r"削弱.*降息预期|降息预期.*(?:降温|回落|放缓|减弱|降低|消退|下调|下修)",
+        category="fed",
+        priority="P0",
+        direction="bearish",
+        severity="major",
+        reason="降息预期减弱→实际利率预期↑→利空金价",
+    ),
     # ═ 美联储 ═
     ImpactRule(
         pattern=r"美联储.*加息|Fed.*hike|FOMC.*加息|加息.*预期.*升温",
@@ -308,7 +327,7 @@ _HIGH_IMPACT_RULES: list[ImpactRule] = [
         ],
     ),
     ImpactRule(
-        pattern=r"就业.*崩|失业.*飙升|非农.*大跌|非农.*不及预期",
+        pattern=r"就业.*崩|失业.*飙升|非农.*大跌|非农.*不及预期|非农.*爆冷|非农.*远不及预期|非农.*大幅低于预期",
         category="macro",
         priority="P0",
         direction="bullish",
@@ -476,6 +495,22 @@ _BROAD_MENTION_PATTERNS: list[str] = [
     r"制裁|关税|停火|和谈|谈判|外交|军事|冲突|战争|袭击|导弹|空袭|封锁|威胁",
     r"油价|原油|天然气|能源危机|美联储|FOMC|CPI|非农|PCE|降息|加息|央行|利率决议",
 ]
+
+# ── fed/macro 语义反转信号 (2026-08-08: 确定性类目命中此 → 升级路由 LLM 裁决) ──
+# 设计约束: fed/macro/market 默认不路由 LLM (确定性类目防幻觉), 但'削弱/降温加息预期'等
+# 反转构式破坏确定性假设 → 命中反转信号时升级路由, 由 LLM 裁决方向/传导链.
+_SEMANTIC_AMBIGUITY_PATTERNS: list[str] = [
+    r"(?:削弱|下调|下修|降温|回落|放缓|减弱|降低|消退|缓解|减轻|泼冷水|见顶|转向)"
+    r"\s*[^，。;；]{0,16}?(?:加息|降息|利率|政策)\s*(?:预期|压力|概率|步伐|周期)",
+    r"(?:加息|降息)\s*(?:预期|压力|概率|步伐|周期)\s*"
+    r"(?:降温|回落|放缓|减弱|降低|消退|缓解|减轻|下调|下修|见顶|转向)",
+    r"(?:非农|就业|CPI|PCE|通胀).{0,8}?(?:爆冷|不及预期|低于预期|超预期|高于预期|意外|疲软|强劲|走弱|回升|反弹)",
+]
+
+
+def _has_ambiguity_signal(title: str) -> bool:
+    """fed/macro 确定性类目是否携带语义反转/模糊信号 → 升级路由 LLM."""
+    return any(re.search(p, title) for p in _SEMANTIC_AMBIGUITY_PATTERNS)
 
 
 def _semantic_analyzer():
@@ -783,6 +818,14 @@ def analyze_headlines(
         settings.news_llm_categories
     )
     routed = [c for c in strict if c.get("category") in routed_categories] + broad
+    # fed/macro 确定性类目带反转信号 → 升级路由 LLM 裁决 (修复'削弱加息预期'误判利空)
+    for c in strict:
+        if c.get("category") in routed_categories:
+            continue
+        if _has_ambiguity_signal(c["title"]):
+            ec = dict(c)
+            ec["escalate"] = True
+            routed.append(ec)
     llm_results: dict[str, dict] = {}
     if routed and getattr(analyzer, "enabled", False):
         try:
