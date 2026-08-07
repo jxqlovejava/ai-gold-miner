@@ -132,13 +132,17 @@ class SemanticNewsAnalyzer:
         max_headlines: int | None = None,
     ) -> None:
         self.client = client or LLMClient()
-        self.categories = set(categories or settings.news_llm_categories)
-        self.max_headlines = max_headlines or settings.news_llm_max_headlines
+        # getattr 兜底: 部署非原子期间旧 config 可能缺 news_llm_* 字段, 避免夜间哨兵崩溃
+        self.categories = set(
+            categories
+            or getattr(settings, "news_llm_categories", ["geopolitical", "energy", "trade", "policy", "election"])
+        )
+        self.max_headlines = max_headlines or getattr(settings, "news_llm_max_headlines", 12)
 
     @property
     def enabled(self) -> bool:
         """是否可用: 总开关 + 有 API key."""
-        return bool(settings.news_llm_enabled) and self.client.enabled
+        return bool(getattr(settings, "news_llm_enabled", True)) and self.client.enabled
 
     def classify_many(self, headlines: list[dict]) -> dict[str, dict]:
         """批量语义推理 → {原始标题: 校验后的结果字段}.

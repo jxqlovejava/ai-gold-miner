@@ -40,10 +40,17 @@ SCP=(scp -i "$PEM" -o StrictHostKeyChecking=no)
 echo "==> 创建远程目录"
 "${SSH[@]}" "$HOST" "mkdir -p '$REMOTE_ROOT/src/gold_miner' '$REMOTE_ROOT/scripts' '$(dirname "$REMOTE_PORTFOLIO")' '$(dirname "$REMOTE_SURGE_STATE")'"
 
-echo "==> 同步 gold_miner 代码 (全量, 含 sentinel/data/signals 等)"
-"${SCP[@]}" -r \
-  "$ROOT/src/gold_miner" \
-  "$HOST:$REMOTE_ROOT/src/"
+echo "==> 同步 gold_miner 代码 (rsync --delay-updates 原子, 含 sentinel/data/signals 等)"
+if command -v rsync >/dev/null 2>&1; then
+  # --delay-updates: 全部暂存后统一改名, 避免 scp 逐文件覆盖造成的新旧代码混合窗口
+  # (曾因该窗口导致夜间哨兵报 'Settings' has no attribute 'news_llm_categories')
+  rsync -a --delete --delay-updates \
+    -e "ssh -i '$PEM' -o StrictHostKeyChecking=no" \
+    "$ROOT/src/gold_miner/" \
+    "$HOST:$REMOTE_ROOT/src/gold_miner/"
+else
+  "${SCP[@]}" -r "$ROOT/src/gold_miner" "$HOST:$REMOTE_ROOT/src/"
+fi
 # 确保包可导入
 "${SSH[@]}" "$HOST" "touch '$REMOTE_ROOT/src/gold_miner/__init__.py' 2>/dev/null || true"
 "${SSH[@]}" "$HOST" "touch '$REMOTE_ROOT/src/__init__.py' 2>/dev/null || true"
@@ -107,6 +114,8 @@ if '--config' not in args:
     args = ['--config', os.environ['GOLD_MINER_CONFIG']] + args
 sys.argv = [sys.argv[0]] + args
 sys.path.insert(0, os.environ['GOLD_MINER_ROOT'])
+# 自包含: 同时注入 <root>/src, 使内部 'from gold_miner.x' 导入无需外部 PYTHONPATH
+sys.path.insert(0, os.path.join(os.environ['GOLD_MINER_ROOT'], 'src'))
 from src.gold_miner.sentinel.__main__ import main
 raise SystemExit(main())
 EOF

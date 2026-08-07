@@ -815,7 +815,8 @@ def analyze_headlines(
     # ── Stage 2: AI 语义推理 (批量一次, 仅路由类目 + 候选B) ──
     analyzer = semantic if semantic is not None else _semantic_analyzer()
     routed_categories = getattr(analyzer, "categories", None) or set(
-        settings.news_llm_categories
+        # getattr 兜底: 部署非原子期间旧 config 可能缺该字段, 避免夜间哨兵崩溃
+        getattr(settings, "news_llm_categories", ["geopolitical", "energy", "trade", "policy", "election"])
     )
     routed = [c for c in strict if c.get("category") in routed_categories] + broad
     # fed/macro 确定性类目带反转信号 → 升级路由 LLM 裁决 (修复'削弱加息预期'误判利空)
