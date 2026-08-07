@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import atexit
 import os
+import re
 import shutil
 import subprocess
 import time
@@ -174,6 +175,8 @@ class ProxyManager:
                 raw = self._override_config_value(
                     raw, "external-controller", f"'127.0.0.1:{self.API_PORT}'"
                 )
+                # 注入干净 DNS, 避免境内 DNS 对部分域名污染导致证书失败
+                raw = self._ensure_dns_block(raw)
 
                 config_file.write_text(raw, encoding="utf-8")
                 logger.info(f"订阅配置已写入: {config_file}")
@@ -196,6 +199,10 @@ dns:
     nameserver:
         - https://doh.pub/dns-query
         - https://dns.alidns.com/dns-query
+    nameserver-policy:
+        "polymarket.com":
+            - https://cloudflare-dns.com/dns-query
+            - https://dns.google/resolve
 
 proxies:
     - name: DIRECT
@@ -213,6 +220,30 @@ rules:
         config_file.write_text(base_config, encoding="utf-8")
         logger.info(f"代理配置已写入: {config_file}")
         return config_file
+
+    @staticmethod
+    def _ensure_dns_block(config_text: str) -> str:
+        """若订阅配置无 dns: 段, 注入干净 DNS nameserver-policy.
+
+        目的: 境内 DNS（doh.pub/alidns）对部分境外域名（如 polymarket.com）
+        存在污染, 导致 mihomo 的 Direct 节点解析到错误 IP → 证书 hostname 不匹配.
+        为这些域名指定 Cloudflare/Google DoH（mihomo 会经代理转发 DoH 请求）.
+        """
+        if re.search(r"^dns\s*:", config_text, re.MULTILINE):
+            return config_text
+        dns_block = (
+            "dns:\n"
+            "    enable: true\n"
+            "    ipv6: false\n"
+            "    nameserver:\n"
+            "        - https://doh.pub/dns-query\n"
+            "        - https://dns.alidns.com/dns-query\n"
+            "    nameserver-policy:\n"
+            '        "polymarket.com":\n'
+            "            - https://cloudflare-dns.com/dns-query\n"
+            "            - https://dns.google/resolve\n"
+        )
+        return dns_block + config_text
 
     @staticmethod
     def _override_config_value(config_text: str, key: str, value: Any) -> str:
@@ -284,10 +315,34 @@ rules:
                 self.process.kill()
             logger.info("代理进程已停止")
 
+    @staticmethod
+    def _probe_port(port: int, timeout: float = 0.3) -> bool:
+        """探测本机端口是否有代理在监听."""
+        import socket
+
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=timeout):
+                return True
+        except OSError:
+            return False
+
+    def _detect_available_port(self) -> int | None:
+        """探测可用的代理端口: 优先项目端口, 其次外部 ClashX/Clash Verge 等端口."""
+        for port in [self.port, *self.EXTERNAL_PORTS]:
+            if self._probe_port(port):
+                return port
+        return None
+
     @property
     def is_running(self) -> bool:
-        """检查代理进程是否运行中."""
-        return self.process is not None and self.process.poll() is None
+        """检查代理是否可用（自启动进程 或 本机已在运行的 mihomo/clash）.
+
+        关键: 若外部已有代理进程在监听（如用户手动启动的 mihomo），
+        fresh 进程也应识别并复用，而不是直连被墙域名导致 SSL 证书失败.
+        """
+        if self.process is not None and self.process.poll() is None:
+            return True
+        return self._detect_available_port() is not None
 
     def _wait_for_proxy(self, timeout: float = 30.0) -> bool:
         """等待代理端口可用."""
@@ -316,11 +371,15 @@ rules:
         """获取配置了代理的 httpx Client（连接池复用, 避免每次新建TLS握手）.
 
         返回一个共享连接池的 wrapper — callers 可安全使用 `with` 语法.
+        自动探测本机已运行的 mihomo/clash（含外部 ClashX 等工具），
+        避免 fresh 进程探测不到代理而直连被墙域名.
         """
         from gold_miner.utils.http_fallback import _httpx_proxy_kwargs
-        if self.is_running:
-            kwargs = _httpx_proxy_kwargs(self.http_proxy, **kwargs)
-            logger.debug(f"httpx 使用代理: {self.http_proxy}")
+        port = self._detect_available_port()
+        if port:
+            proxy_url = f"http://127.0.0.1:{port}"
+            kwargs = _httpx_proxy_kwargs(proxy_url, **kwargs)
+            logger.debug(f"httpx 使用代理: {proxy_url}")
 
         if self._shared_client is None:
             self._shared_client = httpx.Client(**kwargs)
