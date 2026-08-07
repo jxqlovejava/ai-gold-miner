@@ -79,3 +79,61 @@ XAUUSD: $4104 (+0.01%) 🟢
 • 今日 ECB 前注意仓位管理
 
 🤖 自动扫描 · 08:26
+[warn] AI judge failed: https://api.deepseek.com/v1/chat/completions → 401, using fallback
+2026-08-07 07:30:53.633 | WARNING  | gold_miner.llm.client:chat:90 - LLM API 请求失败: The read operation timed out
+2026-08-07 07:30:53.636 | WARNING  | gold_miner.sentinel.news_semantic:classify_many:161 - 语义推理无返回, 回退关键词规则
+🌅 盘前扫描 | 2026-08-07 07:30 北京时间
+
+━━━ 💰 当前报价 ━━━
+XAUUSD: $4246 (+0.12%) 🟢
+积存金: 922.33元/克
+
+━━━━ 🔴 隔夜重大事件 (🌐 anysearch) ━━━━
+🇺🇸🇮🇷 美伊冲突 → 🟡 中性 40%
+  💬 关键词判断(AI不可用)
+  📰 "Lebanon's economy minister seeks clarity on ceasefire 'mixed signals' as Israeli strikes continue". CNBC. Retrieved 8 April 2026. ↑ Palmer,
+  📰 Ceasefire appears close to collapse as two militaries target each other after after Iran strikes three commercial vessels · Patrick Wintour 
+
+🇮🇱🇾🇪 以色列-胡塞-红海 → 🟢 看多 40%
+  💬 关键词判断(AI不可用)
+  📰 Houthis Declare Total Ban on Israeli Ships in the Red Sea - Bloomberg War With Iran: Latest Qatar Mediator Role in Jeopardy Stranded Sailors
+  📰 Israel hits Yemen's Houthis after reports group used cluster bomb Site search News Sport Football 2026 Business Technology Health Culture Ar
+
+🤝 停火与外交 → 🟡 中性 40%
+  💬 关键词判断(AI不可用)
+  📰 United Nations: Secretary-General António Guterres welcomed the ceasefire and called on all parties to comply with their obligations under i
+  📰 Pakistan and Qatar, by contrast, can focus on “the political-strategic level of the conflict, including a ceasefire, the reduction of attack
+
+🏛️ 美联储政策 → 🟡 中性 40%
+  💬 关键词判断(AI不可用)
+  📰 Federal Reserve Board - Federal Reserve issues FOMC statement Skip to main content An official website of the United States Government Here'
+  📰 After the July FOMC: takeaways from a new Fed | DWS Important security note: Warning of attempted fraud in the name of DWS We have detected 
+
+🥇 黄金市场 → ⚪ 不确定 40%
+  💬 关键词判断(AI不可用)
+  📰 Single-Day Surge of 4%! Gold is the 'Brightest Asset' in the Overnight Market | HTX Insights Single-Day Surge of 4%! Gold is the 'Brightest 
+  📰 Gold (XAUUSD), Silver, Platinum Forecasts – Gold Moves Higher As Oil Prices Drop | FXEmpire Gold (XAUUSD), Silver, Platinum Forecasts – Gold
+
+🛢️ 能源与油价 → 🟡 中性 40%
+  💬 关键词判断(AI不可用)
+  📰 Expectations of increasing oil supply and moderating inventory draws have caused oil prices to fall. The Brent crude oil spot price averaged
+  📰 For much of 2026, global oil markets have navigated a challenging environment brought on by geopolitics and supply chain disruptions. Where 
+
+━━━━ 🟡 国内快讯 ━━━━
+  • 📰 突发新闻预警
+  • 当前 XAUUSD: $4245 (🟢 +0.1%)
+  • 🚨 重大突发:
+  • • [能源危机 06:57] 油价亚洲早盘扩大涨幅 伊朗在霍尔木兹海峡打击敌对目标
+  • 💡 🟢[利多·重大] 霍尔木兹封锁→避险+供应危机→利多金价(若油价↑推升加息预期则远期承压)
+
+━━━━ 📅 今日事件 ━━━━
+  • 初请失业金人数 | 影响: medium
+  • 伊阿霍尔木兹原则协议(8/6) | 影响: extreme
+  • 观测: 伊阿原则协议→正式签署落地→溢价回吐路径 | 影响: high
+
+━━━━ 💡 操作提醒 ━━━━
+• 检查条件单是否需要更新
+• 如有重大事件, 设置开盘条件单
+• 今日 ECB 前注意仓位管理
+
+🤖 自动扫描 · 07:30
