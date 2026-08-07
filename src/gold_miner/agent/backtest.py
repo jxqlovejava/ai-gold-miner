@@ -162,7 +162,7 @@ class BacktestEngine:
 
     def run_rsi_strategy(
         self, gold_df: pd.DataFrame, period: int = 14,
-        oversold: float = 30, overbought: float = 70,
+        oversold: float = 20, overbought: float = 80,
     ) -> BacktestResult:
         """RSI超买超卖策略回测."""
         df = gold_df.copy()
@@ -232,7 +232,7 @@ class BacktestEngine:
             rsi_values = 100 - (100 / (1 + rs))
 
             for i in range(14, len(df) - lookahead_days):
-                if rsi_values.iloc[i] < 30:
+                if rsi_values.iloc[i] < 20:
                     total_rsi += 1
                     if closes[i + lookahead_days] > closes[i]:
                         correct_rsi += 1

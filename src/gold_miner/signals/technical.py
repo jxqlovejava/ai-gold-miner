@@ -255,22 +255,22 @@ class TechnicalAnalyzer:
             # 趋势市: 保持原值
             return (strength, score)
 
-        # 2) RSI
+        # 2) RSI — 阈值 20/80（更极端才触发），分数随阈值线性缩放
         rsi_val = self.rsi()
-        if rsi_val < 30:
-            s, sc = _adjust(SignalStrength.MODERATE, min((30 - rsi_val) / 30, 1.0))
+        if rsi_val < 20:
+            s, sc = _adjust(SignalStrength.MODERATE, min((20 - rsi_val) / 20, 1.0))
             signals.append(Signal(
                 name="RSI超卖", dimension="technical", direction=SignalDirection.BULLISH,
                 strength=s, score=sc,
-                description=f"RSI={rsi_val:.1f} < 30，超卖反弹信号",
+                description=f"RSI={rsi_val:.1f} < 20，超卖反弹信号",
                 metadata={"source_tier": self.SOURCE_TIER, "adx": adx_data["adx"], "atr_pct": atr_data["atr_pct"]},
             ))
-        elif rsi_val > 70:
-            s, sc = _adjust(SignalStrength.MODERATE, -min((rsi_val - 70) / 30, 1.0))
+        elif rsi_val > 80:
+            s, sc = _adjust(SignalStrength.MODERATE, -min((rsi_val - 80) / 20, 1.0))
             signals.append(Signal(
                 name="RSI超买", dimension="technical", direction=SignalDirection.BEARISH,
                 strength=s, score=sc,
-                description=f"RSI={rsi_val:.1f} > 70，超买回调信号",
+                description=f"RSI={rsi_val:.1f} > 80，超买回调信号",
                 metadata={"source_tier": self.SOURCE_TIER, "adx": adx_data["adx"], "atr_pct": atr_data["atr_pct"]},
             ))
 

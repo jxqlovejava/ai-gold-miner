@@ -355,12 +355,12 @@ class ReportGenerator:
         high_20 = gold_df["high"].tail(20).max()
         low_20 = gold_df["low"].tail(20).min()
 
-        rsi_label = "超卖(即将反弹)" if rsi_val < 30 else "超买(可能回调)" if rsi_val > 70 else "中性"
+        rsi_label = "超卖(即将反弹)" if rsi_val < 20 else "超买(可能回调)" if rsi_val > 80 else "中性"
         macd_label = "死叉(下跌中)" if macd < 0 else "金叉(上涨中)"
         bb_label = "已跌破(超跌)" if bb_pos < 0 else "下轨附近(超卖)" if bb_pos < 20 else "上轨附近(超买)" if bb_pos > 80 else "正常"
         sigs = bundle.by_dimension("technical")
 
-        rows = f"""<tr><td><span class="bold">RSI</span></td><td><span class="bold">{rsi_val:.0f}</span></td><td>{rsi_label}{' — 类似体温计，<30=发烧(超卖)' if not self.expert else ''}</td></tr>
+        rows = f"""<tr><td><span class="bold">RSI</span></td><td><span class="bold">{rsi_val:.0f}</span></td><td>{rsi_label}{' — 类似体温计，<20=发烧(超卖)' if not self.expert else ''}</td></tr>
 <tr><td><span class="bold">MACD</span></td><td><span class="red bold">{macd:+.2f}</span></td><td>{macd_label}{' — 判断趋势方向' if not self.expert else ''}</td></tr>
 <tr><td><span class="bold">布林带</span></td><td><span class="red bold">{bb_pos:.0f}%</span></td><td>{bb_label}{' — 价格通道，跌出下轨通常会弹回来' if not self.expert else ''}</td></tr>"""
 
@@ -379,7 +379,7 @@ class ReportGenerator:
 <h3>📊 技术面{'<span class="muted"> — 看图说话</span>' if not self.expert else ''}</h3>
 <table><tr><th width="140">指标</th><th>数值</th><th>{'通俗解释' if not self.expert else '详情'}</th></tr>{rows}</table>
 <ul class="signal-list">{signals_html if signals_html else '<li class="muted">无极端信号触发</li>'}</ul>
-{self._maybe_explain("技术面就是看价格图表上的指标，判断现在是太贵了还是太便宜了。RSI<30=超卖(该反弹了)，MACD金叉=上涨趋势，布林带跌出下轨=超跌。")}
+{self._maybe_explain("技术面就是看价格图表上的指标，判断现在是太贵了还是太便宜了。RSI<20=超卖(该反弹了)，MACD金叉=上涨趋势，布林带跌出下轨=超跌。")}
 """
 
     def _section_fundamental(self, dxy_df, rate_df, breakeven_df, gold_df, silver_df, bundle) -> str:

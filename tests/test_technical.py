@@ -259,3 +259,45 @@ class TestSignalCount:
             assert sig.metadata is not None
             assert "source_tier" in sig.metadata
             assert sig.dimension == "technical"
+
+
+class TestRSIThreshold:
+    """RSI 阈值 20/80 — 更极端才触发超卖/超买信号."""
+
+    def test_oversold_fires_below_20(self) -> None:
+        df = _make_downtrend_df(n=60)
+        ta = TechnicalAnalyzer(df)
+        rsi = ta.rsi()
+        signals = ta.generate_signals()
+        assert rsi < 20, f"预期 RSI<20，实际 {rsi:.1f}"
+        assert any(s.name == "RSI超卖" for s in signals)
+
+    def test_overbought_fires_above_80(self) -> None:
+        df = _make_uptrend_df(n=60)
+        ta = TechnicalAnalyzer(df)
+        rsi = ta.rsi()
+        signals = ta.generate_signals()
+        assert rsi > 80, f"预期 RSI>80，实际 {rsi:.1f}"
+        assert any(s.name == "RSI超买" for s in signals)
+
+    def test_mid_range_no_extreme_signal(self) -> None:
+        df = _make_ranging_df(n=100)
+        ta = TechnicalAnalyzer(df)
+        rsi = ta.rsi()
+        signals = ta.generate_signals()
+        assert 20 <= rsi <= 80
+        assert not any(s.name in ("RSI超卖", "RSI超买") for s in signals)
+
+    def test_score_scales_with_threshold(self) -> None:
+        """RSI 越极端分数越大（0→1 线性缩放），超卖为正在、超买为负向."""
+        df = _make_downtrend_df(n=60)
+        ta = TechnicalAnalyzer(df)
+        oversold = next(s for s in ta.generate_signals() if s.name == "RSI超卖")
+        assert 0.0 < oversold.score <= 1.0
+        assert oversold.direction == SignalDirection.BULLISH
+
+        df_up = _make_uptrend_df(n=60)
+        ta_up = TechnicalAnalyzer(df_up)
+        overbought = next(s for s in ta_up.generate_signals() if s.name == "RSI超买")
+        assert -1.0 <= overbought.score < 0.0
+        assert overbought.direction == SignalDirection.BEARISH
