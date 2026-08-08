@@ -360,11 +360,13 @@ class LongTermAnalyzer:
             return None
 
         # RSI: 从技术信号取近似值 (若无则 None)
-        rsi_val = _score_of("RSI", "rsi")
-        cot_change = _score_of("COT 非商业净多", "COT净多变化")
+        # 注意: 实际信号名为 "RSI超卖"/"RSI超买" (signals/technical.py), 维度 technical
+        rsi_val = _score_of("RSI超买", "RSI超卖", "RSI")
+        # COT: 实际信号名为 "COT聪明钱长期加仓"/"COT聪明钱长期减仓" (signals/long_term_trend.py)
+        cot_change = _score_of("COT聪明钱长期加仓", "COT聪明钱长期减仓", "COT净多变化")
 
         signal_obj = advisor.evaluate(
-            current_price=result.current_spot or 900.0,
+            current_price=result.current_spot or 3300.0,
             pools=pools,
             atr_trailing_triggered=False,  # 长期分析不做实时 ATR, 由 trailing_stop 模块处理
             rebalance_overweight=False,

@@ -1,0 +1,197 @@
+{
+  "status": "success",
+  "summary": {
+    "files_reviewed": 11,
+    "comments": 23,
+    "total_tokens": 1222712,
+    "input_tokens": 1142490,
+    "output_tokens": 80222,
+    "elapsed": "4m10s"
+  },
+  "comments": [
+    {
+      "path": "src/gold_miner/llm/client.py",
+      "content": "当 `raw_decode` 成功解析但返回非 dict 类型（如 list、string 等）时，当前仅执行 `idx += 1`，而非利用 `raw_decode` 返回的结束位置跳过已解析内容。这会导致在已解析的非 dict JSON 值内部继续逐字符尝试解析，产生不必要的 `raw_decode` 调用。\n\n建议：利用 `raw_decode` 返回的 `end` 索引来推进 `idx`：\n\n```python\ndata, end = decoder.raw_decode(result[idx:])\nif isinstance(data, dict):\n    return data\nidx += end  # 跳过整个已解析的 JSON 值\n```",
+      "suggestion_code": "            try:\n                data, end = decoder.raw_decode(result[idx:])\n                if isinstance(data, dict):\n                    return data\n                idx += end",
+      "existing_code": "            try:\n                data, _ = decoder.raw_decode(result[idx:])\n                if isinstance(data, dict):\n                    return data\n                idx += 1",
+      "start_line": 138,
+      "end_line": 142
+    },
+    {
+      "path": "tests/test_low_buy_high_sell.py",
+      "content": "测试中大量使用硬编码的中文字符串断言（如 \"持有\"、\"波段高抛\"、\"禁用 (MK4 闸门)\"、\"闸门关闭\" 等）。这些字符串直接耦合了源代码中的 UI 文案，而非业务语义。一旦文案调整（例如 \"波段高抛\" 改为 \"机动减仓\"），测试会全部断裂但实际逻辑可能完全正确，增加不必要的维护噪音。\n\n建议：在测试文件顶部定义模块级常量（如 ACTION_HOLD = \"持有\"，ACTION_TACTICAL_SELL = \"波段高抛\"），统一引用；或者改用更语义化的断言方式，例如检查 triggered_signals 列表内容而非 action 字符串的值。",
+      "suggestion_code": "    assert sig.core_pool[\"action\"] == ACTION_HOLD\n    assert sig.tactical_pool[\"action\"] == ACTION_HOLD\n    assert sig.opportunity_pool[\"action\"] == ACTION_OPPORTUNITY_STANDBY\n    assert sig.high_sell_suggestion == ACTION_HOLD\n    assert sig.low_buy_suggestion == LOW_BUY_WAIT_DIP\n    assert sig.triggered_signals == []",
+      "existing_code": "    assert sig.core_pool[\"action\"] == \"持有\"\n    assert sig.tactical_pool[\"action\"] == \"持有\"\n    assert sig.opportunity_pool[\"action\"] == \"S 协议待命\"\n    assert sig.high_sell_suggestion == \"持有\"\n    assert sig.low_buy_suggestion == \"等待回调低吸 (核心池/机动池)\"\n    assert sig.triggered_signals == []",
+      "start_line": 18,
+      "end_line": 23
+    },
+    {
+      "path": "scripts/cleanup_expired_monitors.py",
+      "content": "close_monitor() 调用未被 try/except 包裹。虽然 _rewrite_jsonl() 内部已捕获 OSError，但若 json.dumps 序列化失败或其他未预期异常发生，整个循环会中断，后续过期 monitor 将无法被清理。建议对 close_monitor 调用添加异常保护，确保单个失败不影响批量处理。",
+      "suggestion_code": "            try:\n                cal.close_monitor(\n                    name=m.name,\n                    result=f\"过期自动清理: expires_at {m.expires_at[:10]} \u003c now\",\n                    new_status=\"expired\",\n                )\n                expired.append(m.name)\n                logger.info(f\"已清理过期 monitor: {m.name}\")\n            except Exception as e:\n                logger.warning(f\"清理 monitor {m.name} 失败: {e}\")",
+      "existing_code": "            cal.close_monitor(\n                name=m.name,\n                result=f\"过期自动清理: expires_at {m.expires_at[:10]} \u003c now\",\n                new_status=\"expired\",\n            )\n            expired.append(m.name)\n            logger.info(f\"已清理过期 monitor: {m.name}\")",
+      "start_line": 40,
+      "end_line": 46
+    },
+    {
+      "path": "scripts/cleanup_expired_monitors.py",
+      "content": "datetime.fromisoformat 在解析失败时静默 continue，没有任何日志记录。当 expires_at 格式异常时，该 monitor 会被永久跳过且运维人员无法感知。建议在异常分支添加 warning 级别日志，便于排查数据质量问题。",
+      "suggestion_code": "        except (ValueError, TypeError):\n            logger.warning(f\"monitor {m.name} 的 expires_at 格式异常: {m.expires_at}\")\n            continue",
+      "existing_code": "        except (ValueError, TypeError):\n            continue",
+      "start_line": 37,
+      "end_line": 38
+    },
+    {
+      "path": "src/gold_miner/pipeline/long_term.py",
+      "content": "信号名称不匹配：系统中不存在名为 \"RSI\" 或 \"rsi\" 的信号。实际 RSI 信号名为 \"RSI超卖\"/\"RSI超买\"（来自 signals/technical.py），且维度为 technical，而 long_term pipeline 的 bundle 只包含 long_term 维度信号。建议：1) 在长期管线中也调用技术信号生成器，或 2) 从 data_bundle 直接提取 RSI 值而非从信号名匹配。",
+      "suggestion_code": "        # 注意: 长期管线 bundle 不含 technical 维度 RSI 信号，需从其他来源获取\n        rsi_val = _score_of(\"RSI超卖\", \"RSI超买\")  # 匹配实际信号名（但需确认管线中包含这些信号）",
+      "existing_code": "        rsi_val = _score_of(\"RSI\", \"rsi\")",
+      "start_line": 363,
+      "end_line": 363
+    },
+    {
+      "path": "src/gold_miner/pipeline/long_term.py",
+      "content": "信号名称不匹配：系统中不存在名为 \"COT 非商业净多\" 或 \"COT净多变化\" 的信号。实际 COT 信号名为 \"COT聪明钱长期加仓\"/\"COT聪明钱长期减仓\"（来自 signals/long_term_trend.py），且信号 score 是归一化后的综合评分，而非 pct_change 原始值。建议：使用正确信号名匹配，或从信号的 metadata.pct_change 中提取原始 COT 变化量。",
+      "suggestion_code": "        cot_change = _score_of(\"COT聪明钱长期加仓\", \"COT聪明钱长期减仓\")",
+      "existing_code": "        cot_change = _score_of(\"COT 非商业净多\", \"COT净多变化\")",
+      "start_line": 364,
+      "end_line": 364
+    },
+    {
+      "path": "src/gold_miner/pipeline/long_term.py",
+      "content": "默认价格 900.0 与项目其他地方（同文件第 42/45 行使用 3300.0）不一致。当前金价在 $2000+/oz 量级，若 current_spot 因意外未初始化（dataclass 默认为 0.0，即 falsy），900 的默认值会严重偏离实际，导致低吸高抛信号完全错误。建议改为 3300.0 或从配置常量中读取，保持与项目其他位置一致。",
+      "suggestion_code": "            current_price=result.current_spot or 3300.0,",
+      "existing_code": "            current_price=result.current_spot or 900.0,",
+      "start_line": 367,
+      "end_line": 367
+    },
+    {
+      "path": "src/gold_miner/strategy/low_buy_high_sell.py",
+      "content": "【高】配置字典缺少必需键可能导致 KeyError。evaluate() 中 cfg[\"core_pool\"]、cfg[\"tactical_pool\"]、cfg[\"opportunity_pool\"] 直接通过字面量索引访问，若调用方传入的自定义 config 未完整包含所有顶层键，将引发 KeyError 导致程序异常终止。\n建议：在 __init__ 中对传入 config 与默认配置做深度合并（如 dict 递归 merge），确保缺失键回退到默认值；或在 evaluate 入口处使用 .get() 防御性访问。",
+      "suggestion_code": "        cfg = self.config\n        signals: list[str] = []\n        warnings: list[str] = []\n        rule_ids: list[str] = []\n\n        # ---- 核心池建议 ----\n        core = cfg.get(\"core_pool\", {\"low_buy\": True, \"high_sell\": False})\n        core_advice = self._core_pool_advice(\n            config=core,\n            atr_triggered=atr_trailing_triggered,\n            fundamental_break=central_bank_buying_slow,\n            atr_price=atr_trailing_price,\n            signals=signals,\n            rule_ids=rule_ids,\n        )\n\n        # ---- 机动池建议 ----\n        tactical = cfg.get(\"tactical_pool\", {\"low_buy\": True, \"high_sell\": True})\n        tactical_advice = self._tactical_pool_advice(\n            config=tactical,",
+      "existing_code": "        cfg = self.config\n        signals: list[str] = []\n        warnings: list[str] = []\n        rule_ids: list[str] = []\n\n        # ---- 核心池建议 ----\n        core = cfg[\"core_pool\"]\n        core_advice = self._core_pool_advice(\n            config=core,\n            atr_triggered=atr_trailing_triggered,\n            fundamental_break=central_bank_buying_slow,\n            atr_price=atr_trailing_price,\n            signals=signals,\n            rule_ids=rule_ids,\n        )\n\n        # ---- 机动池建议 ----\n        tactical = cfg[\"tactical_pool\"]\n        tactical_advice = self._tactical_pool_advice(\n            config=tactical,",
+      "start_line": 0,
+      "end_line": 0
+    },
+    {
+      "path": "src/gold_miner/strategy/low_buy_high_sell.py",
+      "content": "【高】_core_pool_advice 和 _tactical_pool_advice 中通过 config[\"high_sell\"] 直接索引，若调用方传入的池级 config 未包含 high_sell 键也会触发 KeyError。建议加防御。",
+      "suggestion_code": "        if config.get(\"high_sell\") and atr_triggered:\n            action = \"ATR 移动止盈减半\"\n            detail = f\"r025: 跌破移动止盈位 {atr_price if atr_price else '?'} → 减一半\"\n            signals.append(\"core_atr_trailing\")\n            rule_ids.append(\"r025\")\n        elif config.get(\"high_sell\") and fundamental_break:",
+      "existing_code": "        if config[\"high_sell\"] and atr_triggered:\n            action = \"ATR 移动止盈减半\"\n            detail = f\"r025: 跌破移动止盈位 {atr_price if atr_price else '?'} → 减一半\"\n            signals.append(\"core_atr_trailing\")\n            rule_ids.append(\"r025\")\n        elif config[\"high_sell\"] and fundamental_break:",
+      "start_line": 190,
+      "end_line": 195
+    },
+    {
+      "path": "src/gold_miner/strategy/low_buy_high_sell.py",
+      "content": "【中】_summarize_low_buy 完全未考虑各池 low_buy 配置项。即使 core_pool 或 tactical_pool 的 low_buy 被显式设为 False，只要 gate 未关闭且 action 为\"持有\"，方法仍返回\"等待回调低吸\"，违背用户禁止低吸的意图，可能导致错误交易决策。\n建议：在汇总逻辑中加入对池级 low_buy 配置的检查。",
+      "suggestion_code": "    def _summarize_low_buy(\n        self,\n        core: dict[str, Any],\n        tactical: dict[str, Any],\n        opp: dict[str, Any],\n        gate_closed: bool,\n        warnings: list[str],\n    ) -\u003e str:\n        \"\"\"汇总低吸建议.\"\"\"\n        if gate_closed:\n            warnings.append(\"聪明钱闸门关闭 (COT 转流出): 禁止主动低吸, 只靠低吸单被动接货\")\n            return \"禁用 (MK4 闸门)\"\n        core_ok = core.get(\"low_buy\", True)\n        tactical_ok = tactical.get(\"low_buy\", True)\n        if not core_ok and not tactical_ok:\n            return \"低吸禁用 (池配置关闭)\"\n        # 核心池可低吸 (回调分批) + 机动池可低吸 → 等待回调\n        if core[\"action\"] == \"持有\" and tactical[\"action\"] == \"持有\":\n            return \"等待回调低吸 (核心池/机动池)\"\n        return \"分批低吸\"",
+      "existing_code": "    def _summarize_low_buy(\n        self,\n        core: dict[str, Any],\n        tactical: dict[str, Any],\n        opp: dict[str, Any],\n        gate_closed: bool,\n        warnings: list[str],\n    ) -\u003e str:\n        \"\"\"汇总低吸建议.\"\"\"\n        if gate_closed:\n            warnings.append(\"聪明钱闸门关闭 (COT 转流出): 禁止主动低吸, 只靠低吸单被动接货\")\n            return \"禁用 (MK4 闸门)\"\n        # 核心池可低吸 (回调分批) + 机动池可低吸 → 等待回调\n        if core[\"action\"] == \"持有\" and tactical[\"action\"] == \"持有\":\n            return \"等待回调低吸 (核心池/机动池)\"\n        return \"分批低吸\"",
+      "start_line": 279,
+      "end_line": 294
+    },
+    {
+      "path": "src/gold_miner/strategy/low_buy_high_sell.py",
+      "content": "【中】evaluate 方法的 current_price 参数被声明和文档化但从未在方法体中使用。当前实现缺乏对价格绝对水平或相对成本均价的判断，可能在不合适的价位给出低吸建议，削弱风险控制能力。\n建议：要么在逻辑中实际使用 current_price（如与成本均价对比判断低吸空间），要么从签名中移除并更新调用方，避免给维护者造成误解。",
+      "suggestion_code": "    def evaluate(\n        self,\n        *,\n        current_price: float,  # TODO: 用于判断与成本均价的偏离度，当前暂未使用\n        pools: dict[str, Any],",
+      "existing_code": "    def evaluate(\n        self,\n        *,\n        current_price: float,\n        pools: dict[str, Any],",
+      "start_line": 87,
+      "end_line": 91
+    },
+    {
+      "path": "src/gold_miner/strategy/low_buy_high_sell.py",
+      "content": "【低】军规 ID r020 被复用于三种不同触发原因：基本面逆转减仓（line 199）、仓位超配再平衡（line 238）、聪明钱闸门关闭（line 275）。虽然不影响逻辑执行，但会降低规则追踪的准确性，增加运维排查难度。建议为不同信号分配独立规则 ID。",
+      "suggestion_code": "            rule_ids.append(\"r020b\")  # 宁可踏空不可接飞刀 (聪明钱闸门)",
+      "existing_code": "            rule_ids.append(\"r020\")  # 宁可踏空不可接飞刀",
+      "start_line": 275,
+      "end_line": 275
+    },
+    {
+      "path": "src/gold_miner/pipeline/long_term.py",
+      "content": "资金池默认比例 (40/20/20) 硬编码在此处，与 LowBuyHighSellAdvisor 的内部默认配置形成隐性重复。若将来默认策略调整，可能只改一处而遗漏另一处，导致配置不一致。建议提取为模块级常量或集中到配置中心。",
+      "suggestion_code": "        _long_term = portfolio.get(\"long_term\") or {}\n        _pool_defaults = {\"core\": 40, \"tactical\": 20, \"opportunity\": 20}\n        pools = {\n            k: _long_term.get(\"pools\", {}).get(k, v)\n            for k, v in _pool_defaults.items()\n        }",
+      "existing_code": "        pools = {\n            \"core\": (portfolio.get(\"long_term\") or {}).get(\"pools\", {}).get(\"core\", 40),\n            \"tactical\": (portfolio.get(\"long_term\") or {}).get(\"pools\", {}).get(\"tactical\", 20),\n            \"opportunity\": (portfolio.get(\"long_term\") or {}).get(\"pools\", {}).get(\"opportunity\", 20),\n        }",
+      "start_line": 344,
+      "end_line": 348
+    },
+    {
+      "path": "tests/test_low_buy_high_sell.py",
+      "content": "测试覆盖了核心的正常路径（默认行为、ATR 触发、再平衡、极端情绪、基本面逆转、闸门关闭），但缺少对边界条件和异常输入的覆盖。例如：\n- `pools` 为空字典 `{}` 的情况\n- `current_price` 为 0 或负数\n- `pool_deviation_pp` / `pool_profit_pct` 为 `None` 时访问 `.get(\"tactical\")`（虽然源码做了 `or {}` 防护，但应有测试确认）\n- `cot_net_position_change` 恰好为 0 时闸门的行为\n- `rsi_value` 恰好为 80.0 时情绪高抛不触发（边界值）\n\n这些边界测试可以帮助捕获潜在 `KeyError`、`ZeroDivisionError` 或逻辑缺陷。",
+      "suggestion_code": "def test_to_dict_roundtrip():\n    \"\"\"to_dict 输出可序列化.\"\"\"\n    advisor = LowBuyHighSellAdvisor()\n    sig = advisor.evaluate(current_price=900.0, pools=_default_pools())\n    d = sig.to_dict()\n\n    assert d[\"core_pool\"][\"pool\"] == \"core\"\n    assert d[\"high_sell_suggestion\"] == \"持有\"\n    assert isinstance(d[\"triggered_signals\"], list)\n\n\ndef test_empty_pools_no_error():\n    \"\"\"空池配置不应抛出异常.\"\"\"\n    advisor = LowBuyHighSellAdvisor()\n    sig = advisor.evaluate(current_price=900.0, pools={})\n    assert isinstance(sig, LowBuyHighSellSignal)\n\n\ndef test_rsi_at_boundary_80_no_high_sell():\n    \"\"\"RSI=80 恰好等于阈值时不触发情绪高抛 (\u003e80 才触发).\"\"\"\n    advisor = LowBuyHighSellAdvisor()\n    sig = advisor.evaluate(\n        current_price=950.0,\n        pools=_default_pools(),\n        rsi_value=80.0,\n        cot_net_position_change=-5.0,\n    )\n    assert \"tactical_extreme_sentiment\" not in sig.triggered_signals",
+      "existing_code": "def test_to_dict_roundtrip():\n    \"\"\"to_dict 输出可序列化.\"\"\"\n    advisor = LowBuyHighSellAdvisor()\n    sig = advisor.evaluate(current_price=900.0, pools=_default_pools())\n    d = sig.to_dict()\n\n    assert d[\"core_pool\"][\"pool\"] == \"core\"\n    assert d[\"high_sell_suggestion\"] == \"持有\"\n    assert isinstance(d[\"triggered_signals\"], list)",
+      "start_line": 0,
+      "end_line": 0
+    },
+    {
+      "path": "tests/test_low_buy_high_sell.py",
+      "content": "`test_default_hold_no_signals` 仅检查了 `triggered_signals == []`，但未检查 `warnings`。根据源码逻辑，机动池在无高抛信号触发时会追加警告 `\"机动池: 无高抛信号, 不因'赚了一点'手动做T (r030)\"`。此测试应同时断言 warnings 非空，否则默认路径的警告生成逻辑未被验证。",
+      "suggestion_code": "    assert sig.tactical_pool[\"action\"] == \"持有\"\n    assert sig.opportunity_pool[\"action\"] == \"S 协议待命\"\n    assert sig.high_sell_suggestion == \"持有\"\n    assert sig.low_buy_suggestion == \"等待回调低吸 (核心池/机动池)\"\n    assert sig.triggered_signals == []\n    assert len(sig.warnings) \u003e= 1  # 机动池无高抛信号时的警告",
+      "existing_code": "    assert sig.tactical_pool[\"action\"] == \"持有\"\n    assert sig.opportunity_pool[\"action\"] == \"S 协议待命\"\n    assert sig.high_sell_suggestion == \"持有\"\n    assert sig.low_buy_suggestion == \"等待回调低吸 (核心池/机动池)\"\n    assert sig.triggered_signals == []",
+      "start_line": 19,
+      "end_line": 23
+    },
+    {
+      "path": "scripts/adaptive_gold_monitor.py",
+      "content": "过于宽泛的 `except Exception: pass` 会静默吞没 ImportError、ValueError、网络异常等所有错误，导致风控上下文功能在不可用状态下长期不被发现。建议：1) 至少使用 `except (ImportError, ValueError, KeyError, TypeError) as e: print(f'[WARN] ATR风控上下文计算失败: {e}', file=sys.stderr)` 输出诊断信息；2) 或缩小异常类型范围，只捕获预期内的降级异常。",
+      "suggestion_code": "    # ATR 移动止盈位 (复用 trailing_stop 逻辑)\n    try:\n        from gold_miner.data.jd_accumulation_gold import JdAccumulationGoldFetcher\n        from gold_miner.strategy.trailing_stop import ATRTrailingStop\n\n        jd = JdAccumulationGoldFetcher(bank=\"MS\")\n        df = jd.fetch(days=90)\n        if df is not None and len(df) \u003e= 14:\n            cost_basis = _get_cost_basis()\n            sell_fee = _get_sell_fee_pct()\n            hard = ctx[\"hard_stop\"] or None\n            entry_date = None\n            if p and \"positions\" in p:\n                try:\n                    entry_date = p[\"positions\"][\"gold_jd\"].get(\"entry_date\")\n                except (KeyError, TypeError):\n                    pass\n            ts = ATRTrailingStop(\n                atr_period=14, profit_multiplier=2.5, loss_multiplier=3.0,\n                cost_basis=cost_basis, hard_stop_price=hard,\n                profit_action=\"reduce_half\", loss_action=\"reduce_half\",\n                sell_fee_pct=sell_fee, entry_date=entry_date,\n            )\n            signal = ts.calculate(df)\n            ctx[\"atr_stop\"] = float(getattr(signal, \"stop_price\", 0) or 0)\n    except (ImportError, ValueError, KeyError, TypeError) as e:\n        print(f\"[WARN] ATR风控上下文计算失败: {e}\", file=sys.stderr)",
+      "existing_code": "    # ATR 移动止盈位 (复用 trailing_stop 逻辑)\n    try:\n        from gold_miner.data.jd_accumulation_gold import JdAccumulationGoldFetcher\n        from gold_miner.strategy.trailing_stop import ATRTrailingStop\n\n        jd = JdAccumulationGoldFetcher(bank=\"MS\")\n        df = jd.fetch(days=90)\n        if df is not None and len(df) \u003e= 14:\n            cost_basis = _get_cost_basis()\n            sell_fee = _get_sell_fee_pct()\n            hard = ctx[\"hard_stop\"] or None\n            entry_date = None\n            if p and \"positions\" in p:\n                try:\n                    entry_date = p[\"positions\"][\"gold_jd\"].get(\"entry_date\")\n                except (KeyError, TypeError):\n                    pass\n            ts = ATRTrailingStop(\n                atr_period=14, profit_multiplier=2.5, loss_multiplier=3.0,\n                cost_basis=cost_basis, hard_stop_price=hard,\n                profit_action=\"reduce_half\", loss_action=\"reduce_half\",\n                sell_fee_pct=sell_fee, entry_date=entry_date,\n            )\n            signal = ts.calculate(df)\n            ctx[\"atr_stop\"] = float(getattr(signal, \"stop_price\", 0) or 0)\n    except Exception:\n        pass",
+      "start_line": 0,
+      "end_line": 0
+    },
+    {
+      "path": "src/gold_miner/sentinel/engine.py",
+      "content": "节假日列表不完整且缺少补班日处理：1) 2026年国庆仅列出5天（缺失10月3日、10月4日）；2) is_cn_trading_day 对周六日直接返回 False，未处理法定补班日（如周六补班实为交易日）。这会导致 next_cn_trading_day 跳转错误，异动警报中的国内开盘提示延迟或遗漏。建议维护完整的节假日+补班日映射，或引入 chinese_calendar 等成熟库。",
+      "suggestion_code": "_CN_HOLIDAYS: set[str] = {\n    # 国庆节（含调休放假，需与国务院通知保持一致）\n    \"2026-10-01\", \"2026-10-02\", \"2026-10-03\", \"2026-10-04\",\n    \"2026-10-05\", \"2026-10-06\", \"2026-10-07\",\n}\n\n# 法定补班日（周六/周日实为交易日，需在此维护）\n_CN_MAKEUP_WORKDAYS: set[str] = {\n    # e.g. \"2026-09-27\",  # 国庆前补班（周日）\n}",
+      "existing_code": "_CN_HOLIDAYS: set[str] = {\n    \"2026-10-01\", \"2026-10-02\", \"2026-10-05\", \"2026-10-06\", \"2026-10-07\",  # 国庆\n}",
+      "start_line": 28,
+      "end_line": 30
+    },
+    {
+      "path": "src/gold_miner/sentinel/engine.py",
+      "content": "is_cn_trading_day 对周六/周日直接返回 False，没有检查 _CN_MAKEUP_WORKDAYS 补班日表，导致法定补班日（实为交易日）被误判为非交易日。",
+      "suggestion_code": "    bj = day.astimezone(BEIJING)\n    date_str = bj.strftime(\"%Y-%m-%d\")\n    # 补班日优先 → 视为交易日\n    if date_str in _CN_MAKEUP_WORKDAYS:\n        return True\n    if bj.weekday() \u003e= 5:  # 周六(5)/周日(6)\n        return False\n    return date_str not in _CN_HOLIDAYS",
+      "existing_code": "    bj = day.astimezone(BEIJING)\n    if bj.weekday() \u003e= 5:  # 周六(5)/周日(6)\n        return False\n    return bj.strftime(\"%Y-%m-%d\") not in _CN_HOLIDAYS",
+      "start_line": 65,
+      "end_line": 68
+    },
+    {
+      "path": "src/gold_miner/sentinel/engine.py",
+      "content": "_calc_atr_stop 接收 current_price 参数但函数体内完全未使用。该参数仅用于签名匹配，实际止盈位计算依赖 JdAccumulationGoldFetcher.fetch() 返回的历史数据，与当前实时价格无关。建议移除该形参以保持接口清晰，或在注释中说明保留原因。",
+      "suggestion_code": "    def _calc_atr_stop(self, gold: dict) -\u003e float:",
+      "existing_code": "    def _calc_atr_stop(self, gold: dict, current_price: float) -\u003e float:",
+      "start_line": 186,
+      "end_line": 186
+    },
+    {
+      "path": "src/gold_miner/sentinel/engine.py",
+      "content": "_load_portfolio 调用 _calc_atr_stop 时也需同步移除 current_price 参数。",
+      "suggestion_code": "        atr_stop = self._calc_atr_stop(gold)",
+      "existing_code": "        atr_stop = self._calc_atr_stop(gold, current_price)",
+      "start_line": 170,
+      "end_line": 170
+    },
+    {
+      "path": "src/gold_miner/sentinel/engine.py",
+      "content": "宽泛的 except Exception 静默吞没所有异常，包括 ATRTrailingStop 计算逻辑错误、JdAccumulationGoldFetcher 初始化失败等关键错误。项目全局使用 loguru logger（src/gold_miner/data/jd_accumulation_gold.py 等多处均有引用），建议至少记录 warning 级别日志以便排查。",
+      "suggestion_code": "        except Exception:\n            from loguru import logger\n            logger.opt(exception=True).warning(\"ATR stop calculation failed, returning 0\")\n            return 0.0",
+      "existing_code": "        except Exception:\n            return 0.0",
+      "start_line": 219,
+      "end_line": 220
+    },
+    {
+      "path": "src/gold_miner/sentinel/engine.py",
+      "content": "_check_calendar 顶层的 except Exception 会静默丢弃全部日历告警，非法 JSON、字段缺失等错误均被掩盖。建议同样添加 logger 记录，便于运维时定位日历数据格式问题。",
+      "suggestion_code": "        except Exception:\n            from loguru import logger\n            logger.opt(exception=True).warning(\"Calendar check failed, returning empty alerts\")\n            return []",
+      "existing_code": "        except Exception:\n            return []",
+      "start_line": 469,
+      "end_line": 470
+    },
+    {
+      "path": "src/gold_miner/sentinel/engine.py",
+      "content": "_record_monitor_push 直接使用 write_text 覆盖状态文件，非原子写入。若写入中途进程崩溃或被中断，文件将损坏（truncated JSON），下次读取时会被重置为空字典，导致所有 monitor 的推送记录丢失并重复推送。建议先写入临时文件再 rename 实现原子替换。",
+      "suggestion_code": "            pushed[name] = now.isoformat()\n            state[\"monitor_last_pushed\"] = pushed\n            state_path.parent.mkdir(parents=True, exist_ok=True)\n            tmp_path = state_path.with_suffix(state_path.suffix + \".tmp\")\n            tmp_path.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding=\"utf-8\")\n            tmp_path.replace(state_path)",
+      "existing_code": "            pushed[name] = now.isoformat()\n            state[\"monitor_last_pushed\"] = pushed\n            state_path.parent.mkdir(parents=True, exist_ok=True)\n            state_path.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding=\"utf-8\")",
+      "start_line": 368,
+      "end_line": 371
+    }
+  ]
+}

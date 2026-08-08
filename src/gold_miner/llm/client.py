@@ -136,10 +136,11 @@ class LLMClient:
             if idx == -1:
                 break
             try:
-                data, _ = decoder.raw_decode(result[idx:])
+                data, end = decoder.raw_decode(result[idx:])
                 if isinstance(data, dict):
                     return data
-                idx += 1
+                # 非 dict JSON 值: 用 end 跳过整个已解析值, 避免内部逐字符重试
+                idx += max(end, 1)
             except json.JSONDecodeError:
                 idx += 1
         logger.warning(f"LLM 返回无法解析的JSON: {result[:200]}")

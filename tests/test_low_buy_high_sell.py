@@ -150,3 +150,38 @@ def test_to_dict_roundtrip():
     assert d["core_pool"]["pool"] == "core"
     assert d["high_sell_suggestion"] == "持有"
     assert isinstance(d["triggered_signals"], list)
+
+
+def test_config_key_defense_empty():
+    """空配置 → 回退默认值, 不 KeyError."""
+    advisor = LowBuyHighSellAdvisor(config={})
+    sig = advisor.evaluate(current_price=940.0, pools=_default_pools())
+    assert sig.core_pool["pool"] == "core"
+    assert sig.tactical_pool["pool"] == "tactical"
+
+
+def test_config_key_defense_partial():
+    """部分配置 (缺 tactical_pool) → 回退默认, 不 KeyError."""
+    advisor = LowBuyHighSellAdvisor(config={"core_pool": {"low_buy": True, "high_sell": False}})
+    sig = advisor.evaluate(current_price=940.0, pools=_default_pools())
+    assert sig.core_pool["action"] == "持有"
+
+
+def test_low_buy_disabled_when_all_pools_off():
+    """所有池 low_buy=False → 低吸禁用 (配置禁止)."""
+    advisor = LowBuyHighSellAdvisor(config={
+        "core_pool": {"low_buy": False, "high_sell": False},
+        "tactical_pool": {"low_buy": False, "high_sell": False},
+        "opportunity_pool": {"low_buy": False, "high_sell": False},
+        "high_sell_signals": {},
+        "low_buy_iron_rules": {},
+    })
+    sig = advisor.evaluate(current_price=940.0, pools=_default_pools())
+    assert sig.low_buy_suggestion == "禁用 (配置禁止低吸)"
+
+
+def test_current_price_zero_no_crash():
+    """current_price 为 0 → 不崩溃 (保留接口兼容)."""
+    advisor = LowBuyHighSellAdvisor()
+    sig = advisor.evaluate(current_price=0.0, pools=_default_pools())
+    assert sig.high_sell_suggestion == "持有"

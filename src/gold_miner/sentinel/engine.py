@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 
 import yaml
+from loguru import logger
 
 from .models import (
     AlertLevel,
@@ -26,7 +28,17 @@ BEIJING = timezone(timedelta(hours=8))
 # 国内主要节假日 (非交易日) — 覆盖 2026 下半年 (日期为北京时间)
 # 周六/周日永远非交易日; 法定节假日补班/放假在此维护
 _CN_HOLIDAYS: set[str] = {
-    "2026-10-01", "2026-10-02", "2026-10-05", "2026-10-06", "2026-10-07",  # 国庆
+    # 中秋节 (2026-09-25, 周五) + 周末
+    "2026-09-25",
+    # 国庆节 (2026-10-01 ~ 10-07)
+    "2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04",
+    "2026-10-05", "2026-10-06", "2026-10-07",
+}
+
+# 调休补班日 (周六/周日但为工作日, 市场正常交易) — 按官方调休安排维护
+_CN_MAKEUP_WORKDAYS: set[str] = {
+    # 2026 中秋/国庆调休补班示例 (以国务院正式通知为准):
+    # "2026-09-27",  # 若国庆前周日补班
 }
 
 # 例行观察 → 通俗人话解释 (按 monitor 名字关键词匹配, 让用户一眼看懂在监控什么)
@@ -60,12 +72,19 @@ def monitor_plain_hint(name: str) -> str:
 def is_cn_trading_day(day: datetime) -> bool:
     """判断北京时间 day 是否为国内黄金交易日.
 
-    积存金/上金所交易日 = 工作日且非法定节假日。
+    积存金/上金所交易日 = 工作日且非法定节假日, 或调休补班日(周六日实为交易日)。
     """
     bj = day.astimezone(BEIJING)
-    if bj.weekday() >= 5:  # 周六(5)/周日(6)
+    date_str = bj.strftime("%Y-%m-%d")
+    # 法定节假日 → 非交易日 (即使是工作日)
+    if date_str in _CN_HOLIDAYS:
         return False
-    return bj.strftime("%Y-%m-%d") not in _CN_HOLIDAYS
+    # 调休补班日 → 交易日 (即使是周六/周日)
+    if date_str in _CN_MAKEUP_WORKDAYS:
+        return True
+    if bj.weekday() >= 5:  # 周六(5)/周日(6) 且非补班 → 非交易日
+        return False
+    return True
 
 
 def next_cn_trading_day(day: datetime) -> datetime:
@@ -146,7 +165,8 @@ class SentinelEngine:
             return None
         try:
             data = yaml.safe_load(pf_path.read_text(encoding="utf-8"))
-        except Exception:
+        except Exception as e:
+            logger.warning(f"持仓解析失败: {e}")
             return None
 
         positions = data.get("positions", {})
@@ -167,7 +187,7 @@ class SentinelEngine:
         unrealized_pnl_pct = (unrealized_pnl / cost_value * 100) if cost_value > 0 else 0
 
         # r025 ATR 移动止盈位 (盘中自动计算, 失败静默降级为 0)
-        atr_stop = self._calc_atr_stop(gold, current_price)
+        atr_stop = self._calc_atr_stop(gold)
 
         return PortfolioSnapshot(
             instrument=gold.get("instrument", "积存金"),
@@ -183,10 +203,11 @@ class SentinelEngine:
             atr_stop_price=atr_stop,
         )
 
-    def _calc_atr_stop(self, gold: dict, current_price: float) -> float:
+    def _calc_atr_stop(self, gold: dict) -> float:
         """计算 r025 ATR 移动止盈位.
 
         复用 analysis pipeline 的模式: 积存金历史 + 持仓参数 → ATRTrailingStop.
+        止盈位由持仓期最高价决定, 与当前实时价格无关.
         失败时静默返回 0 (不阻断哨兵).
         """
         try:
@@ -216,7 +237,8 @@ class SentinelEngine:
             )
             signal = ts.calculate(df)
             return float(getattr(signal, "stop_price", 0) or 0)
-        except Exception:
+        except Exception as e:
+            logger.warning(f"ATR止盈位计算失败, 静默降级: {e}")
             return 0.0
 
     def _check_portfolio(self, p: PortfolioSnapshot) -> list[SentinelAlert]:
@@ -368,7 +390,10 @@ class SentinelEngine:
             pushed[name] = now.isoformat()
             state["monitor_last_pushed"] = pushed
             state_path.parent.mkdir(parents=True, exist_ok=True)
-            state_path.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+            # 原子写入: 先写临时文件再 rename, 避免崩溃损坏状态文件导致推送记录丢失
+            tmp_path = state_path.with_suffix(".tmp")
+            tmp_path.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+            os.replace(tmp_path, state_path)
         except OSError:
             pass
 
@@ -466,6 +491,7 @@ class SentinelEngine:
                         title=title,
                         detail=detail,
                     ))
-        except Exception:
+        except Exception as e:
+            logger.error(f"日历检查异常, 丢弃本次日历告警: {e}")
             return []
         return alerts

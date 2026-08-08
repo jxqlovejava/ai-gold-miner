@@ -101,7 +101,8 @@ class LowBuyHighSellAdvisor:
         """评估当前状态, 输出分级低吸高抛建议.
 
         Args:
-            current_price: 当前金价 (元/克)
+            current_price: 当前金价 (元/克). 保留用于接口兼容/未来绝对价位判断,
+                当前分级逻辑依赖外部传入的信号 (ATR/RSI/COT), 不直接使用此价格.
             pools: 三池配置, 如 {"core": 40, "tactical": 20, "opportunity": 20}
             atr_trailing_triggered: ATR 移动止盈是否触发 (r025)
             atr_trailing_price: ATR 移动止盈止损位
@@ -120,8 +121,12 @@ class LowBuyHighSellAdvisor:
         warnings: list[str] = []
         rule_ids: list[str] = []
 
+        # 配置键防御: 调用方可能传入不完整配置, 缺失时回退默认值 (避免 KeyError)
+        core = cfg.get("core_pool") or {"low_buy": True, "high_sell": False}
+        tactical = cfg.get("tactical_pool") or {"low_buy": True, "high_sell": True}
+        opportunity = cfg.get("opportunity_pool") or {"low_buy": False, "high_sell": False}
+
         # ---- 核心池建议 ----
-        core = cfg["core_pool"]
         core_advice = self._core_pool_advice(
             config=core,
             atr_triggered=atr_trailing_triggered,
@@ -132,7 +137,6 @@ class LowBuyHighSellAdvisor:
         )
 
         # ---- 机动池建议 ----
-        tactical = cfg["tactical_pool"]
         tactical_advice = self._tactical_pool_advice(
             config=tactical,
             atr_triggered=atr_trailing_triggered,
@@ -147,7 +151,6 @@ class LowBuyHighSellAdvisor:
         )
 
         # ---- 机会池建议 ----
-        opportunity = cfg["opportunity_pool"]
         opp_advice = self._opportunity_pool_advice(config=opportunity, signals=signals)
 
         # ---- 聪明钱闸门 (MK4) ----
@@ -155,7 +158,8 @@ class LowBuyHighSellAdvisor:
 
         # ---- 汇总 ----
         low_buy = self._summarize_low_buy(
-            core_advice, tactical_advice, opp_advice, gate_closed, warnings
+            core_advice, tactical_advice, opp_advice, gate_closed, warnings,
+            core_cfg=core, tactical_cfg=tactical,
         )
         high_sell = self._summarize_high_sell(core_advice, tactical_advice)
 
@@ -187,12 +191,12 @@ class LowBuyHighSellAdvisor:
         action = "持有"
         detail = "长期底仓, 不动"
 
-        if config["high_sell"] and atr_triggered:
+        if config.get("high_sell", False) and atr_triggered:
             action = "ATR 移动止盈减半"
             detail = f"r025: 跌破移动止盈位 {atr_price if atr_price else '?'} → 减一半"
             signals.append("core_atr_trailing")
             rule_ids.append("r025")
-        elif config["high_sell"] and fundamental_break:
+        elif config.get("high_sell", False) and fundamental_break:
             action = "基本面逆转减仓"
             detail = "央行购金连续两季<100吨 → 结构性买盘承压, 评估减仓"
             signals.append("core_fundamental_break")
@@ -222,13 +226,13 @@ class LowBuyHighSellAdvisor:
         high_sell = False
         reasons: list[str] = []
 
-        if config["high_sell"] and atr_triggered:
+        if config.get("high_sell", False) and atr_triggered:
             high_sell = True
             reasons.append("ATR 移动止盈触发 (r025)")
             signals.append("tactical_atr_trailing")
             rule_ids.append("r025")
 
-        if config["high_sell"] and rebalance_overweight:
+        if config.get("high_sell", False) and rebalance_overweight:
             deviation = (pool_deviation or {}).get("tactical", 0)
             profit = (pool_profit or {}).get("tactical", 0)
             if deviation > 10 and profit > 20:
@@ -237,7 +241,7 @@ class LowBuyHighSellAdvisor:
                 signals.append("tactical_rebalance")
                 rule_ids.append("r020")
 
-        if config["high_sell"] and rsi_value is not None and rsi_value > 80:
+        if config.get("high_sell", False) and rsi_value is not None and rsi_value > 80:
             if cot_change is not None and cot_change < 0:
                 high_sell = True
                 reasons.append(f"估值/情绪极端 (r030): RSI {rsi_value:.0f} + COT 转流出")
@@ -283,15 +287,26 @@ class LowBuyHighSellAdvisor:
         opp: dict[str, Any],
         gate_closed: bool,
         warnings: list[str],
+        core_cfg: dict[str, Any] | None = None,
+        tactical_cfg: dict[str, Any] | None = None,
     ) -> str:
-        """汇总低吸建议."""
+        """汇总低吸建议.
+
+        仅对允许低吸的池 (low_buy=True) 给出低吸建议; 禁止低吸的池被排除。
+        """
         if gate_closed:
             warnings.append("聪明钱闸门关闭 (COT 转流出): 禁止主动低吸, 只靠低吸单被动接货")
             return "禁用 (MK4 闸门)"
-        # 核心池可低吸 (回调分批) + 机动池可低吸 → 等待回调
-        if core["action"] == "持有" and tactical["action"] == "持有":
+        core_ok = (core_cfg or {}).get("low_buy", True)
+        tactical_ok = (tactical_cfg or {}).get("low_buy", True)
+        if not core_ok and not tactical_ok:
+            warnings.append("核心池/机动池均禁止低吸 (low_buy=False), 无低吸档")
+            return "禁用 (配置禁止低吸)"
+        if core_ok and tactical_ok:
             return "等待回调低吸 (核心池/机动池)"
-        return "分批低吸"
+        if core_ok:
+            return "等待回调低吸 (核心池)"
+        return "等待回调低吸 (机动池)"
 
     def _summarize_high_sell(self, core: dict[str, Any], tactical: dict[str, Any]) -> str:
         """汇总高抛建议."""

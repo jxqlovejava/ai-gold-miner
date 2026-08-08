@@ -34,16 +34,21 @@ def main() -> int:
             exp = datetime.fromisoformat(m.expires_at)
             if exp.tzinfo is None:
                 exp = exp.replace(tzinfo=UTC)
-        except (ValueError, TypeError):
+        except (ValueError, TypeError) as e:
+            # 日期格式异常: 记录日志便于排查数据质量, 不静默跳过
+            logger.warning(f"monitor 日期解析失败, 跳过: {m.name} expires_at={m.expires_at!r} ({e})")
             continue
         if now > exp:
-            cal.close_monitor(
-                name=m.name,
-                result=f"过期自动清理: expires_at {m.expires_at[:10]} < now",
-                new_status="expired",
-            )
-            expired.append(m.name)
-            logger.info(f"已清理过期 monitor: {m.name}")
+            try:
+                cal.close_monitor(
+                    name=m.name,
+                    result=f"过期自动清理: expires_at {m.expires_at[:10]} < now",
+                    new_status="expired",
+                )
+                expired.append(m.name)
+                logger.info(f"已清理过期 monitor: {m.name}")
+            except Exception as e:
+                logger.error(f"关闭 monitor 失败: {m.name} ({e})")
 
     if expired:
         print(f"✅ 清理 {len(expired)} 个过期 monitor: {'、'.join(expired)}")
