@@ -239,7 +239,36 @@ footer a { color: var(--gold-dark); }
 </div>
 
 <div class="section">
-  <h2>六、情景矩阵（长期三轴）</h2>
+  <h2>六、分级低吸高抛（成本管理原则）</h2>
+  <blockquote>中长期看多黄金 + 只做多，低吸高抛不是"频繁做 T"，而是<strong>分级执行</strong>——低吸无条件，高抛只认客观信号，核心池不动。</blockquote>
+  <div class="highlight">⚠️ 反对「把历史均价压下去」当目标：那是锚定偏差（错题本#4）。成本均价是<strong>结果不是目的</strong>，正确目标是「在安全边际内建仓 + 控制单笔损失」。</div>
+  <h3>分级执行规则</h3>
+  <table>
+    <thead><tr><th>池</th><th>低吸</th><th>高抛</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><strong>核心池</strong> 40%</td><td class="ok">✅ 回调分批，加权成本自然走低</td><td class="warn">❌ 不动，仅 ATR 移动止盈</td><td>长期底仓，吃趋势</td></tr>
+      <tr><td><strong>机动池</strong> 20%</td><td class="ok">✅ 波段低吸</td><td class="ok">✅ 波段高抛（OCO）</td><td><strong>唯一的低吸高抛执行池</strong></td></tr>
+      <tr><td><strong>机会池</strong> 20%</td><td>—</td><td>—</td><td>只按 S 协议一次性出击</td></tr>
+    </tbody>
+  </table>
+  <h3>高抛客观信号（仅以下触发才减仓）</h3>
+  <ol class="criteria">
+    <li><strong>ATR 移动止盈触发</strong>（r025/p010）：跌破 max(最高价−2.5×ATR, 成本价) → 减一半</li>
+    <li><strong>仓位超配再平衡</strong>（r020）：单池偏离目标 &gt;±10pp 且浮盈 &gt;20% → 减至目标</li>
+    <li><strong>估值/情绪极端</strong>：RSI &gt;80 + COT 转流出 → 机动池高抛</li>
+    <li><strong>核心池</strong>：仅在 ATR 触发或央行购金连续两季 &lt;100吨 时动作</li>
+  </ol>
+  <h3>铁律</h3>
+  <ul>
+    <li class="warn">❌ 不因"赚了一点"手动做 T（r030 不追涨杀跌）</li>
+    <li class="warn">❌ 不为压均价在下跌中过早/过频加仓（r001 单笔≤20% + MK4 闸门）</li>
+    <li class="ok">✅ 低吸档每次 ≤5% 总资金，回调分批（r028/MK5）</li>
+    <li class="ok">✅ 核心池与机动池严格分离：机动池波段收益不进核心池摊成本</li>
+  </ul>
+</div>
+
+<div class="section">
+  <h2>七、情景矩阵（长期三轴）</h2>
   <table>
     <thead><tr><th>情景</th><th>驱动</th><th>概率</th><th>金价路径</th><th>动作</th></tr></thead>
     <tbody>
@@ -252,7 +281,7 @@ footer a { color: var(--gold-dark); }
 </div>
 
 <div class="section">
-  <h2>七、止损体系</h2>
+  <h2>八、止损体系</h2>
   <table>
     <thead><tr><th>层级</th><th>止损位</th><th>适用池</th></tr></thead>
     <tbody>
@@ -265,7 +294,7 @@ footer a { color: var(--gold-dark); }
 </div>
 
 <div class="section">
-  <h2>八、军规自查（r001-r032 核心项）</h2>
+  <h2>九、军规自查（r001-r032 核心项）</h2>
   <table>
     <thead><tr><th>军规</th><th>判定</th><th>说明</th></tr></thead>
     <tbody>
@@ -283,7 +312,7 @@ footer a { color: var(--gold-dark); }
 </div>
 
 <div class="section">
-  <h2>九、Munger 模型</h2>
+  <h2>十、Munger 模型</h2>
   <ol>
     <li><strong>延迟效应</strong>：加息→金价影响需 12-18 个月显现——这就是 1-2 年持仓周期的依据，不因短期波动放弃长期逻辑。</li>
     <li><strong>坐等投资法</strong>：核心池建完后什么都不做，执行最难——V9 的核心纪律。</li>
@@ -292,7 +321,7 @@ footer a { color: var(--gold-dark); }
 </div>
 
 <div class="section">
-  <h2>十、系统纪律（让系统指引）</h2>
+  <h2>十一、系统纪律（让系统指引）</h2>
   <ol>
     <li><strong>monitor</strong>：长期趋势过滤（60/200 日线）+ COT 月度闸门 + ATR 移动止盈位 + S 协议 5 条标准</li>
     <li><strong>条件单</strong>：常规档低吸单 + 机动池 OCO + 机会池 S 档（触发时挂）</li>
@@ -302,7 +331,7 @@ footer a { color: var(--gold-dark); }
 </div>
 
 <div class="section">
-  <h2>十一、风险矩阵</h2>
+  <h2>十二、风险矩阵</h2>
   <table>
     <thead><tr><th>风险</th><th>概率</th><th>最大损失</th><th>应对</th></tr></thead>
     <tbody>
@@ -318,7 +347,7 @@ footer a { color: var(--gold-dark); }
 </div>
 
 <div class="section">
-  <h2>十二、MK1-MK6 检查清单</h2>
+  <h2>十三、MK1-MK6 检查清单</h2>
   <table>
     <thead><tr><th>元知识</th><th>落实</th></tr></thead>
     <tbody>
@@ -333,7 +362,7 @@ footer a { color: var(--gold-dark); }
 </div>
 
 <footer>
-  <p>AI Gold Miner · 黄金长期布局 V9 · 2026-08-08</p>
+  <p>AI Gold Miner · 黄金长期布局 V9 · 分级低吸高抛 · 2026-08-08</p>
   <p>完整计划：<a href="https://github.com/jxqlovejava/ai-gold-miner" target="_blank" rel="noopener">ai-gold-miner 仓库</a> · 私密数据不入库</p>
   <p style="margin-top:6px;">⚠️ 本页面为个人投资计划参考，不构成投资建议</p>
 </footer>

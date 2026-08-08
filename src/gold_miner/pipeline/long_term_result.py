@@ -31,6 +31,7 @@ class LongTermAnalysisResult:
     strategic_recommendation: dict[str, Any] = field(default_factory=dict)
     trigger_conditions: list[str] = field(default_factory=list)
     rebalancing_rules: list[str] = field(default_factory=list)
+    low_buy_high_sell: dict[str, Any] = field(default_factory=dict)  # V9 分级低吸高抛建议
     messages: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     generated_at: datetime = field(default_factory=datetime.now)
@@ -61,6 +62,7 @@ class LongTermAnalysisResult:
             "munger_models": self.munger_models,
             "trigger_conditions": self.trigger_conditions,
             "rebalancing_rules": self.rebalancing_rules,
+            "low_buy_high_sell": self.low_buy_high_sell,
             "messages": self.messages,
             "warnings": self.warnings,
         }

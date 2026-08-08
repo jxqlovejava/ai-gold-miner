@@ -142,6 +142,13 @@ class LongTermAnalyzer:
         # 7. 战略建议
         self._build_strategic_recommendation(result)
 
+        # 7.5 V9 分级低吸高抛建议 (成本管理原则)
+        try:
+            result.low_buy_high_sell = self._evaluate_low_buy_high_sell(result)
+        except Exception as e:
+            logger.warning(f"分级低吸高抛评估失败: {e}")
+            result.low_buy_high_sell = {"low_buy_suggestion": "评估失败", "warnings": [str(e)]}
+
         # 8. 生成消息
         self._build_messages(result)
 
@@ -321,6 +328,51 @@ class LongTermAnalyzer:
             doctrine_passed = result.doctrine_result.passed_count / total if total > 0 else 0.0
 
         return round(min(max(bull_conf, bear_conf) * 0.6 + doctrine_passed * 0.4, 1.0), 2)
+
+    def _evaluate_low_buy_high_sell(self, result: LongTermAnalysisResult) -> dict[str, Any]:
+        """V9 分级低吸高抛评估 (成本管理原则).
+
+        读取 portfolio 的 long_term 配置, 结合当前信号输出分级建议.
+        信号数据不足时使用保守默认 (持有/观望).
+        """
+        from gold_miner.strategy.low_buy_high_sell import LowBuyHighSellAdvisor
+
+        portfolio = result.portfolio or {}
+        long_term_cfg = (portfolio.get("long_term") or {}).get("low_buy_high_sell") or {}
+        advisor = LowBuyHighSellAdvisor(config=long_term_cfg or None)
+
+        pools = {
+            "core": (portfolio.get("long_term") or {}).get("pools", {}).get("core", 40),
+            "tactical": (portfolio.get("long_term") or {}).get("pools", {}).get("tactical", 20),
+            "opportunity": (portfolio.get("long_term") or {}).get("pools", {}).get("opportunity", 20),
+        }
+
+        # 从现有信号 bundle 提取输入 (信号不足时用默认)
+        signals = result.bundle.signals if result.bundle else []
+        sig_dict = {s.name: s for s in signals}
+
+        def _score_of(*names: str) -> float | None:
+            """取第一个存在信号的分数."""
+            for n in names:
+                s = sig_dict.get(n)
+                if s is not None:
+                    return float(s.score) if s.score is not None else None
+            return None
+
+        # RSI: 从技术信号取近似值 (若无则 None)
+        rsi_val = _score_of("RSI", "rsi")
+        cot_change = _score_of("COT 非商业净多", "COT净多变化")
+
+        signal_obj = advisor.evaluate(
+            current_price=result.current_spot or 900.0,
+            pools=pools,
+            atr_trailing_triggered=False,  # 长期分析不做实时 ATR, 由 trailing_stop 模块处理
+            rebalance_overweight=False,
+            rsi_value=rsi_val,
+            cot_net_position_change=cot_change,
+            central_bank_buying_slow=False,
+        )
+        return signal_obj.to_dict()
 
     def _build_messages(self, result: LongTermAnalysisResult) -> None:
         """生成工作流输出消息."""
