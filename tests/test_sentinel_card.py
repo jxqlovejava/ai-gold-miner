@@ -132,7 +132,7 @@ def test_xauusd_drop_suggestion(monkeypatch, tmp_path):
 
 
 def test_calendar_observation_humanized(tmp_path):
-    """日历"观测:"事件 → 标题"例行观察 · ...", 不带 📅 即将 前缀."""
+    """日历"观测:"事件 → 标题"🔍 ...", 带人话解释, 不带 📅 即将 前缀."""
     sat = (datetime.now(UTC) + timedelta(hours=2)).isoformat()
     (tmp_path / "cal.jsonl").write_text(json.dumps({
         "name": "观测: 9月加息概率>75% + 积存金破860 → 重估长线逻辑",
@@ -142,6 +142,7 @@ def test_calendar_observation_humanized(tmp_path):
     cfg = SentinelConfig(calendar_path=tmp_path / "cal.jsonl")
     alerts = SentinelEngine(cfg)._check_calendar()
     assert len(alerts) == 1
-    assert alerts[0].title.startswith("例行观察 · ")
+    assert alerts[0].title.startswith("🔍 ")
     assert "9月加息概率>75%" in alerts[0].title
     assert "📅 即将" not in alerts[0].title
+    assert "美联储加息监控" in alerts[0].detail  # 人话解释已挂上

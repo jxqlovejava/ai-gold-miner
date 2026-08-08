@@ -29,6 +29,33 @@ _CN_HOLIDAYS: set[str] = {
     "2026-10-01", "2026-10-02", "2026-10-05", "2026-10-06", "2026-10-07",  # 国庆
 }
 
+# 例行观察 → 通俗人话解释 (按 monitor 名字关键词匹配, 让用户一眼看懂在监控什么)
+# 结构: 多个 (关键词, 通俗解释)。命中多个关键词时拼接。
+_MONITOR_PLAIN_HINTS: list[tuple[str, str]] = [
+    ("60/200日线趋势过滤", "金价趋势风向标：短期均线在长期上方=多头上涨趋势，跌破=转弱信号"),
+    ("COT月度聪明钱闸门", "机构动向监控：连续2周机构在加仓=放心持有；机构在减仓=别急着加仓"),
+    ("ATR移动止盈位", "自动止盈保护：金价跌到止盈线就减半仓，把浮盈锁住，不用盯盘"),
+    ("结构牛情景确认", "大行情确认开关：央行持续买金+降息预期时触发，是机会池出击的信号"),
+    ("9月加息概率", "美联储加息监控：加息概率高→金价承压，破关键位要重估长线"),
+    ("非农分情形", "非农数据应对：数据好→回调接货，数据差→撤单观望，都有预案"),
+    ("美伊冲突升级", "地缘冲突监控：中东局势升级会推高金价（避险）"),
+    ("停火达成", "停火监控：局势缓和金价可能急跌，提前挂好低吸单"),
+    ("美伊协议正式签署", "协议签署监控：利好落地可能回调，等深水区加仓"),
+    ("谈判破裂", "谈判破裂监控：冲突再起金价可能冲高，关注止盈"),
+    ("长期-", "长期战略观察（V9计划内置监控）"),
+]
+
+
+def monitor_plain_hint(name: str) -> str:
+    """把 monitor 名字转成通俗人话解释.
+
+    按关键词匹配 _MONITOR_PLAIN_HINTS, 命中的首个解释优先。
+    """
+    for kw, hint in _MONITOR_PLAIN_HINTS:
+        if kw in name:
+            return hint
+    return ""
+
 
 def is_cn_trading_day(day: datetime) -> bool:
     """判断北京时间 day 是否为国内黄金交易日.
@@ -357,13 +384,18 @@ class SentinelEngine:
                 # ── 即将到来 (24h内) → P2 提醒 ──
                 elif now <= sat <= window and impact == "high":
                     if name.startswith("观测:"):
-                        # 例行观察: 显示触发条件, 让哨兵可理解
-                        title = "例行观察 · " + name[len("观测:"):].strip()
+                        # 例行观察: 人话解释 + 触发条件, 让用户一眼看懂
+                        title = "🔍 " + name[len("观测:"):].strip()
                         cond = d.get("trigger_condition", "")
                         freq = d.get("check_frequency", "")
+                        hint = monitor_plain_hint(name)
                         parts = []
-                        if cond:
-                            parts.append(cond)
+                        if hint:
+                            parts.append(hint)
+                        elif cond:
+                            # 无人话映射时, 条件取前3个分句避免太长
+                            cond_parts = [c.strip() for c in cond.split("/") if c.strip()][:3]
+                            parts.append("；".join(cond_parts))
                         if freq:
                             freq_cn = {"on_analysis": "每次分析", "daily": "每日", "weekly": "每周"}.get(freq, freq)
                             parts.append(f"检查: {freq_cn}")
