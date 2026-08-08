@@ -116,20 +116,34 @@ class LLMClient:
         import json
         import re
 
-        # 优先提取 ```json 代码块; 否则取首个 { 到末个 }
+        # 优先提取 ```json 代码块; 否则用 raw_decode 从每个 { 尝试解析
         m = re.search(r"```(?:json)?\s*([\s\S]*?)```", result)
         if m:
             result = m.group(1).strip()
-        else:
-            start, end = result.find("{"), result.rfind("}")
-            if start != -1 and end > start:
-                result = result[start : end + 1]
-        try:
-            data = json.loads(result)
-            return data if isinstance(data, dict) else None
-        except json.JSONDecodeError:
-            logger.warning(f"LLM 返回无法解析的JSON: {result[:200]}")
-            return None
+            try:
+                data = json.loads(result)
+                return data if isinstance(data, dict) else None
+            except json.JSONDecodeError:
+                logger.warning(f"LLM 返回无法解析的JSON(codeblock): {result[:200]}")
+                return None
+
+        # 容错解析: LLM 可能在 JSON 后附加注释/说明/多个对象。
+        # 从每个 { 开始用 raw_decode 尝试, 直到解析出合法 JSON 对象.
+        decoder = json.JSONDecoder()
+        idx = 0
+        while True:
+            idx = result.find("{", idx)
+            if idx == -1:
+                break
+            try:
+                data, _ = decoder.raw_decode(result[idx:])
+                if isinstance(data, dict):
+                    return data
+                idx += 1
+            except json.JSONDecodeError:
+                idx += 1
+        logger.warning(f"LLM 返回无法解析的JSON: {result[:200]}")
+        return None
 
     def analyze_article(
         self,
