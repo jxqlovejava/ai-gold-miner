@@ -259,6 +259,24 @@ class SentinelEngine:
                     detail=f"当前{p.current_price:.0f}元, 止损{p.secondary_stop}元",
                 ))
 
+        # r025 ATR 移动止盈位触发 (跌破 → 减仓一半)
+        if p.atr_stop_price > 0 and p.current_price <= p.atr_stop_price:
+            alerts.append(SentinelAlert(
+                level=AlertLevel.P0,
+                title="🔴 ATR止盈位触发!",
+                detail=f"当前价{p.current_price:.0f}元 ≤ ATR止盈位{p.atr_stop_price:.2f}元",
+                suggestion="r025: 触发移动止盈, 减仓一半锁定浮盈, 剩余博长期",
+            ))
+        elif p.atr_stop_price > 0:
+            dist_to_atr = (p.current_price - p.atr_stop_price) / p.atr_stop_price * 100
+            if dist_to_atr <= self.cfg.stop_near_pct:
+                alerts.append(SentinelAlert(
+                    level=AlertLevel.P1,
+                    title=f"接近ATR止盈位 ({dist_to_atr:.1f}% 距离)",
+                    detail=f"当前{p.current_price:.0f}元, ATR止盈位{p.atr_stop_price:.2f}元",
+                    suggestion="跌破即减仓一半, 提前评估是否手动锁定",
+                ))
+
         # 大幅浮亏
         if p.unrealized_pnl_pct <= -10:
             alerts.append(SentinelAlert(
