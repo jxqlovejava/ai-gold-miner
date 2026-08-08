@@ -109,7 +109,8 @@ def test_xauusd_surge_suggestion(monkeypatch, tmp_path):
     xau = [a for a in result.alerts
            if a.level == AlertLevel.P1 and "XAUUSD" in a.title]
     assert xau
-    assert xau[0].suggestion == "明天国内开盘大概率补涨，留意开盘价"
+    assert "国内黄金下个交易日" in xau[0].suggestion
+    assert "开盘大概率补涨" in xau[0].suggestion
     assert symbol_cn("XAUUSD") in xau[0].title
 
 
@@ -126,7 +127,8 @@ def test_xauusd_drop_suggestion(monkeypatch, tmp_path):
     result = SentinelEngine(cfg).run()
     xau = [a for a in result.alerts if "XAUUSD" in a.title]
     assert xau
-    assert xau[0].suggestion == "关注明天国内开盘是否补跌"
+    assert "国内黄金下个交易日" in xau[0].suggestion
+    assert "开盘大概率补跌" in xau[0].suggestion
 
 
 def test_calendar_observation_humanized(tmp_path):

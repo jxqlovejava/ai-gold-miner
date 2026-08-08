@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime, timedelta, timezone
+from pathlib import Path
 
 import yaml
 
@@ -21,6 +22,32 @@ from .orders import check_order_proximity, load_active_orders
 from .quotes import fetch_quotes
 
 BEIJING = timezone(timedelta(hours=8))
+
+# 国内主要节假日 (非交易日) — 覆盖 2026 下半年 (日期为北京时间)
+# 周六/周日永远非交易日; 法定节假日补班/放假在此维护
+_CN_HOLIDAYS: set[str] = {
+    "2026-10-01", "2026-10-02", "2026-10-05", "2026-10-06", "2026-10-07",  # 国庆
+}
+
+
+def is_cn_trading_day(day: datetime) -> bool:
+    """判断北京时间 day 是否为国内黄金交易日.
+
+    积存金/上金所交易日 = 工作日且非法定节假日。
+    """
+    bj = day.astimezone(BEIJING)
+    if bj.weekday() >= 5:  # 周六(5)/周日(6)
+        return False
+    return bj.strftime("%Y-%m-%d") not in _CN_HOLIDAYS
+
+
+def next_cn_trading_day(day: datetime) -> datetime:
+    """返回 day 之后的第一个国内交易日 (北京时间)."""
+    bj = day.astimezone(BEIJING)
+    candidate = bj + timedelta(days=1)
+    while not is_cn_trading_day(candidate):
+        candidate += timedelta(days=1)
+    return candidate
 
 
 class SentinelEngine:
@@ -51,10 +78,13 @@ class SentinelEngine:
                 # 国际金价异动 → 提示国内开盘联动（国内银行未开盘时积存金是昨收）
                 suggestion = ""
                 if q.symbol == "XAUUSD":
+                    # 只在下个国内交易日临近时提示联动; 若明后天是周末/节假日则提示最近交易日
+                    nxt = next_cn_trading_day(datetime.now(UTC))
+                    nxt_bj = nxt.strftime("%m-%d")
+                    nxt_weekday = "周" + "一二三四五六日"[nxt.weekday()]
+                    direction_cn = "补涨" if q.change_pct > 0 else "补跌"
                     suggestion = (
-                        "明天国内开盘大概率补涨，留意开盘价"
-                        if q.change_pct > 0
-                        else "关注明天国内开盘是否补跌"
+                        f"国内黄金下个交易日 {nxt_bj}({nxt_weekday}) 开盘大概率{direction_cn}，留意开盘价"
                     )
                 alerts.append(SentinelAlert(
                     level=level,
@@ -201,6 +231,62 @@ class SentinelEngine:
             ))
         return alerts
 
+    def _should_push_monitor(self, name: str, freq: str, now: datetime) -> bool:
+        """按 check_frequency 决定 monitor 是否本次该推送.
+
+        用 state_path 记录每个 monitor 上次推送时间, 避免每日重复推同一个例行观察.
+        - weekly → 7 天一次;  daily → 24h 一次;  on_analysis → 每次都推
+        - 无状态文件/首次 → 推 (让用户先看到哨兵清单)
+        """
+        intervals = {"weekly": timedelta(days=7), "daily": timedelta(days=1)}
+        interval = intervals.get(freq)
+        # on_analysis 或无频率标注 → 每次都推
+        if interval is None:
+            return True
+
+        state_path = self.cfg.state_path
+        pushed: dict[str, str] = {}
+        if state_path.exists():
+            try:
+                state = json.loads(state_path.read_text(encoding="utf-8"))
+                pushed = state.get("monitor_last_pushed", {})
+            except (ValueError, OSError, TypeError):
+                pushed = {}
+
+        last = pushed.get(name)
+        if not last:
+            # 首次: 推, 并记录
+            self._record_monitor_push(name, now, state_path)
+            return True
+        try:
+            last_dt = datetime.fromisoformat(last)
+            if last_dt.tzinfo is None:
+                last_dt = last_dt.replace(tzinfo=UTC)
+            if now - last_dt >= interval:
+                self._record_monitor_push(name, now, state_path)
+                return True
+            return False
+        except (ValueError, TypeError):
+            return True
+
+    @staticmethod
+    def _record_monitor_push(name: str, now: datetime, state_path: Path) -> None:
+        """记录 monitor 推送时间到状态文件."""
+        try:
+            state: dict = {}
+            if state_path.exists():
+                try:
+                    state = json.loads(state_path.read_text(encoding="utf-8"))
+                except (ValueError, OSError, TypeError):
+                    state = {}
+            pushed = state.get("monitor_last_pushed", {})
+            pushed[name] = now.isoformat()
+            state["monitor_last_pushed"] = pushed
+            state_path.parent.mkdir(parents=True, exist_ok=True)
+            state_path.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+        except OSError:
+            pass
+
     def _check_calendar(self) -> list[SentinelAlert]:
         """检查未来 N 小时内的日历事件."""
         alerts: list[SentinelAlert] = []
@@ -230,10 +316,33 @@ class SentinelEngine:
 
                 name = d.get("name", "")
                 impact = d.get("impact", "medium")
+                status = d.get("status", "")
+                expires_at = d.get("expires_at", "")
 
                 # 已有结果的事件不提醒
                 if d.get("actual"):
                     continue
+
+                # monitor 事件: 检查过期/状态/推送频率 (兼容旧格式: event_type 缺失但 name 以"观测:"开头)
+                is_monitor = d.get("event_type") == "monitor" or name.startswith("观测:")
+                if is_monitor:
+                    # 非 active 状态不提醒 (已触发/已关闭)
+                    if status and status != "active":
+                        continue
+                    # 已过期不提醒
+                    if expires_at:
+                        try:
+                            exp = datetime.fromisoformat(expires_at)
+                            if exp.tzinfo is None:
+                                exp = exp.replace(tzinfo=UTC)
+                            if now > exp:
+                                continue
+                        except (ValueError, TypeError):
+                            pass
+                    # 按 check_frequency 控制例行观察推送频率
+                    freq = d.get("check_frequency", "")
+                    if not self._should_push_monitor(name, freq, now):
+                        continue
 
                 bj_time = sat.astimezone(BEIJING).strftime("%m-%d %H:%M")
 
@@ -248,8 +357,17 @@ class SentinelEngine:
                 # ── 即将到来 (24h内) → P2 提醒 ──
                 elif now <= sat <= window and impact == "high":
                     if name.startswith("观测:"):
+                        # 例行观察: 显示触发条件, 让哨兵可理解
                         title = "例行观察 · " + name[len("观测:"):].strip()
-                        detail = ""
+                        cond = d.get("trigger_condition", "")
+                        freq = d.get("check_frequency", "")
+                        parts = []
+                        if cond:
+                            parts.append(cond)
+                        if freq:
+                            freq_cn = {"on_analysis": "每次分析", "daily": "每日", "weekly": "每周"}.get(freq, freq)
+                            parts.append(f"检查: {freq_cn}")
+                        detail = " · ".join(parts) if parts else ""
                     else:
                         title = f"📅 即将: {name}"
                         detail = f"时间: {bj_time}（北京）"
