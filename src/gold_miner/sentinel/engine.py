@@ -140,7 +140,7 @@ class SentinelEngine:
         )
 
     def _load_portfolio(self, current_price: float) -> PortfolioSnapshot | None:
-        """加载持仓并计算快照."""
+        """加载持仓并计算快照 (含 ATR 移动止盈位)."""
         pf_path = self.cfg.portfolio_path
         if not pf_path.exists():
             return None
@@ -166,6 +166,9 @@ class SentinelEngine:
         unrealized_pnl = market_value - cost_value
         unrealized_pnl_pct = (unrealized_pnl / cost_value * 100) if cost_value > 0 else 0
 
+        # r025 ATR 移动止盈位 (盘中自动计算, 失败静默降级为 0)
+        atr_stop = self._calc_atr_stop(gold, current_price)
+
         return PortfolioSnapshot(
             instrument=gold.get("instrument", "积存金"),
             platform=gold.get("platform", "京东金融"),
@@ -177,7 +180,44 @@ class SentinelEngine:
             unrealized_pnl_pct=unrealized_pnl_pct,
             hard_stop=hard_stop,
             secondary_stop=secondary_stop,
+            atr_stop_price=atr_stop,
         )
+
+    def _calc_atr_stop(self, gold: dict, current_price: float) -> float:
+        """计算 r025 ATR 移动止盈位.
+
+        复用 analysis pipeline 的模式: 积存金历史 + 持仓参数 → ATRTrailingStop.
+        失败时静默返回 0 (不阻断哨兵).
+        """
+        try:
+            from gold_miner.data.jd_accumulation_gold import JdAccumulationGoldFetcher
+            from gold_miner.strategy.trailing_stop import ATRTrailingStop
+
+            jd = JdAccumulationGoldFetcher(bank="MS")
+            df = jd.fetch(days=90)
+            if df is None or len(df) < 14:
+                return 0.0
+
+            cost_basis = gold.get("avg_cost")
+            hard_stop = gold.get("hard_stop")
+            sell_fee_pct = float(gold.get("sell_fee_pct") or 0) / 100
+            entry_date = gold.get("entry_date")
+
+            ts = ATRTrailingStop(
+                atr_period=14,
+                profit_multiplier=2.5,
+                loss_multiplier=3.0,
+                cost_basis=cost_basis,
+                hard_stop_price=hard_stop,
+                profit_action="reduce_half",
+                loss_action="reduce_half",
+                sell_fee_pct=sell_fee_pct,
+                entry_date=entry_date,
+            )
+            signal = ts.calculate(df)
+            return float(getattr(signal, "stop_price", 0) or 0)
+        except Exception:
+            return 0.0
 
     def _check_portfolio(self, p: PortfolioSnapshot) -> list[SentinelAlert]:
         """持仓风险检查."""

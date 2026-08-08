@@ -53,6 +53,7 @@ class PortfolioSnapshot:
     unrealized_pnl_pct: float
     hard_stop: float
     secondary_stop: float
+    atr_stop_price: float = 0.0   # r025 ATR 移动止盈位 (盘中自动计算)
 
 
 @dataclass
@@ -188,6 +189,13 @@ def format_alerts(
             else:
                 status = "，⚠️ 危险"
             lines.append(f"  止损线 {p.secondary_stop:.0f} 元，现价距止损还有 {dist:.1f}%{status}")
+        if p.atr_stop_price > 0:
+            # r025 ATR 移动止盈: 现价在止盈位上方=持有, 跌破=触发减仓
+            atr_dist = (p.current_price - p.atr_stop_price) / p.atr_stop_price * 100
+            lines.append(
+                f"  🎯 ATR止盈 {p.atr_stop_price:.2f} 元，距现价 {atr_dist:+.1f}%"
+                + ("，跌破即减半" if atr_dist < 3 else "")
+            )
 
     # ── 分级提醒（人话标题，不带 P 代码）──
     sections = [
