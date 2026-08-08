@@ -232,6 +232,91 @@ def _net_breakeven(cost_basis: float | None, sell_fee: float) -> float | None:
     return cost_basis / (1 - sell_fee) if sell_fee > 0 else cost_basis
 
 
+def _get_stop_context(current: float) -> dict:
+    """急涨/急跌时的风控上下文: ATR止盈位 + 硬止损 + 相对位置.
+
+    用于在价格急变时提示"离止盈位/止损位还有多远", 让用户知道风险/机会临近.
+    ATR 计算失败时静默降级 (返回空).
+    """
+    ctx: dict = {
+        "atr_stop": 0.0,
+        "hard_stop": 0.0,
+        "secondary_stop": 0.0,
+        "to_atr_pct": None,
+        "to_hard_pct": None,
+        "to_secondary_pct": None,
+    }
+    p = _load_portfolio()
+    if not p:
+        return ctx
+    try:
+        gold = p["positions"]["gold_jd"]
+        ctx["hard_stop"] = float(gold.get("hard_stop", 0) or 0)
+        ctx["secondary_stop"] = float(gold.get("secondary_stop", 0) or 0)
+    except (KeyError, ValueError, TypeError):
+        pass
+
+    # ATR 移动止盈位 (复用 trailing_stop 逻辑)
+    try:
+        from gold_miner.data.jd_accumulation_gold import JdAccumulationGoldFetcher
+        from gold_miner.strategy.trailing_stop import ATRTrailingStop
+
+        jd = JdAccumulationGoldFetcher(bank="MS")
+        df = jd.fetch(days=90)
+        if df is not None and len(df) >= 14:
+            cost_basis = _get_cost_basis()
+            sell_fee = _get_sell_fee_pct()
+            hard = ctx["hard_stop"] or None
+            entry_date = None
+            if p and "positions" in p:
+                try:
+                    entry_date = p["positions"]["gold_jd"].get("entry_date")
+                except (KeyError, TypeError):
+                    pass
+            ts = ATRTrailingStop(
+                atr_period=14, profit_multiplier=2.5, loss_multiplier=3.0,
+                cost_basis=cost_basis, hard_stop_price=hard,
+                profit_action="reduce_half", loss_action="reduce_half",
+                sell_fee_pct=sell_fee, entry_date=entry_date,
+            )
+            signal = ts.calculate(df)
+            ctx["atr_stop"] = float(getattr(signal, "stop_price", 0) or 0)
+    except Exception:
+        pass
+
+    # 距离计算
+    if ctx["atr_stop"] > 0 and current > 0:
+        ctx["to_atr_pct"] = (current - ctx["atr_stop"]) / ctx["atr_stop"] * 100
+    if ctx["hard_stop"] > 0 and current > 0:
+        ctx["to_hard_pct"] = (current - ctx["hard_stop"]) / ctx["hard_stop"] * 100
+    if ctx["secondary_stop"] > 0 and current > 0:
+        ctx["to_secondary_pct"] = (current - ctx["secondary_stop"]) / ctx["secondary_stop"] * 100
+    return ctx
+
+
+def _format_stop_context(ctx: dict) -> str:
+    """把风控上下文转成一行人话提示."""
+    parts: list[str] = []
+    if ctx["atr_stop"] > 0 and ctx["to_atr_pct"] is not None:
+        if ctx["to_atr_pct"] <= 0:
+            parts.append(f"🔴 已跌破ATR止盈位 {ctx['atr_stop']:.0f}, 按r025减仓一半")
+        elif ctx["to_atr_pct"] <= 3:
+            parts.append(f"⚠️ 逼近ATR止盈位 {ctx['atr_stop']:.0f} (仅剩{ctx['to_atr_pct']:.1f}%)")
+        elif ctx["to_atr_pct"] <= 8:
+            parts.append(f"🎯 距ATR止盈位 {ctx['atr_stop']:.0f} 还有 {ctx['to_atr_pct']:.1f}%")
+    if ctx["secondary_stop"] > 0 and ctx["to_secondary_pct"] is not None:
+        if 0 < ctx["to_secondary_pct"] <= 5:
+            parts.append(f"⚠️ 逼近二级止损 {ctx['secondary_stop']:.0f} (仅剩{ctx['to_secondary_pct']:.1f}%)")
+        elif ctx["to_secondary_pct"] <= 0:
+            parts.append(f"🔴 已跌破二级止损 {ctx['secondary_stop']:.0f}, 检查条件单")
+    if ctx["hard_stop"] > 0 and ctx["to_hard_pct"] is not None:
+        if 0 < ctx["to_hard_pct"] <= 8:
+            parts.append(f"🚨 逼近硬止损 {ctx['hard_stop']:.0f} (仅剩{ctx['to_hard_pct']:.1f}%)")
+        elif ctx["to_hard_pct"] <= 0:
+            parts.append(f"🚨 已跌破硬止损 {ctx['hard_stop']:.0f}, 立即清仓")
+    return " · ".join(parts) if parts else ""
+
+
 def _get_historical(days: int = 30) -> list[dict]:
     """获取积存金历史."""
     try:
@@ -1224,6 +1309,12 @@ def main() -> int:
     # 4a. 价格急变 (所有级别都检测, 这是快速通道)
     surge = _check_surge(current, state)
     if surge:
+        # 急涨/急跌时附加风控上下文: 离 ATR 止盈位/止损位还有多远
+        stop_ctx = _get_stop_context(current)
+        ctx_line = _format_stop_context(stop_ctx)
+        if ctx_line:
+            surge = dict(surge)
+            surge["message"] = f"{surge['message']}\n    {ctx_line}"
         alerts.append(surge)
 
     # 4b. 成本逼近 (用净保本价: 卖出扣 0.4% 手续费后真正回本的价格)
