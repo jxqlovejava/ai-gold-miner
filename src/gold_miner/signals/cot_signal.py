@@ -29,6 +29,107 @@ class CotSignalGenerator:
         signals.extend(self._trend_signals())
         signals.extend(self._extreme_signals())
         signals.extend(self._divergence_signals())
+        signals.extend(self._structure_signals())
+        return signals
+
+    def _structure_signals(self) -> list[Signal]:
+        """持仓结构三段式信号 — 总持仓出清 / 空头投降 / 多头回归.
+
+        借鉴交易员框架：把非商业净持仓拆回 gross 多头/空头/总持仓三根线，
+        各与近 52 周周期极值比较，识别「杠杆浮筹出清 → 空头认赔 → 多头回归」
+        的结构性洗盘，用于区分「反转」与「反弹」。
+
+        仅使用真实 CFTC 数据（fetch_real），fallback 合成常量数据不参与计算；
+        合成数据的 OI/空头恒定，会破坏周期极值判断。
+        """
+        signals: list[Signal] = []
+        try:
+            df = self.fetcher.fetch_real()
+            if df.empty or len(df) < 6:
+                return signals
+
+            df = df.sort_values("timestamp")
+            window = min(len(df), 52)
+
+            longs = df["open"].astype(float)    # 非商业多头 (gross long)
+            shorts = df["low"].astype(float)    # 非商业空头 (gross short)
+            oi = df["volume"].astype(float)     # 总持仓 (Open Interest)
+            latest = len(df) - 1
+
+            oi_peak = oi.tail(window).max()
+            short_peak = shorts.tail(window).max()
+            long_trough = longs.tail(window).min()
+            long_peak = longs.tail(window).max()
+
+            cur_oi = oi.iloc[latest]
+            cur_short = shorts.iloc[latest]
+            cur_long = longs.iloc[latest]
+
+            # 1) 总持仓出清: 当前 OI 较周期顶回落 ≥25% → 杠杆浮筹被挤出
+            washout = bool(oi_peak > 0 and cur_oi / oi_peak <= 0.75)
+            washout_ratio = cur_oi / oi_peak if oi_peak > 0 else 1.0
+
+            # 2) 空头投降: 当前空头较周期顶回落 ≥50% → 空头认赔离场
+            capitulation = bool(short_peak > 0 and cur_short / short_peak <= 0.50)
+            capitulation_ratio = cur_short / short_peak if short_peak > 0 else 1.0
+
+            # 3) 多头回归: 多头从周期低谷回升 ≥30% 且最近一期仍在增仓
+            spread = long_peak - long_trough
+            return_from_trough = bool(spread > 0 and (cur_long - long_trough) / spread >= 0.30)
+            rising = bool(latest >= 1 and longs.iloc[latest] > longs.iloc[latest - 1])
+            long_return = bool(return_from_trough and rising)
+
+            confirmed = [name for name, ok in (
+                ("总持仓出清", washout),
+                ("空头投降", capitulation),
+                ("多头回归", long_return),
+            ) if ok]
+
+            if not confirmed:
+                return signals
+
+            n = len(confirmed)
+            if n >= 3:
+                name = "COT持仓反转结构确认"
+                strength = SignalStrength.STRONG
+                score = 0.5
+            elif n == 2:
+                name = "COT持仓结构改善"
+                strength = SignalStrength.MODERATE
+                score = 0.3
+            else:
+                name = "COT持仓结构初现改善"
+                strength = SignalStrength.WEAK
+                score = 0.15
+
+            signals.append(Signal(
+                name=name,
+                dimension="sentiment",
+                direction=SignalDirection.BULLISH,
+                strength=strength,
+                score=score,
+                description=(
+                    f"持仓结构{len(confirmed)}/3段改善 [{', '.join(confirmed)}]: "
+                    f"总持仓 {cur_oi:,.0f}/{oi_peak:,.0f}手({washout_ratio:.0%}), "
+                    f"空头 {cur_short:,.0f}/{short_peak:,.0f}手({capitulation_ratio:.0%}), "
+                    f"多头 {cur_long:,.0f}手。结构性洗盘特征支持反转而非反弹"
+                ),
+                metadata={
+                    "source": "cot_report",
+                    "signal_type": "position_structure",
+                    "confirmed": confirmed,
+                    "washout_ratio": round(washout_ratio, 3),
+                    "capitulation_ratio": round(capitulation_ratio, 3),
+                    "oi_peak": int(oi_peak),
+                    "short_peak": int(short_peak),
+                    "long_trough": int(long_trough),
+                    "window_weeks": window,
+                    "real_data": True,
+                },
+            ))
+        except Exception as e:
+            logger.debug(f"COT持仓结构信号异常: {e}")
+
         return signals
 
     def _trend_signals(self) -> list[Signal]:

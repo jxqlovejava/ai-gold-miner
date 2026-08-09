@@ -98,6 +98,9 @@ class CotReportFetcher(DataFetcher):
                 source_tier="T0",
             )
         )
+        # 最近一次成功获取的真实 CFTC 数据（不含 fallback 合成数据）。
+        # 供持仓结构信号计算周期极值用，避免合成常量污染极值判断。
+        self._last_real_df: pd.DataFrame | None = None
 
     def fetch(
         self,
@@ -107,7 +110,7 @@ class CotReportFetcher(DataFetcher):
     ) -> pd.DataFrame:
         """抓取COT报告数据.
 
-        将实时 CFTC 最新数据点合并到历史回退数据中，
+        将实时 CFTC 历史数据合并到回退数据中，
         确保 fetch_net_position 有足够的行来计算趋势/52周位置。
 
         返回 DataFrame 包含:
@@ -119,18 +122,18 @@ class CotReportFetcher(DataFetcher):
 
         if real is None:
             logger.warning("CFTC 实时数据不可用，使用纯历史回退数据")
+            self._last_real_df = pd.DataFrame()
             return fallback
 
         real_df = self._to_dataframe(real)
+        self._last_real_df = real_df
         if real_df.empty:
             return fallback
 
-        # 将实时数据合并到回退历史中（替换同日期行或追加）
-        real_date = real_df["timestamp"].iloc[0]
-        mask = fallback["timestamp"] == real_date
-        if mask.any():
-            # 替换已有日期的行
-            fallback = fallback[~mask]
+        # 合并：移除所有与真实数据日期重叠的 fallback 行（不再只替换首行，
+        # 否则全历史解析后同日期会重复污染）
+        real_dates = set(real_df["timestamp"])
+        fallback = fallback[~fallback["timestamp"].isin(real_dates)]
         merged = pd.concat([fallback, real_df], ignore_index=True)
         merged = merged.sort_values("timestamp").reset_index(drop=True)
         return self.validate(merged)
@@ -141,6 +144,18 @@ class CotReportFetcher(DataFetcher):
         if df.empty:
             return df
         return df.tail(1)
+
+    def fetch_real(self) -> pd.DataFrame:
+        """只返回真实 CFTC 历史持仓数据（不含 fallback 合成数据）.
+
+        用于持仓结构信号（总持仓出清/空头投降/多头回归）的周期极值计算，
+        避免合成回退数据（常量 OI/空头）污染极值判断。
+        未获取到真实数据时返回空 DataFrame。
+        """
+        if self._last_real_df is None:
+            real = self._fetch_from_cftc()
+            self._last_real_df = self._to_dataframe(real) if real else pd.DataFrame()
+        return self._last_real_df
 
     def fetch_net_position(self, weeks: int = 4) -> dict[str, Any]:
         """获取非商业净持仓摘要.
@@ -312,30 +327,45 @@ class CotReportFetcher(DataFetcher):
             logger.debug("CFTC CSV 中未找到 GOLD 行")
             return None
 
-        # 取最近一期（按第 2 列 YYYY-MM-DD 排序）
+        # 取全部历史（按第 2 列 YYYY-MM-DD 排序）— 供持仓结构信号做周期极值比较。
+        # 原实现只保留最近一期；保留全历史后可计算「总持仓/空头相对周期顶的回落」。
         df_sorted = gold_rows.copy()
         df_sorted["_report_date"] = pd.to_datetime(df_sorted[2], errors="coerce")
-        df_sorted = df_sorted.sort_values("_report_date", na_position="last")
-        row = df_sorted.iloc[-1]
+        df_sorted = df_sorted.dropna(subset=["_report_date"])
+        df_sorted = df_sorted.sort_values("_report_date")
 
-        try:
-            report_date = pd.to_datetime(str(row[2]))
-            data = CotGoldData(
-                report_date=report_date,
-                noncomm_long=int(row[8]),
-                noncomm_short=int(row[9]),
-                noncomm_spread=int(row[10]),
-                comm_long=int(row[11]),
-                comm_short=int(row[12]),
-                nonrep_long=int(row[15]),
-                nonrep_short=int(row[16]),
-            )
-        except (KeyError, ValueError, TypeError) as e:
-            logger.debug(f"CFTC GOLD 行解析失败: {e}")
+        records: list[CotGoldData] = []
+        for _, row in df_sorted.iterrows():
+            try:
+                report_date = pd.to_datetime(str(row[2]))
+                data = CotGoldData(
+                    report_date=report_date,
+                    noncomm_long=int(row[8]),
+                    noncomm_short=int(row[9]),
+                    noncomm_spread=int(row[10]),
+                    comm_long=int(row[11]),
+                    comm_short=int(row[12]),
+                    nonrep_long=int(row[15]),
+                    nonrep_short=int(row[16]),
+                )
+                # 跳过异常/缺失行（负数或总持仓为 0 的原始行视为无效）
+                if data.total_oi <= 0 or data.noncomm_long < 0 or data.noncomm_short < 0:
+                    continue
+                records.append(data)
+            except (KeyError, ValueError, TypeError):
+                # 单行解析失败（空值/非数字）跳过，不影响其他历史行
+                continue
+
+        if not records:
+            logger.debug("CFTC CSV 中无有效 GOLD 历史行")
             return None
 
-        logger.info(f"CFTC COT 数据解析成功: {report_date.date()}, 非商业净多={data.noncomm_net}")
-        return [data]
+        logger.info(
+            f"CFTC COT 数据解析成功: {len(records)} 期 "
+            f"({records[0].report_date.date()} ~ {records[-1].report_date.date()}), "
+            f"非商业净多={records[-1].noncomm_net}"
+        )
+        return records
 
     def _to_dataframe(self, records: list[CotGoldData]) -> pd.DataFrame:
         """将COT记录转为DataFrame."""

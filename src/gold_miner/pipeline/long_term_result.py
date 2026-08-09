@@ -32,6 +32,10 @@ class LongTermAnalysisResult:
     trigger_conditions: list[str] = field(default_factory=list)
     rebalancing_rules: list[str] = field(default_factory=list)
     low_buy_high_sell: dict[str, Any] = field(default_factory=dict)  # V9 分级低吸高抛建议
+    # 情景预案结构化触发条件 (关键价+时间窗+证伪点+动作)
+    scenario_triggers: list[Any] = field(default_factory=list)
+    # 由情景触发条件推导的条件单建议
+    conditional_order_suggestions: list[dict[str, Any]] = field(default_factory=list)
     messages: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     generated_at: datetime = field(default_factory=datetime.now)
@@ -63,6 +67,11 @@ class LongTermAnalysisResult:
             "trigger_conditions": self.trigger_conditions,
             "rebalancing_rules": self.rebalancing_rules,
             "low_buy_high_sell": self.low_buy_high_sell,
+            "scenario_triggers": [
+                t.to_dict() if hasattr(t, "to_dict") else t
+                for t in self.scenario_triggers
+            ],
+            "conditional_order_suggestions": self.conditional_order_suggestions,
             "messages": self.messages,
             "warnings": self.warnings,
         }

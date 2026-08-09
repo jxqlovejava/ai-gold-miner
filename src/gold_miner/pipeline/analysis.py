@@ -51,6 +51,7 @@ from gold_miner.signals.engine import ScoringEngine
 from gold_miner.signals.etf_flow_signal import EtfFlowSignalGenerator
 from gold_miner.signals.fundamental import FundamentalAnalyzer
 from gold_miner.signals.institutional_signal import InstitutionalSignalGenerator
+from gold_miner.signals.macro_pivot import MacroPivotSignalGenerator
 from gold_miner.signals.monitor_signal import MonitorSignalGenerator
 from gold_miner.signals.ma_trend_gate import MaTrendGateSignal
 from gold_miner.signals.news_signal import NewsSignalGenerator
@@ -645,6 +646,11 @@ class AnalysisPipeline:
             futures[pool.submit(
                 lambda: RecentEventSignalGenerator().generate_signals()
             )] = "recent_events"
+
+            # 宏观政策转向多线汇聚 (跨类别线索 → 同一剧本)
+            futures[pool.submit(
+                lambda: MacroPivotSignalGenerator().generate_signals()
+            )] = "macro_pivot"
 
             # Monitor 触发结果
             futures[pool.submit(
@@ -2314,6 +2320,34 @@ class AnalysisPipeline:
                     logger.info(f"  触发: {t.get('name', 'unknown')}")
         except Exception as e:
             logger.warning(f"[9/9] Monitor 检查失败: {e}")
+
+        # 9.25 情景预案结构化触发条件 (关键价+时间窗+证伪点) + 条件单建议
+        try:
+            from gold_miner.strategy.scenario_triggers import (
+                build_scenario_triggers,
+                conditional_order_suggestions_from_triggers,
+            )
+
+            decision = result.final_decision or result.decision or {}
+            direction = str(decision.get("direction", "neutral"))
+            position_pct = float(decision.get("position_pct", 0) or 0)
+            ref_price = (
+                result.current_price
+                or result.minsheng_accumulation_price
+                or result.intl_price
+            )
+            if ref_price > 0:
+                triggers = build_scenario_triggers(
+                    direction=direction,
+                    position_pct=position_pct,
+                    current_spot=float(ref_price),
+                )
+                result.scenario_plan["triggers"] = [t.to_dict() for t in triggers]
+                result.scenario_plan["order_suggestions"] = (
+                    conditional_order_suggestions_from_triggers(triggers)
+                )
+        except Exception as e:
+            logger.warning(f"[9/9] 情景触发条件生成失败: {e}")
 
         # 9.3 自动追踪 (原 _step_track)
         if not ctx.skip_tracking:

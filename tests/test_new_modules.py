@@ -305,6 +305,82 @@ class TestCotSignalGenerator:
             assert "一致看多" in signals[0].name
             assert signals[0].direction == SignalDirection.BULLISH
 
+    def _structure_df(self, *, recent_washed: bool = True) -> pd.DataFrame:
+        """构造持仓结构测试数据: 远期周期顶 + 近期洗盘(低OI低空头, 多头回升)."""
+        base = datetime.now(tz=UTC)
+        rows = []
+        for i in range(14):
+            t = base - timedelta(weeks=i)
+            if i < 6:  # 洗盘后: 多头从 200k 回升到 250k
+                oi, short = 370000.0, 9000.0
+                long_ = 200000.0 + (5 - i) * 10000
+            else:      # 周期顶: 高 OI / 高空头
+                oi, short, long_ = 520000.0, 32000.0, 230000.0
+            rows.append({
+                "timestamp": t,
+                "open": long_ + 50000,
+                "high": long_ + 50000,
+                "low": short,
+                "close": long_ - short,
+                "volume": oi,
+                "comm_net": -200000.0,
+            })
+        df = pd.DataFrame(rows).sort_values("timestamp")
+        if not recent_washed:
+            # 未洗盘: OI/空头全在高位
+            df["volume"] = 500000.0
+            df["low"] = 30000.0
+        return df
+
+    def test_structure_signal_full_confirmation(self):
+        """三段全触发 → 反转结构确认 (强)."""
+        gen = CotSignalGenerator()
+        with patch.object(gen.fetcher, "fetch_real", return_value=self._structure_df(recent_washed=True)):
+            signals = gen._structure_signals()
+        assert len(signals) == 1
+        assert "反转结构确认" in signals[0].name
+        assert signals[0].direction == SignalDirection.BULLISH
+        assert signals[0].strength == SignalStrength.STRONG
+        assert signals[0].score == 0.5
+        assert set(signals[0].metadata["confirmed"]) == {"总持仓出清", "空头投降", "多头回归"}
+
+    def test_structure_signal_partial(self):
+        """仅总持仓出清+空头投降（多头未回升）→ 结构改善 (中)."""
+        gen = CotSignalGenerator()
+        df = self._structure_df(recent_washed=True)
+        # 打平多头, 破坏「多头回归」条件
+        df["open"] = 250000.0
+        with patch.object(gen.fetcher, "fetch_real", return_value=df):
+            signals = gen._structure_signals()
+        assert len(signals) == 1
+        assert "结构改善" in signals[0].name
+        assert signals[0].strength == SignalStrength.MODERATE
+        assert "多头回归" not in signals[0].metadata["confirmed"]
+
+    def test_structure_signal_empty_real(self):
+        """真实数据不可用(空) → 无信号，不触发网络."""
+        gen = CotSignalGenerator()
+        with patch.object(gen.fetcher, "fetch_real", return_value=pd.DataFrame()):
+            signals = gen._structure_signals()
+        assert signals == []
+
+    def test_structure_signal_insufficient_rows(self):
+        """历史行不足 → 无信号."""
+        gen = CotSignalGenerator()
+        df = self._structure_df(recent_washed=True).head(3)
+        with patch.object(gen.fetcher, "fetch_real", return_value=df):
+            signals = gen._structure_signals()
+        assert signals == []
+
+    def test_generate_signals_includes_structure(self):
+        """generate_signals 应包含结构信号，且不影响原有趋势/极端信号."""
+        gen = CotSignalGenerator()
+        with patch.object(gen.fetcher, "fetch_real", return_value=self._structure_df(recent_washed=True)), \
+             patch.object(gen.fetcher, "fetch_net_position", return_value={"status": "no_data"}), \
+             patch.object(gen.fetcher, "fetch", return_value=pd.DataFrame()):
+            signals = gen.generate_signals()
+        assert any("结构" in s.name for s in signals)
+
 
 # =============================================================================
 # Intl Gold ETF Tests

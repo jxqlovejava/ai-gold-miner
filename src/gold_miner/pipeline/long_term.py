@@ -290,6 +290,9 @@ class LongTermAnalyzer:
         # 触发条件
         result.trigger_conditions = self._build_triggers(result)
 
+        # 情景预案结构化触发条件 (关键价+时间窗+证伪点+动作) + 条件单建议
+        self._build_scenario_triggers(result, direction, position_pct)
+
         # 再平衡规则
         result.rebalancing_rules = [
             f"每季度审视一次 {result.horizon_months} 个月情景矩阵概率",
@@ -298,6 +301,40 @@ class LongTermAnalyzer:
             "美元储备份额止跌回升 → 重新评估去美元化叙事强度",
             "浮盈超过 20% 后，将硬止损上移至成本价以上",
         ]
+
+    def _build_scenario_triggers(
+        self,
+        result: LongTermAnalysisResult,
+        direction: str,
+        position_pct: float,
+    ) -> None:
+        """构建结构化情景触发条件（借鉴「关键价上方强调整 N 小时不破起涨点」判据）.
+
+        与 _build_triggers 的纯文本触发条件互补：
+        - trigger_conditions 保留面向策略的中长期触发（利率/央行购金/均线）
+        - scenario_triggers 输出可执行的对偶触发点（上行确认 / 上行证伪），
+          带关键价、时间窗、证伪点与动作，并转成条件单建议。
+        """
+        try:
+            from gold_miner.strategy.scenario_triggers import (
+                build_scenario_triggers,
+                conditional_order_suggestions_from_triggers,
+            )
+
+            result.scenario_triggers = build_scenario_triggers(
+                direction=direction,
+                position_pct=position_pct,
+                current_spot=result.current_spot,
+            )
+            result.conditional_order_suggestions = (
+                conditional_order_suggestions_from_triggers(
+                    result.scenario_triggers
+                )
+            )
+        except Exception as e:
+            logger.warning(f"情景预案触发条件生成失败: {e}")
+            result.scenario_triggers = []
+            result.conditional_order_suggestions = []
 
     def _build_triggers(self, result: LongTermAnalysisResult) -> list[str]:
         """根据方向构建触发条件."""
@@ -414,6 +451,16 @@ class LongTermAnalyzer:
                     f"{s.name} {s.probability_pct:.0f}% (${s.gold_low:,.0f}-${s.gold_high:,.0f})"
                 )
             result.messages.append("情景概率: " + " | ".join(scenario_lines))
+
+        # 情景触发条件 (关键价+时间窗+证伪点)
+        if result.scenario_triggers:
+            trigger_lines = [
+                f"{t.name} @ {t.key_price:,.0f} ({t.time_window})"
+                for t in result.scenario_triggers
+                if t.key_price
+            ]
+            if trigger_lines:
+                result.messages.append("情景触发条件: " + " | ".join(trigger_lines))
 
         for warning in result.warnings:
             result.messages.append(f"注意: {warning}")
