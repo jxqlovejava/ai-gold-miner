@@ -13,7 +13,10 @@ import sys
 from datetime import UTC, datetime, timezone
 from pathlib import Path
 
+# 本地路径: <repo>/scripts → <repo>/src
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+# Hermes 部署路径: ~/.hermes/scripts/ 下 parent.parent/src 不成立 → 显式补服务器项目 src
+sys.path.insert(0, "/home/ubuntu/ai-gold-miner/src")
 
 from loguru import logger
 
