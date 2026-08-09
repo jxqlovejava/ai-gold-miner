@@ -42,11 +42,13 @@
 # */5 0-1 * * 2-6 cd /home/ubuntu/ai-gold-miner && PYTHONPATH=src python3 scripts/profit_protection_monitor.py >> logs/profit_protector.log 2>&1
 
 # ═══════════════════════════════════════════════════════════════
-# Hermes 哨兵频道 (保留 — 与 adaptive 并行)
+# Hermes 哨兵频道 (停用 — 2026-08-09 去重: 功能已并入 adaptive_gold_monitor)
+# 旧 gold_alert (--mode alert) 的价格异动/ATR止损/事件"即将"提醒 与 adaptive 完全重叠,
+# 且同时被 crontab */15 + hermes cron 7,37 双触发导致微信限流. 停用此通道.
 # ═══════════════════════════════════════════════════════════════
 # Ubuntu
-*/15 9-23 * * 1-5 cd /home/ubuntu/ai-gold-miner && PYTHONPATH=src python3 /home/ubuntu/.hermes/scripts/gold_alert.py >> logs/alert.log 2>&1
-*/15 0-1 * * 2-6 cd /home/ubuntu/ai-gold-miner && PYTHONPATH=src python3 /home/ubuntu/.hermes/scripts/gold_alert.py >> logs/alert.log 2>&1
+# */15 9-23 * * 1-5 cd /home/ubuntu/ai-gold-miner && PYTHONPATH=src python3 /home/ubuntu/.hermes/scripts/gold_alert.py >> logs/alert.log 2>&1
+# */15 0-1 * * 2-6 cd /home/ubuntu/ai-gold-miner && PYTHONPATH=src python3 /home/ubuntu/.hermes/scripts/gold_alert.py >> logs/alert.log 2>&1
 
 # ── 报价快照 ──
 0 10,14,20 * * 1-5 cd /home/ubuntu/ai-gold-miner && PYTHONPATH=src python3 /home/ubuntu/.hermes/scripts/gold_price.py >> logs/price.log 2>&1
