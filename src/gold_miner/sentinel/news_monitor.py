@@ -23,6 +23,11 @@ import httpx
 from loguru import logger
 
 from gold_miner.config import settings
+from gold_miner.direction_lexicon import (
+    DECLINE_VERBS,
+    DOVE_REVERSAL_PATTERN,
+    HAWK_REVERSAL_PATTERN,
+)
 
 from .models import symbol_cn
 
@@ -229,32 +234,37 @@ _HIGH_IMPACT_RULES: list[ImpactRule] = [
         reason="冲突外溢→区域不稳定→避险买盘→利多金价",
     ),
     # ═ 地缘降级 (独立规则, 供共用) ═
+    # 2026-08-10 收紧: 旧 pattern 为裸'协议|达成|停火|和谈|谈判.*进展|原则.*同意|签署',
+    # '迅策与天合算力签署战略合作备忘录'等公司签约新闻命中'签署'被误判 P0 利多.
+    # 现要求地缘主体词前置; 纯商业'协议/签署'标题不再命中, 由相关性闸门(_has_gold_relevance)兜底.
     ImpactRule(
-        pattern=r"协议|达成|停火|和谈|谈判.*进展|原则.*同意|签署",
+        pattern=r"(?:美伊|伊朗|以色列|胡塞|也门|霍尔木兹|红海|曼德海峡|波斯湾|沙特|叙利亚|黎巴嫩|真主党|"
+        r"俄乌|乌克兰|俄罗斯|朝鲜|台海|南海|中东|加沙|巴勒斯坦|哈马斯|半岛|海湾)"
+        r".{0,16}?(?:停火|和谈|谈判.*(?:进展|达成|同意)|原则.*同意|协议|签署|达成|和平|调停|斡旋|缓和)",
         category="geopolitical",
         priority="P0",
         direction="bullish",
         severity="major",
         reason="地缘降级/协议达成→战争溢价回吐→油价↓→通胀↓→降息预期↑→利多金价",
     ),
-    # ═ 加息/降息预期反转 (2026-08-08: '削弱/降温/回落加息预期'=方向反转, 修复前误标利空) ═
+    # ═ 加息/降息预期反转 (2026-08-08: '削弱/降温/回落加息预期'=方向反转, 修复前误标利空)
+    #   2026-08-10: 词表收敛至 direction_lexicon, 补 '走低/下滑/下探/降至' + 押注/定价, 修复 '加息概率走低' 误标利空) ═
     # 置于 '美联储.*加息' 规则之前, 优先命中反转构式, 免于被裸'加息'子串误判利空
     ImpactRule(
-        pattern=r"削弱.*加息预期|加息预期.*(?:降温|回落|放缓|减弱|降低|消退|下调|下修)"
-        r"|加息(?:压力|概率).*(?:缓解|减轻|下降|回落|降温)",
+        pattern=rf"削弱.*加息预期|{HAWK_REVERSAL_PATTERN}",
         category="fed",
         priority="P0",
         direction="bullish",
         severity="major",
-        reason="加息预期减弱→实际利率预期↓→降息预期↑→利多金价",
+        reason="加息预期/概率走低→实际利率预期↓→降息预期↑→利多金价",
     ),
     ImpactRule(
-        pattern=r"削弱.*降息预期|降息预期.*(?:降温|回落|放缓|减弱|降低|消退|下调|下修)",
+        pattern=rf"削弱.*降息预期|{DOVE_REVERSAL_PATTERN}",
         category="fed",
         priority="P0",
         direction="bearish",
         severity="major",
-        reason="降息预期减弱→实际利率预期↑→利空金价",
+        reason="降息预期/概率走低→宽松预期消退→实际利率预期↑→利空金价",
     ),
     # ═ 美联储 ═
     ImpactRule(
@@ -502,10 +512,10 @@ _BROAD_MENTION_PATTERNS: list[str] = [
 # 设计约束: fed/macro/market 默认不路由 LLM (确定性类目防幻觉), 但'削弱/降温加息预期'等
 # 反转构式破坏确定性假设 → 命中反转信号时升级路由, 由 LLM 裁决方向/传导链.
 _SEMANTIC_AMBIGUITY_PATTERNS: list[str] = [
-    r"(?:削弱|下调|下修|降温|回落|放缓|减弱|降低|消退|缓解|减轻|泼冷水|见顶|转向)"
-    r"\s*[^，。;；]{0,16}?(?:加息|降息|利率|政策)\s*(?:预期|压力|概率|步伐|周期)",
-    r"(?:加息|降息)\s*(?:预期|压力|概率|步伐|周期)\s*"
-    r"(?:降温|回落|放缓|减弱|降低|消退|缓解|减轻|下调|下修|见顶|转向)",
+    # 下降词表与 direction_lexicon.DECLINE_VERBS 共用 (2026-08-10: 补走低/下滑/降至/押注等)
+    rf"(?:削弱|{DECLINE_VERBS}|缓解|减轻|泼冷水|见顶|转向)"
+    rf"\s*[^，。;；]{{0,16}}?(?:加息|降息|利率|政策)\s*(?:预期|压力|概率|步伐|周期|押注|定价)",
+    rf"(?:加息|降息)\s*(?:预期|压力|概率|步伐|周期|押注|定价)\s*(?:{DECLINE_VERBS}|见顶|转向)",
     r"(?:非农|就业|CPI|PCE|通胀).{0,8}?(?:爆冷|不及预期|低于预期|超预期|高于预期|意外|疲软|强劲|走弱|回升|反弹)",
 ]
 
@@ -544,6 +554,38 @@ _MED_IMPACT_PATTERNS: list[str] = [
     r"金银比|gold.silver",
     r"技术分析|technical.*analysis.*gold",
 ]
+
+# ── 金价相关性闸门 (2026-08-10): AI 不可用时最后的兜底 ──
+# 候选A命中规则但标题不含任何金价维度 → 疑似无关(如'XX公司与YY签署战略合作备忘录'), 丢弃.
+# 设计: 词表覆盖黄金本体/强地缘主体/军事动作/制裁/联储/宏观/能源/避险;
+#       纯中性商业词(协议/达成/签署/谈判)故意不在列——它们正是泛词误报的来源.
+_GOLD_RELEVANT_PATTERNS: list[str] = [
+    # 黄金本体
+    r"黄金|金价|金条|金币|金银|贵金属|XAU|Gold|购金|实物金",
+    # 地缘主体 (强) — 含英文 (规则 pattern 同源词)
+    r"伊朗|以色列|胡塞|也门|霍尔木兹|红海|曼德海峡|波斯湾|沙特|叙利亚|黎巴嫩|真主党|Iran|Israel|Houthi|Hormuz",
+    r"俄乌|乌克兰|俄罗斯|朝鲜|台海|南海|中东|加沙|巴勒斯坦|哈马斯|半岛|海湾|Russia|Ukraine|Gaza",
+    # 地缘/军事动作 (强缓和+冲突)
+    r"停火|和谈|和平|调停|斡旋|缓和|战争|冲突|袭击|导弹|空袭|轰炸|开火|封锁|军事|美军|航母|部队|增兵|撤军",
+    r"ceasefire|truce|war|missile|strike|attack|sanction|invasion|military",
+    # 制裁/关税/资本管制
+    r"制裁|关税|贸易战|资本管制|外汇管制|tariff|trade.?war",
+    # 联储/利率/货币
+    r"美联储|FOMC|Fed|鲍威尔|沃什|点阵图|美元|美债|收益率|实际利率|加息|降息|央行|利率决议|去美元化|外汇储备",
+    r"hike|cut|dot.?plot|yield|dollar|rate",
+    # 通胀/宏观
+    r"CPI|PCE|PPI|NFP|非农|就业|失业|通胀|通缩|衰退|unemployment|inflation|recession",
+    # 能源
+    r"油价|原油|Brent|WTI|天然气|能源危机|石油|oil|crude|energy",
+    # 避险/市场 + 政治选举
+    r"避险|避险资产|risk.?off|safe.?haven|金价.*(?:涨|跌|新高|新低)|gold.*(?:surge|crash|price)",
+    r"中期选举|选举|民调|election|midterm|poll|congress",
+]
+
+
+def _has_gold_relevance(title: str) -> bool:
+    """标题是否含金价相关信号词 — AI 不可用时兜底, 防无关新闻混入突发预警."""
+    return any(re.search(p, title, re.IGNORECASE) for p in _GOLD_RELEVANT_PATTERNS)
 
 
 def _parse_sina_time(ctime_str: str) -> float | None:
@@ -843,7 +885,8 @@ def analyze_headlines(
     def _finalize(c: dict, llm: dict | None) -> dict | None:
         """合并 LLM 字段并应用确定性守卫. 返回告警 dict 或 None(丢弃)."""
         conf = llm.get("confidence", 0.0) if llm else 0.0
-        if llm is not None and conf >= _LLM_CONF_THRESHOLD:
+        llm_active = llm is not None and conf >= _LLM_CONF_THRESHOLD
+        if llm_active:
             # AI 判定为纯提及 → 丢弃
             if llm.get("is_real_event") is False:
                 return None
@@ -863,6 +906,12 @@ def analyze_headlines(
                 c["direction"] = "neutral"
                 c["severity"] = "minor"
                 c["impact"] = "事件方向未定(未落地或利多/利空对冲)，等待明确信号再评估"
+        # ── 金价相关性兜底 (2026-08-10): AI 未生效时, 标题无任何金价维度 → 疑似无关, 丢弃 ──
+        # 背景: 'XX公司与YY签署战略合作备忘录'等纯商业新闻命中泛词规则被误判 P0 利多.
+        # 语义闸门(AI)不可用时由关键词相关性闸门兜底; AI 已裁决(含纯提及丢弃)则不再重复拦截.
+        if not llm_active and not _has_gold_relevance(c["title"]):
+            logger.debug(f"[news_monitor] 疑似无关新闻, 丢弃: {c['title']}")
+            return None
         # 候选B 无有效类目 → 无法归档, 丢弃
         if c.get("category") is None:
             return None

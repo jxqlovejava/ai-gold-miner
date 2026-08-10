@@ -44,6 +44,34 @@ class TestKeywordFallback:
         direction, _ = _infer_direction_from_event("某事件", "结果已发布", None)
         assert direction is SignalDirection.NEUTRAL
 
+    # ── 2026-08-10 系统性修复: '加息/降息概率走低'方向反转 (修复前误标利空/利多) ──
+    # 根因: 裸'加息'子串检查先于反转构式 → '加息概率走低' 误判利空。反转判定已收敛至 direction_lexicon。
+
+    def test_hike_probability_declining_is_bullish(self) -> None:
+        """加息概率走低 → 收紧预期↓ → 利多 (修复前误判 bearish)."""
+        for actual in [
+            "美联储9月加息概率走低至40%",
+            "CME FedWatch显示9月加息概率下降",
+            "美联储加息概率下滑",
+            "加息概率回落至42%",
+        ]:
+            direction, conflict = _infer_direction_from_event("加息概率观测", actual, None)
+            assert direction is SignalDirection.BULLISH, actual
+            assert conflict is None
+
+    def test_cut_probability_declining_is_bearish(self) -> None:
+        """降息概率走低 → 宽松预期↓ → 利空 (修复前误判 bullish)."""
+        direction, _ = _infer_direction_from_event(
+            "降息概率观测", "美联储9月降息概率走低", None,
+        )
+        assert direction is SignalDirection.BEARISH
+
+    def test_hike_probability_rising_stays_bearish(self) -> None:
+        """加息概率回升/升温 → 仍利空 (反转构式不误伤升温情形)."""
+        for actual in ["9月加息概率回升至60%", "加息预期升温"]:
+            direction, _ = _infer_direction_from_event("加息预期观测", actual, None)
+            assert direction is SignalDirection.BEARISH, actual
+
 
 class TestExplicitGoldBias:
     """显式 gold_bias 优先于关键词, 并处理极性/组合语义."""

@@ -205,6 +205,39 @@ def test_hike_expectation_heating_stays_bearish():
     assert a["direction"] == "bearish"
 
 
+# ── 2026-08-10 系统性修复: '加息/降息概率走低'方向反转 (修复前误标利空/利多) ──
+# 根因: 反转词表缺 '走低/下滑', 掉入裸'美联储.*加息'规则 → 强烈利空。词表已收敛至 direction_lexicon。
+
+
+def test_hike_probability_declining_is_bullish():
+    """加息概率走低 → 收紧预期↓ → 利多 (修复前误标「强烈利空金价」)."""
+    for t in [
+        "美联储9月加息概率走低 市场押注转向降息",
+        "美国9月加息概率走低至40%",
+        "CME FedWatch显示9月加息概率下降",
+        "美联储加息概率下滑",
+        "加息概率回落至42%",
+        "交易员削减加息预期 概率降至43.9%",
+    ]:
+        a = _analyze(t)
+        assert a is not None, t
+        assert a["direction"] == "bullish", t
+        assert "利空" not in a["impact"], t  # 不得再引用裸'加息'的利空因果链
+
+
+def test_cut_probability_declining_is_bearish():
+    """降息概率走低 → 宽松预期↓ → 实际利率预期↑ → 利空 (对称反转)."""
+    a = _analyze("美联储9月降息概率走低")
+    assert a is not None
+    assert a["direction"] == "bearish"
+
+
+def test_reversal_headline_upgrades_to_llm():
+    """反转构式标题命中 _SEMANTIC_AMBIGUITY_PATTERNS → 升级 LLM 裁决 (第二道防线)."""
+    assert nm._has_ambiguity_signal("美联储9月加息概率走低 市场押注转向降息")
+    assert nm._has_ambiguity_signal("美联储9月降息概率走低")
+
+
 # ── 否定句过滤 ──
 
 
@@ -398,3 +431,74 @@ def test_semantic_corrects_weakened_hike_via_escalation():
     assert a is not None
     assert a["direction"] == "bullish"
     assert "利多金价" in a["impact"]
+
+
+# ── 2026-08-10 修复: 公司签约类新闻混入突发预警 ──
+# 方案A: 收紧地缘降级规则 (裸'协议|签署'不再独立命中 P0)
+# 方案B: AI 不可用时金价相关性闸门兜底 (_has_gold_relevance)
+# 事故标题: '迅策科技与天合算力签署战略合作备忘录' 被'签署'泛词误判 P0 利多
+
+
+def test_corporate_signing_memo_dropped():
+    """纯公司签约(无金价维度) → AI 不可用时不告警 (修复前误判 P0 利多)."""
+    for t in [
+        "迅策科技与天合算力签署战略合作备忘录",
+        "华为与腾讯签署战略合作协议",
+        "两家公司达成战略合作框架协议",
+    ]:
+        assert _analyze(t) is None, t
+
+
+def test_geo_agreement_still_alerted():
+    """地缘主体+协议 → 仍告警 (方案A收紧后不误伤真正的地缘缓和事件)."""
+    for t in ["美伊达成停火协议", "霍尔木兹原则协议正式签署", "中东多国宣布全面停火"]:
+        a = _analyze(t)
+        assert a is not None, t
+        assert a["direction"] == "bullish", t
+
+
+def test_military_deployment_still_alerted():
+    """军事部署(含'美军/航母'等词) → 相关性闸门不误杀."""
+    a = _analyze("美军向中东增派航母战斗群")
+    assert a is not None
+    assert a["direction"] == "bullish"
+
+
+def test_gold_relevance_gate():
+    """相关性闸门单元: 无关商业标题 → False; 金价相关标题 → True."""
+    for t in [
+        "迅策科技与天合算力签署战略合作备忘录",
+        "华为与腾讯签署战略合作协议 布局云计算",
+        "某券商发布研报看好新能源板块",
+    ]:
+        assert not nm._has_gold_relevance(t), t
+    for t in [
+        "美伊达成停火协议",
+        "霍尔木兹原则协议正式签署",
+        "美军向中东增派航母战斗群",
+        "非农爆冷削弱美联储加息预期",
+        "黄金价格创历史新高",
+        "布伦特原油价格飙升",
+        "美联储维持利率按兵不动",
+    ]:
+        assert nm._has_gold_relevance(t), t
+
+
+def test_irrelevant_candidate_dropped_by_gate():
+    """命中规则但标题无金价维度 → AI 不可用时被相关性闸门丢弃.
+    '科威特'裸国家名命中冲突外溢 P1 规则, 但标题是纯商业新闻."""
+    assert _analyze("科威特某企业签署港口运营协议") is None
+
+
+def test_ai_active_passes_relevance_gate():
+    """AI 已裁决(真实事件) → 相关性闸门不重复拦截 (B 仅兜底 AI 不可用)."""
+    title = "科威特某企业与海湾公司签署港口运营协议"
+    fake = _FakeSemantic({
+        title: {
+            "is_real_event": True, "is_pending": False, "direction": "bullish",
+            "severity": "moderate", "priority": "P1", "category": "geopolitical",
+            "transmission_chain": "海湾地区商业合作→区域稳定→地缘风险缓释", "confidence": 0.85,
+        },
+    })
+    a = _analyze(title, semantic=fake)
+    assert a is not None

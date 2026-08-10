@@ -19,6 +19,7 @@ from datetime import UTC, datetime, timedelta, timezone
 from loguru import logger
 
 from gold_miner.data.calendar import EventCalendar
+from gold_miner.direction_lexicon import infer_rate_expectation_direction
 from gold_miner.signals.base import Signal, SignalDirection, SignalStrength
 
 
@@ -95,6 +96,14 @@ def _infer_direction_from_event(
 def _infer_direction_by_keywords(actual: str) -> SignalDirection:
     """关键词匹配推断 (fallback 路径, 仅在 gold_bias 缺失时使用)."""
     actual_lower = actual.lower()
+
+    # 利率预期反转构式优先: "加息概率走低"=收紧预期↓→利多; "降息概率走低"=宽松预期↓→利空
+    # 须先于裸'加息/降息'子串检查, 否则 '加息' 子串先命中错误方向 (事故 2026-08-10)
+    reversal = infer_rate_expectation_direction(actual_lower)
+    if reversal == "bullish":
+        return SignalDirection.BULLISH
+    if reversal == "bearish":
+        return SignalDirection.BEARISH
 
     # 鹰派/加息信号 → 利空黄金
     hawkish_keywords = ["加息", "鹰派", "hike", "hawkish", "收紧", "tighten"]
