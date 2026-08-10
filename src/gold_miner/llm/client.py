@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 import httpx
 from loguru import logger
 
 from gold_miner.config import settings
+
+
+def _sleep_backoff(attempt: int) -> None:
+    """重试退避: 1s → 2s."""
+    time.sleep(1.0 * (attempt + 1))
 
 
 class LLMClient:
@@ -67,28 +73,51 @@ class LLMClient:
             "messages": messages,
         }
 
-        try:
-            resp = httpx.post(url, json=payload, headers=headers, timeout=timeout)
-            if resp.status_code != 200:
-                logger.warning(f"LLM API 错误 ({resp.status_code}): {resp.text[:200]}")
+        # 瞬态错误重试 (2026-08-11): DeepSeek 偶发超时/限流, 一次失败即回退关键词会让
+        # 突发新闻推送退化为纯规则判定 (事故: 8/10晚 5 条推送均因 AI 层失败回退规则).
+        # 401/403 (认证) 属非瞬态, 重试无意义, 直接失败.
+        last_error: Exception | None = None
+        for attempt in range(3):
+            try:
+                resp = httpx.post(url, json=payload, headers=headers, timeout=timeout)
+            except httpx.TimeoutException as e:
+                last_error = e
+                if attempt < 2:
+                    _sleep_backoff(attempt)
+                    continue
+                break
+            except httpx.HTTPError as e:
+                last_error = e
+                break
+
+            if resp.status_code == 200:
+                data = resp.json()
+                # Anthropic Messages format: content is a list of blocks
+                content = data.get("content", [])
+                if isinstance(content, list):
+                    for block in content:
+                        if block.get("type") == "text":
+                            return block.get("text", "")
+                    # fallback: try first block
+                    if len(content) > 0:
+                        return content[0].get("text", "")
+                elif isinstance(content, str):
+                    return content
                 return None
 
-            data = resp.json()
-            # Anthropic Messages format: content is a list of blocks
-            content = data.get("content", [])
-            if isinstance(content, list):
-                for block in content:
-                    if block.get("type") == "text":
-                        return block.get("text", "")
-                # fallback: try first block
-                if len(content) > 0:
-                    return content[0].get("text", "")
-            elif isinstance(content, str):
-                return content
+            if resp.status_code in (401, 403):
+                logger.warning(f"LLM API 认证错误 ({resp.status_code}): {resp.text[:200]}")
+                return None
+            # 限流/服务端错误 → 瞬态, 退避重试
+            if resp.status_code in (429,) or resp.status_code >= 500:
+                if attempt < 2:
+                    _sleep_backoff(attempt)
+                    continue
+            logger.warning(f"LLM API 错误 ({resp.status_code}): {resp.text[:200]}")
             return None
-        except httpx.HTTPError as e:
-            logger.warning(f"LLM API 请求失败: {e}")
-            return None
+
+        logger.warning(f"LLM API 请求失败: {last_error}")
+        return None
 
     def chat_json(
         self,

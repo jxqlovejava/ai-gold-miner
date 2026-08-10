@@ -914,10 +914,12 @@ def analyze_headlines(
     )
     routed = [c for c in strict if c.get("category") in routed_categories] + broad
     # fed/macro 确定性类目带反转信号 → 升级路由 LLM 裁决 (修复'削弱加息预期'误判利空)
+    # 2026-08-11: 假想/条件语气('如果他身在美联储会降息'=纯假设个人观点)也升级路由,
+    #   关键词规则的裸'美联储.*降息'会把假想顶格成 P0, AI 判 real=False 直接不告警更准确.
     for c in strict:
         if c.get("category") in routed_categories:
             continue
-        if _has_ambiguity_signal(c["title"]):
+        if _has_ambiguity_signal(c["title"]) or _is_hypothetical(c["title"]):
             ec = dict(c)
             ec["escalate"] = True
             routed.append(ec)
