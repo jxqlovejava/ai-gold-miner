@@ -72,7 +72,13 @@ def _infer_direction_from_event(name: str, actual: str, forecast: str | None) ->
         return SignalDirection.BULLISH
 
     # 数据低于预期 → 经济弱 → 利多黄金（对非农/PMI/零售等）
-    weak_keywords = ["低于", "不及", "miss", "below", "下滑", "放缓", "下降", "减少"]
+    # 含"下修"(前值下修=经济比此前认知更弱)、"负增/萎缩/裁员"(就业数据负值场景)、
+    # "爆冷"(数据远逊预期的媒体措辞)。注意: 失业率下降若由参与率下降驱动(分母幻觉),
+    # 属疲弱而非强劲——关键词层无法识别该组合, 写入 actual 时应注明"参与率下降"。
+    weak_keywords = [
+        "低于", "不及", "miss", "below", "下滑", "放缓", "下降", "减少",
+        "下修", "负增", "萎缩", "裁员", "爆冷",
+    ]
     if any(kw in actual_lower for kw in weak_keywords):
         return SignalDirection.BULLISH
 
