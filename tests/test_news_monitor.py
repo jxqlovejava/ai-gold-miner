@@ -502,3 +502,47 @@ def test_ai_active_passes_relevance_gate():
     })
     a = _analyze(title, semantic=fake)
     assert a is not None
+
+
+# ── 2026-08-10 修复: 海湾国家裸国名误报 (阿联酋扩产被误判'冲突外溢'利多) ──
+# 根因: 旧规则 pattern 为裸国名交替 '科威特|巴林|卡塔尔|约旦|阿联酋|沙特.*遭.*袭击',
+#       标题仅含'阿联酋'即命中, 套用写死的'冲突外溢→避险买盘'利多模板。
+#       事故标题: '阿联酋退出欧佩克后，Adnoc Gas加码超80亿美元扩大天然气产能'
+#       (纯能源投资; 金价相关性闸门因'天然气'放行 → 误报 P1 利多·中度)。
+#       修复: 规则要求国名 + 军事冲突动作同现(双向), 裸国名不再命中。
+
+
+def test_gulf_country_bare_mention_not_conflict():
+    """海湾国名纯提及/商业投资(无冲突动作) → 不告警 (修复前误判冲突外溢利多)."""
+    for t in [
+        "阿联酋退出欧佩克后，Adnoc Gas加码超80亿美元扩大天然气产能",
+        "卡塔尔宣布扩建液化天然气项目",
+        "沙特启动新一轮经济多元化计划",
+        "阿联酋与某国签署贸易协定",
+    ]:
+        assert _analyze(t) is None, t
+
+
+def test_gulf_country_conflict_still_alerted():
+    """海湾国家冲突(遭袭/遇袭/局势升级) → 仍告警方向利多."""
+    for t in [
+        "科威特遭伊朗导弹袭击",
+        "沙特遇袭 红海局势紧张",
+        "阿联酋局势升级 地区避险情绪升温",
+        "伊朗空袭科威特境内目标",
+    ]:
+        a = _analyze(t)
+        assert a is not None, t
+        assert a["direction"] == "bullish", t
+
+
+def test_gulf_country_conflict_uses_spillover_chain():
+    """海湾规则专属命中 → 冲突外溢因果链 (区别于美伊/胡塞规则链)."""
+    for t in [
+        "沙特遇袭 红海局势紧张",
+        "阿联酋局势升级 地区避险情绪升温",
+        "巴林冲突持续 中东局势动荡",
+    ]:
+        a = _analyze(t)
+        assert a is not None, t
+        assert "冲突外溢" in a["impact"], t
