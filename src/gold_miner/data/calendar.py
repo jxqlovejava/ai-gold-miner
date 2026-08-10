@@ -137,6 +137,9 @@ _STALENESS_DEFAULT_HOURS: dict[str, int] = {
     "monitor": 48,       # monitor 检查频率较低
 }
 
+# gold_bias 合法取值 — 与 signals.base.SignalDirection 对齐, 不跨层 import
+GOLD_BIAS_VALUES: frozenset[str] = frozenset({"bullish", "bearish", "neutral"})
+
 
 @dataclass
 class CalendarEvent:
@@ -163,6 +166,11 @@ class CalendarEvent:
     actual_history: str | None = None       # JSON 数组: [{"value":"...","updated_at":"...","superseded_at":"..."}]
     source_verified_at: str | None = None   # 上次来源验证时间 ISO
     staleness_check_hours: int | None = None # 每个事件可覆盖默认检查间隔
+    # --- 金价方向判断 (写入时同步判定, 引擎优先读取) ---
+    # "bullish" | "bearish" | "neutral" — 对金价(非经济)的方向。
+    # 由同步 actual 的人/模型在信息最全时显式判断, 避免引擎关键词事后猜测
+    # (同义词漏配/组合语义/指标极性都曾是事故源, 见 .learnings/2026-08-10)。
+    gold_bias: str | None = None
 
     @property
     def is_monitor(self) -> bool:
@@ -238,6 +246,7 @@ class CalendarEvent:
             "actual": self.actual,
             "forecast": self.forecast,
             "previous": self.previous,
+            "gold_bias": self.gold_bias,
             "source": self.source,
             "description": self.description,
             "status": self.status,
@@ -539,6 +548,7 @@ class EventCalendar:
         forecast: str | None = None,
         previous: str | None = None,
         source_verified: bool = True,
+        gold_bias: str | None = None,
     ) -> bool:
         """更新事件的实际结果（内存 + 重写 JSONL 文件）.
 
@@ -552,10 +562,21 @@ class EventCalendar:
             forecast: 预期值
             previous: 前值
             source_verified: 是否经过来源验证 (默认 True)
+            gold_bias: 对金价方向 ("bullish"/"bearish"/"neutral") — 同步结果时
+                必须显式判断写入; 引擎优先读取此字段, 关键词匹配仅作 fallback。
+                组合语义 (如失业率↓但参与率↓=疲弱) 与反向指标 (初请低于预期=偏鹰)
+                由写入者负责判定, 不要依赖引擎关键词。
 
         Returns:
             True 如果找到并更新了事件，False 如果未找到匹配事件.
+
+        Raises:
+            ValueError: gold_bias 不在合法取值内.
         """
+        if gold_bias is not None and gold_bias not in GOLD_BIAS_VALUES:
+            raise ValueError(
+                f"gold_bias 必须是 {sorted(GOLD_BIAS_VALUES)} 之一, 收到: {gold_bias!r}"
+            )
         # 确保 scheduled_at 是 aware datetime（兼容旧调用方传入 naive）
         if scheduled_at.tzinfo is None:
             scheduled_at = scheduled_at.replace(tzinfo=_et_offset(scheduled_at))
@@ -592,6 +613,8 @@ class EventCalendar:
                     e.forecast = forecast
                 if previous is not None:
                     e.previous = previous
+                if gold_bias is not None:
+                    e.gold_bias = gold_bias
                 if source_verified:
                     e.source_verified_at = now_iso
                 updated = True
@@ -1100,6 +1123,7 @@ class EventCalendar:
             actual_history=obj.get("actual_history"),
             source_verified_at=obj.get("source_verified_at"),
             staleness_check_hours=obj.get("staleness_check_hours"),
+            gold_bias=obj.get("gold_bias"),
         )
 
     _MONITOR_KEYS = (
@@ -1138,6 +1162,8 @@ class EventCalendar:
             val = getattr(event, key, None)
             if val is not None:
                 d[key] = val
+        if event.gold_bias is not None:
+            d["gold_bias"] = event.gold_bias
         return d
 
     # ------------------------------------------------------------------

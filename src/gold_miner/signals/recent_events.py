@@ -53,13 +53,48 @@ class RecencyWeightConfig:
 # ---------------------------------------------------------------------------
 
 
-def _infer_direction_from_event(name: str, actual: str, forecast: str | None) -> SignalDirection:
+def _infer_direction_from_event(
+    name: str,
+    actual: str,
+    forecast: str | None,
+    gold_bias: str | None = None,
+) -> tuple[SignalDirection, str | None]:
     """根据事件实际结果推断对金价的信号方向.
 
-    基于关键词匹配做快速推断，复杂判断由 AI 分析补充。
+    优先级:
+      1. 写入时同步判定的 gold_bias (信息最全处的显式判断, 覆盖组合语义/指标极性)
+      2. 关键词匹配 fallback (快速推断, 复杂判断由 AI 分析补充)
+
+    两者都存在且关键词给出非中性的相反方向时, 返回冲突说明 — 调用方应生成
+    待复核告警信号, 把隐性误判变成显性告警 (事故见 .learnings/2026-08-10)。
+
+    Returns:
+        (direction, conflict_note): conflict_note 为 None 表示无冲突。
     """
+    keyword_direction = _infer_direction_by_keywords(actual)
+
+    explicit: SignalDirection | None = None
+    if gold_bias in ("bullish", "bearish", "neutral"):
+        explicit = SignalDirection(gold_bias)
+
+    if explicit is None:
+        return keyword_direction, None
+
+    conflict: str | None = None
+    if (
+        keyword_direction is not SignalDirection.NEUTRAL
+        and keyword_direction is not explicit
+    ):
+        conflict = (
+            f"写入判定={explicit.value} 与关键词推断={keyword_direction.value} 冲突, "
+            f"以写入判定为准, 但需人工复核 actual 表述是否误导"
+        )
+    return explicit, conflict
+
+
+def _infer_direction_by_keywords(actual: str) -> SignalDirection:
+    """关键词匹配推断 (fallback 路径, 仅在 gold_bias 缺失时使用)."""
     actual_lower = actual.lower()
-    (forecast or "").lower()
 
     # 鹰派/加息信号 → 利空黄金
     hawkish_keywords = ["加息", "鹰派", "hike", "hawkish", "收紧", "tighten"]
@@ -199,11 +234,29 @@ class RecentEventSignalGenerator:
                 if weight <= 0:
                     continue
 
-            direction = _infer_direction_from_event(
+            direction, conflict = _infer_direction_from_event(
                 event.name,
                 event.actual or "",
                 event.forecast,
+                gold_bias=getattr(event, "gold_bias", None),
             )
+            if conflict:
+                signals.append(
+                    Signal(
+                        name=f"⚠️ 方向冲突待复核: {event.name}",
+                        dimension="recent_events",
+                        direction=SignalDirection.NEUTRAL,
+                        strength=SignalStrength.MODERATE,
+                        score=0.0,
+                        description=conflict,
+                        metadata={
+                            "event_type": "gold_bias_conflict",
+                            "event_name": event.name,
+                            "gold_bias": getattr(event, "gold_bias", None),
+                            "actual": event.actual,
+                        },
+                    )
+                )
             strength = _infer_strength_from_weight(weight)
 
             # 得分 = 方向符号 × 权重

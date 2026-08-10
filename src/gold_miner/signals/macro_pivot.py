@@ -139,8 +139,14 @@ def _thread_direction(event: CalendarEvent) -> SignalDirection | None:
             return SignalDirection.BEARISH
         return None
 
-    # 其余 (就业/通胀/政策): 复用通用事件→方向映射
-    return _infer_direction_from_event(event.name, event.actual or "", event.forecast)
+    # 其余 (就业/通胀/政策): 复用通用事件→方向映射 (gold_bias 显式字段优先, 忽略冲突说明)
+    direction, _conflict = _infer_direction_from_event(
+        event.name,
+        event.actual or "",
+        event.forecast,
+        gold_bias=getattr(event, "gold_bias", None),
+    )
+    return direction
 
 
 def _script_of(thread: str, direction: SignalDirection) -> str | None:
