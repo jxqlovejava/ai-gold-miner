@@ -17291,3 +17291,454 @@ $BRRR: possibly delisted; no price data found  (period=5d)
 📊 成本¥891 | 浮盈 5.5% | 净+5.1%(已扣0.4%卖出费) 净保本¥894
 
   📈 低点反弹 +0.4% | 935.93 → 940.03 (回升 ¥4.10)
+2026-08-10 19:55:02.449 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-10 19:55:02.450 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-10 19:55:02.598 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 19 条
+🟢 金价监控 | 19:55:02
+💰 940.35元/克 (+0.04%)
+📊 成本¥891 | 浮盈 5.6% | 净+5.1%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.5% | 935.93 → 940.35 (回升 ¥4.42)
+2026-08-10 20:01:01.742 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-10 20:01:01.742 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-10 20:01:01.877 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 19 条
+🟢 金价监控 | 20:01:01
+💰 939.67元/克 (-0.04%)
+📊 成本¥891 | 浮盈 5.5% | 净+5.1%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.4% | 935.93 → 939.67 (回升 ¥3.74)
+2026-08-10 20:07:02.119 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-10 20:07:02.120 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-10 20:07:02.261 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 19 条
+🟢 金价监控 | 20:07:02
+💰 940.19元/克 (+0.02%)
+📊 成本¥891 | 浮盈 5.5% | 净+5.1%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.5% | 935.93 → 940.19 (回升 ¥4.26)
+2026-08-10 20:13:02.387 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-10 20:13:02.388 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-10 20:13:02.532 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 19 条
+🟢 金价监控 | 20:13:02
+💰 940.30元/克 (+0.03%)
+📊 成本¥891 | 浮盈 5.6% | 净+5.1%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.5% | 935.93 → 940.30 (回升 ¥4.37)
+2026-08-10 20:19:01.880 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-10 20:19:01.881 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-10 20:19:02.142 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 19 条
+🟢 金价监控 | 20:19:02
+💰 939.52元/克 (-0.05%)
+📊 成本¥891 | 浮盈 5.5% | 净+5.0%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.4% | 935.93 → 939.52 (回升 ¥3.59)
+2026-08-10 20:25:02.307 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-10 20:25:02.308 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-10 20:25:02.436 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 19 条
+🟢 金价监控 | 20:25:02
+💰 938.95元/克 (-0.11%)
+📊 成本¥891 | 浮盈 5.4% | 净+5.0%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.3% | 935.93 → 938.95 (回升 ¥3.02)
+2026-08-10 20:31:01.638 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-10 20:31:01.638 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-10 20:31:01.788 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 19 条
+🟢 金价监控 | 20:31:01
+💰 939.48元/克 (-0.06%)
+📊 成本¥891 | 浮盈 5.5% | 净+5.0%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.4% | 935.93 → 939.48 (回升 ¥3.55)
+2026-08-10 20:37:01.974 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-10 20:37:01.975 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-10 20:37:02.116 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 19 条
+🟢 金价监控 | 20:37:02
+💰 939.60元/克 (-0.04%)
+📊 成本¥891 | 浮盈 5.5% | 净+5.1%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.4% | 935.93 → 939.60 (回升 ¥3.67)
+2026-08-10 20:43:02.312 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-10 20:43:02.313 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-10 20:43:02.459 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 19 条
+🟢 金价监控 | 20:43:02
+💰 939.82元/克 (-0.02%)
+📊 成本¥891 | 浮盈 5.5% | 净+5.1%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.4% | 935.93 → 939.82 (回升 ¥3.89)
+2026-08-10 20:49:01.621 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-10 20:49:01.622 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-10 20:49:01.779 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 19 条
+🟢 金价监控 | 20:49:01
+💰 940.08元/克 (+0.01%)
+📊 成本¥891 | 浮盈 5.5% | 净+5.1%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.4% | 935.93 → 940.08 (回升 ¥4.15)
+2026-08-10 20:55:02.019 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-10 20:55:02.020 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-10 20:55:02.203 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 19 条
+🟢 金价监控 | 20:55:02
+💰 939.97元/克 (-0.00%)
+📊 成本¥891 | 浮盈 5.5% | 净+5.1%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.4% | 935.93 → 939.97 (回升 ¥4.04)
+2026-08-10 21:01:02.002 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-10 21:01:02.003 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-10 21:01:02.134 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 19 条
+🟢 金价监控 | 21:01:02
+💰 939.90元/克 (-0.01%)
+📊 成本¥891 | 浮盈 5.5% | 净+5.1%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.4% | 935.93 → 939.90 (回升 ¥3.97)
+2026-08-10 21:07:02.134 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-10 21:07:02.134 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-10 21:07:02.275 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 19 条
+🟢 金价监控 | 21:07:02
+💰 940.11元/克 (+0.01%)
+📊 成本¥891 | 浮盈 5.5% | 净+5.1%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.4% | 935.93 → 940.11 (回升 ¥4.18)
+2026-08-10 21:13:02.274 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-10 21:13:02.275 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-10 21:13:02.411 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 19 条
+🟢 金价监控 | 21:13:02
+💰 941.58元/克 (+0.17%)
+📊 成本¥891 | 浮盈 5.7% | 净+5.3%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.6% | 935.93 → 941.58 (回升 ¥5.65)
+2026-08-10 21:19:01.684 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-10 21:19:01.685 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-10 21:19:01.824 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 19 条
+🟢 金价监控 | 21:19:01
+💰 941.29元/克 (+0.14%)
+📊 成本¥891 | 浮盈 5.7% | 净+5.2%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.6% | 935.93 → 941.29 (回升 ¥5.36)
+2026-08-10 21:25:10.887 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-10 21:25:10.896 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-10 21:25:11.050 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 19 条
+🟢 金价监控 | 21:25:11
+💰 940.42元/克 (+0.04%)
+📊 成本¥891 | 浮盈 5.6% | 净+5.1%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.5% | 935.93 → 940.42 (回升 ¥4.49)
+2026-08-10 21:31:01.872 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-10 21:31:01.872 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-10 21:31:02.017 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 19 条
+🟢 金价监控 | 21:31:02
+💰 941.58元/克 (+0.17%)
+📊 成本¥891 | 浮盈 5.7% | 净+5.3%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.6% | 935.93 → 941.58 (回升 ¥5.65)
+2026-08-10 21:37:01.529 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-10 21:37:01.530 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-10 21:37:01.659 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 19 条
+🟢 金价监控 | 21:37:01
+💰 941.98元/克 (+0.21%)
+📊 成本¥891 | 浮盈 5.7% | 净+5.3%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.6% | 935.93 → 941.98 (回升 ¥6.05)
+2026-08-10 21:43:01.506 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-10 21:43:01.507 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-10 21:43:01.756 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 19 条
+🟢 金价监控 | 21:43:01
+💰 941.36元/克 (+0.14%)
+📊 成本¥891 | 浮盈 5.7% | 净+5.3%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.6% | 935.93 → 941.36 (回升 ¥5.43)
+2026-08-10 21:49:01.629 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-10 21:49:01.630 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-10 21:49:01.765 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 19 条
+🟢 金价监控 | 21:49:01
+💰 940.03元/克 (+0.00%)
+📊 成本¥891 | 浮盈 5.5% | 净+5.1%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.4% | 935.93 → 940.03 (回升 ¥4.10)
+2026-08-10 21:55:01.654 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-10 21:55:01.655 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-10 21:55:01.803 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 19 条
+🟢 金价监控 | 21:55:01
+💰 938.85元/克 (-0.12%)
+📊 成本¥891 | 浮盈 5.4% | 净+5.0%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.3% | 935.93 → 938.85 (回升 ¥2.92)
+2026-08-10 22:01:01.729 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-10 22:01:01.730 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-10 22:01:01.864 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 19 条
+2026-08-10 22:07:01.541 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-10 22:07:01.542 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-10 22:07:01.673 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 19 条
+🟢 金价监控 | 22:07:01
+💰 939.28元/克 (-0.08%)
+📊 成本¥891 | 浮盈 5.4% | 净+5.0%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.4% | 935.93 → 939.28 (回升 ¥3.35)
+2026-08-10 22:13:01.432 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-10 22:13:01.433 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-10 22:13:01.564 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 19 条
+🟢 金价监控 | 22:13:01
+💰 939.54元/克 (-0.05%)
+📊 成本¥891 | 浮盈 5.5% | 净+5.0%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.4% | 935.93 → 939.54 (回升 ¥3.61)
+2026-08-10 22:19:01.472 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-10 22:19:01.473 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-10 22:19:01.676 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 19 条
+🟢 金价监控 | 22:19:01
+💰 941.08元/克 (+0.11%)
+📊 成本¥891 | 浮盈 5.6% | 净+5.2%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.6% | 935.93 → 941.08 (回升 ¥5.15)
+2026-08-10 22:25:01.547 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-10 22:25:01.548 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-10 22:25:01.676 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 19 条
+🟢 金价监控 | 22:25:01
+💰 941.46元/克 (+0.15%)
+📊 成本¥891 | 浮盈 5.7% | 净+5.3%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.6% | 935.93 → 941.46 (回升 ¥5.53)
+2026-08-10 22:31:01.584 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-10 22:31:01.585 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-10 22:31:01.709 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 19 条
+🟢 金价监控 | 22:31:01
+💰 943.25元/克 (+0.34%)
+📊 成本¥891 | 浮盈 5.9% | 净+5.5%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.8% | 935.93 → 943.25 (回升 ¥7.32)
+2026-08-10 22:37:01.552 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-10 22:37:01.553 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-10 22:37:01.679 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 19 条
+🟢 金价监控 | 22:37:01
+💰 943.04元/克 (+0.32%)
+📊 成本¥891 | 浮盈 5.9% | 净+5.4%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.8% | 935.93 → 943.04 (回升 ¥7.11)
+2026-08-10 22:43:01.652 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-10 22:43:01.653 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-10 22:43:01.969 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 19 条
+🟢 金价监控 | 22:43:01
+💰 943.94元/克 (+0.42%)
+📊 成本¥891 | 浮盈 6.0% | 净+5.5%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.9% | 935.93 → 943.94 (回升 ¥8.01)
+2026-08-10 22:49:01.756 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-10 22:49:01.757 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-10 22:49:01.895 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 19 条
+🟢 金价监控 | 22:49:01
+💰 943.47元/克 (+0.37%)
+📊 成本¥891 | 浮盈 5.9% | 净+5.5%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.8% | 935.93 → 943.47 (回升 ¥7.54)
+2026-08-10 22:55:01.785 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-10 22:55:01.786 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-10 22:55:01.936 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 19 条
+🟢 金价监控 | 22:55:01
+💰 942.70元/克 (+0.29%)
+📊 成本¥891 | 浮盈 5.8% | 净+5.4%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.7% | 935.93 → 942.70 (回升 ¥6.77)
+2026-08-10 23:01:01.819 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-10 23:01:01.820 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-10 23:01:01.966 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 19 条
+🟢 金价监控 | 23:01:01
+💰 942.94元/克 (+0.31%)
+📊 成本¥891 | 浮盈 5.9% | 净+5.4%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.7% | 935.93 → 942.94 (回升 ¥7.01)
+2026-08-10 23:07:01.825 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-10 23:07:01.826 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-10 23:07:01.966 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 19 条
+🟢 金价监控 | 23:07:01
+💰 943.79元/克 (+0.40%)
+📊 成本¥891 | 浮盈 5.9% | 净+5.5%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.8% | 935.93 → 943.79 (回升 ¥7.86)
+2026-08-10 23:13:01.766 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-10 23:13:01.767 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-10 23:13:01.896 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 19 条
+🟢 金价监控 | 23:13:01
+💰 943.16元/克 (+0.34%)
+📊 成本¥891 | 浮盈 5.9% | 净+5.5%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.8% | 935.93 → 943.16 (回升 ¥7.23)
+2026-08-10 23:19:02.086 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-10 23:19:02.087 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-10 23:19:02.413 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 19 条
+🟢 金价监控 | 23:19:02
+💰 944.05元/克 (+0.43%)
+📊 成本¥891 | 浮盈 6.0% | 净+5.6%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.9% | 935.93 → 944.05 (回升 ¥8.12)
+2026-08-10 23:25:02.147 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-10 23:25:02.147 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-10 23:25:02.294 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 19 条
+🟢 金价监控 | 23:25:02
+💰 943.76元/克 (+0.40%)
+📊 成本¥891 | 浮盈 5.9% | 净+5.5%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.8% | 935.93 → 943.76 (回升 ¥7.83)
+2026-08-10 23:31:01.780 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-10 23:31:01.780 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-10 23:31:01.922 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 19 条
+🟢 金价监控 | 23:31:01
+💰 943.95元/克 (+0.42%)
+📊 成本¥891 | 浮盈 6.0% | 净+5.5%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.9% | 935.93 → 943.95 (回升 ¥8.02)
+2026-08-10 23:37:01.882 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-10 23:37:01.883 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-10 23:37:02.019 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 19 条
+🟢 金价监控 | 23:37:02
+💰 944.12元/克 (+0.44%)
+📊 成本¥891 | 浮盈 6.0% | 净+5.6%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.9% | 935.93 → 944.12 (回升 ¥8.19)
+2026-08-10 23:43:02.209 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-10 23:43:02.210 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-10 23:43:02.343 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 19 条
+🟢 金价监控 | 23:43:02
+💰 944.20元/克 (+0.45%)
+📊 成本¥891 | 浮盈 6.0% | 净+5.6%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.9% | 935.93 → 944.20 (回升 ¥8.27)
+2026-08-10 23:49:02.405 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-10 23:49:02.406 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-10 23:49:02.559 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 19 条
+🟢 金价监控 | 23:49:02
+💰 944.55元/克 (+0.48%)
+📊 成本¥891 | 浮盈 6.0% | 净+5.6%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.9% | 935.93 → 944.55 (回升 ¥8.62)
+2026-08-10 23:55:01.455 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-10 23:55:01.456 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-10 23:55:01.661 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 19 条
+🟢 金价监控 | 23:55:01
+💰 945.35元/克 (+0.57%)
+📊 成本¥891 | 浮盈 6.1% | 净+5.7%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +1.0% | 935.93 → 945.35 (回升 ¥9.42)
+2026-08-11 00:01:02.153 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-11 00:01:02.154 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-11 00:01:02.281 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 20 条
+🟢 金价监控 | 00:01:02
+💰 945.78元/克 (+0.03%)
+📊 成本¥891 | 浮盈 6.2% | 净+5.7%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +1.1% | 935.93 → 945.78 (回升 ¥9.85)
+2026-08-11 00:07:01.559 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-11 00:07:01.560 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-11 00:07:01.686 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 20 条
+🟢 金价监控 | 00:07:01
+💰 945.24元/克 (-0.03%)
+📊 成本¥891 | 浮盈 6.1% | 净+5.7%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +1.0% | 935.93 → 945.24 (回升 ¥9.31)
+2026-08-11 00:13:01.969 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-11 00:13:01.970 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-11 00:13:02.105 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 20 条
+🟢 金价监控 | 00:13:02
+💰 946.57元/克 (+0.11%)
+📊 成本¥891 | 浮盈 6.3% | 净+5.8%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +1.1% | 935.93 → 946.57 (回升 ¥10.64)
+2026-08-11 00:19:02.309 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-11 00:19:02.310 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-11 00:19:02.470 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 20 条
+🟢 金价监控 | 00:19:02
+💰 946.40元/克 (+0.09%)
+📊 成本¥891 | 浮盈 6.2% | 净+5.8%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +1.1% | 935.93 → 946.40 (回升 ¥10.47)
+2026-08-11 00:25:01.698 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-11 00:25:01.699 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-11 00:25:01.836 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 20 条
+🟢 金价监控 | 00:25:01
+💰 946.46元/克 (+0.10%)
+📊 成本¥891 | 浮盈 6.2% | 净+5.8%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +1.1% | 935.93 → 946.46 (回升 ¥10.53)
+2026-08-11 00:31:02.148 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-11 00:31:02.149 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-11 00:31:02.283 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 20 条
+🟢 金价监控 | 00:31:02
+💰 946.14元/克 (+0.07%)
+📊 成本¥891 | 浮盈 6.2% | 净+5.8%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +1.1% | 935.93 → 946.14 (回升 ¥10.21)
+2026-08-11 00:37:01.596 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-11 00:37:01.597 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-11 00:37:01.726 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 20 条
+🟢 金价监控 | 00:37:01
+💰 945.67元/克 (+0.02%)
+📊 成本¥891 | 浮盈 6.2% | 净+5.7%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +1.0% | 935.93 → 945.67 (回升 ¥9.74)
+2026-08-11 00:43:02.108 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-11 00:43:02.109 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-11 00:43:02.240 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 20 条
+🟢 金价监控 | 00:43:02
+💰 944.19元/克 (-0.14%)
+📊 成本¥891 | 浮盈 6.0% | 净+5.6%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.9% | 935.93 → 944.19 (回升 ¥8.26)
+2026-08-11 00:49:01.556 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-11 00:49:01.557 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-11 00:49:01.683 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 20 条
+🟢 金价监控 | 00:49:01
+💰 944.34元/克 (-0.12%)
+📊 成本¥891 | 浮盈 6.0% | 净+5.6%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.9% | 935.93 → 944.34 (回升 ¥8.41)
+2026-08-11 00:55:01.957 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-11 00:55:01.957 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-11 00:55:02.086 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 20 条
+🟢 金价监控 | 00:55:02
+💰 944.55元/克 (-0.10%)
+📊 成本¥891 | 浮盈 6.0% | 净+5.6%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.9% | 935.93 → 944.55 (回升 ¥8.62)
+2026-08-11 01:01:02.244 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-11 01:01:02.245 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-11 01:01:02.366 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 20 条
+🟢 金价监控 | 01:01:02
+💰 945.41元/克 (-0.01%)
+📊 成本¥891 | 浮盈 6.1% | 净+5.7%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +1.0% | 935.93 → 945.41 (回升 ¥9.48)
+2026-08-11 01:07:01.489 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-11 01:07:01.490 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-11 01:07:01.676 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 20 条
+🟢 金价监控 | 01:07:01
+💰 944.59元/克 (-0.10%)
+📊 成本¥891 | 浮盈 6.0% | 净+5.6%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +0.9% | 935.93 → 944.59 (回升 ¥8.66)
+2026-08-11 01:13:01.910 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-11 01:13:01.911 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-11 01:13:02.043 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 20 条
+🟢 金价监控 | 01:13:02
+💰 945.20元/克 (-0.03%)
+📊 成本¥891 | 浮盈 6.1% | 净+5.7%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +1.0% | 935.93 → 945.20 (回升 ¥9.27)
+2026-08-11 01:19:02.369 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-11 01:19:02.370 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-11 01:19:02.508 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 20 条
+🟢 金价监控 | 01:19:02
+💰 945.52元/克 (+0.00%)
+📊 成本¥891 | 浮盈 6.1% | 净+5.7%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +1.0% | 935.93 → 945.52 (回升 ¥9.59)
+2026-08-11 01:25:02.837 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-11 01:25:02.837 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-11 01:25:02.988 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 20 条
+🟢 金价监控 | 01:25:03
+💰 946.14元/克 (+0.07%)
+📊 成本¥891 | 浮盈 6.2% | 净+5.8%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +1.1% | 935.93 → 946.14 (回升 ¥10.21)
+2026-08-11 01:31:01.113 | INFO     | gold_miner.proxy.manager:_find_binary:81 - 发现代理二进制: /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/src/gold_miner/proxy/mihomo
+2026-08-11 01:31:01.113 | DEBUG    | gold_miner.proxy.manager:get_client:382 - httpx 使用代理: http://127.0.0.1:17890
+2026-08-11 01:31:01.253 | INFO     | gold_miner.data.jd_accumulation_gold:_append_history:219 - 已更新京东积存金历史数据: data/jd_ms_gold_history.csv, 共 20 条
+🟢 金价监控 | 01:31:01
+💰 946.35元/克 (+0.09%)
+📊 成本¥891 | 浮盈 6.2% | 净+5.8%(已扣0.4%卖出费) 净保本¥894
+
+  📈 低点反弹 +1.1% | 935.93 → 946.35 (回升 ¥10.42)
