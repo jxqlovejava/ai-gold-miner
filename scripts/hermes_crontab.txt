@@ -55,3 +55,21 @@
 
 # ── 日历提醒 ──
 0 8 * * 1-5 cd /home/ubuntu/ai-gold-miner && PYTHONPATH=src python3 /home/ubuntu/.hermes/scripts/gold_calendar.py >> logs/calendar.log 2>&1
+
+# ═══════════════════════════════════════════════════════════════
+# 投递看门狗 (2026-08-10 新增) — 关键推送微信投递失败补发
+# 背景: hermes cron 无投递重试, iLink 限流窗口会让"执行 ok"的推送永久丢失
+# 覆盖批次: 7:30盘前扫描 / 8:08+8:10日历+报告 / 8:50盘前简报 / 周六10:00周报
+#          / 15:10白泽收盘 / 18:00晚间预告 / 20:08日历
+# ═══════════════════════════════════════════════════════════════
+45 7 * * 1-5 cd /home/ubuntu/ai-gold-miner && python3 scripts/hermes_delivery_watchdog.py >> logs/delivery_watchdog.log 2>&1
+20 8 * * 1-5 cd /home/ubuntu/ai-gold-miner && python3 scripts/hermes_delivery_watchdog.py >> logs/delivery_watchdog.log 2>&1
+58 8 * * 1-5 cd /home/ubuntu/ai-gold-miner && python3 scripts/hermes_delivery_watchdog.py >> logs/delivery_watchdog.log 2>&1
+10 10 * * 6 cd /home/ubuntu/ai-gold-miner && python3 scripts/hermes_delivery_watchdog.py >> logs/delivery_watchdog.log 2>&1
+20 15 * * 1-5 cd /home/ubuntu/ai-gold-miner && python3 scripts/hermes_delivery_watchdog.py >> logs/delivery_watchdog.log 2>&1
+10 18 * * 1-5 cd /home/ubuntu/ai-gold-miner && python3 scripts/hermes_delivery_watchdog.py >> logs/delivery_watchdog.log 2>&1
+15 20 * * * cd /home/ubuntu/ai-gold-miner && python3 scripts/hermes_delivery_watchdog.py >> logs/delivery_watchdog.log 2>&1
+
+# ⚠️ 安装警告: 本文件只含黄金任务, 服务器 crontab 还有白泽等其他项目任务。
+# 全量安装 `crontab scripts/hermes_crontab.txt` 会覆盖它们 — 新增条目请用追加:
+#   (crontab -l; echo "新行") | crontab -
