@@ -546,3 +546,56 @@ def test_gulf_country_conflict_uses_spillover_chain():
         a = _analyze(t)
         assert a is not None, t
         assert "冲突外溢" in a["impact"], t
+
+
+# ── 2026-08-11 修复: 4 个推送误判案例 (用户实测微信推送复盘) ──
+# 1) 假想/条件语气被顶格 P0   2) context_rules 顺序遮蔽中性规则
+# 3) '重开前景未明'子串误判   4) 能源→加息预期→利空链缺失
+
+
+def test_hypothetical_hassett_not_major():
+    """假想语气(如果他身在美联储会降息) → 降级 P1·中度, 不顶格 P0 重大利多."""
+    a = _analyze("哈塞特称如果他身在美联储 会维持利率不变或降息")
+    assert a is not None
+    assert a["level"] == "P1"  # 修复前 P0
+    assert a["severity"] == "moderate"  # 修复前 major
+    assert a["direction"] == "bullish"  # 假想鸽派仍是弱利多, 方向保留
+    assert "假想" in a["impact"]
+
+
+def test_real_fed_cut_still_major():
+    """实际降息动作(非假想) → 不受假想守卫影响, 仍 P0 重大利多."""
+    a = _analyze("美联储宣布降息25个基点")
+    assert a is not None
+    assert a["level"] == "P0"
+    assert a["severity"] == "major"
+    assert "假想" not in a["impact"]
+
+
+def test_trader_watching_hormuz_agreement_neutral():
+    """'交易员关注霍尔木兹协议'(未达成) → 中性, 不被'协议'泛词误标利多."""
+    a = _analyze("开盘：美股小幅低开 交易员关注霍尔木兹海峡协议与通胀数据")
+    assert a is not None
+    assert a["direction"] == "neutral"  # 修复前 bullish·重大
+    assert a["severity"] == "minor"
+    assert "方向未定" in a["impact"]
+
+
+def test_hormuz_reopen_prospect_unclear_neutral():
+    """'霍尔木兹海峡重开前景未明' → 未落地中性, '重开'子串不误判'已重开利多'."""
+    a = _analyze("霍尔木兹海峡重开前景未明 欧洲天然气价格大涨")
+    assert a is not None
+    assert a["direction"] == "neutral"  # 修复前 bullish 且因果链与标题相矛盾
+    assert "方向未定" in a["impact"]
+
+
+def test_energy_pushing_hike_expectation_bearish():
+    """'能源价格飙升推高加息预期' → 利空 (修复前误判中性·轻度)."""
+    for t in [
+        "欧洲债市：德国国债和英国国债下跌 能源价格飙升推高加息预期",
+        "能源价格大涨推升加息预期 金价承压",
+    ]:
+        a = _analyze(t)
+        assert a is not None, t
+        assert a["direction"] == "bearish", t
+        assert "利空金价" in a["impact"], t

@@ -49,9 +49,19 @@ _NEGATION_PATTERNS: list[str] = [
 _PENDING_PATTERNS: list[str] = [
     r"等待.*明朗|等待.*结果|等待.*落地|等待.*进展|尚未.*达成|尚未.*签署|悬而未决",
     r"谈判.*进行中|谈判.*仍|仍在.*磋商|接近.*但.*未|等待.*谈判",
-    r"不确定|未定|待定|观望|静观",
+    r"不确定|未定|待定|观望|静观|前景未明|未明朗|尚不明朗|尚无定论|重开.*未明|重开.*未卜",
     # 方向矛盾信号: 协议已谈成但溢价回吐/利好出尽 = 短期利空 vs 长期利多对冲 → 中性
     r"溢价回吐|回吐|获利了结|利多出尽|利好兑现|sell.?the.?news|买预期卖事实",
+]
+
+# ── 假想/条件语气 (命中则降级, 2026-08-11) ──
+# 背景: '哈塞特称如果他身在美联储 会维持利率不变或降息' 命中裸'美联储.*降息'
+#       → 顶格 P0 重大利多. 但该句为白宫顾问的假想表态(非实际政策), 权重应大幅降低.
+# 形态: 如果/假设/倘若/或将 等条件词 + 政策动作; '或将/或会' 覆盖市场传闻/预测.
+_HYPOTHETICAL_PATTERNS: list[str] = [
+    r"如果.{0,24}?(?:会|将|则|或|应该|应当)",
+    r"假设|倘若|若.{0,10}?(?:会|将|则|或)",
+    r"或将|或会|或应|考虑.{0,8}?(?:降息|加息|购买|增持)",
 ]
 
 # ── 否定词 + 动作词 (全标题否定检测, 不依赖 matched_text 范围) ──
@@ -141,6 +151,14 @@ def _is_pending(title: str) -> bool:
     return any(re.search(pat, title) for pat in _PENDING_PATTERNS)
 
 
+def _is_hypothetical(title: str) -> bool:
+    """假想/条件语气 → 事件未落地, 降级权重 (如'如果他身在美联储会降息'=假设非政策).
+
+    仅降级程度/优先级, 不翻转方向 — 假想的鸽派表态仍是弱利多, 只是不该顶格 P0.
+    """
+    return any(re.search(pat, title) for pat in _HYPOTHETICAL_PATTERNS)
+
+
 # ── 高优先级关键词 → (结构化规则: 方向 + 程度 + 因果链 + 上下文修正) ──
 _HIGH_IMPACT_RULES: list[ImpactRule] = [
     # ═ 地缘冲突 ═
@@ -169,18 +187,20 @@ _HIGH_IMPACT_RULES: list[ImpactRule] = [
         severity="major",
         reason="霍尔木兹封锁→避险+供应危机→利多金价(若油价↑推升加息预期则远期承压)",
         context_rules=[
+            # 未落地/观望式标题 → 中性. 必须置于'协议/重开'泛词之前, 否则被遮蔽:
+            # '交易员关注霍尔木兹海峡协议' 仅'关注'未达成, 却先命中'协议'被误标 P0 利多 (2026-08-11)
+            ContextOverride(
+                r"(?:交易员|投资者|市场|交易商|机构).{0,24}?(?:等待|关注|观望|留意|紧盯|聚焦).{0,16}?霍尔木兹",
+                "neutral",
+                "minor",
+                "霍尔木兹局势未落地(等待/观望)→方向未定，等待明确信号",
+            ),
+            # 注: '重开'为子串泛词, '重开前景未明'会被 _is_pending 二次降级中性
             ContextOverride(
                 r"协议|达成|停火|缓和|重开|重放|开放|谈判.*进展|原则.*同意|签署|明朗",
                 "bullish",
                 "major",
                 "霍尔木兹协议/缓和→供应危机缓解→油价↓→通胀↓→降息预期↑→利多金价",
-            ),
-            # 无封锁/袭击动作词的"提及式"标题 → 不标利多, 交未落地/中性处理
-            ContextOverride(
-                r"(?:交易员|投资者|市场).*(?:等待|关注|观望|留意).*霍尔木兹",
-                "neutral",
-                "minor",
-                "霍尔木兹局势未落地(等待/观望)→方向未定，等待明确信号",
             ),
         ],
     ),
@@ -426,6 +446,20 @@ _HIGH_IMPACT_RULES: list[ImpactRule] = [
         direction="bullish",
         severity="moderate",
         reason="油价↓→通胀降温→加息压力↓→利多金价",
+    ),
+    # ═ 能源→加息预期→利空 (2026-08-11): '能源价格飙升推高加息预期' 应判利空,
+    #   此前仅命中欧洲能源中性规则 → 漏判利空链. 置于欧洲能源规则之前防被中性遮蔽.
+    ImpactRule(
+        pattern=(
+            r"(?:能源|天然气|油价|原油|石油|通胀).{0,12}?(?:推高|推升|飙升|加剧|升温|走高).{0,12}?加息预期"
+            r"|加息预期.{0,12}?(?:推高|推升|飙升|加剧|升温|走高|强化)"
+            r"|(?:推高|推升|飙升).{0,16}?加息预期"
+        ),
+        category="energy",
+        priority="P1",
+        direction="bearish",
+        severity="moderate",
+        reason="能源涨价→通胀预期↑→加息预期↑→实际利率↑→利空金价",
     ),
     # ═ 欧洲能源 (传导弱, 避免误判) ═
     ImpactRule(
@@ -818,6 +852,16 @@ def analyze_headlines(
                     severity = "minor"
                     impact = "事件方向未定(未落地或利多/利空对冲)，等待明确信号再评估"
 
+                # ── 假想/条件语气 → 降级权重 (2026-08-11: '如果他身在美联储会降息'
+                #    命中裸'美联储.*降息'被顶格 P0, 但属假设非实际政策) ──
+                level = rule.priority
+                if _is_hypothetical(title):
+                    if severity == "major":
+                        severity = "moderate"
+                    if level == "P0":
+                        level = "P1"
+                    # impact 前缀统一在 _finalize 加, 避免双重前缀
+
                 strict.append(
                     {
                         "title": title,
@@ -830,7 +874,7 @@ def analyze_headlines(
                         "direction": direction,
                         "severity": severity,
                         "impact": impact,
-                        "level": rule.priority,
+                        "level": level,
                     }
                 )
                 break
@@ -912,6 +956,14 @@ def analyze_headlines(
                 c["direction"] = "neutral"
                 c["severity"] = "minor"
                 c["impact"] = "事件方向未定(未落地或利多/利空对冲)，等待明确信号再评估"
+        # ── 假想/条件语气守卫: 覆盖 LLM 方向, 降级权重 (2026-08-11) ──
+        if _is_hypothetical(c["title"]):
+            if c.get("severity") == "major":
+                c["severity"] = "moderate"
+            if c.get("level") == "P0":
+                c["level"] = "P1"
+            if c.get("direction") in ("bullish", "bearish"):
+                c["impact"] = f"假想/条件表述(非实际政策动作), 权重降低: {c.get('impact', '')}"
         # ── 金价相关性兜底 (2026-08-10): AI 未生效时, 标题无任何金价维度 → 疑似无关, 丢弃 ──
         # 背景: 'XX公司与YY签署战略合作备忘录'等纯商业新闻命中泛词规则被误判 P0 利多.
         # 语义闸门(AI)不可用时由关键词相关性闸门兜底; AI 已裁决(含纯提及丢弃)则不再重复拦截.
