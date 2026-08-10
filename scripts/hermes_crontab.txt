@@ -70,6 +70,16 @@
 10 18 * * 1-5 cd /home/ubuntu/ai-gold-miner && python3 scripts/hermes_delivery_watchdog.py >> logs/delivery_watchdog.log 2>&1
 15 20 * * * cd /home/ubuntu/ai-gold-miner && python3 scripts/hermes_delivery_watchdog.py >> logs/delivery_watchdog.log 2>&1
 
+# ═══════════════════════════════════════════════════════════════
+# L1/V9/L1-A 计划级提醒 (2026-08-11 新增, Hermes cron job — 非系统crontab)
+# 脚本: gold_plan_alert.py — 结构牛三关/突破/降级/r010浮盈上移提醒, 空stdout静默
+# 注册命令 (Hermes cron, 投递微信):
+#   hermes cron create '0 20 * * 1-5'     --name '黄金·L1/V9计划级提醒(晚间)' --deliver weixin --no-agent --script gold_plan_alert.py --workdir /home/ubuntu/ai-gold-miner
+#   hermes cron create '*/30 9-17 * * 1-5' --name '黄金·L1计划盘中监控'      --deliver weixin --no-agent --script gold_plan_alert.py --workdir /home/ubuntu/ai-gold-miner
+# 盘中 job ID: 2550b053178f (晚间 job ID 以 hermes cron list 为准)
+# 说明: Hermes cron 独立于下方系统 crontab, 此记录仅作本地源文件
+# ═══════════════════════════════════════════════════════════════
+
 # ⚠️ 安装警告: 本文件只含黄金任务, 服务器 crontab 还有白泽等其他项目任务。
 # 全量安装 `crontab scripts/hermes_crontab.txt` 会覆盖它们 — 新增条目请用追加:
 #   (crontab -l; echo "新行") | crontab -
