@@ -305,12 +305,15 @@ def _build_profit_card(now: datetime, price: dict | None, check: dict) -> str:
     return "\n".join(lines)
 
 
-# ── 缺口2: S档快止损二次告警 (2026-08-11) ──
-# S协议 fast_stop = 成本 -8%. 触发后若未确认, 30分钟后再强提醒一次.
+# ── 缺口2: S档快止损持续推送 (2026-08-11) ──
+# S协议 fast_stop = 成本 -8%. 用户明确要求: 止损提醒不设冷却, 持续推送直到看到并处理.
+# 机制: 跌破止损位 → 每 _FAST_STOP_INTERVAL_MIN 分钟持续推送, 直到价格回到位上方.
+#   - 首次触发立即推送; 之后每 15 分钟重复 (用户要求: 需要处理就重复提醒, 不能用冷却压掉)
+#   - 价格回到位上方 → 自动停止 (客观解除, 无需用户操作)
 # 与 gold_stop_level_alert.py 的"四级止损提醒"互补: 那个覆盖 -5%/-10%/-30%;
-# 本脚本补上 S 档专属的 -8% 快止损 + 二次升级告警.
+# 本脚本补上 S 档专属的 -8% 快止损 + 持续升级告警.
 
-_FAST_STOP_ESCALATION_MIN = 30  # 初始告警后 N 分钟未确认 → 二次强提醒
+_FAST_STOP_INTERVAL_MIN = 15  # 跌破止损位后, 每 N 分钟持续推送一次 (用户要求: 直到处理)
 # S档快止损 = 成本 - fast_stop_pct% (fast_stop_pct 来自 portfolio s_protocol)
 _DEFAULT_FAST_STOP_PCT = 8.0
 
@@ -331,30 +334,35 @@ def _fast_stop_level(portfolio: dict | None) -> float | None:
 
 
 def _check_fast_stop_escalation(state: dict, portfolio: dict | None, jd: float) -> dict | None:
-    """S 档快止损: 现价 ≤ 成本-8% 时提醒; 首次告警后 30min 未确认 → 升级强提醒.
+    """S 档快止损持续推送: 现价 ≤ 成本-8% 时, 每 _FAST_STOP_INTERVAL_MIN 分钟推一次.
 
-    Returns: 告警卡片 dict 或 None (静默).
+    停止条件 (任一):
+      1. 现价回到止损位上方 (客观解除, 无需用户操作)
+      2. 用户已处理 (未来接入确认通道后可判 ack)
+    不设冷却上限 — 用户明确要求"需要处理就重复提醒, 直到看到并处理了".
+
+    Returns: 告警卡片 dict 或 None (未跌破位 / 未到推送间隔).
     """
     level = _fast_stop_level(portfolio)
     if level is None or jd > level:
-        return None
+        return None  # 未跌破位 → 静默
     last = state.get("last_alert", {}).get("fast_stop")
     if last is None:
-        # 首次触发
+        # 首次触发 → 立即推送 (escalated=False 首次提示)
         return {"level": level, "escalated": False, "last": None}
     try:
         last_dt = datetime.fromisoformat(last)
         age_min = (_now() - last_dt).total_seconds() / 60
     except Exception:
-        return {"level": level, "escalated": False, "last": None}
-    # 首次已提醒, 30 分钟内不再重复 (避免刷屏); 超过 30 分钟 → 升级强提醒
-    if age_min < _FAST_STOP_ESCALATION_MIN:
-        return None
+        return {"level": level, "escalated": True, "last": last}
+    # 已推送过 → 每 _FAST_STOP_INTERVAL_MIN 分钟持续重复 (升级提示), 直到处理
+    if age_min < _FAST_STOP_INTERVAL_MIN:
+        return None  # 未到下一次推送间隔
     return {"level": level, "escalated": True, "last": last}
 
 
 def _build_fast_stop_card(now: datetime, price: dict | None, level: float, escalated: bool) -> str:
-    head = "🔴🔴 S档快止损·未确认升级" if escalated else "🔴 S档快止损触发"
+    head = "🔴🔴 S档快止损·持续提醒" if escalated else "🔴 S档快止损触发"
     lines = [
         f"{head} | {now.strftime('%m/%d %H:%M')}",
         "━━━━━━━━━━━━━━━━━━━",
@@ -363,12 +371,12 @@ def _build_fast_stop_card(now: datetime, price: dict | None, level: float, escal
         lines.append(f"💰 积存金: ¥{price['price']:.2f} ({price['change_pct']:+.2f}%)")
     lines.append(f"🚨 已跌破 S 档快止损位 ¥{level:.2f} (成本 -8%)")
     if escalated:
-        lines.append("⏰ 首次告警后 30 分钟仍未确认! 请立即检查:")
+        lines.append("⏰ 每 15 分钟持续提醒中 — 处理前会一直推送:")
     lines.append("   → S 协议机会仓 -8% 快止损, 不拖到 -30% (r014)")
     lines.append("   → 若持仓为机会池激进仓: 无条件减仓/清仓")
     lines.append("   → 若为核心仓: 检查 ATR 移动止盈位是否已触发")
     lines.append("")
-    lines.append("💡 这是风险兜底的最后防线, 请尽快手动执行")
+    lines.append("💡 处理完或金价回到止损位上方后, 提醒自动停止")
     lines.append("")
     lines.append(f"🤖 S档止损告警 · {now.strftime('%H:%M')}")
     return "\n".join(lines)
