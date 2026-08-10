@@ -36,6 +36,7 @@ class _FakeSemantic:
 def _isolated_dedup(tmp_path, monkeypatch):
     """每次测试用独立的去重文件, 避免全局 /tmp 缓存污染; 默认禁用语义层."""
     monkeypatch.setattr(nm, "_DEDUP_FILE", tmp_path / "dedup.json")
+    monkeypatch.setattr(nm, "_AI_FALLBACK_STATE", tmp_path / "ai_fallback.json")
     monkeypatch.setattr(nm, "_semantic_analyzer", lambda: _DisabledSemantic())
     yield
 
@@ -599,3 +600,49 @@ def test_energy_pushing_hike_expectation_bearish():
         assert a is not None, t
         assert a["direction"] == "bearish", t
         assert "利空金价" in a["impact"], t
+
+
+# ── 2026-08-11: AI 判定可靠性 (用户反馈应调 AI 而非靠关键词) ──
+# A. 规则判定打标: AI 无返回时路由类目标记 ⚠️规则判定·LLM不可用
+# B. AI 健康告警: 回退超阈值推送健康告警, 防静默降级
+
+
+def test_rule_judged_tag_when_ai_unavailable():
+    """AI 无返回(回退关键词) → 路由类目(energy)告警标注 ⚠️规则判定·LLM不可用."""
+    title = "霍尔木兹海峡遭封锁 油轮触雷爆炸"
+    fake = _FakeSemantic({})  # classify_many 返回空 → AI 判定不可用
+    a = _analyze(title, semantic=fake)
+    assert a is not None
+    assert "⚠️规则判定" in a["impact"]
+
+
+def test_no_tag_when_ai_judges():
+    """AI 正常判定 → 不加规则判定标记."""
+    title = "霍尔木兹海峡遭封锁 油轮触雷爆炸"
+    fake = _FakeSemantic({
+        title: {
+            "direction": "bullish", "severity": "major", "priority": "P0",
+            "category": "energy",
+            "transmission_chain": "封锁→供应中断→避险利多", "confidence": 0.9,
+        },
+    })
+    a = _analyze(title, semantic=fake)
+    assert a is not None
+    assert "⚠️规则判定" not in a["impact"]
+
+
+def test_ai_health_warning_after_threshold(tmp_path, monkeypatch):
+    """AI 回退≥3 次(2h滑窗) → 返回健康告警; 窗口内限频不重复."""
+    now = nm.time.time()
+    for _ in range(nm._AI_FALLBACK_THRESHOLD):
+        nm._record_ai_fallback(now)
+    msg = nm._ai_health_warning(now)
+    assert "AI判定层" in msg
+    # 窗口内已告警 → 不再重复
+    assert nm._ai_health_warning(now) == ""
+
+
+def test_ai_health_silent_below_threshold(tmp_path, monkeypatch):
+    """AI 回退未达阈值 → 不告警."""
+    nm._record_ai_fallback(nm.time.time())
+    assert nm._ai_health_warning(nm.time.time()) == ""

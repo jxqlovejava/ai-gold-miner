@@ -37,6 +37,13 @@ _DEDUP_TTL = 21600  # 6 小时去重
 _NEWS_MAX_AGE = 7200  # 仅 2h 内新闻
 _MIN_KEYWORD_OVERLAP = 0.6  # 去重: 关键词重合度阈值
 
+# ── AI 判定层健康监控 (2026-08-11) ──
+# 背景: AI 层失败时静默回退关键词规则, 用户收到的是规则判定的低质量推送且无从分辨.
+# 方案: 记录回退事件到状态文件, 2h 滑窗内 ≥3 次 → 推送健康告警 + 规则判定条目打标.
+_AI_FALLBACK_STATE = Path("/tmp/gold_news_ai_fallback.json")
+_AI_FALLBACK_WINDOW = 7200  # 2h 滑窗
+_AI_FALLBACK_THRESHOLD = 3  # 2h 内回退次数阈值 → 告警
+
 # ── 否定句模式 (命中则跳过, 避免方向误判) ──
 _NEGATION_PATTERNS: list[str] = [
     r"(不会|没有|否认|排除|暂不|未必|难以|不太可能|推迟|搁置|取消|叫停)"
@@ -930,6 +937,12 @@ def analyze_headlines(
         except Exception:
             logger.exception("语义推理异常, 回退关键词规则")
             llm_results = {}
+    # AI 判定层健康监控: 有路由候选但 AI 零返回 → 本次判定退化 (记录, 超阈值推送告警)
+    if routed and not llm_results and getattr(analyzer, "enabled", False):
+        _record_ai_fallback()
+
+    # 本应交 AI 判定的标题 (路由类目或升级) — 无 LLM 结果 → 打规则判定标
+    routed_titles = {c2["title"] for c2 in routed}
 
     # ── Stage 3: 校验与降级, 生成最终告警 ──
     alerts: list[dict] = []
@@ -966,6 +979,10 @@ def analyze_headlines(
                 c["level"] = "P1"
             if c.get("direction") in ("bullish", "bearish"):
                 c["impact"] = f"假想/条件表述(非实际政策动作), 权重降低: {c.get('impact', '')}"
+        # ── 规则判定打标 (2026-08-11): 本应交 AI 判定但 AI 无返回 → 标注质量,
+        #    让用户分辨推送是 AI 判定还是关键词兜底 (事故: AI 挂时收到规则判定误判推送) ──
+        if llm is None and c["title"] in routed_titles:
+            c["impact"] = (c.get("impact") or "") + " ⚠️规则判定·LLM不可用"
         # ── 金价相关性兜底 (2026-08-10): AI 未生效时, 标题无任何金价维度 → 疑似无关, 丢弃 ──
         # 背景: 'XX公司与YY签署战略合作备忘录'等纯商业新闻命中泛词规则被误判 P0 利多.
         # 语义闸门(AI)不可用时由关键词相关性闸门兜底; AI 已裁决(含纯提及丢弃)则不再重复拦截.
@@ -1011,6 +1028,50 @@ def analyze_headlines(
     # 排序: P0 在前, 同类归组
     alerts.sort(key=lambda a: (0 if a["level"] == "P0" else 1, a.get("category", "")))
     return alerts
+
+
+def _record_ai_fallback(now: float = time.time()) -> None:
+    """记录一次 AI 判定层回退 (2h 滑窗内计数).
+
+    在 analyze_headlines 中 AI 被咨询但无返回时调用.
+    """
+    try:
+        data: dict = {"events": [], "last_warned": None}
+        if _AI_FALLBACK_STATE.exists():
+            data = json.loads(_AI_FALLBACK_STATE.read_text())
+        events = [e for e in data.get("events", []) if now - e < _AI_FALLBACK_WINDOW]
+        events.append(now)
+        data["events"] = events
+        _AI_FALLBACK_STATE.write_text(json.dumps(data))
+    except Exception:
+        pass
+
+
+def _ai_health_warning(now: float = time.time()) -> str:
+    """AI 回退超阈值 → 返回健康告警文本 (每窗口限频一条, 防止刷屏).
+
+    由 run_news_check 调用: 即使无新闻也推送, 让用户知晓当前推送为规则判定.
+    """
+    try:
+        if not _AI_FALLBACK_STATE.exists():
+            return ""
+        data = json.loads(_AI_FALLBACK_STATE.read_text())
+        events = [e for e in data.get("events", []) if now - e < _AI_FALLBACK_WINDOW]
+        if len(events) < _AI_FALLBACK_THRESHOLD:
+            return ""
+        last = data.get("last_warned")
+        if last and now - last < _AI_FALLBACK_WINDOW:
+            return ""  # 本窗口已告警过
+        data["last_warned"] = now
+        _AI_FALLBACK_STATE.write_text(json.dumps(data))
+        minutes = int((now - min(events)) / 60) if events else 0
+        return (
+            f"⚠️ AI判定层异常: 近2h {len(events)} 次回退关键词规则"
+            f"(持续约{minutes}分钟). 当前突发新闻推送为规则判定, 质量下降."
+            f"请检查 LLM_API_KEY 与 DeepSeek 服务."
+        )
+    except Exception:
+        return ""
 
 
 def _load_dedup() -> dict[str, float]:
@@ -1125,4 +1186,11 @@ def run_news_check() -> str:
 
     headlines = fetch_gold_headlines()
     alerts = analyze_headlines(headlines, gold_change_pct=gold_change)
-    return format_news_alerts(alerts, gold_price=gold_price, gold_change=gold_change)
+    message = format_news_alerts(alerts, gold_price=gold_price, gold_change=gold_change)
+
+    # AI 判定层健康告警 (2026-08-11): 回退超阈值 → 即使无新闻也推送,
+    # 让用户知晓当前推送为规则判定, 避免静默降级 (事故: 8/10晚 5 条规则判定误判推送).
+    health = _ai_health_warning()
+    if health:
+        message = f"{message}\n\n{health}" if message else health
+    return message
