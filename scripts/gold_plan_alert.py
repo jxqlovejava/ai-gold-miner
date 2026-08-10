@@ -345,6 +345,9 @@ def _check_fast_stop_escalation(state: dict, portfolio: dict | None, jd: float) 
     """
     level = _fast_stop_level(portfolio)
     if level is None or jd > level:
+        # 价格回到位上方 → 清除推送状态, 下次跌破重新从首次触发开始 (OCR#1)
+        if state.get("last_alert", {}).pop("fast_stop", None) is not None:
+            _save_state(state)
         return None  # 未跌破位 → 静默
     last = state.get("last_alert", {}).get("fast_stop")
     if last is None:
@@ -354,7 +357,8 @@ def _check_fast_stop_escalation(state: dict, portfolio: dict | None, jd: float) 
         last_dt = datetime.fromisoformat(last)
         age_min = (_now() - last_dt).total_seconds() / 60
     except Exception:
-        return {"level": level, "escalated": True, "last": last}
+        # state 时间戳损坏 → 按首次触发起步, 不误判为持续提醒 (OCR#2)
+        return {"level": level, "escalated": False, "last": None}
     # 已推送过 → 每 _FAST_STOP_INTERVAL_MIN 分钟持续重复 (升级提示), 直到处理
     if age_min < _FAST_STOP_INTERVAL_MIN:
         return None  # 未到下一次推送间隔
