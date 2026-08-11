@@ -38,6 +38,7 @@
   - 如果是新增监控脚本（如 `adaptive_gold_monitor.py`、`overnight_news_scanner.py`、`evening_event_preview.py` 等），部署后需用 `hermes cron create` 在服务器上注册对应的 Hermes cron job。
   - 部署完成后输出部署清单：同步了哪些文件、新增/更新了哪些 cron job。
 - **自主修Bug**：运行过程中发现系统 Bug 或错误（如导入报错、脚本异常、数据格式不匹配等），应尝试自行修复，而非仅报告错误等待用户指示。修复后继续原任务流程。
+- **配置不入库**：服务器配置（Hermes 配置 `data/private/hermes_config.sh`、证书等）一律保存到 `data/private/` 目录，GitHub 提交时不得提交（`.gitignore` 已覆盖 `data/private/`）。
 
 ### 日期查询硬规则
 
@@ -105,6 +106,11 @@
 2. **禁止"写文件再概述"模式** — `Write` 工具保存报告到文件是持久化手段，不是输出的替代品。控制台必须逐步骤展示完整内容，文件是额外保存。
 3. **正确流程**：执行命令获取数据 → 控制台输出该步骤表格/分析 → 下一步 → ... → 全部完成后，最后 `Write` 到文件归档。
 4. **错误流程**：执行命令获取数据 → 静默处理 → `Write` 完整报告到文件 → 控制台给摘要 ❌
+
+### 🔴 固定报告格式 + 本地 HTML（2026-08-11 起）
+
+1. **格式固定** — 每次金价分析报告必须遵循 [`docs/report_template.md`](docs/report_template.md) 的板块顺序与空态规则：每个板块必须输出标题，无数据写「（本期无触发）」，不得自行增删板块。参考 [SKILL.md](.claude/skills/gold-analysis-pipeline/SKILL.md) 输出铁律 6。
+2. **本地 HTML** — 分析输出完后运行 `python3 scripts/render_report_html.py`，生成 `data/output/金价分析_YYYY-MM-DD.html`，并在终端末尾附 `file://{绝对路径}`，复制即可浏览器打开。
 
 ### 🔴 命令代码行不进入报告正文
 
