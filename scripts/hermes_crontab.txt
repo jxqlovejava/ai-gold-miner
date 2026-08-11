@@ -81,6 +81,22 @@
 # 说明: Hermes cron 独立于下方系统 crontab, 此记录仅作本地源文件
 # ═══════════════════════════════════════════════════════════════
 
+# ═══════════════════════════════════════════════════════════════
+# 🔴 Hermes cron job 必须设 --workdir /home/ubuntu/ai-gold-miner (2026-08-11)
+# 事故: 突发新闻预警持续"⚠️规则判定·LLM不可用" — 根因是 job 未设 workdir,
+#   脚本从 Hermes 守护进程 CWD (~/.hermes) 启动, config.py 相对 ".env" 找不到
+#   → LLM_API_KEY 空 → 语义分析器静默禁用 → 路由新闻全部退化为规则判定.
+# 涉及 job (均已修复, 重新注册/新增时务必带 --workdir):
+#   黄金哨兵-突发新闻(日间/夜间) gold_news.py
+#   黄金哨兵-盘前简报 gold_briefing.py / 周报 gold_weekly.py
+#   黄金·盘前新闻扫描 gold_overnight_news.py / 日历提醒 gold_calendar.py
+# 正确注册示例:
+#   hermes cron create '1,11,21,31,41,51 9-23 * * 1-5' --name '黄金哨兵-突发新闻(日间)' \
+#     --deliver weixin --no-agent --script gold_news.py --workdir /home/ubuntu/ai-gold-miner
+# 说明: config.py env_file 已改绝对路径(不依赖 CWD)作双保险; 但 workdir 仍需保留,
+#   因为它还决定 data/ 等相对路径的解析.
+# ═══════════════════════════════════════════════════════════════
+
 # ⚠️ 安装警告: 本文件只含黄金任务, 服务器 crontab 还有白泽等其他项目任务。
 # 全量安装 `crontab scripts/hermes_crontab.txt` 会覆盖它们 — 新增条目请用追加:
 #   (crontab -l; echo "新行") | crontab -
