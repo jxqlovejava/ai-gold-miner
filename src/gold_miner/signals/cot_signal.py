@@ -24,13 +24,67 @@ class CotSignalGenerator:
         self.fetcher = CotReportFetcher()
 
     def generate_signals(self) -> list[Signal]:
-        """生成所有COT相关信号."""
+        """生成所有COT相关信号.
+
+        方案A去重 (2026-08-11): 趋势信号与同向 aligned 分歧信号合并, 避免
+        「非商业净多变化」这一底层事实被两个信号重复加权 (事故: 同日同向
+        输出 聪明钱减仓 -0.80 + 一致看空 -0.30, 同一事实计两次)。
+        """
         signals: list[Signal] = []
-        signals.extend(self._trend_signals())
+        trend = self._trend_signals()
+        divergence = self._divergence_signals()
+        signals.extend(self._merge_trend_and_divergence(trend, divergence))
         signals.extend(self._extreme_signals())
-        signals.extend(self._divergence_signals())
         signals.extend(self._structure_signals())
         return signals
+
+    @staticmethod
+    def _merge_trend_and_divergence(
+        trend_signals: list[Signal],
+        divergence_signals: list[Signal],
+    ) -> list[Signal]:
+        """合并趋势信号与分歧信号, 消除同一底层事实的重复加权.
+
+        规则 (方案A):
+        - 存在趋势信号 且 分歧信号为 aligned_* 且方向同向 → 商业确认合并进
+          趋势信号 (提分 + 追加描述), 不单独发分歧信号;
+        - 分歧信号为 divergence_* (商业端与聪明钱背离, 方向相反, 携带独立
+          信息) 或 趋势信号缺失 → 分歧信号独立触发。
+
+        趋势信号基于 4 周趋势, 分歧信号基于最近 1 期对比, 二者可能在
+        「趋势 bearish 但最新一期转多」等情形下方向相反 —— 此时保留双方
+        作为有效冲突信号, 不合并。
+        """
+        if not trend_signals:
+            return list(divergence_signals)
+
+        trend = trend_signals[0]  # 趋势信号至多 1 个 (up/down 互斥分支)
+        merged: list[Signal] = [trend]
+
+        for div in divergence_signals:
+            is_aligned = div.metadata.get("pattern", "").startswith("aligned_")
+            if is_aligned and div.direction == trend.direction:
+                new_score = max(-0.95, min(0.95, trend.score + div.score))
+                merged = [Signal(
+                    name=trend.name,
+                    dimension=trend.dimension,
+                    direction=trend.direction,
+                    strength=trend.strength,
+                    score=round(new_score, 2),
+                    description=(
+                        f"{trend.description}; 商业套保同向确认 "
+                        f"({div.description})"
+                    ),
+                    metadata={
+                        **trend.metadata,
+                        "merged_divergence": div.name,
+                        "commercial_confirmation": True,
+                    },
+                )]
+            else:
+                # divergence_* 背离 (方向相反) → 独立触发, 保留独立信息
+                merged.append(div)
+        return merged
 
     def _structure_signals(self) -> list[Signal]:
         """持仓结构三段式信号 — 总持仓出清 / 空头投降 / 多头回归.
