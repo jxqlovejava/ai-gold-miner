@@ -61,6 +61,17 @@ li { margin: 4px 0; font-size: 13px; }
 .warn { color: var(--red); font-weight: 600; }
 .amber { color: #9a6a00; font-weight: 600; }
 hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+pre { background: #f5f1e6; border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; overflow-x: auto; font-size: 12px; margin: 8px 0 16px; white-space: pre; }
+.decision-card { background: linear-gradient(135deg, #faf6ec 0%, #f4e9c8 100%); border: 2px solid var(--gold); border-radius: var(--radius); padding: 18px 20px; }
+.decision-main { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.decision-label { font-size: 13px; color: var(--gold-dark); font-weight: 600; letter-spacing: 1px; }
+.decision-value { font-size: 30px; font-weight: 800; color: var(--gold-dark); line-height: 1.2; }
+.decision-meta { display: flex; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.decision-meta span { background: rgba(212,160,23,0.14); padding: 2px 10px; border-radius: 20px; }
+.decision-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-top: 14px; }
+.df-item { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; }
+.df-label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+.df-value { font-size: 14px; font-weight: 600; }
 footer { text-align: center; color: #aaa; font-size: 12px; margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--border); }
 @media (max-width: 600px) { .hero h1 { font-size: 21px; } .section { padding: 16px; } table { font-size: 12px; } th, td { padding: 6px 8px; } }
 """
@@ -138,6 +149,63 @@ def _list_block(prefix: str, lines: list[str]) -> str:
     return f"<{tag}>" + "".join(items) + f"</{tag}>"
 
 
+_ASCII_BOX_CHARS = ("┌", "├", "└", "│")
+
+
+def _ascii_table_block(lines: list[str]) -> str:
+    """ASCII 框线表格 (┌│└ 字符画) → <table>.
+
+    来源: SignalBundle.format_dimension_table() 等程序化输出.
+    识别规则: 分隔行 (以 ┌/├/└ 开头) 跳过; 数据行 (以 │ 开头) 按 │ 切分.
+    第一组数据行是表头 (分隔行 ├ 之前).
+    """
+    header: list[str] | None = None
+    rows: list[list[str]] = []
+    for ln in lines:
+        s = ln.strip()
+        if not s or not s.startswith("│"):
+            continue  # 分隔行/空行跳过
+        cells = [c.strip() for c in s.strip("│").split("│")]
+        if header is None:
+            header = cells
+        else:
+            rows.append(cells)
+    if header is None:
+        return "<pre><code>" + html.escape("\n".join(lines)) + "</code></pre>"
+
+    thead = "".join(f"<th>{_inline(h)}</th>" for h in header)
+    body = ""
+    for row in rows:
+        body += "<tr>" + "".join(f"<td>{_inline(c)}</td>" for c in row) + "</tr>"
+    return f"<table><thead><tr>{thead}</tr></thead><tbody>{body}</tbody></table>"
+
+
+_DECISION_H2_RE = re.compile(
+    r"^##\s+📌\s*决策:\s*\*\*(.+?)\*\*\s*(?:\|\s*(.+?))?\s*$"
+)
+
+
+def _decision_card(value: str, meta: str, fields: list[tuple[str, str]]) -> str:
+    """决策摘要卡片: 突出决策值, 附评分/置信度 + 建议仓位/止损/止盈字段."""
+    meta_parts = [p.strip() for p in meta.split("|") if p.strip()]
+    meta_html = "".join(f"<span>{_inline(p)}</span>" for p in meta_parts)
+    fields_html = ""
+    if fields:
+        items = "".join(
+            f'<div class="df-item"><span class="df-label">{_inline(lbl)}</span>'
+            f'<span class="df-value">{_inline(val)}</span></div>'
+            for lbl, val in fields
+        )
+        fields_html = f'<div class="decision-fields">{items}</div>'
+    return (
+        '<div class="decision-card"><div class="decision-main">'
+        f'<span class="decision-label">📌 决策</span>'
+        f'<span class="decision-value">{_inline(value)}</span>'
+        f'<div class="decision-meta">{meta_html}</div></div>'
+        f"{fields_html}</div>"
+    )
+
+
 def _md_to_html(md: str) -> list[str]:
     """把 markdown 逐块解析为 HTML 片段列表 (每个 section 一个元素).
 
@@ -177,6 +245,26 @@ def _md_to_html(md: str) -> list[str]:
                 quote_lines.append(lines[i][1:].strip())
                 i += 1
             blocks.append(f"<blockquote>{_inline(' '.join(quote_lines))}</blockquote>")
+            continue
+
+        # 决策摘要卡片: "## 📌 决策: **持有** | 综合评分 +0.26 | 置信度 72%"
+        # 解析决策值 + meta, 并吞掉后续 "建议仓位:/止损:/止盈:" 字段行 → 决策卡片
+        dm = _DECISION_H2_RE.match(ln.strip())
+        if dm:
+            value = dm.group(1).strip()
+            meta = dm.group(2) or ""
+            i += 1
+            fields: list[tuple[str, str]] = []
+            while i < n:
+                fld = lines[i].strip()
+                if not fld:
+                    break  # 空行结束字段区
+                fm = re.match(r"^(.+?):\s+(.+)$", fld)
+                if not fm:
+                    break
+                fields.append((fm.group(1).strip(), fm.group(2).strip()))
+                i += 1
+            blocks.append(_decision_card(value, meta, fields))
             continue
 
         # 标题
@@ -237,6 +325,31 @@ def _md_to_html(md: str) -> list[str]:
             blocks.append(_table_block(table_lines))
             continue
 
+        # 代码块: ``` 围栏 → ASCII 框线表格渲染为表格, 其余 <pre><code>
+        if ln.strip().startswith("```"):
+            code_lines = []
+            i += 1
+            while i < n and not lines[i].strip().startswith("```"):
+                code_lines.append(lines[i])
+                i += 1
+            i += 1  # 跳过结束围栏
+            if code_lines and code_lines[0].strip().startswith(_ASCII_BOX_CHARS):
+                blocks.append(_ascii_table_block(code_lines))
+            else:
+                blocks.append(
+                    f"<pre><code>{html.escape(chr(10).join(code_lines))}</code></pre>"
+                )
+            continue
+
+        # 裸 ASCII 框线表格 (无 ``` 围栏)
+        if ln.strip().startswith(_ASCII_BOX_CHARS):
+            ascii_lines = []
+            while i < n and lines[i].strip().startswith(_ASCII_BOX_CHARS):
+                ascii_lines.append(lines[i])
+                i += 1
+            blocks.append(_ascii_table_block(ascii_lines))
+            continue
+
         # 段落 (排除列表/标题/块引用/表格起始行, 避免吞并后续列表项)
         # 注意: 排除正则要求列表前缀后跟空白 ([-*]\s 或 ✓✗\s 或 数字.\s),
         # 避免把 **粗体** (以 * 开头但非 * 空格) 误排除
@@ -295,11 +408,13 @@ def render(md: str, out_path: Path) -> Path:
 
     for idx, ln in enumerate(lines):
         stripped = ln.strip()
+        if not stripped:
+            continue  # 跳过空行 (标题与引文之间可能有空行)
         if stripped.startswith("# ") and title == "金价分析报告":
             title = stripped[2:].strip()
         elif stripped.startswith(">"):
             quote = stripped[1:].strip()
-            # 解析 "积存金 **¥958.81** | 国际 $4408/oz" → 拆成 status items
+            # 解析 "积存金 **¥958.81** | 国际 $4408/oz | 净保本 ¥894.38" → 拆成 status items
             parts = [p.strip() for p in quote.split("|")]
             for part in parts:
                 if part.startswith("积存金"):

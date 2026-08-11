@@ -140,3 +140,78 @@ def test_bold_table_cell_not_excluded():
     html_out = "".join(blocks)
     assert "<table>" in html_out
     assert "<strong>非农</strong>" in html_out
+
+
+def test_decision_h2_rendered_as_card():
+    """回归: '## 📌 决策:' 标题 + 建议仓位/止损/止盈 字段 → 决策卡片 (不再挤成段落)."""
+    blocks = r._md_to_html(
+        "## 📌 决策: **持有** | 综合评分 +0.26 | 置信度 72%\n"
+        "建议仓位: 6%（维持现状，不追涨）\n"
+        "止损: ATR 浮盈轨 911.64（未触发）\n"
+        "止盈: —（核心池仅 ATR 移动止盈）\n\n"
+        "**核心结论**：持有"
+    )
+    html_out = "".join(blocks)
+    assert "decision-card" in html_out
+    assert '<span class="decision-value">持有</span>' in html_out
+    # meta 拆分
+    assert "综合评分 +0.26" in html_out
+    assert "置信度 72%" in html_out
+    # 三个字段独立成 df-item, 不被段落合并
+    assert html_out.count("df-item") == 3
+    assert "建议仓位" in html_out and "止损" in html_out and "止盈" in html_out
+    # 决策值不再出现在 h2 (裸 | 消失)
+    assert "<h2>📌 决策:" not in html_out
+
+
+def test_ascii_table_rendered_as_html_table():
+    """回归: SignalBundle.format_dimension_table() 的 ASCII 框线表格 → <table>."""
+    ascii_tbl = (
+        "┌──────────┬────────┬──────┐\n"
+        "│ 维度     │ 方向   │ 均分 │\n"
+        "├──────────┼────────┼──────┤\n"
+        "│ event    │ 🟢 看多│ +0.58 │\n"
+        "│ technical│ 🔴 看空│ -0.12 │\n"
+        "└──────────┴────────┴──────┘"
+    )
+    blocks = r._md_to_html(ascii_tbl)
+    html_out = "".join(blocks)
+    assert "<table>" in html_out
+    assert "<th>维度</th>" in html_out
+    assert "<td>event</td>" in html_out
+    assert "<span class=\"ok\">🟢</span>" in html_out  # 图标仍彩色
+    # ASCII 框线字符不进入输出
+    assert "┌" not in html_out and "│" not in html_out
+
+
+def test_ascii_table_in_fence_rendered_as_table():
+    """回归: ``` 围栏内 ASCII 表格 → 表格而非 <pre>."""
+    md = "```\n┌──┬──┐\n│ a│ b │\n└──┴──┘\n```"
+    html_out = "".join(r._md_to_html(md))
+    assert "<table>" in html_out
+    assert "<pre>" not in html_out
+
+
+def test_code_fence_non_table_rendered_as_pre():
+    """普通代码围栏 → <pre><code>, 不被段落空格折叠."""
+    md = "```\nPYTHONPATH=src python3 scan\n```"
+    html_out = "".join(r._md_to_html(md))
+    assert "<pre><code>" in html_out
+    assert "PYTHONPATH=src" in html_out
+
+
+def test_quote_after_blank_line_still_consumed_as_status(tmp_path):
+    """回归: 标题与行情引文之间有空行时, 引文仍应消费为 status-bar, 不残留 blockquote."""
+    md = (
+        "# 🥇 金价完整分析 · 2026-08-11\n\n"
+        "> 积存金 **¥947.26** | 国际 $4362.81/oz | 净保本 ¥894.38\n\n"
+        "## 后续关注\n内容"
+    )
+    out = tmp_path / "r.html"
+    r.render(md, out)
+    content = out.read_text(encoding="utf-8")
+    assert "class=\"status-bar\"" in content
+    assert "¥947.26" in content
+    assert "净保本 ¥894.38" in content
+    # 引文不再作为 blockquote 重复出现在正文
+    assert "<blockquote>" not in content
