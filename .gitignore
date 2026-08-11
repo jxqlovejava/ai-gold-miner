@@ -37,6 +37,9 @@ data/*.jsonl
 # Reports (generated, may contain personal data)
 data/reports/
 
+# Runtime logs (regenerated every run, no longer tracked)
+logs/
+
 # Personal (sensitive) - keep for backward compat, but also covered by data/private/
 investor_profile.md
 data/personal_rules.md
