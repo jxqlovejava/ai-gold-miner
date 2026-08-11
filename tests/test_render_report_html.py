@@ -215,3 +215,24 @@ def test_quote_after_blank_line_still_consumed_as_status(tmp_path):
     assert "净保本 ¥894.38" in content
     # 引文不再作为 blockquote 重复出现在正文
     assert "<blockquote>" not in content
+
+
+def test_key_block_rendered_for_label_paragraph():
+    """回归: '**核心结论**：...' 定性段 → 金边高亮块, 不再是无层次的长段落."""
+    blocks = r._md_to_html(
+        "**核心结论**：今日金价**冲高回落**，950 关口得而复失。**结论：持有观望，不追涨。**"
+    )
+    html_out = "".join(blocks)
+    assert "key-block" in html_out
+    assert '<div class="key-tag">📌 核心结论</div>' in html_out
+    assert "<p>" not in html_out  # 不再作为普通段落
+    assert "<strong>冲高回落</strong>" in html_out
+    assert "<strong>结论：持有观望，不追涨。</strong>" in html_out
+
+
+def test_plain_bold_paragraph_not_key_block():
+    """无冒号的加粗段落 (如 '**多空性质对比**') 不应误判为高亮块."""
+    blocks = r._md_to_html("**多空性质对比**\n- 多头论据\n- 空头论据")
+    html_out = "".join(blocks)
+    assert "key-block" not in html_out
+    assert "<strong>多空性质对比</strong>" in html_out

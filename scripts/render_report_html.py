@@ -72,6 +72,9 @@ pre { background: #f5f1e6; border: 1px solid var(--border); border-radius: 8px; 
 .df-item { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; }
 .df-label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 2px; }
 .df-value { font-size: 14px; font-weight: 600; }
+.key-block { background: linear-gradient(135deg, #fffdf5 0%, #fdf3d7 100%); border-left: 4px solid var(--gold); border-radius: 0 8px 8px 0; padding: 14px 18px; margin: 12px 0; }
+.key-tag { font-size: 13px; font-weight: 700; color: var(--gold-dark); margin-bottom: 6px; letter-spacing: 1px; }
+.key-body { font-size: 13px; line-height: 1.8; }
 footer { text-align: center; color: #aaa; font-size: 12px; margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--border); }
 @media (max-width: 600px) { .hero h1 { font-size: 21px; } .section { padding: 16px; } table { font-size: 12px; } th, td { padding: 6px 8px; } }
 """
@@ -203,6 +206,20 @@ def _decision_card(value: str, meta: str, fields: list[tuple[str, str]]) -> str:
         f'<span class="decision-value">{_inline(value)}</span>'
         f'<div class="decision-meta">{meta_html}</div></div>'
         f"{fields_html}</div>"
+    )
+
+
+_KEY_BLOCK_RE = re.compile(r"^\*\*(.+?)\*\*[:：]\s*(.*)$")
+
+
+def _key_block(tag: str, body: str) -> str:
+    """金边高亮块: '**核心结论**：...' 定性段落 → 醒目卡片.
+
+    解决长段落无层次问题 (核心结论/关键定性等), 标签 + 正文分层.
+    """
+    return (
+        f'<div class="key-block"><div class="key-tag">📌 {_inline(tag)}</div>'
+        f'<div class="key-body">{_inline(body)}</div></div>'
     )
 
 
@@ -363,7 +380,20 @@ def _md_to_html(md: str) -> list[str]:
             para_lines.append(lines[i])
             i += 1
         if para_lines:
-            blocks.append(f"<p>{_inline(' '.join(p.strip() for p in para_lines))}</p>")
+            first = para_lines[0].strip()
+            km = _KEY_BLOCK_RE.match(first)
+            if km:
+                # 定性段 "**核心结论**：正文" → 金边高亮块 (后续行并入正文)
+                tag = km.group(1)
+                body = km.group(2)
+                rest = " ".join(p.strip() for p in para_lines[1:])
+                if rest:
+                    body = (body + " " + rest).strip()
+                blocks.append(_key_block(tag, body))
+            else:
+                blocks.append(
+                    f"<p>{_inline(' '.join(p.strip() for p in para_lines))}</p>"
+                )
             continue
 
         i += 1
