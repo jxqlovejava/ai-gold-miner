@@ -9,9 +9,19 @@
   48-72h → weight=0.5  影响递减中
   3-7d   → weight=0.3  已基本定价，仅作背景参考
   >7d    → 不纳入
+
+初请/续请失业金方向判定 (2026-08-11 增强):
+  初请是反向指标 — 申请人数低 = 劳动力强 = 偏鹰 = 利空黄金。
+  但「劳动力稳健」不能只看与预期的差距，必须综合:
+    1. 预期差 (低于预期 → 偏鹰)
+    2. 环比涨幅 (环比上升 = 边际恶化 → 利多, 抵消"低于预期"的鹰派解读)
+    3. 分母幻觉 (参与率下降时, 低初请部分反映退出者不再申领, 不代表雇佣强劲)
+  参见 _infer_claims_direction。
 """
 
 from __future__ import annotations
+
+import re
 
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta, timezone
@@ -58,6 +68,7 @@ def _infer_direction_from_event(
     name: str,
     actual: str,
     forecast: str | None,
+    previous: str | None = None,
     gold_bias: str | None = None,
 ) -> tuple[SignalDirection, str | None]:
     """根据事件实际结果推断对金价的信号方向.
@@ -66,13 +77,18 @@ def _infer_direction_from_event(
       1. 写入时同步判定的 gold_bias (信息最全处的显式判断, 覆盖组合语义/指标极性)
       2. 关键词匹配 fallback (快速推断, 复杂判断由 AI 分析补充)
 
+    初请/续请类事件优先走 _infer_claims_direction 综合判定 (预期差+环比+分母幻觉),
+    而非裸关键词 — 裸关键词会漏判环比方向 (事故 2026-08-11)。
+
     两者都存在且关键词给出非中性的相反方向时, 返回冲突说明 — 调用方应生成
     待复核告警信号, 把隐性误判变成显性告警 (事故见 .learnings/2026-08-10)。
 
     Returns:
         (direction, conflict_note): conflict_note 为 None 表示无冲突。
     """
-    keyword_direction = _infer_direction_by_keywords(actual)
+    keyword_direction = _infer_claims_direction(name, actual, forecast, previous)
+    if keyword_direction is None:
+        keyword_direction = _infer_direction_by_keywords(actual)
 
     explicit: SignalDirection | None = None
     if gold_bias in ("bullish", "bearish", "neutral"):
@@ -91,6 +107,98 @@ def _infer_direction_from_event(
             f"以写入判定为准, 但需人工复核 actual 表述是否误导"
         )
     return explicit, conflict
+
+
+# ---------------------------------------------------------------------------
+# 初请/续请失业金综合方向判定 (2026-08-11 新增)
+# ---------------------------------------------------------------------------
+
+_CLAIMS_MARKERS = ("初请", "续请", "失业金", "claims", "jobless")
+
+_DENOMINATOR_MARKERS = ("参与率", "退出", "劳动力市场萎缩", "分母", "退出劳动")
+
+
+def _is_claims_event(name: str) -> bool:
+    """判断事件是否为初请/续请失业金类 (反向指标)."""
+    return any(m in name.lower() for m in _CLAIMS_MARKERS)
+
+
+def _extract_number(text: str | None) -> float | None:
+    """从文本中提取首个数字 (支持 '19.9万'/'208K'/'19.9' 等)."""
+    if not text:
+        return None
+    m = re.search(r"(\d+(?:\.\d+)?)\s*[万Kk]?", text)
+    if not m:
+        return None
+    return float(m.group(1))
+
+
+def _infer_claims_direction(
+    name: str,
+    actual: str,
+    forecast: str | None,
+    previous: str | None,
+) -> SignalDirection | None:
+    """初请/续请失业金综合方向判定 — 反向指标的完整推导.
+
+    初请是反向指标: 申请人数低 = 劳动力强 = 偏鹰 = 利空黄金 (bearish)。
+    但「劳动力稳健」的判定不能只看与预期的差距, 必须综合三个维度:
+
+      1. 预期差 (actual vs forecast):
+         - 低于预期 → 就业强 → 偏鹰 → bearish
+         - 高于预期 → 就业弱 → 偏鸽 → bullish
+      2. 环比涨幅 (actual vs previous):
+         - 环比上升 → 边际恶化 → 利多黄金 (抵消"低于预期"的鹰派解读)
+         - 环比下降 → 边际改善 → 利空黄金
+      3. 分母幻觉 (参与率下降):
+         - 参与率下降导致初请低, 不代表雇佣强劲 → 削弱 bearish 权重
+
+    返回 None 表示非初请事件或无法解析数字, 调用方回退通用关键词路径。
+
+    Args:
+        name: 事件名称
+        actual: 实际结果文本
+        forecast: 预期值 (可含单位, 如 "20.2万")
+        previous: 前值 (可含单位, 如 "19.8万")
+    """
+    if not _is_claims_event(name):
+        return None
+
+    a = _extract_number(actual)
+    f = _extract_number(forecast)
+    p = _extract_number(previous)
+    if a is None:
+        return None
+
+    # 反向指标基线: 预期差方向
+    base_dir: SignalDirection | None = None
+    if f is not None and f > 0:
+        base_dir = (
+            SignalDirection.BEARISH if a < f
+            else SignalDirection.BULLISH if a > f
+            else None
+        )
+
+    # 分母幻觉: 参与率下降/退出劳动力市场 → 削弱 bearish
+    denominator_illusion = any(m in actual.lower() for m in _DENOMINATOR_MARKERS)
+
+    # 综合判定
+    if p is not None and p > 0:
+        if a > p:
+            # 环比上升 = 边际恶化 → 利多黄金, 与"低于预期"的鹰派解读对冲
+            if denominator_illusion:
+                return SignalDirection.BULLISH  # 环比升 + 分母幻觉 → 明确利多
+            if base_dir is SignalDirection.BEARISH:
+                return SignalDirection.NEUTRAL  # 低于预期但环比升 → 对冲
+            return SignalDirection.BULLISH
+        if a < p:
+            # 环比下降 = 边际改善 → 利空黄金
+            return SignalDirection.BEARISH if base_dir is not SignalDirection.BULLISH else SignalDirection.NEUTRAL
+
+    # 无 previous (无法判环比) 时退化为预期差判定
+    if denominator_illusion and base_dir is SignalDirection.BEARISH:
+        return SignalDirection.NEUTRAL  # 分母幻觉削弱鹰派解读
+    return base_dir
 
 
 def _infer_direction_by_keywords(actual: str) -> SignalDirection:
@@ -247,6 +355,7 @@ class RecentEventSignalGenerator:
                 event.name,
                 event.actual or "",
                 event.forecast,
+                previous=event.previous,
                 gold_bias=getattr(event, "gold_bias", None),
             )
             if conflict:
