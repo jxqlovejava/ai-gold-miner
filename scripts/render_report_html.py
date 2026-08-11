@@ -186,22 +186,8 @@ def _md_to_html(md: str) -> list[str]:
             i += 1
             continue
 
-        # 表格: 有 | 分隔行 或 下一行也含 | → 视为表格
-        if "|" in ln and i + 1 < n and (
-            re.match(r"^\s*\|?[\s:\-|]+\|?\s*$", lines[i + 1])
-            or "|" in lines[i + 1]
-        ):
-            table_lines = [ln]
-            i += 1  # 不跳过, 由 while 吞掉分隔行和后续数据行
-            if re.match(r"^\s*\|?[\s:\-|]+\|?\s*$", lines[i].strip()):
-                i += 1  # 跳过分隔行
-            while i < n and "|" in lines[i] and lines[i].strip():
-                table_lines.append(lines[i])
-                i += 1
-            blocks.append(_table_block(table_lines))
-            continue
-
         # 列表: 支持缩进的无序/有序项 + Agent 博弈的 ✓/✗ 前缀
+        # (必须在表格检测之前 — 防止 "- x | y" 列表行被误判为表格)
         if re.match(r"^\s*[-*]\s+", ln):
             list_lines = []
             while i < n and re.match(r"^\s*[-*]\s+", lines[i]):
@@ -222,6 +208,32 @@ def _md_to_html(md: str) -> list[str]:
                 list_lines.append(lines[i])
                 i += 1
             blocks.append(_list_block("✓", list_lines))
+            continue
+
+        # 表格: 有 | 分隔行 或 下一行也含 | → 视为表格
+        # (行首不是列表前缀, 排除 "- x | y" 这类列表误判)
+        if (
+            "|" in ln
+            and not re.match(r"^\s*[-*✓✗\d]", ln)
+            and i + 1 < n
+            and (
+                re.match(r"^\s*\|?[\s:\-|]+\|?\s*$", lines[i + 1])
+                or ("|" in lines[i + 1] and not re.match(r"^\s*[-*✓✗\d]", lines[i + 1]))
+            )
+        ):
+            table_lines = [ln]
+            i += 1  # 不跳过, 由 while 吞掉分隔行和后续数据行
+            if re.match(r"^\s*\|?[\s:\-|]+\|?\s*$", lines[i].strip()):
+                i += 1  # 跳过分隔行
+            while (
+                i < n
+                and "|" in lines[i]
+                and lines[i].strip()
+                and not re.match(r"^\s*[-*✓✗\d]", lines[i])
+            ):
+                table_lines.append(lines[i])
+                i += 1
+            blocks.append(_table_block(table_lines))
             continue
 
         # 段落

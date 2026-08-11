@@ -105,3 +105,22 @@ def test_doctrine_table_rendered(tmp_path):
     assert "<table>" in content
     assert '<span class="ok">✅</span>' in content
     assert '<span class="warn">⚠️</span>' in content
+
+
+def test_pipe_list_not_parsed_as_table():
+    """回归: '- x | y | z' 列表行不得被误判为表格 (避免缺角)."""
+    blocks = r._md_to_html("- 🔴 COT | strong | -0.95 | 机构减多\n- 🟢 ETF | strong | +0.67 | 流入")
+    html_out = "".join(blocks)
+    assert "<table>" not in html_out
+    assert html_out.count("<li>") == 2
+    assert "COT" in html_out
+
+
+def test_table_after_list_still_parses(tmp_path):
+    """列表后接真表格, 两者都正确."""
+    md = "- 项A\n- 项B\n\n| 列1 | 列2 |\n|-----|-----|\n| a | b |"
+    out = tmp_path / "mix.html"
+    r.render(md, out)
+    content = out.read_text(encoding="utf-8")
+    assert "<ul>" in content
+    assert "<table>" in content
