@@ -211,14 +211,15 @@ def _md_to_html(md: str) -> list[str]:
             continue
 
         # 表格: 有 | 分隔行 或 下一行也含 | → 视为表格
-        # (行首不是列表前缀, 排除 "- x | y" 这类列表误判)
+        # (行首不是列表前缀 "x | y" 这类列表误判; **粗体** | 不受影响)
+        _is_list_line = re.compile(r"^\s*[-*✓✗]\s|^\s*\d+\.\s")
         if (
             "|" in ln
-            and not re.match(r"^\s*[-*✓✗\d]", ln)
+            and not _is_list_line.match(ln)
             and i + 1 < n
             and (
                 re.match(r"^\s*\|?[\s:\-|]+\|?\s*$", lines[i + 1])
-                or ("|" in lines[i + 1] and not re.match(r"^\s*[-*✓✗\d]", lines[i + 1]))
+                or ("|" in lines[i + 1] and not _is_list_line.match(lines[i + 1]))
             )
         ):
             table_lines = [ln]
@@ -229,16 +230,23 @@ def _md_to_html(md: str) -> list[str]:
                 i < n
                 and "|" in lines[i]
                 and lines[i].strip()
-                and not re.match(r"^\s*[-*✓✗\d]", lines[i])
+                and not _is_list_line.match(lines[i])
             ):
                 table_lines.append(lines[i])
                 i += 1
             blocks.append(_table_block(table_lines))
             continue
 
-        # 段落
+        # 段落 (排除列表/标题/块引用/表格起始行, 避免吞并后续列表项)
+        # 注意: 排除正则要求列表前缀后跟空白 ([-*]\s 或 ✓✗\s 或 数字.\s),
+        # 避免把 **粗体** (以 * 开头但非 * 空格) 误排除
         para_lines = []
-        while i < n and lines[i].strip() and not lines[i].startswith(("#", ">", "|")):
+        while (
+            i < n
+            and lines[i].strip()
+            and not lines[i].startswith(("#", ">", "|"))
+            and not re.match(r"^\s*[-*✓✗]\s|^\s*\d+\.\s", lines[i])
+        ):
             para_lines.append(lines[i])
             i += 1
         if para_lines:

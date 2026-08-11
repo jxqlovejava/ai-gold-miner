@@ -124,3 +124,19 @@ def test_table_after_list_still_parses(tmp_path):
     content = out.read_text(encoding="utf-8")
     assert "<ul>" in content
     assert "<table>" in content
+
+
+def test_bold_title_before_list_kept_as_paragraph():
+    """回归: '**粗体标题**' 后跟列表 → 标题保留为段落, 列表独立换行."""
+    blocks = r._md_to_html("**多空性质对比**\n- 多头论据\n- 空头论据")
+    html_out = "".join(blocks)
+    assert "<p><strong>多空性质对比</strong></p>" in html_out
+    assert html_out.count("<li>") == 2
+
+
+def test_bold_table_cell_not_excluded():
+    """回归: 表格行含 **粗体** 单元格不得被列表正则误排除."""
+    blocks = r._md_to_html("| 驱动 | 机制 |\n|------|------|\n| **非农** | 宽松 |")
+    html_out = "".join(blocks)
+    assert "<table>" in html_out
+    assert "<strong>非农</strong>" in html_out
