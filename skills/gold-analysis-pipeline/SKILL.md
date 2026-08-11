@@ -509,12 +509,12 @@ for g in [CotSignalGenerator(), EtfFlowSignalGenerator(), InstitutionalSignalGen
         print(f'  {type(g).__name__} 失败: {e}')
 "
 
-# 情绪面
+# 情绪面 (AU期货优先, 与 pipeline 对齐; 若 <5 条则降级现货OHLCV)
 PYTHONPATH=src python3 -c "
-from gold_miner.data.jd_accumulation_gold import JdAccumulationGoldFetcher
+from gold_miner.data.sentiment import SentimentDataFetcher
 from gold_miner.signals.sentiment_signal import SentimentAnalyzer
-f = JdAccumulationGoldFetcher(bank='MS')
-for s in SentimentAnalyzer(au_df=f.fetch(days=90)).generate_signals():
+df = SentimentDataFetcher().fetch_au_futures(lookback=60)
+for s in SentimentAnalyzer(au_df=df).generate_signals():
     print(f'[{s.direction.value}] {s.name} | strength={s.strength.value} | score={s.score:.2f}')
 "
 ```
