@@ -427,11 +427,15 @@ def _build_scan_markdown(result) -> str:
         lines.append(f"🐮 **{bull.agent_name}** (信心 {bull.confidence:.0%})")
         for a in bull.arguments[:3]:
             lines.append(f"  ✓ {a}")
+    else:
+        lines.append("（本期无多头发言）")
     if result.bear_opinion:
         bear = result.bear_opinion
         lines.append(f"🐻 **{bear.agent_name}** (信心 {bear.confidence:.0%})")
         for a in bear.arguments[:3]:
             lines.append(f"  ✗ {a}")
+    else:
+        lines.append("（本期无空头发言）")
     lines.append("")
 
     # 4. 军规
@@ -444,54 +448,75 @@ def _build_scan_markdown(result) -> str:
         for v in getattr(dr, "violations", [])[:5]:
             if not v.passed:
                 lines.append(f"  ⚠️ {v.rule.id} {v.message}")
+        if not any(not v.passed for v in getattr(dr, "violations", [])[:5]):
+            lines.append("（本期无违规）")
     elif result.doctrine_ctx:
         lines.append(f"军规上下文已加载 (r026 趋势闸门: {result.doctrine_ctx.get('trend_gate_state', '?')})")
+    else:
+        lines.append("（军规数据缺失）")
     lines.append("")
 
     # 5. Munger
+    lines.append("## Munger 模型")
     if result.munger_models:
-        lines.append("## Munger 模型")
         for m in result.munger_models[:3]:
             name = m.get("name_cn", m.get("name_en", "?"))
             desc = m.get("gold_relevance_reason") or m.get("description", "")
             lines.append(f"- **{name}**: {desc[:80]}")
+    else:
+        lines.append("（本期无触发）")
     lines.append("")
 
     # 6. 画像匹配
+    lines.append("## 画像匹配")
     if result.profile_match:
         pm = result.profile_match
         if isinstance(pm, dict):
             ok = pm.get("ok", pm.get("within_limits", True))
-            lines.append(f"## 画像匹配: {'✅ 兼容' if ok else '⚠️ 超出约束'}")
+            lines.append(f"{'✅ 兼容' if ok else '⚠️ 超出约束'}")
             if pm.get("notes"):
                 lines.append(f"{pm['notes']}")
+        else:
+            lines.append(str(pm))
+    else:
+        lines.append("（画像数据缺失）")
     lines.append("")
 
     # 7. 条件单审查
+    lines.append("## 条件单审查")
     if result.conditional_order_review:
-        lines.append("## 条件单审查")
         for c in result.conditional_order_review[:6]:
             if isinstance(c, dict):
                 lines.append(f"- {c.get('id', '')} {c.get('action', '')} {c.get('reason', '')[:60]}")
+    else:
+        lines.append("（本期无触发/无活跃条件单）")
     lines.append("")
 
     # 8. 情景/后续事件
+    lines.append("## 后续关注")
     if result.scenario_plan:
         sp = result.scenario_plan
-        lines.append("## 后续关注")
-        for ev in (sp.get("upcoming_events") or [])[:5]:
-            if isinstance(ev, dict):
-                lines.append(f"- {ev.get('name', ev.get('event', ''))} {ev.get('time', ev.get('date', ''))}")
+        events = (sp.get("upcoming_events") or [])[:5]
+        if events:
+            for ev in events:
+                if isinstance(ev, dict):
+                    lines.append(f"- {ev.get('name', ev.get('event', ''))} {ev.get('time', ev.get('date', ''))}")
+        else:
+            lines.append("（无近期待关注事件）")
         monitors = sp.get("monitors_triggered") or []
         if monitors:
             lines.append(f"Monitor 触发: {len(monitors)} 条")
+    else:
+        lines.append("（情景数据缺失）")
     lines.append("")
 
     # 9. 提示
+    lines.append("## 📚 经验提醒")
     if result.experience_reminders:
-        lines.append("## 📚 经验提醒")
         for r in result.experience_reminders[:3]:
             lines.append(f"- {r}")
+    else:
+        lines.append("（本期无触发）")
 
     return "\n".join(lines)
 
@@ -535,6 +560,17 @@ def _scan_worker(quick: bool) -> int:
         archive = _REPO / "data/private" / f"analysis_wechat_{today}.md"
         archive.parent.mkdir(parents=True, exist_ok=True)
         archive.write_text(md, encoding="utf-8")
+
+        # 生成本地 HTML 报告 (Req3C 2026-08-11) — 渲染失败不阻塞推送
+        try:
+            import sys as _sys
+            sys.path.insert(0, str(_REPO / "scripts"))
+            from render_report_html import render
+            html_out = _REPO / "data/output" / f"金价分析_{datetime.now().strftime('%Y-%m-%d')}.html"
+            render(md, html_out)
+            logger.info(f"HTML 报告已生成: file://{html_out.resolve()}")
+        except Exception as _e:
+            logger.warning(f"HTML 报告渲染失败, 不影响推送: {_e}")
 
         # 推送 (微信单条限长, 按节拆多条)
         ok = _push_weixin(md[:1800])
