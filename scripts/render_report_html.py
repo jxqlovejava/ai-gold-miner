@@ -59,6 +59,7 @@ ul, ol { padding-left: 22px; margin: 8px 0 12px; }
 li { margin: 4px 0; font-size: 13px; }
 .ok { color: var(--green); font-weight: 600; }
 .warn { color: var(--red); font-weight: 600; }
+.amber { color: #9a6a00; font-weight: 600; }
 hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
 footer { text-align: center; color: #aaa; font-size: 12px; margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--border); }
 @media (max-width: 600px) { .hero h1 { font-size: 21px; } .section { padding: 16px; } table { font-size: 12px; } th, td { padding: 6px 8px; } }
@@ -72,10 +73,24 @@ footer { text-align: center; color: #aaa; font-size: 12px; margin-top: 32px; pad
 _INLINE_BOLD_RE = re.compile(r"\*\*(.+?)\*\*")
 
 
+_STATUS_ICONS = {
+    "⚠️": "warn",
+    "🔴": "warn",
+    "❌": "warn",
+    "✅": "ok",
+    "🟢": "ok",
+    "🟡": "amber",
+    "🔜": "amber",
+}
+
+
 def _inline(text: str) -> str:
-    """行内: **bold** → <strong>. 先转义再替换 (转义后不破坏 ** 标记)."""
+    """行内: **bold** → <strong>; ⚠️/✅/🟢/🔴 图标 → 彩色 span."""
     # 转义 HTML 特殊字符, 但保留 ** 以便后续处理
     esc = html.escape(text, quote=False)
+    # 状态图标 → 彩色 span (在 bold 处理之前, 图标本身不转义)
+    for icon, cls in _STATUS_ICONS.items():
+        esc = esc.replace(icon, f'<span class="{cls}">{icon}</span>')
     esc = esc.replace("**", "\x00B\x00")  # 临时占位
     # 用占位法: 按 ** 切分, 奇数段加 <strong>
     parts = esc.split("\x00B\x00")
@@ -104,14 +119,22 @@ def _table_block(lines: list[str]) -> str:
 
 
 def _list_block(prefix: str, lines: list[str]) -> str:
-    """无序列表 (-/✓/✗) 或有序列表 (N.) → <ul>/<ol>."""
+    """无序列表 (-/✓/✗) 或有序列表 (N.) → <ul>/<ol>.
+
+    ✓ 前缀的项 → 绿 (.ok); ✗ 前缀 → 红 (.warn).
+    """
     tag = "ul" if prefix in ("-", "✓", "✗") else "ol"
     items = []
     for ln in lines:
         stripped = ln.strip()
         # 剥离前缀: "- " / "✓ " / "✗ " / "N. "
         content = re.sub(r"^([-*✓✗]|\d+\.)\s+", "", stripped)
-        items.append(f"<li>{_inline(content)}</li>")
+        cls = ""
+        if stripped.startswith("✓"):
+            cls = ' class="ok"'
+        elif stripped.startswith("✗"):
+            cls = ' class="warn"'
+        items.append(f"<li{cls}>{_inline(content)}</li>")
     return f"<{tag}>" + "".join(items) + f"</{tag}>"
 
 

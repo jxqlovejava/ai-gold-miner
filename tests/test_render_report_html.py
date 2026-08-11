@@ -81,3 +81,27 @@ def test_render_main_success(tmp_path, capsys):
     captured = capsys.readouterr()
     assert "file://" in captured.out
     assert out.exists()
+
+
+def test_inline_status_icons_colored():
+    out = r._inline("⚠️ 有风险 **bold** ✅ 通过")
+    assert '<span class="warn">⚠️</span>' in out
+    assert '<span class="ok">✅</span>' in out
+    assert "<strong>bold</strong>" in out
+
+
+def test_list_bull_bear_colored():
+    blocks = r._md_to_html("  ✓ 利多论据\n  ✗ 利空论据")
+    html_out = "".join(blocks)
+    assert 'class="ok"' in html_out
+    assert 'class="warn"' in html_out
+
+
+def test_doctrine_table_rendered(tmp_path):
+    md = "## 军规自查\n通过 30/32\n| 规则 | 判定 |\n|------|------|\n| r001 单笔≤20% | ✅ |\n| r011 警惕一边倒 | ⚠️ |"
+    out = tmp_path / "doctrine.html"
+    r.render(md, out)
+    content = out.read_text(encoding="utf-8")
+    assert "<table>" in content
+    assert '<span class="ok">✅</span>' in content
+    assert '<span class="warn">⚠️</span>' in content
