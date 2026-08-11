@@ -111,6 +111,7 @@
 
 1. **格式固定** — 每次金价分析报告必须遵循 [`docs/report_template.md`](docs/report_template.md) 的板块顺序与空态规则：每个板块必须输出标题，无数据写「（本期无触发）」，不得自行增删板块。参考 [SKILL.md](.claude/skills/gold-analysis-pipeline/SKILL.md) 输出铁律 6。
 2. **本地 HTML** — 分析输出完后运行 `python3 scripts/render_report_html.py`，生成 `data/output/金价分析_YYYY-MM-DD.html`，并在终端末尾附 `file://{绝对路径}`，复制即可浏览器打开。
+3. **目标区间预测** — 综合分析结论（决策摘要后）必须输出「金价目标区间预测」：分情景（看多/震荡/回调）给出积存金目标区间（元/g，如 1000-1200）+ 概率 + 触发条件，基于当前价推导（心理整数关口/支撑位/ATR）。格式见 [`docs/report_template.md`](docs/report_template.md) §1b、SKILL.md 输出铁律 8。
 
 ### 🔴 命令代码行不进入报告正文
 
