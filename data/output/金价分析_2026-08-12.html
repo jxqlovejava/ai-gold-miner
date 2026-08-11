@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🥇 金价完整分析 · 2026-08-12 00:30（CPI 前夜布局）</title>
+<style>
+:root {
+  --gold: #d4a017; --gold-dark: #8a6d00; --gold-light: #f4e9c8;
+  --bg: #faf8f2; --card: #ffffff; --text: #2b2b2b; --muted: #6b6b6b;
+  --green: #1a7f37; --green-bg: #e6f4ea; --red: #b3261e; --red-bg: #fdecea;
+  --amber-bg: #fff8e6; --border: #e5e0d5; --radius: 12px; --shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; padding: 24px 16px 60px; }
+.page { max-width: 920px; margin: 0 auto; }
+.hero { background: linear-gradient(135deg, #2b2110 0%, #4a3a15 60%, #6b551d 100%); color: #fff; border-radius: 16px; padding: 32px 28px; margin-bottom: 24px; box-shadow: var(--shadow); }
+.hero h1 { font-size: 26px; margin-bottom: 8px; letter-spacing: 1px; }
+.hero .sub { color: #e8d9a8; font-size: 14px; }
+.hero .tag { display: inline-block; background: rgba(212,160,23,0.25); color: #f4e9c8; border: 1px solid rgba(212,160,23,0.5); border-radius: 20px; padding: 2px 12px; font-size: 12px; margin-top: 12px; }
+.status-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 24px; }
+.status-item { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow); }
+.status-item .label { font-size: 12px; color: var(--muted); }
+.status-item .value { font-size: 18px; font-weight: 700; margin-top: 4px; }
+.status-item .value.gold { color: var(--gold-dark); }
+.status-item .value.green { color: var(--green); }
+.status-item .value.red { color: var(--red); }
+.section { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 20px; box-shadow: var(--shadow); }
+h2 { font-size: 19px; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 2px solid var(--gold); color: var(--gold-dark); display: flex; align-items: center; gap: 8px; }
+h3 { font-size: 15px; margin: 16px 0 8px; color: var(--text); }
+table { border-collapse: collapse; width: 100%; margin: 8px 0 16px; }
+th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; font-size: 13px; vertical-align: top; }
+th { background: var(--gold-light); font-weight: 600; color: var(--gold-dark); }
+tr:nth-child(even) { background: #fcfbf7; }
+blockquote { background: var(--amber-bg); border-left: 4px solid var(--gold); padding: 12px 16px; margin: 12px 0; border-radius: 0 8px 8px 0; font-size: 13px; }
+.highlight { background: #fff8e6; border: 1px solid #ecd9a0; border-radius: 8px; padding: 10px 14px; margin: 12px 0; font-size: 13px; }
+ul, ol { padding-left: 22px; margin: 8px 0 12px; }
+li { margin: 4px 0; font-size: 13px; }
+.ok { color: var(--green); font-weight: 600; }
+.warn { color: var(--red); font-weight: 600; }
+.amber { color: #9a6a00; font-weight: 600; }
+hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+pre { background: #f5f1e6; border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; overflow-x: auto; font-size: 12px; margin: 8px 0 16px; white-space: pre; }
+.decision-card { background: linear-gradient(135deg, #faf6ec 0%, #f4e9c8 100%); border: 2px solid var(--gold); border-radius: var(--radius); padding: 18px 20px; }
+.decision-main { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.decision-label { font-size: 13px; color: var(--gold-dark); font-weight: 600; letter-spacing: 1px; }
+.decision-value { font-size: 30px; font-weight: 800; color: var(--gold-dark); line-height: 1.2; }
+.decision-meta { display: flex; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.decision-meta span { background: rgba(212,160,23,0.14); padding: 2px 10px; border-radius: 20px; }
+.decision-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-top: 14px; }
+.df-item { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; }
+.df-label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+.df-value { font-size: 14px; font-weight: 600; }
+.key-block { background: linear-gradient(135deg, #fffdf5 0%, #fdf3d7 100%); border-left: 4px solid var(--gold); border-radius: 0 8px 8px 0; padding: 14px 18px; margin: 12px 0; }
+.key-tag { font-size: 13px; font-weight: 700; color: var(--gold-dark); margin-bottom: 6px; letter-spacing: 1px; }
+.key-body { font-size: 13px; line-height: 1.8; }
+footer { text-align: center; color: #aaa; font-size: 12px; margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--border); }
+@media (max-width: 600px) { .hero h1 { font-size: 21px; } .section { padding: 16px; } table { font-size: 12px; } th, td { padding: 6px 8px; } }
+
+</style>
+</head>
+<body>
+<div class="page">
+<div class="hero"><h1>🥇 金价完整分析 · 2026-08-12 00:30（CPI 前夜布局）</h1><div class="sub">AI Gold Miner · 青蚨</div></div>
+<div class="status-bar"><div class="status-item"><div class="label">积存金</div><div class="value gold">¥950.86</div></div><div class="status-item"><div class="label">XAUUSD</div><div class="value green">$4,382</div></div></div>
+<div class="section"><div class="decision-card"><div class="decision-main"><span class="decision-label">📌 决策</span><span class="decision-value">持有</span><div class="decision-meta"><span>综合评分 +0.24</span><span>置信度 69%</span></div></div></div>
+<pre><code>建议仓位: 6%（维持现状，不加仓）
+止损: 909.06（ATR 移动止盈 r025，未触发）
+止盈: —
+核心仓: 11.88g 不动 | 机动仓: 0.57g 保留观察</code></pre></div>
+<div class="section"><h2>🎯 金价目标区间预测（未来 1-3 个月）</h2>
+<p>当前价 ¥950.86 | 对应 XAUUSD $4,382/oz</p>
+<table><thead><tr><th>情景</th><th>概率</th><th>触发条件</th><th>积存金目标区间(元/g)</th><th>对应 XAUUSD</th></tr></thead><tbody><tr><td><span class="ok">🟢</span> 看多突破</td><td>35%</td><td>核心CPI≤2.4%回落兑现 + 8/18停火未续避险</td><td><strong>975-1010</strong></td><td>$4,500-4,700</td></tr><tr><td>⚪ 高位震荡</td><td>40%</td><td>核心CPI 2.5%符合预期</td><td><strong>940-975</strong></td><td>$4,320-4,500</td></tr><tr><td><span class="warn">🔴</span> 回调修正</td><td>25%</td><td>核心CPI≥2.7%回升 → 9月加息概率升</td><td><strong>905-935</strong></td><td>$4,150-4,320</td></tr></tbody></table>
+<div class="key-block"><div class="key-tag">📌 推导依据</div><div class="key-body">当前价 950.86 正处于 950 整数关口上方。<br>上行看心理位 975/1000（L1 目标 $4,500↔积存金~975 联动）；下行看 940（前低）/934/909（ATR 止损位）/905（承接档）/880（深回调承接档）。<br>区间幅度基于 14日ATR≈16.7（±1.7%/日）。</div></div>
+<hr></div>
+<div class="section"><h2>一、信息准备</h2>
+<h3>1a 日历校验（DOW 参考表）</h3>
+<p>日历校验全部 <span class="ok">✅</span> 通过。关键事件 DOW 与参考表逐一对照一致：CPI=8/12 周三 ET<span class="ok">✅</span>、初请=8/13 周四<span class="ok">✅</span>、PPI=8/14 周五<span class="ok">✅</span>、密歇根=8/14 周五<span class="ok">✅</span>、FOMC纪要=8/19 周三<span class="ok">✅</span>、8/18 停火到期=周二<span class="ok">✅</span>。</p>
+<h3>1b 近期事件时效性加权</h3>
+<table><thead><tr><th>事件</th><th>距今</th><th>权重</th><th>方向得分</th><th>加权贡献</th></tr></thead><tbody><tr><td>美国7月非农（-23K）</td><td>5天</td><td>0.3</td><td>+1</td><td>+0.30</td></tr><tr><td>ISM服务业PMI</td><td>7天</td><td>0.3</td><td>+1</td><td>+0.30</td></tr><tr><td>ADP就业(7月)</td><td>7天</td><td>0.3</td><td>+1</td><td>+0.30</td></tr><tr><td>伊阿霍尔木兹原则协议(8/6)</td><td>6天</td><td>0.3</td><td>0</td><td>0.00</td></tr><tr><td>初请失业金</td><td>6天</td><td>0.3</td><td>0</td><td>0.00</td></tr></tbody></table>
+<blockquote>非农收缩 → 暂停加息预期 + 央行购金 7月+20t → 近期事件整体偏多，加权综合 ≈ +0.18。</blockquote>
+<h3>1c Monitor 检查（17 个 active，逐一评估）</h3>
+<table><thead><tr><th>Monitor</th><th>触发条件</th><th>当前判定</th></tr></thead><tbody><tr><td>美伊局势后续演变（今日过期）</td><td>霍尔木兹运量&lt;50%/油价&gt;80/美军增派/伊朗封锁/以色列介入</td><td>⚪ 未触发（油价~$75）→ <strong>需续期至 8/30</strong></td></tr><tr><td>L1引擎-CPI三结果</td><td>8/12 CPI 三情景路由</td><td>⏳ 今晚 20:30 后评估</td></tr><tr><td>8/12 CPI分情景→880/905承接档</td><td>CPI后承接档有效性</td><td>⏳ 保留</td></tr><tr><td>8/18停火到期未延续→溢价脉冲</td><td>停火到期+积存金&gt;905</td><td>⚪ 未触发，<strong>关键观察点</strong></td></tr><tr><td>美伊协议正式签署→溢价回吐</td><td>签署+积存金单日跌&gt;1.5%</td><td>⚪ 未触发（协议未签，僵持）</td></tr><tr><td>谈判破裂+冲突再起→积存金&gt;920</td><td>谈判正式破裂+积存金&gt;920</td><td><span class="warn">⚠️</span> 积存金950.86&gt;920，但"正式破裂"前提未成立 → 未触发，标注风险</td></tr><tr><td>停火达成→急跌承接类（4个）</td><td>停火+跌至 860-880</td><td>⚪ 未触发（金价高企）</td></tr><tr><td>长期-ATR/趋势过滤/COT闸门/结构牛（4个）</td><td>周频监测</td><td>⚪ 均正常</td></tr></tbody></table>
+<h3>1d Staleness 重新验证</h3>
+<p>`check_stale_events(7d)` 返回 <strong>0 条</strong>需重新验证。手动补充验证最新状态（8/10-8/12）：<strong>美伊状态无逆转</strong> — 6月 MOU 持续被违反、伊朗拒绝对美直接谈判、霍尔木兹伊阿协议"非常接近"但伊朗抬高条件（解除制裁+赔偿战争损失）、特朗普"低调处理"等伊朗经济崩溃（通胀 77%）、油价回落至 ~$75。8/18 停火到期是下一个关键时点。</p>
+<h3>1e 深度新闻 P0 扫描（4 主题全覆盖）</h3>
+<table><thead><tr><th>主题 ID</th><th>优先级</th><th>anysearch</th><th>关键发现</th></tr></thead><tbody><tr><td>geopolitical（美伊+中东全域）</td><td>P0</td><td><span class="ok">✅</span></td><td>停火僵持、8/18到期、特朗普索赔、伊朗拒谈</td></tr><tr><td>israel_houthi（以色列-胡塞-也门）</td><td>P0</td><td><span class="ok">✅</span></td><td>胡塞8/5袭"黛西"号、累计袭8艘沙特油轮、封锁曼德海峡</td></tr><tr><td>ceasefire_diplomacy（停火谈判外交）</td><td>P0</td><td><span class="ok">✅</span></td><td>伊阿"非常接近"但伊朗提高要价</td></tr><tr><td>fed_policy（美联储政策）</td><td>P0</td><td><span class="ok">✅</span></td><td>9月按兵56%/加息44%、核心CPI共识2.5%、通胀连续5年超2%</td></tr></tbody></table>
+<div class="key-block"><div class="key-tag">📌 逆转/修正专项搜索</div><div class="key-body">未发现美伊状态逆转信号；当前是"僵持未破裂"。</div></div>
+<hr></div>
+<div class="section"><h2>二、维度信号（程序化汇总表）</h2>
+<p>程序化维度表（`SignalBundle.format_dimension_table()`）：</p>
+<table><thead><tr><th>维度</th><th>方向</th><th>看多</th><th>看空</th><th>中性</th><th>均分</th></tr></thead><tbody><tr><td>fundamental</td><td><span class="ok">🟢</span> 看多</td><td>8</td><td>2</td><td>0</td><td>+0.24</td></tr><tr><td>news</td><td><span class="ok">🟢</span> 看多</td><td>6</td><td>1</td><td>3</td><td>+0.25</td></tr><tr><td>recent_events</td><td><span class="ok">🟢</span> 看多</td><td>3</td><td>0</td><td>2</td><td>+0.18</td></tr><tr><td>sentiment</td><td><span class="warn">🔴</span> 看空</td><td>2</td><td>3</td><td>0</td><td>-0.17</td></tr><tr><td>technical</td><td><span class="warn">🔴</span> 看空</td><td>0</td><td>1</td><td>1</td><td>-0.12</td></tr></tbody></table>
+<h3>维度明细（8维逐项）</h3>
+<p><strong>1. 技术面</strong>（-0.05，弱偏空）</p>
+<ul><li><span class="warn">🔴</span> 布林带上轨：触及上轨 -0.30；⚪ 950整数关口回踩 +0.05</li><li>14日ATR≈16.74，ATR移动止盈位 909.06（未触发）</li></ul>
+<p><strong>2. 基本面</strong>（+0.20，看多）</p>
+<ul><li>央行购金 7月+20t（近3年最大单月，21连增）；非农 -23K 弱 → 加息预期削弱</li><li>通胀连续5年超2%（核心PCE 3.4%）→ 政策两难</li></ul>
+<p><strong>3. 消息面</strong>（+0.15~0.25，看多，可信度低）</p>
+<ul><li><span class="ok">🟢</span> 地缘风险溢价 +0.60；霍尔木兹冲突 +0.63；伊朗冲突 +0.63</li><li><span class="warn">⚠️</span> <strong>新闻可信度低警告：38/38 无法交叉验证</strong> → 地缘溢价可能虚高</li></ul>
+<p><strong>4. 资金流（聪明钱）</strong>（-0.07，背离严重）</p>
+<table><thead><tr><th>子项</th><th>方向</th><th>强度</th><th>得分</th><th>说明</th></tr></thead><tbody><tr><td>CFTC COT 聪明钱减仓</td><td><span class="warn">🔴</span></td><td>强</td><td><strong>-0.95</strong></td><td>非商业净多 -27,366手(-12.2%)</td></tr><tr><td>国际黄金ETF流入</td><td><span class="ok">🟢</span></td><td>强</td><td><strong>+0.67</strong></td><td>GLD +3.42吨至1021吨</td></tr><tr><td>投行共识</td><td><span class="warn">🔴</span></td><td>中</td><td>-0.60</td><td>7家看空，目标价低于现价</td></tr><tr><td>COMEX大户多头</td><td><span class="ok">🟢</span></td><td>弱</td><td>+0.15</td><td>集中度领先7.0pp</td></tr><tr><td>13F机构净增持</td><td><span class="ok">🟢</span></td><td>弱</td><td>+0.15</td><td>4增3减</td></tr><tr><td>Berkshire增持GDX</td><td><span class="ok">🟢</span></td><td>中</td><td>+0.20</td><td>+200万股</td></tr><tr><td>国内黄金ETF放量(proxy)</td><td><span class="warn">🔴</span></td><td>弱</td><td>-0.10</td><td>量价proxy</td></tr></tbody></table>
+<blockquote><span class="warn">⚠️</span> <strong>消息面 vs 资金面背离</strong>：地缘溢价看多 vs COT减仓+投行看空。<br>COT(-0.95)为最强单信号 → 机构在950上方减仓，r021/r024 警惕。</blockquote>
+<p><strong>5. 情绪面</strong>（-0.17，看空）</p>
+<ul><li><span class="warn">🔴</span> 连续收阴：近5日仅0天收阳</li></ul>
+<p><strong>6. 事件面</strong>（+0.58，强看多）</p>
+<ul><li>今日 CPI（核心共识2.5%）→ 数据前事件驱动溢价</li></ul>
+<div class="key-block"><div class="key-tag">📌 7. 评分引擎</div><div class="key-body">综合 <strong>+0.24</strong>（置信度 69%），建议持有。</div></div>
+<hr></div>
+<div class="section"><h2>三、Source Truth + 事实 vs 解释</h2>
+<h3>来源验证表</h3>
+<table><thead><tr><th>数据点</th><th>来源层级</th><th>验证状态</th></tr></thead><tbody><tr><td>积存金 ¥950.86</td><td>[T1] 京东民生（程序化）</td><td><span class="ok">✅</span> verified 实时</td></tr><tr><td>XAUUSD $4,382/oz（4,360-4,430区间）</td><td>[T2] fx678/TradingView</td><td><span class="ok">✅</span> verified 多源</td></tr><tr><td>核心CPI共识 2.5% y/y（6月2.6%）</td><td>[T2] CNBC/Dow Jones</td><td><span class="ok">✅</span> verified 多源</td></tr><tr><td>头条CPI共识 3.4% y/y（6月3.5%）</td><td>[T2] CNBC/Dow Jones</td><td><span class="ok">✅</span> verified</td></tr><tr><td>9月FOMC：按兵56% / 加息25bp 44%</td><td>[T2] Polymarket/Kalshi</td><td><span class="ok">✅</span> verified（预测市场）</td></tr><tr><td>COT 非商业净多 -27,366手</td><td>[T1] CFTC（程序化）</td><td><span class="ok">✅</span> verified</td></tr><tr><td>GLD +3.42吨至1021吨</td><td>[T1] GLD（程序化）</td><td><span class="ok">✅</span> verified</td></tr><tr><td>央行7月购金 +20t</td><td>[T2] TradingView引用</td><td><span class="warn">⚠️</span> 待 WGC 月报 T0 确认</td></tr><tr><td>美伊停火8/18到期·僵持</td><td>[T2] 富途/新浪/CNN</td><td><span class="ok">✅</span> verified 多源</td></tr><tr><td>伊朗通胀 77%</td><td>[T2] 伊朗央行（转述）</td><td><span class="warn">⚠️</span> 转述待T0</td></tr><tr><td>油价 ~$75/桶</td><td>[T2] 富途</td><td><span class="warn">⚠️</span> 转述，与7月$99高点回落一致</td></tr></tbody></table>
+<h3>事实 vs 解释</h3>
+<div class="key-block"><div class="key-tag">📌 事实</div><div class="key-body">积存金950.86；XAUUSD $4,382；核心CPI共识2.5%；9月加息概率44%；COT减仓-12.2%；GLD流入+3.42吨；央行购金7月+20t；8/18停火到期。</div></div>
+<p><strong>解释</strong>（置信度标注）：</p>
+<ul><li>「金价站上950因非农-23K+央行购金+地缘溢价」— 置信度 <strong>中（60%）</strong>：多重驱动叠加</li><li>「COT减仓预示回调」— 置信度 <strong>中（55%）</strong>：相关性非因果，ETF流入反向对冲</li><li>「核心CPI回落→9月暂停加息→利多金价」— 置信度 <strong>中高（70%）</strong>：逻辑链完整但非唯一因素</li><li>「停火8/18未续→避险溢价回归」— 置信度 <strong>中（50%）</strong>：可能延期而非破裂（4/22延期先例）</li></ul>
+<hr></div>
+<div class="section"><h2>四、军规自查（对「持有观望 + 条件单调整」决策）</h2>
+<table><thead><tr><th>规则</th><th>判定</th><th>说明</th></tr></thead><tbody><tr><td>r001 单笔≤20%</td><td><span class="ok">✅</span></td><td>不新开仓</td></tr><tr><td>r002 总敞口≤80%</td><td><span class="ok">✅</span></td><td>6%仓位</td></tr><tr><td>r004 数据前不重仓</td><td><span class="ok">✅</span></td><td>CPI前不新建仓位</td></tr><tr><td>r005 不追涨杀跌</td><td><span class="ok">✅</span></td><td>950高位不追涨</td></tr><tr><td>r011 警惕一边倒</td><td><span class="warn">⚠️</span></td><td>消息面集中(6:1)，资金/情绪看空对冲</td></tr><tr><td>r012 多维度确认</td><td><span class="warn">⚠️</span></td><td>综合+0.24弱信号 → 不加仓</td></tr><tr><td>r013 分歧过大观望</td><td><span class="ok">✅</span></td><td>看多3维 vs 看空2维 → 观望</td></tr><tr><td>r014 必须设止损</td><td><span class="ok">✅</span></td><td>ATR 909.06 守门</td></tr><tr><td>r016 数据前提前调整</td><td><span class="warn">⚠️</span></td><td>持仓已提前到位</td></tr><tr><td>r017 条件单代替盯盘</td><td><span class="ok">✅</span></td><td>880/905 条件单在</td></tr><tr><td>r021 散户抄底机构出货</td><td><span class="warn">⚠️</span></td><td>COT减仓 vs ETF流入 → 机构分歧</td></tr><tr><td>r023 空仓视角检验</td><td><span class="ok">✅</span></td><td>空仓不会在950追买</td></tr><tr><td>r024 聪明钱与散户流向</td><td><span class="warn">⚠️</span></td><td>COT减仓+散户追入 → 不追涨</td></tr><tr><td>r025 ATR移动止盈</td><td><span class="ok">✅</span></td><td>909.06 未触发</td></tr><tr><td>r028 分批建仓</td><td><span class="ok">✅</span></td><td>880/905 分批</td></tr><tr><td>r029 安全边际加仓</td><td><span class="ok">✅</span></td><td>现价不追高，880有安全边际</td></tr><tr><td>r030 安全边际</td><td><span class="ok">✅</span></td><td>94%现金缓冲</td></tr><tr><td>r032 摩擦成本核算</td><td><span class="ok">✅</span></td><td>净口径（净保本894.38）</td></tr></tbody></table>
+<p><strong>通过 29/32</strong>（r011/r012/r016 预警级，不阻断持有决策）。</p>
+<hr></div>
+<div class="section"><h2>五、Munger 模型</h2>
+<ul><li><strong>安全边际</strong>：今晚 CPI 是方向赌局，不预测、只在 880/905 低吸区（有安全边际）承接，用价格缓冲替代预测正确性。</li><li><strong>延迟效应</strong>：9月加息与否对金价影响有 12-18 个月时滞；央行购金+地缘驱动下，1-3 年持仓逻辑不因单次 CPI 改变。</li><li><strong>市场先生</strong>：950.86 是 CPI 前情绪报价。条件单自动承接、ATR 自动守门，让规则代替情绪盯盘。</li></ul>
+<hr></div>
+<div class="section"><h2>六、画像匹配</h2>
+<p><span class="ok">✅</span> <strong>兼容</strong></p>
+<ul><li>持仓周期 1-3 年：核心仓长持；风险平衡型：6%仓位远低于上限</li><li>机动仓 0.57g 观察（p010 守卫：&lt;1g 不机械减半）</li><li>不做空、不杠杆、不赌数据（p001 已提前调整到位）</li></ul>
+<hr></div>
+<div class="section"><h2>七、Agent 博弈 + 交易建议</h2>
+<h3>🐮 BullAgent（信心 60%）</h3>
+<ul><li>✓ 核心CPI预期回落至2.5%（6月2.6%）→ 9月加息概率下降 → 利多</li><li>✓ 央行7月购金+20t（近3年最大单月）→ 结构性买盘</li><li>✓ GLD +3.42吨大幅流入 → 国际聪明钱部分回流</li><li>✓ 8/18停火到期存疑 + 霍尔木兹协议未签 → 避险溢价难消</li><li>✓ 非农-23K 弱 → 劳动力降温 → 加息预期削弱</li></ul>
+<h3>🐻 BearAgent（信心 55%）</h3>
+<ul><li>✗ COT 非商业净多 -27,366手(-12.2%)，机构在 950 上方明确减仓 —— 最强空头信号</li><li>✗ 投行共识看空（7家）</li><li>✗ 通胀连续5年超2%（核心PCE 3.4%），9月加息概率 44% 悬顶</li><li>✗ 布林带上轨 + 连续收阴 + 950关口回踩 → 技术回调压力</li><li>✗ 消息面 38/38 无法交叉验证 → 地缘溢价可能虚高</li></ul>
+<h3>💼 PM 决策（信心 72%）</h3>
+<p>方向偏多（3维看多）但强度不足（+0.24 弱），且资金面出现「消息利多 vs 聪明钱减仓」背离。CPI 前是零和赌局 —— <strong>不赌方向，持有观望</strong>（r005/r013/r029）。用条件单承接回调而非主动加仓，用 ATR 守门而非主动减仓。9月FOMC 前维持 6% 仓位留足现金（94%），等 CPI 结果路由。</p>
+<h3>📌 交易建议</h3>
+<table><thead><tr><th>动作</th><th>结论</th><th>价位/数量</th><th>依据</th></tr></thead><tbody><tr><td>核心仓</td><td><strong>持有不动</strong></td><td>11.88g</td><td>ATR 909.06 守门（r025）</td></tr><tr><td>机动仓</td><td><strong>保留观察</strong></td><td>0.57g</td><td>p010 守卫：&lt;1g 不机械减半</td></tr><tr><td>加仓</td><td><strong>暂不</strong></td><td>—</td><td>r004 + r029 + r012</td></tr><tr><td>低吸承接</td><td>保留条件单</td><td>880×15g</td><td>V9 2026H2→20% 主通道</td></tr><tr><td>905档</td><td><strong>建议撤销或上调至915</strong></td><td>905×5g</td><td><span class="warn">⚠️</span> ATR线909.06已高于905：价到905必先破ATR线→减仓与接货矛盾(r021/r024)</td></tr></tbody></table>
+<hr></div>
+<div class="section"><h2>八、条件单审查</h2>
+<table><thead><tr><th>条件单 ID</th><th>类型</th><th>方向</th><th>触发价</th><th>数量</th><th>状态</th><th>建议动作</th><th>原因</th></tr></thead><tbody><tr><td>co_20260806_001</td><td>limit_buy</td><td>买入</td><td>880</td><td>15g</td><td>active</td><td><strong>保留</strong></td><td>CPI核心回落承接档，距现价-7.5%，ATR线之下有安全边际；V9主通道</td></tr><tr><td>co_20260806_003</td><td>limit_buy</td><td>买入</td><td>905</td><td>5g</td><td>active</td><td><strong>撤销/上调至915</strong></td><td>ATR位909.06已高于905：价到905必先破ATR线，触发减仓却接货=方向矛盾（r021/r024）；上调至915与880间距3.9%更符合r028</td></tr></tbody></table>
+<blockquote><span class="warn">⚠️</span> 两单均 8/14 过期。<br>880 档建议续期至 8/25（覆盖 8/18 停火到期 + FOMC纪要 8/19）；905 档如保留须同步 ATR 触发当日暂停约束。</blockquote>
+<hr></div>
+<div class="section"><h2>九、后续关注 + 情景预案</h2>
+<h3>后续关注（未来 14 天）</h3>
+<table><thead><tr><th>时间（北京）</th><th>事件</th><th>预期波动</th><th>对持仓影响</th></tr></thead><tbody><tr><td><strong>今日 20:30</strong></td><td><strong>美国7月CPI</strong>（核心共识2.5%）</td><td>⭐⭐⭐</td><td>决定性分水岭</td></tr><tr><td>8/13 20:30</td><td>初请失业金</td><td>⭐⭐</td><td>就业侧印证</td></tr><tr><td>8/14 20:30</td><td>美国PPI + 密歇根信心</td><td>⭐⭐</td><td>通胀传导 + 情绪</td></tr><tr><td>8/15 19:00</td><td>BOE利率决议</td><td>⭐</td><td>英镑联动</td></tr><tr><td><strong>8/18 12:00</strong></td><td><strong>美伊60天临时停火到期</strong></td><td>⭐⭐⭐</td><td>未延续→避险溢价脉冲</td></tr><tr><td>8/20 02:00</td><td>FOMC会议纪要</td><td>⭐⭐</td><td>9月信号</td></tr><tr><td>8/24 15:15</td><td>全球Flash PMI</td><td>⭐⭐</td><td>增长预期</td></tr></tbody></table>
+<h3>情景预案（CPI 三结果路由，对齐 L1 monitor）</h3>
+<table><thead><tr><th>情景</th><th>金价预期走向</th><th>建议动作</th></tr></thead><tbody><tr><td>(a) 核心CPI回落(≤2.4%)</td><td>利多：XAUUSD站上$4,450→积存金965-985</td><td>L1观察维持（三关未齐不试盘）；不追涨；承接档保留</td></tr><tr><td>(b) 核心CPI 2.5%符合</td><td>中性震荡：940-965</td><td>持有观望；条件单维持</td></tr><tr><td>(c) 核心CPI回升(≥2.7%)</td><td>利空：回调至905-925</td><td>L1暂停；V9低吸880/905接棒；ATR 909.06跌破评估机动仓</td></tr></tbody></table>
+<h3>Monitor</h3>
+<table><thead><tr><th>Monitor 名称</th><th>状态</th><th>说明</th></tr></thead><tbody><tr><td>美伊局势后续演变</td><td><strong>续期至 8/30</strong></td><td>今日过期；8/18 停火到期关键时点</td></tr><tr><td>L1引擎-CPI三结果</td><td>保留</td><td>今晚 CPI 后评估</td></tr><tr><td>8/12 CPI分情景→880/905承接档</td><td>保留</td><td>今晚 CPI 后评估</td></tr><tr><td>8/18停火到期未延续→溢价脉冲</td><td>保留</td><td>8/18 关键观察</td></tr><tr><td>美伊协议正式签署→溢价回吐</td><td>保留</td><td>协议未签，伊阿"非常接近"</td></tr></tbody></table>
+<hr></div>
+<div class="section"><h2>📚 经验提醒</h2>
+<ol><li>搜索混排 2025/2026 CPI 数据：2025-08-12 核心CPI 3.1% 是旧闻，当期有效值是核心共识 2.5%（CNBC 2026-08-10 预览）。<strong>日期校验是分析的生命线</strong>。</li><li>消息面 38/38 新闻无法交叉验证 → 地缘溢价信号应降权，与 COT/资金流交叉。</li><li>ATR 移动止盈位 909.06 已高于 905 承接档 → 条件单档位需定期与 ATR 线校准，避免「减仓+接货」自相矛盾。</li><li>BOE 事件在日历中为每月15日程序化生成（含周六），非本次分析问题。</li></ol></div>
+<footer>AI Gold Miner · 青蚨 · 仅供个人投资决策参考</footer>
+</div>
+</body>
+</html>
