@@ -132,6 +132,12 @@ OPP_DEFAULTS: dict = {
     "cooldown_dip_low_min": 60,
     "realert_move_pct": 0.01,       # 冷却内同向再走1%可再提醒
     "snapshot_stale_hours": 48,     # 信号快照过期阈值
+    # 突破前兆 (Req1B 2026-08-11): 整数关口逼近 / 距N日高点≤1.5% → 变盘窗口预警
+    "breakout_key_levels": [950.0, 1000.0],   # 突破前兆整数关口 (元/克)
+    "breakout_level_band_pct": 0.01,          # 关口带宽 ±1%
+    "breakout_high_lookback_days": 20,        # N日高点窗口
+    "breakout_high_approach_pct": 0.015,      # 距N日高点≤1.5% 视为逼近
+    "cooldown_breakout_min": 60,              # 突破预警冷却
 }
 OPP_CONFIG_PATH = PROJECT_ROOT / "data/private/opportunity_config.yaml"
 SIGNAL_SNAPSHOT_PATH = PROJECT_ROOT / "data/signal_snapshot.json"
@@ -356,6 +362,10 @@ DEFAULT_STATE = {
     "dip_alert_at": None,
     "dip_alert_price": None,
     "in_band_levels": [],
+    # 突破前兆 (Req1B 2026-08-11)
+    "breakout_near_levels": [],   # 当前在关口下轨带内的价位列表
+    "breakout_alert_at": None,
+    "breakout_alert_price": None,
 }
 
 
@@ -774,6 +784,54 @@ def _check_dip_buy_opportunity(
     }
 
 
+def _check_breakout_approach(
+    current: float,
+    state: dict,
+    historical: list[dict],
+    cfg: dict,
+) -> dict | None:
+    """突破前兆: 价格升入整数关口下轨带(带外→带内) 或 逼近N日高点(未破高).
+
+    2026-08-11 Req1B: FOMO 暴涨提前捕捉 — 只出预警, 不自动挂单,
+    人工决策是否提前布局 (符合 r029 不追涨纪律).
+
+    每次调用更新 state["breakout_near_levels"].
+    """
+    if len(historical) < 10:
+        return None
+
+    band = cfg["breakout_level_band_pct"]
+    levels = [float(lv) for lv in cfg["breakout_key_levels"]]
+
+    # 1) 整数关口带: 价格在下轨带内且未破 (从下方逼近, 升入带内)
+    #    与 dip_buy 的对称检测不同 — 这里只关心 current < level (未破关口)
+    near_now = [lv for lv in levels if lv * (1 - band) <= current < lv]
+    prev_near = [float(lv) for lv in state.get("breakout_near_levels", [])]
+    entered = [lv for lv in near_now if lv not in prev_near]
+    state["breakout_near_levels"] = near_now
+
+    # 2) 逼近N日高点 (仅"未突破"才报, 防止与 take_profit_breakout 重叠)
+    lookback = int(cfg["breakout_high_lookback_days"])
+    window = historical[-lookback:] if len(historical) >= lookback else list(historical)
+    high_n = max(p["close"] for p in window)
+    approach_high = (
+        high_n > 0
+        and current <= high_n
+        and (high_n - current) / high_n <= cfg["breakout_high_approach_pct"]
+    )
+
+    if not entered and not approach_high:
+        return None
+    return {
+        "type": "breakout_approach",
+        "entered_level": entered[0] if entered else None,
+        "approach_high": approach_high,
+        "high_n": high_n,
+        "lookback": lookback,
+        "current": current,
+    }
+
+
 def _load_signal_snapshot(cfg: dict) -> dict | None:
     """读取 pipeline 信号快照; 缺失/损坏/超时/无有效维度 → None."""
     if not SIGNAL_SNAPSHOT_PATH.exists():
@@ -906,6 +964,13 @@ def _evaluate_reason(action: str, candidate: dict, ev: dict, cfg: dict) -> dict:
     return {"strength": strength, "reasons": reasons, "veto_note": ""}
 
 
+_COOLDOWN_KEYS = {
+    "tp": "cooldown_take_profit_min",
+    "dip": "cooldown_dip_low_min",
+    "breakout": "cooldown_breakout_min",
+}
+
+
 def _opp_cooldown_ok(state: dict, prefix: str, current: float, direction: str, cfg: dict) -> bool:
     """冷却判定: 过冷却期 或 冷却内同向价格再走 realert_move_pct."""
     last_at = state.get(f"{prefix}_alert_at")
@@ -915,7 +980,7 @@ def _opp_cooldown_ok(state: dict, prefix: str, current: float, direction: str, c
         elapsed_min = (_now() - datetime.fromisoformat(last_at)).total_seconds() / 60
     except (ValueError, TypeError):
         return True
-    minutes = cfg["cooldown_take_profit_min"] if prefix == "tp" else cfg["cooldown_dip_low_min"]
+    minutes = cfg.get(_COOLDOWN_KEYS.get(prefix, "cooldown_dip_low_min"), 60)
     if elapsed_min >= minutes:
         return True
     last_price = state.get(f"{prefix}_alert_price")
@@ -954,6 +1019,26 @@ def _build_opp_alert(
         )
         lines.append("   💡 建议: 卖出机动仓15g的1/3~1/2锁定利润，核心仓不动")
         lines.append("   📏 纪律: 卖出后若继续新高不追回，等回调再接")
+    elif action == "breakout_approach":
+        if strength == "veto":
+            return {
+                "type": "breakout_approach_vetoed",
+                "message": f"🔕 逼近关口/前高，但{verdict['veto_note']}",
+                "severity": "INFO",
+            }
+        if candidate.get("entered_level") and candidate.get("approach_high"):
+            cond = (
+                f"逼近整数关口 {candidate['entered_level']:.0f} "
+                f"+ 距{candidate['lookback']}日高点 {candidate['high_n']:.0f} "
+                f"仅 {candidate['high_n'] - candidate['current']:.2f} 元/克(现价 {candidate['current']:.2f})"
+            )
+        elif candidate.get("entered_level"):
+            cond = f"价格升入整数关口 {candidate['entered_level']:.0f} 带 (现价 {candidate['current']:.2f})"
+        else:
+            cond = f"逼近{candidate['lookback']}日高点 {candidate['high_n']:.0f}，仅差 {candidate['high_n'] - candidate['current']:.2f} 元/克"
+        lines.append(f"🚀 突破前兆 (变盘窗口开启) | {cond}")
+        lines.append("   💡 建议: 仅预警，人工决策是否提前布局，不自动挂单")
+        lines.append("   📏 纪律: 突破未确认前不加仓，等放量突破站稳后再动作")
     else:
         if strength == "veto":
             return {
@@ -980,8 +1065,12 @@ def _build_opp_alert(
     label = {"strong": "强", "medium": "中", "weak": "弱"}.get(strength, strength)
     lines.append(f"   理由强度: {label}")
 
+    alert_type = {
+        "take_profit": "take_profit_breakout",
+        "breakout_approach": "breakout_approach",
+    }.get(action, "dip_buy_opportunity")
     return {
-        "type": "take_profit_breakout" if action == "take_profit" else "dip_buy_opportunity",
+        "type": alert_type,
         "message": "\n".join(lines),
         "severity": "HIGH" if strength == "strong" else "MEDIUM",
     }
@@ -1265,6 +1354,12 @@ def _format_card(
         # 轻微下跌但无连续/回撤告警 — 给个简洁的一日趋势
         lines.append(f"📉 日内走弱 ({price_info['change_pct']:+.2f}%)")
 
+    # ── 突破前兆置顶展示 (Req1B 2026-08-11: FOMO暴涨提前捕捉核心预警) ──
+    bk_alert = alert_by_type.get("breakout_approach")
+    if bk_alert:
+        lines.append("")
+        lines.append(bk_alert["message"])
+
     # ── 频率调整 ──
     if old_level != level:
         lines.append(f"⚡ 监控频率调整: {old_level} → {level}")
@@ -1272,9 +1367,12 @@ def _format_card(
         lines.append(f"   当前检查间隔: {intervals.get(level, '?')}")
 
     # ── 事件类告警: 仅展示新增信息的 (急变/逆转) ──
-    # 已处理: consecutive_down, peak_drawdown, cost_proximity, cost_below
+    # 已处理: consecutive_down, peak_drawdown, cost_proximity, cost_below, breakout_approach
     # 当趋势摘要已覆盖时, 急变/逆转信号冗余 → 跳过
-    shown_types = {"consecutive_down", "peak_drawdown", "cost_proximity", "cost_below"}
+    shown_types = {
+        "consecutive_down", "peak_drawdown", "cost_proximity", "cost_below",
+        "breakout_approach", "breakout_approach_vetoed",
+    }
     if trend_parts:
         # 趋势摘要已覆盖下跌方向, price_surge + intraday_reversal 是重复信息
         shown_types.update({"price_surge", "intraday_reversal"})
@@ -1373,11 +1471,12 @@ def main() -> int:
     if rebound:
         alerts.append(rebound)
 
-    # 4g. 机会提醒 (止盈/抄底) — 触发层 + 理由引擎
+    # 4g. 机会提醒 (止盈/抄底/突破前兆) — 触发层 + 理由引擎
     opp_cfg = _load_opp_config()
     tp_candidate = _check_take_profit_breakout(current, historical, cost_basis, opp_cfg, surge)
     dip_candidate = _check_dip_buy_opportunity(current, state, historical, opp_cfg)
-    if tp_candidate or dip_candidate:
+    bk_candidate = _check_breakout_approach(current, state, historical, opp_cfg)
+    if tp_candidate or dip_candidate or bk_candidate:
         ev = _gather_evidence(current, historical, opp_cfg)
         if tp_candidate and _opp_cooldown_ok(state, "tp", current, "up", opp_cfg):
             verdict = _evaluate_reason("take_profit", tp_candidate, ev, opp_cfg)
@@ -1393,6 +1492,13 @@ def main() -> int:
             )
             state["dip_alert_at"] = _now().isoformat()
             state["dip_alert_price"] = current
+        if bk_candidate and _opp_cooldown_ok(state, "breakout", current, "up", opp_cfg):
+            verdict = _evaluate_reason("breakout_approach", bk_candidate, ev, opp_cfg)
+            alerts.append(
+                _build_opp_alert("breakout_approach", bk_candidate, verdict, ev, current, cost_basis)
+            )
+            state["breakout_alert_at"] = _now().isoformat()
+            state["breakout_alert_price"] = current
 
     # 4h. 进行中高影响宏观事件 (FOMC/CPI/PCE/非农等)
     # 每次完整检查都运行, 确保重大数据发布时推送通知到微信

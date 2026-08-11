@@ -98,15 +98,10 @@ class TechnicalAnalyzer:
             logger.debug("MA crossover 计算异常", exc_info=True)
             return {"crossover": "none", "fast_ma": 0.0, "slow_ma": 0.0, "gap_pct": 0.0}
 
-    def adx(self, period: int = 14) -> dict[str, float]:
-        """ADX 趋势强度.
-
-        Returns:
-            {"adx": float, "plus_di": float, "minus_di": float, "trend_regime": "trending"|"ranging"}
-        """
+    def _adx_series(self, period: int = 14) -> pd.Series | None:
+        """计算 ADX 平滑序列 (供 adx / adx_convergence 共用)."""
         if len(self.df) < period * 2:
-            return {"adx": 20.0, "plus_di": 0.0, "minus_di": 0.0, "trend_regime": "ranging"}
-
+            return None
         try:
             high = self.df["high"]
             low = self.df["low"]
@@ -131,9 +126,39 @@ class TechnicalAnalyzer:
             minus_di = (minus_dm.ewm(alpha=1.0 / period, adjust=False).mean() / atr_smoothed) * 100
 
             dx = ((plus_di - minus_di).abs() / (plus_di + minus_di)) * 100
-            adx_val = float(dx.ewm(alpha=1.0 / period, adjust=False).mean().iloc[-1])
+            return dx.ewm(alpha=1.0 / period, adjust=False).mean()
+        except Exception:
+            logger.debug("ADX 序列计算异常", exc_info=True)
+            return None
 
+    def adx(self, period: int = 14) -> dict[str, float]:
+        """ADX 趋势强度.
+
+        Returns:
+            {"adx": float, "plus_di": float, "minus_di": float, "trend_regime": "trending"|"ranging"}
+        """
+        adx_series = self._adx_series(period)
+        if adx_series is None:
+            return {"adx": 20.0, "plus_di": 0.0, "minus_di": 0.0, "trend_regime": "ranging"}
+
+        try:
+            adx_val = float(adx_series.iloc[-1])
             regime = "trending" if adx_val > 25 else "ranging"
+
+            # 复用 adx_series 的逻辑反推 DI 值不优雅, 直接基于原 df 重算 DI (保持与旧实现一致)
+            high = self.df["high"]
+            low = self.df["low"]
+            from gold_miner.signals._price_utils import true_range
+            tr = true_range(self.df)
+            up_move = high.diff()
+            down_move = -low.diff()
+            plus_dm = pd.Series(0.0, index=self.df.index)
+            minus_dm = pd.Series(0.0, index=self.df.index)
+            plus_dm[(up_move > down_move) & (up_move > 0)] = up_move[(up_move > down_move) & (up_move > 0)]
+            minus_dm[(down_move > up_move) & (down_move > 0)] = down_move[(down_move > up_move) & (down_move > 0)]
+            atr_smoothed = tr.ewm(alpha=1.0 / period, adjust=False).mean()
+            plus_di = (plus_dm.ewm(alpha=1.0 / period, adjust=False).mean() / atr_smoothed) * 100
+            minus_di = (minus_dm.ewm(alpha=1.0 / period, adjust=False).mean() / atr_smoothed) * 100
 
             return {
                 "adx": round(adx_val, 1),
@@ -144,6 +169,31 @@ class TechnicalAnalyzer:
         except Exception:
             logger.debug("ADX 计算异常", exc_info=True)
             return {"adx": 20.0, "plus_di": 0.0, "minus_di": 0.0, "trend_regime": "ranging"}
+
+    def adx_convergence(self, period: int = 14, lookback: int = 5) -> dict[str, float]:
+        """ADX 趋势强度回落 — 趋势转震荡/蓄势检测.
+
+        Returns:
+            {"adx_converging": bool, "adx": float, "adx_prev": float, "drop_pct": float}
+        """
+        adx_series = self._adx_series(period)
+        if adx_series is None or len(adx_series) <= lookback:
+            return {"adx_converging": False, "adx": 0.0, "adx_prev": 0.0, "drop_pct": 0.0}
+
+        try:
+            adx_now = float(adx_series.iloc[-1])
+            adx_prev = float(adx_series.iloc[-1 - lookback])
+            drop_pct = (adx_prev - adx_now) / adx_prev if adx_prev > 0 else 0.0
+            converging = adx_prev > 0 and drop_pct >= 0.15 and adx_now < 25
+            return {
+                "adx_converging": converging,
+                "adx": round(adx_now, 1),
+                "adx_prev": round(adx_prev, 1),
+                "drop_pct": round(drop_pct, 3),
+            }
+        except Exception:
+            logger.debug("ADX 收敛计算异常", exc_info=True)
+            return {"adx_converging": False, "adx": 0.0, "adx_prev": 0.0, "drop_pct": 0.0}
 
     # ------------------------------------------------------------------
     # 原有指标 (不变)
@@ -211,6 +261,84 @@ class TechnicalAnalyzer:
             "latest": self.df["close"].iloc[-1],
             "distance_to_support": (self.df["close"].iloc[-1] - recent["low"].min()) / recent["low"].min(),
             "distance_to_resistance": (recent["high"].max() - self.df["close"].iloc[-1]) / recent["high"].max(),
+        }
+
+    # ------------------------------------------------------------------
+    # 突破前兆检测 (2026-08-11 新增, Req1A)
+    # ------------------------------------------------------------------
+
+    def squeeze_detection(
+        self, band_period: int = 20, std: int = 2, lookback: int = 20,
+    ) -> dict[str, float]:
+        """布林带收敛检测 — 突破前蓄势.
+
+        Returns:
+            {"squeeze": bool, "width_pct": float, "recent_min_pct": float,
+             "contract_ratio": float, "in_tight_zone": bool}
+        """
+        if len(self.df) < band_period + lookback + 1:
+            return {
+                "squeeze": False, "width_pct": 0.0, "recent_min_pct": 0.0,
+                "contract_ratio": 0.0, "in_tight_zone": False,
+            }
+
+        try:
+            close = self.df["close"]
+            sma = close.rolling(window=band_period).mean()
+            rolling_std = close.rolling(window=band_period).std()
+            width = ((sma + rolling_std * std) - (sma - rolling_std * std)) / sma
+
+            w_now = float(width.iloc[-1])
+            if pd.isna(w_now):
+                return {
+                    "squeeze": False, "width_pct": 0.0, "recent_min_pct": 0.0,
+                    "contract_ratio": 0.0, "in_tight_zone": False,
+                }
+
+            recent_min = float(width.tail(lookback).min())
+            prev_width = float(width.iloc[-1 - lookback]) if len(width) > lookback else w_now
+            # 相对收敛: 处于窗口低位 ±5%
+            near_floor = w_now <= recent_min * 1.05
+            # 绝对收紧: 20日2σ带宽 < 3% (黄金 900-950 元/克日线的收敛阈值)
+            tight = w_now <= 0.03
+
+            return {
+                "squeeze": bool(near_floor and tight),
+                "width_pct": round(w_now, 4),
+                "recent_min_pct": round(recent_min, 4),
+                "contract_ratio": round(prev_width / w_now, 2) if w_now > 0 else 0.0,
+                "in_tight_zone": bool(tight),
+            }
+        except Exception:
+            logger.debug("布林带收敛计算异常", exc_info=True)
+            return {
+                "squeeze": False, "width_pct": 0.0, "recent_min_pct": 0.0,
+                "contract_ratio": 0.0, "in_tight_zone": False,
+            }
+
+    def round_level_proximity(
+        self, round_step: int = 50, band_pct: float = 0.01,
+    ) -> dict[str, float]:
+        """整数关口逼近检测 (950/1000 等心理关口).
+
+        Returns:
+            {"near_round_level": bool, "level": float, "distance_pct": float,
+             "above": bool, "step": int}
+        """
+        latest = float(self.df["close"].iloc[-1])
+        # 按量级定步长: <1000 用 50, 否则用 100
+        step = 100 if latest >= 1000 else round_step
+        nearest = round(latest / step) * step
+        if nearest <= 0:
+            return {"near_round_level": False, "level": 0.0, "distance_pct": 0.0, "above": False, "step": step}
+
+        dist_pct = abs(latest - nearest) / nearest
+        return {
+            "near_round_level": bool(dist_pct <= band_pct),
+            "level": float(nearest),
+            "distance_pct": round(dist_pct, 4),
+            "above": bool(latest > nearest),
+            "step": step,
         }
 
     # ------------------------------------------------------------------
@@ -331,7 +459,70 @@ class TechnicalAnalyzer:
                 metadata={"source_tier": self.SOURCE_TIER, "adx": adx_data["adx"], "atr_pct": atr_data["atr_pct"]},
             ))
 
-        # 6) 中性汇总: 无极端信号时输出综合指标快照，确保维度不消失
+        # 6) 🆕 突破前兆: 布林收窄 + ADX回落 + 整数关口逼近 (2026-08-11 Req1A)
+        squeeze = self.squeeze_detection()
+        adxc = self.adx_convergence()
+        rlp = self.round_level_proximity()
+        sr = self.support_resistance()
+        near_high = sr["resistance"] > 0 and sr["distance_to_resistance"] <= 0.015
+
+        if squeeze["squeeze"]:
+            # squeeze 本质是低波动状态, 不应被 high_vol 升级, 直设 WEAK
+            signals.append(Signal(
+                name="布林带收窄·蓄势待变", dimension="technical", direction=SignalDirection.NEUTRAL,
+                strength=SignalStrength.WEAK, score=0.10,
+                description=(
+                    f"20日带宽 {squeeze['width_pct']*100:.1f}% 收敛至 {squeeze['recent_min_pct']*100:.1f}%"
+                    f"最低区，突破前蓄势，方向未定，警惕放量突破"
+                ),
+                metadata={"source_tier": self.SOURCE_TIER, "adx": adx_data["adx"], "atr_pct": atr_data["atr_pct"]},
+            ))
+
+        if adxc["adx_converging"]:
+            signals.append(Signal(
+                name="ADX回落·趋势转震荡", dimension="technical", direction=SignalDirection.NEUTRAL,
+                strength=SignalStrength.WEAK, score=0.08,
+                description=(
+                    f"ADX {adxc['adx']:.0f}（{adxc['adx_prev']:.0f}，回落{adxc['drop_pct']*100:.0f}%），"
+                    f"趋势强度衰减，进入收敛蓄势"
+                ),
+                metadata={"source_tier": self.SOURCE_TIER, "adx": adx_data["adx"], "atr_pct": atr_data["atr_pct"]},
+            ))
+
+        if rlp["near_round_level"]:
+            if not rlp["above"]:
+                # 下方逼近 — 突破前兆主场景
+                s, sc = _adjust(SignalStrength.WEAK, 0.15 * (1 - rlp["distance_pct"] / 0.01))
+                signals.append(Signal(
+                    name=f"逼近整数关口 {int(rlp['level'])}", dimension="technical",
+                    direction=SignalDirection.BULLISH, strength=s, score=sc,
+                    description=(
+                        f"价格 {sr['latest']:.1f} 距整数关口 {int(rlp['level'])} 仅 "
+                        f"{rlp['distance_pct']*100:.1f}%，突破前兆，警惕放量突破"
+                    ),
+                    metadata={"source_tier": self.SOURCE_TIER, "adx": adx_data["adx"], "atr_pct": atr_data["atr_pct"]},
+                ))
+            else:
+                signals.append(Signal(
+                    name=f"回踩整数关口 {int(rlp['level'])}", dimension="technical",
+                    direction=SignalDirection.NEUTRAL, strength=SignalStrength.WEAK, score=0.05,
+                    description=f"价格 {sr['latest']:.1f} 回踩整数关口 {int(rlp['level'])}",
+                    metadata={"source_tier": self.SOURCE_TIER, "adx": adx_data["adx"], "atr_pct": atr_data["atr_pct"]},
+                ))
+
+        # 组合信号: 布林收窄 + (逼近关口 或 距20日高点≤1.5%) = 变盘窗口
+        if squeeze["squeeze"] and ((rlp["near_round_level"] and not rlp["above"]) or near_high):
+            signals.append(Signal(
+                name="变盘窗口·突破前兆", dimension="technical", direction=SignalDirection.BULLISH,
+                strength=SignalStrength.WEAK, score=0.20,
+                description=(
+                    f"布林收窄 + 逼近{'整数关口' + str(int(rlp['level'])) if rlp['near_round_level'] and not rlp['above'] else '20日高点'}，"
+                    f"突破前兆，只出预警，人工决策是否提前布局（不自动挂单）"
+                ),
+                metadata={"source_tier": self.SOURCE_TIER, "adx": adx_data["adx"], "atr_pct": atr_data["atr_pct"]},
+            ))
+
+        # 7) 中性汇总: 无极端信号时输出综合指标快照，确保维度不消失
         if not signals:
             bb = self.bollinger()
             sr = self.support_resistance()

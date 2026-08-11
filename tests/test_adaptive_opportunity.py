@@ -339,3 +339,83 @@ def test_build_dip_alert_key_level_only():
     alert = m._build_opp_alert("dip_buy", cand, verdict, _ev(), 852.0, 894.25)
     assert "关键价位 850" in alert["message"]
     assert "理由强度: 中" in alert["message"]
+
+
+# ── 突破前兆 (Req1B 2026-08-11) ──
+
+def test_breakout_enters_round_band():
+    hist = _hist([880.0] * 25)  # 高点880, 远离 → 只有关口进带
+    state = {"breakout_near_levels": []}
+    cand = m._check_breakout_approach(947.5, state, hist, _cfg())
+    assert cand is not None
+    assert cand["type"] == "breakout_approach"
+    assert cand["entered_level"] == 950.0
+    assert cand["approach_high"] is False
+    assert state["breakout_near_levels"] == [950.0]
+    # 带内横盘 → 不再触发
+    assert m._check_breakout_approach(948.0, state, hist, _cfg()) is None
+    # 突破关口 → 出带重置
+    assert m._check_breakout_approach(952.0, state, hist, _cfg()) is None
+    assert state["breakout_near_levels"] == []
+
+
+def test_breakout_approaches_high():
+    hist = _hist([880.0] * 25)  # 高点880
+    state = {"breakout_near_levels": []}
+    # 879 距高点 880 = 0.11% ≤ 1.5%, 且未破高 → approach_high
+    cand = m._check_breakout_approach(879.0, state, hist, _cfg())
+    assert cand is not None
+    assert cand["approach_high"] is True
+    assert cand["high_n"] == 880.0
+
+
+def test_breakout_no_trigger_far():
+    hist = _hist([880.0] * 25)
+    state = {"breakout_near_levels": []}
+    # 900 距高点 880 = 2.3% > 1.5%, 且不在 950 带内
+    assert m._check_breakout_approach(900.0, state, hist, _cfg()) is None
+
+
+def test_breakout_no_trigger_after_broken_high():
+    """已破高 → 交给 take_profit_breakout, 突破前兆不重复报."""
+    hist = _hist([880.0] * 25)
+    state = {"breakout_near_levels": []}
+    # 895 > 880 已破高 → approach_high False; 950带外 → None
+    assert m._check_breakout_approach(895.0, state, hist, _cfg()) is None
+
+
+def test_breakout_short_history_skipped():
+    state = {"breakout_near_levels": []}
+    assert m._check_breakout_approach(947.0, state, _hist([880.0] * 5), _cfg()) is None
+
+
+def test_breakout_cooldown_key_used():
+    """_opp_cooldown_ok 对 breakout 前缀读 cooldown_breakout_min."""
+    state = {"breakout_alert_at": (datetime.now(BEIJING) - timedelta(minutes=30)).isoformat(),
+             "breakout_alert_price": 947.0}
+    # 30min < 60min → 冷却内
+    assert m._opp_cooldown_ok(state, "breakout", 947.5, "up", _cfg()) is False
+    # 冷却内同向再走1% → 再提醒
+    assert m._opp_cooldown_ok(state, "breakout", 958.0, "up", _cfg()) is True
+    # 无记录 → 立即放行
+    assert m._opp_cooldown_ok({}, "breakout", 947.0, "up", _cfg()) is True
+
+
+def test_build_breakout_alert_message():
+    cand = {"entered_level": 950.0, "approach_high": False, "high_n": 880.0,
+            "lookback": 20, "current": 947.5}
+    verdict = {"strength": "strong", "reasons": ["信号快照：多5空2"], "veto_note": ""}
+    alert = m._build_opp_alert("breakout_approach", cand, verdict, _ev(), 947.5, 890.0)
+    assert alert["type"] == "breakout_approach"
+    assert alert["severity"] == "HIGH"
+    assert "突破前兆" in alert["message"]
+    assert "不自动挂单" in alert["message"]
+    assert "理由强度: 强" in alert["message"]
+
+
+def test_build_breakout_alert_veto():
+    cand = {"entered_level": 950.0, "approach_high": False, "high_n": 880.0,
+            "lookback": 20, "current": 947.5}
+    verdict = {"strength": "veto", "reasons": [], "veto_note": "信号快照：多5空2，方向仍偏多"}
+    alert = m._build_opp_alert("breakout_approach", cand, verdict, _ev(), 947.5, 890.0)
+    assert alert["type"] == "breakout_approach_vetoed"

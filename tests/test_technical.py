@@ -301,3 +301,111 @@ class TestRSIThreshold:
         overbought = next(s for s in ta_up.generate_signals() if s.name == "RSI超买")
         assert -1.0 <= overbought.score < 0.0
         assert overbought.direction == SignalDirection.BEARISH
+
+
+# ------------------------------------------------------------------
+# 突破前兆信号 (Req1A 2026-08-11)
+# ------------------------------------------------------------------
+
+
+def _make_squeeze_df(n: int = 60) -> pd.DataFrame:
+    """尾部 20 根 close 近乎恒定 → 20日布林带宽收敛到极低 (真实窄幅盘整)."""
+    df = _make_ohlcv_df(n=n, base_price=900.0, trend=0.0, noise_std=3.0, seed=3)
+    const_val = 947.0
+    n_const = 20
+    df.loc[df.index[-n_const:], "close"] = const_val
+    df.loc[df.index[-n_const:], "high"] = const_val + 0.5
+    df.loc[df.index[-n_const:], "low"] = const_val - 0.5
+    return df
+
+
+def _make_round_df(latest: float, n: int = 60) -> pd.DataFrame:
+    """close 末值 = latest, 用于整数关口逼近测试."""
+    df = _make_ohlcv_df(n=n, base_price=latest - 20.0, trend=1.0, noise_std=1.0, seed=5)
+    df.loc[df.index[-1], "close"] = latest
+    df.loc[df.index[-1], "high"] = latest + 1.0
+    df.loc[df.index[-1], "low"] = latest - 1.0
+    return df
+
+
+class TestSqueezeDetection:
+    def test_squeeze_fires_on_tight_band(self) -> None:
+        df = _make_squeeze_df()
+        ta = TechnicalAnalyzer(df)
+        result = ta.squeeze_detection()
+        assert result["squeeze"] is True
+        assert result["width_pct"] < 0.03
+
+    def test_no_squeeze_on_ranging(self) -> None:
+        df = _make_ranging_df(n=60)
+        ta = TechnicalAnalyzer(df)
+        result = ta.squeeze_detection()
+        assert result["squeeze"] is False
+
+    def test_insufficient_data_fallback(self) -> None:
+        df = _make_ohlcv_df(n=15)
+        ta = TechnicalAnalyzer(df)
+        result = ta.squeeze_detection()
+        assert result["squeeze"] is False
+
+
+class TestRoundLevelProximity:
+    def test_near_below(self) -> None:
+        df = _make_round_df(latest=947.0)
+        ta = TechnicalAnalyzer(df)
+        result = ta.round_level_proximity()
+        assert result["near_round_level"] is True
+        assert result["level"] == 950.0
+        assert result["above"] is False
+
+    def test_near_above(self) -> None:
+        df = _make_round_df(latest=1003.0)
+        ta = TechnicalAnalyzer(df)
+        result = ta.round_level_proximity()
+        assert result["near_round_level"] is True
+        assert result["level"] == 1000.0
+        assert result["above"] is True
+
+    def test_far(self) -> None:
+        df = _make_round_df(latest=920.0)
+        ta = TechnicalAnalyzer(df)
+        result = ta.round_level_proximity()
+        assert result["near_round_level"] is False
+
+
+class TestAdxConvergence:
+    def test_returns_expected_keys(self) -> None:
+        df = _make_ohlcv_df()
+        ta = TechnicalAnalyzer(df)
+        result = ta.adx_convergence()
+        assert set(result.keys()) == {"adx_converging", "adx", "adx_prev", "drop_pct"}
+        assert result["adx"] >= 0
+
+    def test_no_convergence_in_strong_uptrend(self) -> None:
+        df = _make_uptrend_df(n=100)
+        ta = TechnicalAnalyzer(df)
+        result = ta.adx_convergence()
+        assert result["adx_converging"] is False
+
+    def test_adx_still_returns_keys_after_refactor(self) -> None:
+        """回归: _adx_series 重构后 adx() 键不变."""
+        df = _make_ohlcv_df()
+        ta = TechnicalAnalyzer(df)
+        result = ta.adx()
+        assert set(result.keys()) == {"adx", "plus_di", "minus_di", "trend_regime"}
+
+
+class TestBreakoutPrecursorSignals:
+    def test_generate_signals_contains_round_level_near(self) -> None:
+        df = _make_round_df(latest=947.0)
+        ta = TechnicalAnalyzer(df)
+        signals = ta.generate_signals()
+        assert any("逼近整数关口" in s.name for s in signals)
+        for sig in signals:
+            assert sig.dimension == "technical"
+
+    def test_generate_signals_contains_squeeze(self) -> None:
+        df = _make_squeeze_df()
+        ta = TechnicalAnalyzer(df)
+        signals = ta.generate_signals()
+        assert any(s.name == "布林带收窄·蓄势待变" for s in signals)

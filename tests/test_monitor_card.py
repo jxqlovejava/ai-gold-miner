@@ -67,3 +67,15 @@ def test_card_cost_clean_when_profitable():
     card = m._format_card("NORMAL", "NORMAL", price_info, 894.0, [], {})
     assert "浮盈 1.8%" in card
     assert "已破成本线" not in card
+
+
+def test_card_breakout_approach_shown_once():
+    """突破前兆置顶展示, 且不在 remaining 二次重复."""
+    price_info = {"price": 947.5, "prev_close": 940.0, "change_pct": 0.80}
+    alerts = [
+        {"type": "breakout_approach", "message": "🚀 突破前兆 (变盘窗口开启) | 价格升入整数关口 950 带",
+         "severity": "HIGH"},
+    ]
+    card = m._format_card("NORMAL", "NORMAL", price_info, 890.0, alerts, {})
+    assert card.count("🚀 突破前兆") == 1
+    assert "变盘窗口开启" in card
