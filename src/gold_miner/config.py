@@ -6,11 +6,19 @@ from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+# env_file 用 __file__ 推导绝对路径, 不依赖进程 CWD.
+# 背景: Hermes cron 未设 workdir 的 job 从守护进程目录(如 ~/.hermes)启动,
+#   相对 ".env" 找不到 → llm_api_key 空 → 语义分析器静默禁用 → 突发新闻
+#   推送退化为纯规则判定 ("⚠️规则判定·LLM不可用"). 事故: 2026-08-11 突发新闻预警.
+# 仍保留相对 ".env" 作兜底, 兼容确实依赖 CWD 的部署.
+_ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
+
+
 class Settings(BaseSettings):
     """应用配置，优先从环境变量读取，其次.env文件."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(_ENV_FILE, ".env"),
         env_file_encoding="utf-8",
         extra="ignore",
     )
