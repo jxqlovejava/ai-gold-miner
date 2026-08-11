@@ -1,4 +1,5 @@
 """render_report_html 渲染器测试 — markdown → 本地 HTML."""
+import re
 import sys
 from pathlib import Path
 
@@ -236,3 +237,51 @@ def test_plain_bold_paragraph_not_key_block():
     html_out = "".join(blocks)
     assert "key-block" not in html_out
     assert "<strong>多空性质对比</strong>" in html_out
+
+
+def test_key_block_body_split_into_sentences():
+    """回归: 核心结论正文按句末标点分行, 粗体段 (含句号) 不被误切断."""
+    blocks = r._md_to_html(
+        "**核心结论**：今日金价**冲高回落**，950 关口得而复失。"
+        "**结论：持有观望，不追涨。**"
+    )
+    html_out = "".join(blocks)
+    assert "key-block" in html_out
+    body = re.search(
+        r'<div class="key-body">(.*?)</div></div>', html_out, re.S
+    ).group(1)
+    lines = body.split("<br>")
+    assert len(lines) == 2
+    assert lines[0].endswith("。")  # 第一行以句号收尾
+    assert "持有观望" not in lines[0]  # 粗体结论句已独立成行
+    assert "<strong>结论：持有观望，不追涨。</strong>" in lines[1]
+
+
+def test_key_block_bold_spanning_sentence_boundary_not_split():
+    """回归: '警示追涨。**结论：…。**' — 粗体前的句号正常分行, 粗体段整体保留."""
+    blocks = r._md_to_html(
+        "**核心结论**：r021 警示追涨。**结论：持有观望。**"
+    )
+    html_out = "".join(blocks)
+    body = re.search(
+        r'<div class="key-body">(.*?)</div></div>', html_out, re.S
+    ).group(1)
+    lines = body.split("<br>")
+    assert len(lines) == 2
+    assert "<strong>结论：持有观望。</strong>" in lines[1]
+
+
+def test_blockquote_multiline_kept_separate():
+    """回归: 多条 '>' 引用独立成行 + 句末标点分行, 不再合并成一堵长文本."""
+    blocks = r._md_to_html(
+        "> **推导逻辑**：看多情景 CPI 温和 → 站稳 950。回调以 ATR 911 为防线。\n"
+        "> **概率参考**：方向偏多但短线超买，故看多 35%。"
+    )
+    html_out = "".join(blocks)
+    assert "<blockquote>" in html_out
+    lines = html_out.split("<br>")
+    # 推导逻辑(2句) + 概率参考(1句) = 3 行, 标签各自成行
+    assert len(lines) == 3
+    assert "推导逻辑" in lines[0]
+    assert "概率参考" in lines[2]
+    assert "防线" in lines[1]

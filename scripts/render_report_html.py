@@ -86,6 +86,33 @@ footer { text-align: center; color: #aaa; font-size: 12px; margin-top: 32px; pad
 
 _INLINE_BOLD_RE = re.compile(r"\*\*(.+?)\*\*")
 
+_BOLD_SPAN_RE = re.compile(r"\*\*(.+?)\*\*")
+
+
+def _split_lines(text: str) -> list[str]:
+    """把定性长文本按句末标点 (。！？) 拆成多行 (每行一句), 用于分行展示.
+
+    避免"核心结论/推导逻辑"等长段落被浏览器折叠成一大段无层次文字.
+    先保护 **粗体** 段再分行, 防止在 **…。** 粗体内部误断句
+    (如 "警示追涨。**结论：…。**" 的句号在粗体开头段之后、结尾段内部).
+    """
+    spans: dict[str, str] = {}
+
+    def _protect(m: re.Match) -> str:
+        ph = f"\x00K{len(spans)}\x00"
+        spans[ph] = m.group(0)
+        return ph
+
+    protected = _BOLD_SPAN_RE.sub(_protect, text)
+    lines = []
+    for part in re.split(r"(?<=[。！？])", protected):
+        if not part.strip():
+            continue
+        for ph, raw in spans.items():
+            part = part.replace(ph, raw)
+        lines.append(part.strip())
+    return lines
+
 
 _STATUS_ICONS = {
     "⚠️": "warn",
@@ -215,11 +242,13 @@ _KEY_BLOCK_RE = re.compile(r"^\*\*(.+?)\*\*[:：]\s*(.*)$")
 def _key_block(tag: str, body: str) -> str:
     """金边高亮块: '**核心结论**：...' 定性段落 → 醒目卡片.
 
-    解决长段落无层次问题 (核心结论/关键定性等), 标签 + 正文分层.
+    解决长段落无层次问题 (核心结论/关键定性等), 标签 + 正文分层;
+    正文按句末标点分行 (每行一句), 避免一大段文字无断句.
     """
+    lines_html = "<br>".join(_inline(s) for s in _split_lines(body))
     return (
         f'<div class="key-block"><div class="key-tag">📌 {_inline(tag)}</div>'
-        f'<div class="key-body">{_inline(body)}</div></div>'
+        f'<div class="key-body">{lines_html}</div></div>'
     )
 
 
@@ -261,7 +290,11 @@ def _md_to_html(md: str) -> list[str]:
             while i < n and lines[i].startswith(">"):
                 quote_lines.append(lines[i][1:].strip())
                 i += 1
-            blocks.append(f"<blockquote>{_inline(' '.join(quote_lines))}</blockquote>")
+            # 每条 '>' 行独立成行 + 句末标点分行, 避免多条引用合并成一堵长文本
+            lines_html = "<br>".join(
+                _inline(s) for ln in quote_lines for s in _split_lines(ln)
+            )
+            blocks.append(f"<blockquote>{lines_html}</blockquote>")
             continue
 
         # 决策摘要卡片: "## 📌 决策: **持有** | 综合评分 +0.26 | 置信度 72%"
