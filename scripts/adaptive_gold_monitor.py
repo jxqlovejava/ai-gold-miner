@@ -991,16 +991,44 @@ def _build_opp_alert(
 # 无告警时静默退出, 有告警时多渠道推送
 
 
+_WEIXIN_TARGET = os.environ.get(
+    "GOLD_WEIXIN_TARGET", "weixin:o9cq80613_z9qxqE69G94f-0CzGk@im.wechat"
+)
+
+
+def _push_weixin(text: str) -> bool:
+    """推送 markdown 到 Hermes 微信 (hermes send, 服务器上可用).
+
+    2026-08-11 修复: 之前 _send_alert 只有 macOS osascript, 服务器 (Ubuntu)
+    上 osascript 不存在 → 微信推送静默失败。改用 hermes send 作为主通道,
+    macOS osascript 仅保留为本地开发时的补充通知。
+    """
+    import shutil
+    import subprocess
+
+    if shutil.which("hermes") is None:
+        return False
+    try:
+        r = subprocess.run(
+            ["hermes", "send", "-t", _WEIXIN_TARGET, "-q", text],
+            capture_output=True, text=True, timeout=120,
+        )
+        return r.returncode == 0
+    except Exception as e:
+        print(f"⚠️ weixin 推送失败: {e}", file=sys.stderr)
+        return False
+
+
 def _send_alert(message: str) -> bool:
     """多渠道推送通知.
 
-    优先级: macOS 通知 (osascript) → Hermes weixin (需 gateway 运行)
-    macOS 通知永远可用; Hermes weixin 需先配置 gateway.
+    优先级: Hermes weixin (hermes send, 服务器/本地均可) → macOS 通知 (osascript)。
+    Hermes 微信为主通道 — 服务器 cron 场景下 macOS osascript 不可用。
     """
     import subprocess
-    success = False
+    success = _push_weixin(message)
 
-    # 1. macOS 桌面通知 (最可靠)
+    # macOS 桌面通知 (本地开发补充, 服务器上 osascript 不存在自动跳过)
     try:
         # 截取第一行作为标题, 其余为内容
         lines = message.strip().split("\n")
@@ -1014,7 +1042,6 @@ def _send_alert(message: str) -> bool:
              f'display notification "{body_clean}" with title "{title_clean}" sound name "Glass"'],
             capture_output=True, timeout=10,
         )
-        success = True
     except Exception:
         pass
 
