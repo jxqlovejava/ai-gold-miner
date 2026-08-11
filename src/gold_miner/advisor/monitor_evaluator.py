@@ -54,6 +54,13 @@ class MonitorEvaluator:
         if not condition:
             return False, "无条件"
 
+        # 事件后评估型 monitor: trigger_condition 描述"数据公布后的人工路由/分情景评估"
+        # (如 CPI 公布后按回落/持平/过热三情景路由)。这类条件没有可自动量化的价格阈值，
+        # 数字只是情景说明，强制规则引擎解析会把标识符/时间/百分比误当价格 (如 "L1"→1)。
+        # 标记为"需人工复核"，等数据公布后由分析路由，绝不自动 close。
+        if re.search(r"(?:公布后|待评估|评估后|数据后|数据公布)", condition):
+            return False, f"需人工复核: {condition[:80]}..."
+
         # 顶层按“或”拆分
         or_clauses = re.split(r"(?:或|or|OR)\s*", condition)
         any_manual = False
@@ -116,8 +123,27 @@ class MonitorEvaluator:
         # 去掉日期/月份数字，避免误把“9月”当阈值
         part_clean = re.sub(r"\d+\s*[年月日]", "", part)
 
+        # 去掉事件时间 (如 20:30, 08:30) — 事件钟点不是价格阈值
+        part_clean = re.sub(r"\d{1,2}:\d{2}", "", part_clean)
+
+        # 合并千位分隔符数字 (如 4,100 → 4100)，避免拆成 4 和 100
+        part_clean = re.sub(
+            r"(?<!\d)(\d{1,3}(?:,\d{3})+)(?!\d)",
+            lambda m: m.group(0).replace(",", ""),
+            part_clean,
+        )
+
+        # 去掉百分比数字 (如 5%, >2%) — 百分比/幅度不是绝对价格阈值
+        part_clean = re.sub(r"(?<!\d)\d+(?:\.\d+)?\s*[%％]", "", part_clean)
+
+        # 去掉字母+数字标识符 (如 L1, RSI2, K3) — 协议/指标编号不是价格
+        part_clean = re.sub(r"[A-Za-z]\d+(?:\.\d+)?", "", part_clean)
+
         # 提取所有数字及其上下文
-        numbers = [(m.start(), float(m.group(1))) for m in re.finditer(r"(\d+(?:\.\d+)?)", part_clean)]
+        numbers = [
+            (m.start(), float(m.group(1)))
+            for m in re.finditer(r"(?<!\d)(\d+(?:\.\d+)?)(?!\d)", part_clean)
+        ]
         if not numbers:
             return False, "manual"
 
