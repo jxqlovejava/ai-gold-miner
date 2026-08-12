@@ -75,6 +75,16 @@ pre { background: #f5f1e6; border: 1px solid var(--border); border-radius: 8px; 
 .df-item { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; }
 .df-label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 2px; }
 .df-value { font-size: 14px; font-weight: 600; }
+.position-card { background: linear-gradient(135deg, #fdfcf7 0%, #f6ecd2 100%); border: 1px solid #e5d9b0; border-radius: var(--radius); padding: 16px 18px; margin-bottom: 20px; box-shadow: var(--shadow); }
+.position-title { font-size: 13px; font-weight: 700; color: var(--gold-dark); letter-spacing: 1px; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+.position-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+.pos-item { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; }
+.pos-label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 2px; }
+.pos-value { font-size: 15px; font-weight: 700; color: var(--text); }
+.pos-value.gold { color: var(--gold-dark); }
+.pos-value.green { color: var(--green); }
+.pos-value.red { color: var(--red); }
+.pos-value.amber { color: #9a6a00; }
 .key-block { background: linear-gradient(135deg, #fffdf5 0%, #fdf3d7 100%); border-left: 4px solid var(--gold); border-radius: 0 8px 8px 0; padding: 14px 18px; margin: 12px 0; }
 .key-tag { font-size: 13px; font-weight: 700; color: var(--gold-dark); margin-bottom: 6px; letter-spacing: 1px; }
 .key-body { font-size: 13px; line-height: 1.8; }
@@ -349,13 +359,17 @@ def _md_to_html(md: str) -> list[str]:
             meta = dm.group(2) or ""
             i += 1
             fields: list[tuple[str, str]] = []
+            # 跳过紧邻空行, 继续收集 "建议仓位:/止损:/止盈:" 字段 (字段区以分隔线或段落结束)
             while i < n:
                 fld = lines[i].strip()
                 if not fld:
-                    break  # 空行结束字段区
+                    i += 1
+                    continue  # 空行不结束字段区 (允许字段前有空行)
+                if re.match(r"^-{3,}$", fld):
+                    break  # 分隔线结束字段区
                 fm = re.match(r"^(.+?):\s+(.+)$", fld)
                 if not fm:
-                    break
+                    break  # 非字段行结束
                 fields.append((fm.group(1).strip(), fm.group(2).strip()))
                 i += 1
             blocks.append(_decision_card(value, meta, fields))
@@ -521,6 +535,71 @@ def _status_bar(items: list[tuple[str, str, str]]) -> str:
     return f'<div class="status-bar">{inner}</div>'
 
 
+def _position_card(pos_items: list[tuple[str, str, str]]) -> str:
+    """持仓概览卡片: items = [(label, value, css_class), ...].
+
+    显示持仓克数/成本/市值/净浮盈/ATR止盈/ATR止损等, 渲染在 hero 下方.
+    """
+    grid = "".join(
+        f'<div class="pos-item"><span class="pos-label">{html.escape(lbl)}</span>'
+        f'<span class="pos-value {cls}">{html.escape(val)}</span></div>'
+        for lbl, val, cls in pos_items
+    )
+    return (
+        '<div class="position-card"><div class="position-title">📦 持仓概览</div>'
+        f'<div class="position-grid">{grid}</div></div>'
+    )
+
+
+_POS_LINE_RE = re.compile(
+    r"持仓\s+([\d.]+)g\s*\|.*?成本\s+([\d.]+)\s*\|.*?市值\s+¥([\d,]+)"
+)
+
+
+def _parse_position_line(quote: str) -> dict[str, str] | None:
+    """解析持仓引用行 '持仓 22.4587g | 成本 921.20 | 市值 ¥21,464 | ...'.
+
+    提取克数/成本/市值, 其余字段 (净浮盈/净保本/ATR止盈/ATR止损) 由调用方补充.
+    """
+    m = _POS_LINE_RE.search(quote)
+    if not m:
+        return None
+    return {"grams": m.group(1), "avg_cost": m.group(2), "gross_value": m.group(3)}
+
+
+def _build_position_items(pos: dict[str, str], quote: str) -> list[tuple[str, str, str]]:
+    """构造持仓卡片条目: (label, value, css_class).
+
+    基础来自持仓行 (克数/成本/市值), 净浮盈/净保本/ATR止盈/ATR止损从同一
+    引用行按 '字段 值' 提取. 净浮盈为正 → green, 为负 → red.
+    """
+    items: list[tuple[str, str, str]] = [
+        ("持仓克数", f"{pos['grams']}g", ""),
+        ("成本均价", f"¥{pos['avg_cost']}", ""),
+        ("持仓市值", f"¥{pos['gross_value']}", "gold"),
+    ]
+
+    def _find(field: str) -> str | None:
+        m = re.search(re.escape(field) + r"\s+([+\-−]?[\d,]+(?:\.\d+)?%?)", quote)
+        return m.group(1) if m else None
+
+    net_pnl = _find("净浮盈")
+    if net_pnl:
+        is_pos = not net_pnl.lstrip("+−-").startswith("-") and not net_pnl.startswith("−")
+        cls = "green" if is_pos else "red"
+        items.append(("净浮盈", net_pnl, cls))
+    net_be = _find("净保本")
+    if net_be:
+        items.append(("净保本价", f"¥{net_be}", "amber"))
+    atr_tp = _find("ATR止盈")
+    if atr_tp:
+        items.append(("ATR止盈", atr_tp, "amber"))
+    atr_sl = _find("ATR止损")
+    if atr_sl:
+        items.append(("ATR止损", atr_sl, "red"))
+    return items
+
+
 def _section(html_inner: str) -> str:
     return f'<div class="section">{html_inner}</div>'
 
@@ -533,34 +612,57 @@ def render(md: str, out_path: Path) -> Path:
     title = "金价分析报告"
     subtitle = "AI Gold Miner · 青蚨"
     status_items: list[tuple[str, str, str]] = []
+    pos_items: list[tuple[str, str, str]] = []
     body_start = 0
 
+    # 收集首部连续的 > 引文行 (行情概览 + 持仓行)
+    quote_lines: list[str] = []
+    quote_end = 0
     for idx, ln in enumerate(lines):
         stripped = ln.strip()
         if not stripped:
-            continue  # 跳过空行 (标题与引文之间可能有空行)
+            continue
         if stripped.startswith("# ") and title == "金价分析报告":
             title = stripped[2:].strip()
-        elif stripped.startswith(">"):
-            quote = stripped[1:].strip()
-            # 解析 "积存金 **¥958.81** | 国际 $4408/oz | 净保本 ¥894.38" → 拆成 status items
-            parts = [p.strip() for p in quote.split("|")]
-            for part in parts:
-                if part.startswith("积存金"):
-                    m = re.search(r"¥([\d,.]+)", part)
-                    if m:
-                        status_items.append(("积存金", f"¥{m.group(1)}", "gold"))
-                elif part.startswith("国际"):
-                    m = re.search(r"\$([\d,.]+)", part)
-                    if m:
-                        status_items.append(("XAUUSD", f"${m.group(1)}", "green"))
-                else:
-                    status_items.append(("行情", part, ""))
-            body_start = idx + 1
-            break
-        else:
-            body_start = idx
-            break
+            continue
+        if stripped.startswith(">"):
+            quote_lines.append(stripped[1:].strip())
+            quote_end = idx + 1
+            continue
+        body_start = idx
+        break
+    else:
+        body_start = quote_end
+
+    if quote_lines:
+        combined = " | ".join(quote_lines)
+        # 持仓行 → 持仓卡片
+        pos = _parse_position_line(combined)
+        if pos:
+            pos_items = _build_position_items(pos, combined)
+        # 解析 "积存金 **¥958.81** | 国际 $4408/oz | ATR止盈 ..." → status items
+        for part in combined.split("|"):
+            part = part.strip()
+            if part.startswith("积存金"):
+                m = re.search(r"¥([\d,.]+)", part)
+                if m:
+                    status_items.append(("积存金", f"¥{m.group(1)}", "gold"))
+            elif part.startswith("国际"):
+                m = re.search(r"\$([\d,.]+)", part)
+                if m:
+                    status_items.append(("XAUUSD", f"${m.group(1)}", "green"))
+            elif part.startswith("ATR止盈"):
+                m = re.search(r"([\d.]+)", part)
+                if m:
+                    status_items.append(("ATR止盈", m.group(1), "amber"))
+            elif part.startswith("ATR止损"):
+                m = re.search(r"([\d.]+)", part)
+                if m:
+                    status_items.append(("ATR止损", m.group(1), "red"))
+            elif part.startswith(("持仓 ", "成本 ", "市值 ", "净浮盈", "净保本")):
+                continue  # 持仓行字段已入持仓卡片, 不进 status bar
+            elif part:
+                status_items.append(("行情", part, ""))
 
     blocks = _md_to_html("\n".join(lines[body_start:]))
 
@@ -594,6 +696,7 @@ def render(md: str, out_path: Path) -> Path:
 <body>
 <div class="page">
 {_hero(title, subtitle)}
+{_position_card(pos_items) if pos_items else ''}
 {_status_bar(status_items) if status_items else ''}
 {page_html}
 <footer>AI Gold Miner · 青蚨 · 仅供个人投资决策参考</footer>
