@@ -319,20 +319,21 @@ def _format_stop_context(ctx: dict) -> str:
     return " · ".join(parts) if parts else ""
 
 
-def _format_atr_levels(ctx: dict, current: float) -> str:
+def _format_atr_levels(ctx: dict, current: float) -> list[str]:
     """ATR 止盈/止损状态行 (r025) — 每次监控卡片都带上, 说明当前价距两条线多远.
 
     ATR止盈 = 浮盈轨 (最高价 - 2.5×ATR, 保净本); ATR止损 = 浮亏轨 (成本 - 3.0×ATR).
     与 _format_stop_context 的区别: 后者只在价格逼近/跌破时才提示, 本函数常驻.
+    返回两行 (止盈/止损各一行), 由 _format_card 逐行带 🎯 前缀输出.
     """
-    parts: list[str] = []
+    lines: list[str] = []
     tp = ctx.get("atr_take_profit", 0.0) or 0.0
     sl = ctx.get("atr_stop_loss", 0.0) or 0.0
     if tp > 0 and current > 0:
-        parts.append(f"ATR止盈：{tp:.1f}元，当前价距止盈位{(current - tp) / tp * 100:+.1f}%")
+        lines.append(f"ATR止盈：{tp:.1f}元，当前价距止盈位{(current - tp) / tp * 100:+.1f}%")
     if sl > 0 and current > 0:
-        parts.append(f"ATR止损：{sl:.1f}元，当前价距止损位{(current - sl) / sl * 100:+.1f}%")
-    return " | ".join(parts)
+        lines.append(f"ATR止损：{sl:.1f}元，当前价距止损位{(current - sl) / sl * 100:+.1f}%")
+    return lines
 
 
 def _get_historical(days: int = 30) -> list[dict]:
@@ -1429,10 +1430,9 @@ def _format_card(
             line += " ⚠️ 已破净保本线, 卖出即实亏"
         lines.append(line)
 
-    # ── ATR 止盈/止损 (r025) — 常驻, 无论是否有告警都带上 ──
+    # ── ATR 止盈/止损 (r025) — 常驻, 无论是否有告警都带上 (止盈/止损各一行) ──
     if stop_ctx:
-        atr_line = _format_atr_levels(stop_ctx, price_info["price"])
-        if atr_line:
+        for atr_line in _format_atr_levels(stop_ctx, price_info["price"]):
             lines.append(f"🎯 {atr_line}")
 
     # ── 趋势摘要: 从告警中提取去重展示 ──

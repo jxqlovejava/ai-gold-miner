@@ -78,6 +78,24 @@ def test_card_cost_precision_two_decimals():
     assert "净保本¥925" not in card  # .0f 舍入已禁用
 
 
+def test_card_atr_levels_two_lines():
+    # ATR止盈/止损必须分行输出 (2026-08-13 用户反馈), 且成本行保留 .2f 精度
+    stop_ctx = {"atr_take_profit": 937.6, "atr_stop_loss": 896.1,
+                "atr_stop": 937.6, "hard_stop": 645.0, "secondary_stop": 875.0}
+    price_info = {"price": 955.19, "prev_close": 958.55, "change_pct": -0.35}
+    card = m._format_card("NORMAL", "NORMAL", price_info, 921.20, [], {}, stop_ctx=stop_ctx)
+    atr_lines = [ln for ln in card.splitlines() if "ATR" in ln]
+    # 两行: 一行止盈 + 一行止损 (不再 " | " 同行拼接)
+    assert len(atr_lines) == 2
+    assert "ATR止盈：937.6元" in atr_lines[0]
+    assert "ATR止损：896.1元" in atr_lines[1]
+    assert "ATR止盈" not in atr_lines[1]
+    assert "ATR止损" not in atr_lines[0]
+    # 距离百分比也分行带在各自行
+    assert "距止盈位+1.9%" in atr_lines[0]
+    assert "距止损位+6.6%" in atr_lines[1]
+
+
 def test_card_breakout_approach_shown_once():
     """突破前兆置顶展示, 且不在 remaining 二次重复."""
     price_info = {"price": 947.5, "prev_close": 940.0, "change_pct": 0.80}
