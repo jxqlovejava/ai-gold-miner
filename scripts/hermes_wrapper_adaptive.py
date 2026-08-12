@@ -9,6 +9,9 @@ import os, sys
 
 os.chdir("/home/ubuntu/ai-gold-miner")
 sys.path.insert(0, "/home/ubuntu/ai-gold-miner")
+# PYTHONPATH 环境变量只在解释器启动时生效, 运行中修改不影响 sys.path — 必须显式注入 <root>/src
+# (曾依赖服务器根目录残留陈旧 gold_miner/ 兜底, 副本消失后报 No module named 'gold_miner')
+sys.path.insert(0, "/home/ubuntu/ai-gold-miner/src")
 os.environ["PYTHONPATH"] = "src:" + os.environ.get("PYTHONPATH", "")
 os.environ.setdefault("GOLD_MINER_ROOT", "/home/ubuntu/ai-gold-miner")
 # 2026-08-12: 告知脚本 stdout 会被 Hermes cron 投递微信, 脚本内不再重复 hermes send (防双投递限流)
