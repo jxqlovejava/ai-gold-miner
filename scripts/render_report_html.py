@@ -613,9 +613,10 @@ def _build_position_items(pos: dict[str, str], quote: str) -> list[tuple[str, st
     atr_tp = _find("ATR止盈")
     if atr_tp:
         items.append(("ATR止盈", atr_tp, "amber"))
-    atr_sl = _find("ATR止损")
-    if atr_sl:
-        items.append(("ATR止损", atr_sl, "red"))
+    # 硬止损优先 (成本-30%), 兼容旧 'ATR止损' 标签; 与 ATR移动止盈(937.68) 语义区分
+    hard_sl = _find("硬止损") or _find("ATR止损")
+    if hard_sl:
+        items.append(("硬止损", hard_sl, "red"))
     return items
 
 
@@ -674,10 +675,10 @@ def render(md: str, out_path: Path) -> Path:
                 m = re.search(r"([\d.]+)", part)
                 if m:
                     status_items.append(("ATR止盈", m.group(1), "amber"))
-            elif part.startswith("ATR止损"):
+            elif part.startswith("硬止损") or part.startswith("ATR止损"):
                 m = re.search(r"([\d.]+)", part)
                 if m:
-                    status_items.append(("ATR止损", m.group(1), "red"))
+                    status_items.append(("硬止损", m.group(1), "red"))
             elif part.startswith(("持仓 ", "成本 ", "市值 ", "净浮盈", "净保本")):
                 continue  # 持仓行字段已入持仓卡片, 不进 status bar
             elif part:
@@ -685,10 +686,24 @@ def render(md: str, out_path: Path) -> Path:
 
     blocks = _md_to_html("\n".join(lines[body_start:]))
 
-    # 每个 h2 开始新 section; 非 h2 块归入当前 section
+    # 每个 h2 开始新 section; 非 h2 块归入当前 section.
+    # 决策卡片块 (decision-card) 单独渲染, 不套 .section (避免双层卡片边框).
+    # 纯 <hr> 块直接输出, 不包 section (避免出现空边框卡片).
     sections: list[str] = []
     current: list[str] = []
     for blk in blocks:
+        if blk == "<hr>":
+            if current:
+                sections.append(_section("\n".join(current)))
+                current = []
+            sections.append(blk)
+            continue
+        if blk.startswith("<div class='decision-card'") or blk.startswith('<div class="decision-card"'):
+            if current:
+                sections.append(_section("\n".join(current)))
+                current = []
+            sections.append(blk)  # 决策卡片独立, 不包 section
+            continue
         if blk.startswith("<h2"):
             if current:
                 sections.append(_section("\n".join(current)))
