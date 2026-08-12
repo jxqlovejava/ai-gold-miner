@@ -98,6 +98,37 @@ def test_list_bull_bear_colored():
     assert 'class="warn"' in html_out
 
 
+def test_ordered_list_nested_block_keeps_numbering():
+    """回归: 有序列表项内嵌缩进块(如缠论结构)不得拆散 <ol> 导致序号重置.
+
+    旧 bug: 「1. 技术面」后跟缩进缠论块 + 空行 → 「2. 基本面」被拆成新 <ol>,
+    渲染成 1 / 1,2,3... 序号全错乱. 修复后 1..N 同处一个 <ol> 连续编号.
+    """
+    md = (
+        "1. **技术面**（+0.1）：布林带上轨\n"
+        "\n"
+        "   🀄 缠论结构：\n"
+        "   - 结构：4 笔 + 1 中枢\n"
+        "   - 买卖点：三买 @860\n"
+        "\n"
+        "2. **基本面**（+0.2）：央行购金\n"
+        "3. **消息面**（+0.15）：地缘溢价\n"
+        "4. **资金流**（-0.1）：COT 减仓\n"
+        "5. **情绪面**（+0.1）：\n"
+        "6. **近期事件**（+0.2）：\n"
+    )
+    blocks = r._md_to_html(md)
+    html_out = "".join(blocks)
+    # 6 项同处一个 <ol>, 不产生第二个独立 <ol>
+    assert html_out.count("<ol>") == 1
+    assert html_out.count("<li>") == 6
+    # 缠论嵌套内容折叠进技术面 <li>
+    assert "li-nested" in html_out
+    assert "li-nest-item" in html_out
+    # 基本面等后续项不在独立 <ol> 开头
+    assert "</ol>" not in html_out.split("<strong>基本面</strong>")[0].split("<li>")[-1]
+
+
 def test_doctrine_table_rendered(tmp_path):
     md = "## 军规自查\n通过 30/32\n| 规则 | 判定 |\n|------|------|\n| r001 单笔≤20% | ✅ |\n| r011 警惕一边倒 | ⚠️ |"
     out = tmp_path / "doctrine.html"

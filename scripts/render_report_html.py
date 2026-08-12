@@ -57,6 +57,9 @@ blockquote { background: var(--amber-bg); border-left: 4px solid var(--gold); pa
 .highlight { background: #fff8e6; border: 1px solid #ecd9a0; border-radius: 8px; padding: 10px 14px; margin: 12px 0; font-size: 13px; }
 ul, ol { padding-left: 22px; margin: 8px 0 12px; }
 li { margin: 4px 0; font-size: 13px; }
+.li-nested { margin: 6px 0 2px; padding-left: 14px; border-left: 2px solid var(--gold-light); }
+.li-nest-item { font-size: 12.5px; margin: 3px 0; line-height: 1.7; }
+.li-nest-item code { background: #f5f1e6; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
 .ok { color: var(--green); font-weight: 600; }
 .warn { color: var(--red); font-weight: 600; }
 .amber { color: #9a6a00; font-weight: 600; }
@@ -177,6 +180,47 @@ def _list_block(prefix: str, lines: list[str]) -> str:
             cls = ' class="warn"'
         items.append(f"<li{cls}>{_inline(content)}</li>")
     return f"<{tag}>" + "".join(items) + f"</{tag}>"
+
+
+def _ordered_list_block(lines: list[str]) -> str:
+    """有序列表 → <ol>. 支持项内缩进续行（嵌套内容折叠进当前 <li>）。
+
+    修复: 维度明细「1. 技术面…」后跟缩进的缠论结构块, 再跟「2. 基本面…」时,
+    旧逻辑把技术面单独拆成一个 <ol> → 基本面重新从 1 编号。此处把项间空行 +
+    缩进续行收进当前项, 使 1..N 保持同一个 <ol> 连续编号。
+    """
+    items: list[list[str]] = []
+    cur: list[str] | None = None
+    for ln in lines:
+        if re.match(r"^\s*\d+\.\s+", ln):
+            if cur:
+                items.append(cur)
+            cur = [ln]
+        elif cur is not None:
+            cur.append(ln)  # 缩进续行 / 项间残留
+    if cur:
+        items.append(cur)
+
+    html_items = []
+    for content in items:
+        marker = re.sub(r"^\s*\d+\.\s+", "", content[0].strip())
+        body = _inline(marker)
+        if len(content) > 1:
+            nested = []
+            for ln in content[1:]:
+                s = ln.strip()
+                if not s:
+                    continue
+                if re.match(r"^[-*]\s+", s):
+                    nested.append(
+                        f"<div class='li-nest-item'>{_inline(re.sub(r'^[-*]\s+', '', s))}</div>"
+                    )
+                else:
+                    nested.append(f"<div class='li-nest-item'>{_inline(s)}</div>")
+            if nested:
+                body += "<div class='li-nested'>" + "".join(nested) + "</div>"
+        html_items.append(f"<li>{body}</li>")
+    return "<ol>" + "".join(html_items) + "</ol>"
 
 
 _ASCII_BOX_CHARS = ("┌", "├", "└", "│")
@@ -334,11 +378,33 @@ def _md_to_html(md: str) -> list[str]:
             blocks.append(_list_block("-", list_lines))
             continue
         if re.match(r"^\s*\d+\.\s+", ln):
+            # 有序列表: 收集连续的 N. 项 + 项间空行 + 项内缩进续行,
+            # 保证 1..N 在同一个 <ol> 内连续编号 (修复嵌套块导致序号重置).
             list_lines = []
-            while i < n and re.match(r"^\s*\d+\.\s+", lines[i]):
-                list_lines.append(lines[i])
-                i += 1
-            blocks.append(_list_block(".", list_lines))
+            while i < n:
+                cur = lines[i]
+                stripped = cur.strip()
+                if not stripped:
+                    j = i
+                    while j < n and not lines[j].strip():
+                        j += 1
+                    if j < n and (
+                        re.match(r"^\s*\d+\.\s+", lines[j])
+                        or len(lines[j]) - len(lines[j].lstrip()) > 0
+                    ):
+                        i = j
+                        continue
+                    break
+                if re.match(r"^\s*\d+\.\s+", cur):
+                    list_lines.append(cur)
+                    i += 1
+                    continue
+                if len(cur) - len(cur.lstrip()) > 0:  # 缩进续行
+                    list_lines.append(cur)
+                    i += 1
+                    continue
+                break
+            blocks.append(_ordered_list_block(list_lines))
             continue
         if re.match(r"^\s*[✓✗]\s+", ln):
             list_lines = []

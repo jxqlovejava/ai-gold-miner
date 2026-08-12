@@ -36,6 +36,9 @@ blockquote { background: var(--amber-bg); border-left: 4px solid var(--gold); pa
 .highlight { background: #fff8e6; border: 1px solid #ecd9a0; border-radius: 8px; padding: 10px 14px; margin: 12px 0; font-size: 13px; }
 ul, ol { padding-left: 22px; margin: 8px 0 12px; }
 li { margin: 4px 0; font-size: 13px; }
+.li-nested { margin: 6px 0 2px; padding-left: 14px; border-left: 2px solid var(--gold-light); }
+.li-nest-item { font-size: 12.5px; margin: 3px 0; line-height: 1.7; }
+.li-nest-item code { background: #f5f1e6; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
 .ok { color: var(--green); font-weight: 600; }
 .warn { color: var(--red); font-weight: 600; }
 .amber { color: #9a6a00; font-weight: 600; }
@@ -95,10 +98,7 @@ footer { text-align: center; color: #aaa; font-size: 12px; margin-top: 32px; pad
   ------------------------------------------------------------
   综合评分: +0.21 | 置信度: 69%</code></pre>
 <h3>维度明细（逐项）</h3>
-<ol><li><strong>技术面</strong>（-0.05，弱偏空）：布林带上轨触及 -0.30；950 整数关口回踩 +0.05；<strong>缠论三买 +0.20</strong>。14日ATR=17.05，<strong>ATR移动止盈位 912.66（未触发，距现价 -4.4%）</strong>。</li></ol>
-<p><strong>🀄 缠论结构</strong>（600天窗口 / 397根日线，`ChanlunSignalGenerator`）：</p>
-<ul><li><strong>结构</strong>：4 笔 + 1 中枢，中枢区间 <strong>ZG=834.60 / ZD=729.00 / ZZ=781.80</strong>（GG=1256，DD=600），状态=形成</li><li><strong>买卖点</strong>：<strong>缠论三买</strong>（bullish weak，+0.20）— 2026-07-01 突破中枢上沿 ZG=834.60 后回抽不进入中枢，参考价 860.02，置信度 80%</li><li><strong>当前位置</strong>：953.46 <strong>中枢上方</strong>，结构偏多；<strong>无卖点</strong>（exit 空）→ 结构上无减仓信号</li><li>映射（保守）：三买 → 分批建仓锚点参考，非主决策</li></ul>
-<ol><li><strong>基本面</strong>（+0.20，看多）：央行 Q1 购金 244吨 +0.80 strong；中国央行 8月购金15吨 +0.30；美国中期选举窗口 7/4-9/6 激活 +0.25；印度关税/卢比 -0.22 部分抵消。</li><li><strong>消息面</strong>（+0.15，看多弱）：地缘风险溢价 +0.60 moderate；但 41/42 条无法交叉验证，置信度降级。</li><li><strong>资金流/聪明钱</strong>（-0.12，看空）：<strong>COT 非商业净多 -12.2%（-27,366手）strong 看空</strong>；投行共识 7 家看空 -0.60；但 GLD +1.71吨 +0.33、13F 4增3减 +0.15、Berkshire 增持GDX +0.20。→ <strong>内部背离：COT减仓 vs ETF流入</strong>。</li><li><strong>情绪面</strong>（+0.10）：近5日 0 天收阳 -0.15（回调后反弹，情绪未过热）。</li><li><strong>近期事件</strong>（+0.18，看多）：非农弱数据主导，加息预期降温。</li></ol>
+<ol><li><strong>技术面</strong>（-0.05，弱偏空）：布林带上轨触及 -0.30；950 整数关口回踩 +0.05；<strong>缠论三买 +0.20</strong>。14日ATR=17.05，<strong>ATR移动止盈位 912.66（未触发，距现价 -4.4%）</strong>。<div class='li-nested'><div class='li-nest-item'><strong>🀄 缠论结构</strong>（600天窗口 / 397根日线，`ChanlunSignalGenerator`）：</div><div class='li-nest-item'><strong>结构</strong>：4 笔 + 1 中枢，中枢区间 <strong>ZG=834.60 / ZD=729.00 / ZZ=781.80</strong>（GG=1256，DD=600），状态=形成</div><div class='li-nest-item'><strong>买卖点</strong>：<strong>缠论三买</strong>（bullish weak，+0.20）— 2026-07-01 突破中枢上沿 ZG=834.60 后回抽不进入中枢，参考价 860.02，置信度 80%</div><div class='li-nest-item'><strong>当前位置</strong>：953.46 <strong>中枢上方</strong>，结构偏多；<strong>无卖点</strong>（exit 空）→ 结构上无减仓信号</div><div class='li-nest-item'>映射（保守）：三买 → 分批建仓锚点参考，非主决策</div></div></li><li><strong>基本面</strong>（+0.20，看多）：央行 Q1 购金 244吨 +0.80 strong；中国央行 8月购金15吨 +0.30；美国中期选举窗口 7/4-9/6 激活 +0.25；印度关税/卢比 -0.22 部分抵消。</li><li><strong>消息面</strong>（+0.15，看多弱）：地缘风险溢价 +0.60 moderate；但 41/42 条无法交叉验证，置信度降级。</li><li><strong>资金流/聪明钱</strong>（-0.12，看空）：<strong>COT 非商业净多 -12.2%（-27,366手）strong 看空</strong>；投行共识 7 家看空 -0.60；但 GLD +1.71吨 +0.33、13F 4增3减 +0.15、Berkshire 增持GDX +0.20。→ <strong>内部背离：COT减仓 vs ETF流入</strong>。</li><li><strong>情绪面</strong>（+0.10）：近5日 0 天收阳 -0.15（回调后反弹，情绪未过热）。</li><li><strong>近期事件</strong>（+0.18，看多）：非农弱数据主导，加息预期降温。</li></ol>
 <blockquote><span class="warn">⚠️</span> <strong>核心背离</strong>：消息面/基本面/事件面看多 vs <strong>COT 聪明钱减仓 + 投行共识看空</strong> =「消息面 vs 资金面背离」（r024/r021 关注形态）。<br>综合偏多但强度不足。</blockquote>
 <hr></div>
 <div class="section"><h2>三、Source Truth + 事实 vs 解释</h2>
