@@ -687,9 +687,11 @@ def render(md: str, out_path: Path) -> Path:
     blocks = _md_to_html("\n".join(lines[body_start:]))
 
     # 每个 h2 开始新 section; 非 h2 块归入当前 section.
-    # 决策卡片块 (decision-card) 单独渲染, 不套 .section (避免双层卡片边框).
+    # 决策卡片块 (decision-card) 单独分离 (不套 .section 避免双层边框),
+    # 并在最终拼装时放到 hero 之后、持仓卡片之前 (决策是首要结论).
     # 纯 <hr> 分隔线直接丢弃: 每个板块已是独立卡片(有边框), hr 冗余且产生多余分隔线.
     sections: list[str] = []
+    decision_html: str | None = None
     current: list[str] = []
     for blk in blocks:
         if blk == "<hr>":
@@ -698,7 +700,7 @@ def render(md: str, out_path: Path) -> Path:
             if current:
                 sections.append(_section("\n".join(current)))
                 current = []
-            sections.append(blk)  # 决策卡片独立, 不包 section
+            decision_html = blk  # 决策卡片独立提取
             continue
         if blk.startswith("<h2"):
             if current:
@@ -726,6 +728,7 @@ def render(md: str, out_path: Path) -> Path:
 <body>
 <div class="page">
 {_hero(title, subtitle)}
+{decision_html or ''}
 {_position_card(pos_items) if pos_items else ''}
 {_status_bar(status_items) if status_items else ''}
 {page_html}
