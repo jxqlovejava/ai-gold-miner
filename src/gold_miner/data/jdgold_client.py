@@ -403,7 +403,8 @@ def fetch_trade_records() -> dict | None:
 # ═══════════════════════════════════════════════════════════════
 
 def _run_sim(args: list[str], timeout: float = _SCRIPT_TIMEOUT) -> dict | None:
-    data = _run_script("query_sim_contest.py", [*args, "--json", *_claw_arg()], timeout=timeout)
+    # --json / --claw 是 query_sim_contest 全局参数, 须在子命令之前
+    data = _run_script("query_sim_contest.py", ["--json", *_claw_arg(), *args], timeout=timeout)
     if not data:
         return None
     return data.get("data")
