@@ -248,6 +248,8 @@ def _get_stop_context(current: float) -> dict:
     """
     ctx: dict = {
         "atr_stop": 0.0,
+        "atr_take_profit": 0.0,
+        "atr_stop_loss": 0.0,
         "hard_stop": 0.0,
         "secondary_stop": 0.0,
         "to_atr_pct": None,
@@ -274,6 +276,7 @@ def _get_stop_context(current: float) -> dict:
         if df is not None and len(df) >= 14:
             cost_basis = _get_cost_basis()
             sell_fee = _get_sell_fee_pct()
+            breakeven = _net_breakeven(cost_basis, sell_fee)
             hard = ctx["hard_stop"] or None
             entry_date = None
             if p and "positions" in p:
@@ -289,6 +292,22 @@ def _get_stop_context(current: float) -> dict:
             )
             signal = ts.calculate(df)
             ctx["atr_stop"] = float(getattr(signal, "stop_price", 0) or 0)
+            # ATR止盈 (浮盈轨): 最高 - profit_multiplier×ATR, 不低于净保本价 (r025)
+            high = float(getattr(signal, "highest_high", 0) or 0)
+            atr_val = float(getattr(signal, "atr", 0) or 0)
+            pmult = float(getattr(signal, "profit_multiplier", 2.5) or 2.5)
+            lmult = float(getattr(signal, "loss_multiplier", 3.0) or 3.0)
+            if high > 0 and atr_val > 0:
+                tp = high - pmult * atr_val
+                if breakeven:
+                    tp = max(tp, breakeven)
+                ctx["atr_take_profit"] = round(tp, 2)
+            # ATR止损 (浮亏轨): 成本 - loss_multiplier×ATR, 不低于硬止损
+            if cost_basis is not None and atr_val > 0:
+                sl = cost_basis - lmult * atr_val
+                if hard:
+                    sl = max(sl, hard)
+                ctx["atr_stop_loss"] = round(sl, 2)
     except Exception:
         pass
 
@@ -323,6 +342,22 @@ def _format_stop_context(ctx: dict) -> str:
         elif ctx["to_hard_pct"] <= 0:
             parts.append(f"🚨 已跌破硬止损 {ctx['hard_stop']:.0f}, 立即清仓")
     return " · ".join(parts) if parts else ""
+
+
+def _format_atr_levels(ctx: dict, current: float) -> str:
+    """ATR 止盈/止损状态行 (r025) — 每次监控卡片都带上, 说明当前价距两条线多远.
+
+    ATR止盈 = 浮盈轨 (最高价 - 2.5×ATR, 保净本); ATR止损 = 浮亏轨 (成本 - 3.0×ATR).
+    与 _format_stop_context 的区别: 后者只在价格逼近/跌破时才提示, 本函数常驻.
+    """
+    parts: list[str] = []
+    tp = ctx.get("atr_take_profit", 0.0) or 0.0
+    sl = ctx.get("atr_stop_loss", 0.0) or 0.0
+    if tp > 0 and current > 0:
+        parts.append(f"ATR止盈：{tp:.1f}元，当前价距止盈位{(current - tp) / tp * 100:+.1f}%")
+    if sl > 0 and current > 0:
+        parts.append(f"ATR止损：{sl:.1f}元，当前价距止损位{(current - sl) / sl * 100:+.1f}%")
+    return " | ".join(parts)
 
 
 def _get_historical(days: int = 30) -> list[dict]:
@@ -370,6 +405,8 @@ DEFAULT_STATE = {
     "breakout_near_levels": [],   # 当前在关口下轨带内的价位列表
     "breakout_alert_at": None,
     "breakout_alert_price": None,
+    # 进行中事件去重 (2026-08-13): 同一事件窗口内只推送一次的 key 列表
+    "ongoing_notified": [],
 }
 
 
@@ -639,21 +676,39 @@ def _check_rebound(
 # 进行中高影响事件检测
 # ═══════════════════════════════════════════════════════════════
 
-def _check_ongoing_events() -> list[dict]:
+def _check_ongoing_events(state: dict | None = None) -> list[dict]:
     """检查是否有正在进行中的高/极影响宏观事件 (FOMC/CPI/PCE/非农等).
 
     窗口: 事件时间前后 N 小时, extreme 事件 ±2h, high 事件 ±1h.
     用于 main() 中触发推送, 确保 Hermes cron 在重大数据发布时通知到微信.
+
+    🔴 2026-08-13 系统性修复 (结果已出仍反复提醒 bug):
+      1. 结果已出的事件 (actual 非空) → 不再提醒. 用户已知结果, 反复推
+         "正在进行…结果已出✓" 是纯噪音.
+      2. MONITOR 观测事件 → 不在此提醒. 观测/评估触发器由分析 pipeline 的
+         get_active_monitors()/close_monitor() 评估, 价格监控只通知"重大数据
+         发布"本身.
+      3. 同一事件窗口内只推送一次 (state 持久化已推送 key), 防 5 分钟粒度
+         在 ±1h/±2h 窗口内反复推送.
     """
     try:
-        from gold_miner.data.calendar import EventCalendar, EventImpact
+        from gold_miner.data.calendar import EventCalendar, EventImpact, EventType
 
         cal = EventCalendar()
         now = datetime.now(BEIJING)  # 北京时间用于比较
         events: list[dict] = []
 
+        # 已推送事件 key (跨 cron 进程持久化在 state 文件)
+        notified = set(state.get("ongoing_notified", []) or []) if state else set()
+
         for e in cal.events:
             if not e.scheduled_at:
+                continue
+            # 1) 结果已出 → 不提醒 (反复推送"正在进行…结果已出"是 bug)
+            if e.actual:
+                continue
+            # 2) 观测/评估触发器 → 交给分析 pipeline, 价格监控不推
+            if e.event_type == EventType.MONITOR:
                 continue
             # 北京时间差值
             delta_h = abs((e.scheduled_at - now).total_seconds() / 3600)
@@ -667,21 +722,26 @@ def _check_ongoing_events() -> list[dict]:
             if delta_h > window:
                 continue
 
+            # 3) 同一事件窗口内只推一次
+            key = f"{e.name}|{e.scheduled_at.isoformat()}"
+            if key in notified:
+                continue
+
             from gold_miner.data.calendar_time_rules import dual_clock_str
 
             clock = dual_clock_str(e.scheduled_at)
             when = "即将" if e.scheduled_at > now else "正在进行"
-            # events 已有 actual → 已有结果, 标"结果已出"
-            result_tag = " · 结果已出 ✓" if e.actual else ""
+            notified.add(key)
             events.append({
                 "type": "ongoing_event",
-                "message": (
-                    f"📅 {when}: {e.name} | {clock}{result_tag}"
-                ),
+                "message": f"📅 {when}: {e.name} | {clock}",
                 "severity": "HIGH",
                 "_event_name": e.name,
                 "_impact": e.impact.value,
             })
+        if state is not None:
+            # 只保留最近通知过的 key, 防无限增长
+            state["ongoing_notified"] = sorted(notified)[-60:]
         return events
     except Exception:
         return []
@@ -1356,6 +1416,7 @@ def _format_card(
     state: dict,
     drop_reason: dict | None = None,
     historical: list[dict] | None = None,
+    stop_ctx: dict | None = None,
 ) -> str:
     """格式化人话卡片.
 
@@ -1389,6 +1450,12 @@ def _format_card(
         if net_pnl < 0:
             line += " ⚠️ 已破净保本线, 卖出即实亏"
         lines.append(line)
+
+    # ── ATR 止盈/止损 (r025) — 常驻, 无论是否有告警都带上 ──
+    if stop_ctx:
+        atr_line = _format_atr_levels(stop_ctx, price_info["price"])
+        if atr_line:
+            lines.append(f"🎯 {atr_line}")
 
     # ── 趋势摘要: 从告警中提取去重展示 ──
     # 分类告警: 趋势类 (合并到摘要行) vs 事件类 (单独展示)
@@ -1490,14 +1557,9 @@ def main() -> int:
     alerts: list[dict] = []
 
     # 4a. 价格急变 (所有级别都检测, 这是快速通道)
+    # 风控上下文 (ATR止盈/止损距离) 延迟到输出时统一计算, 避免每次完整检查都拉取JD数据
     surge = _check_surge(current, state)
     if surge:
-        # 急涨/急跌时附加风控上下文: 离 ATR 止盈位/止损位还有多远
-        stop_ctx = _get_stop_context(current)
-        ctx_line = _format_stop_context(stop_ctx)
-        if ctx_line:
-            surge = dict(surge)
-            surge["message"] = f"{surge['message']}\n    {ctx_line}"
         alerts.append(surge)
 
     # 4b. 成本逼近 (用净保本价: 卖出扣 0.4% 手续费后真正回本的价格)
@@ -1560,7 +1622,8 @@ def main() -> int:
 
     # 4h. 进行中高影响宏观事件 (FOMC/CPI/PCE/非农等)
     # 每次完整检查都运行, 确保重大数据发布时推送通知到微信
-    ongoing_events = _check_ongoing_events()
+    # 传 state 去重: 结果已出/MONITOR观测不再提醒, 同一事件窗口内只推一次 (2026-08-13 系统修复)
+    ongoing_events = _check_ongoing_events(state)
     for evt in ongoing_events:
         alerts.append(evt)
 
@@ -1589,7 +1652,14 @@ def main() -> int:
     )
 
     if should_output:
-        card = _format_card(new_level, old_level, price_info, cost_basis, alerts, state, drop_reason, historical)
+        # 输出时才计算风控上下文: 卡片常驻 ATR止盈/止损数值行 + 急变告警距离提示
+        stop_ctx = _get_stop_context(current)
+        if surge and stop_ctx:
+            ctx_line = _format_stop_context(stop_ctx)
+            if ctx_line:
+                # 直接改 surge 原对象 (alerts 列表内也是它); copy 会生成新dict导致告警不带上下文
+                surge["message"] = f"{surge['message']}\n    {ctx_line}"
+        card = _format_card(new_level, old_level, price_info, cost_basis, alerts, state, drop_reason, historical, stop_ctx=stop_ctx)
         print(card, flush=True)  # 同时输出到 log 文件
         _send_alert(card)        # Hermes → 微信
         # 记录反弹通知时间戳, 供 _check_rebound 冷却判定
