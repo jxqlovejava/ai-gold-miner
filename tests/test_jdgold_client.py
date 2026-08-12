@@ -150,6 +150,63 @@ def test_fetch_sge_kline_builds_dataframe(monkeypatch):
     assert df["close"].iloc[-1] == 775.03
 
 
+# ── 需登录: 持仓 (holdings_entry 包装在 data 字段, 须 --parse) ─────
+
+def test_fetch_holdings_parses_inner_data(monkeypatch):
+    """holdings_entry 返回 {view,intent,session_pin,data:{持仓}} → 取内层 data."""
+    monkeypatch.setattr(
+        jdgold_client,
+        "_run_script",
+        lambda *a, **k: {
+            "view": "当前账号",
+            "intent": "holdings",
+            "session_pin": None,
+            "data": {
+                "avgCostPrice": 921.2,
+                "holdingList": [
+                    {"bankCode": "CMBC", "bankName": "民生银行",
+                     "totalGram": 22.4587, "avgCostPrice": 921.2, "totalIncome": 1046.94},
+                ],
+                "totalGramAll": 22.4587,
+            },
+        },
+    )
+    holdings = jdgold_client.fetch_holdings()
+    assert holdings is not None
+    assert "holdingList" in holdings
+    assert holdings["holdingList"][0]["bankCode"] == "CMBC"
+
+
+def test_fetch_holdings_passes_parse_flag(monkeypatch):
+    """holdings_entry 必须传 --parse (否则打印帮助退出)."""
+    captured = {}
+    monkeypatch.setattr(
+        jdgold_client,
+        "_run_script",
+        lambda script, args, *a, **k: captured.update(script=script, args=args) or {
+            "data": {"holdingList": []},
+        },
+    )
+    jdgold_client.fetch_holdings()
+    assert "holdings_entry.py" in captured["script"]
+    assert "--parse" in captured["args"]
+
+
+def test_run_sim_returns_flat_dict(monkeypatch):
+    """query_sim_contest --json 输出扁平 dict (无 data 包装), 直接返回."""
+    monkeypatch.setattr(
+        jdgold_client,
+        "_run_script",
+        lambda *a, **k: {
+            "totalAsset": 1000928.58, "availableAmount": 990000.0,
+            "currentHoldingGram": 11.4409, "costAvgPerGram": 874.06,
+        },
+    )
+    acc = jdgold_client.fetch_sim_account()
+    assert acc is not None
+    assert acc["availableAmount"] == 990000.0
+
+
 # ── 资讯 ────────────────────────────────────────────────────────
 
 def test_fetch_news_parses(monkeypatch):

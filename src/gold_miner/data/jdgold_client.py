@@ -378,13 +378,18 @@ def fetch_conditional_orders(status: str = "all") -> dict | None:
 def fetch_holdings() -> dict | None:
     """持仓/收益 (holdings_entry --intent holdings --json, 需登录).
 
+    holdings_entry 必须传 --parse (用户原文) 否则打印帮助并退出。
     返回 data: {holdingList: [{bankCode, bankName, totalGram, avgCostPrice, totalIncome}],
                  totalGramAll, avgCostPrice}
     """
-    data = _run_script("holdings_entry.py", ["--intent", "holdings", "--json", *_claw_arg()])
+    data = _run_script(
+        "holdings_entry.py",
+        ["--parse", "查询我的黄金持仓", "--intent", "holdings", "--json", *_claw_arg()],
+    )
     if not data:
         return None
-    return (data.get("data") or {}).get("data")
+    # _run_script 返回 {"view", "intent", "session_pin", "data": {持仓 dict}}
+    return data.get("data") or {}
 
 
 def fetch_trade_records() -> dict | None:
@@ -404,10 +409,11 @@ def fetch_trade_records() -> dict | None:
 
 def _run_sim(args: list[str], timeout: float = _SCRIPT_TIMEOUT) -> dict | None:
     # --json / --claw 是 query_sim_contest 全局参数, 须在子命令之前
+    # query_sim_contest --json 输出扁平 dict (无 success/data 包装), 直接返回
     data = _run_script("query_sim_contest.py", ["--json", *_claw_arg(), *args], timeout=timeout)
     if not data:
         return None
-    return data.get("data")
+    return data
 
 
 def fetch_sim_account(account_type: int = 1) -> dict | None:
