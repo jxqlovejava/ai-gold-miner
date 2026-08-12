@@ -8,9 +8,12 @@ iLink 限流导致 "⚠ Delivery failed" 时, 关键推送 (盘前简报等) 永
 本看门狗在关键推送批次后数分钟运行:
 1. `hermes cron list` 解析受监视任务最近一次运行块
 2. 若块内含 "Delivery failed" 且 Last run 在 --window-min 分钟内
-   → `hermes cron run <job_id>` 补发一次
+   → 2026-08-12 修复: 从 ~/.hermes/cron/output/<job_id>/ 取该次运行的原始输出
+     (hermes cron 会把 stdout 存为 .md 文件), 直接 `hermes send` 补发原文 —
+     不再 `hermes cron run` 重跑整个 job (agent job 重跑 >120s 必超时, 且内容变化)
+   → 无输出文件时 fallback `hermes cron run` 重跑 (捕获超时不崩溃)
 3. 每个失败的 run 时间戳只补发一次; 每任务每天最多补发 --max-retries 次
-   (state 文件记录, 防补发-失败-再补发循环)
+   (state 文件记录. 补发成功才记 retried_runs; 限流失败不记, 下轮窗口恢复后重试)
 
 用法:
   python3 scripts/hermes_delivery_watchdog.py            # 实际执行
@@ -42,9 +45,14 @@ WATCHED_JOBS: dict[str, str] = {
     "5ca2995ab2fb": "白泽·收盘简报",
 }
 
+WEIXIN_TARGET = "weixin:o9cq80613_z9qxqE69G94f-0CzGk@im.wechat"
+
 STATE_PATH = Path.home() / ".hermes" / "gold" / "delivery_watchdog_state.json"
 JOB_BLOCK_RE = re.compile(r"^  ([0-9a-f]{12}) \[", re.MULTILINE)
 LAST_RUN_RE = re.compile(r"Last run:\s+(\S+)")
+CRON_OUTPUT_ROOT = Path.home() / ".hermes" / "cron" / "output"
+# cron output 文件名: YYYY-MM-DD_HH-MM-SS.md
+_OUTPUT_NAME_RE = re.compile(r"(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})")
 
 
 def _load_state() -> dict:
@@ -67,6 +75,68 @@ def _parse_job_blocks(cron_list_output: str) -> dict[str, str]:
         end = matches[i + 1].start() if i + 1 < len(matches) else len(cron_list_output)
         blocks[m.group(1)] = cron_list_output[m.start():end]
     return blocks
+
+
+def _find_output(job_id: str, last_run: str) -> str | None:
+    """取 ~/.hermes/cron/output/<job_id>/ 下与 last_run 时间最接近的原始输出文件.
+
+    cron 保存文件名是该 job 运行结束时间 (比 cron list 的 last_run 略早), 因此
+    匹配时间差最小的文件; 差 10 分钟内视为同一次运行.
+    """
+    out_dir = CRON_OUTPUT_ROOT / job_id
+    if not out_dir.is_dir():
+        return None
+    try:
+        target = datetime.fromisoformat(last_run)
+    except ValueError:
+        return None
+    best: tuple[str, float] | None = None
+    for f in out_dir.glob("*.md"):
+        m = _OUTPUT_NAME_RE.search(f.stem)
+        if not m:
+            continue
+        y, mo, d, h, mi, s = (int(g) for g in m.groups())
+        try:
+            ts = datetime(y, mo, d, h, mi, s)
+        except ValueError:
+            continue
+        # 文件名是服务器本地时间 (naive), last_run 带 +08:00 偏移 → 用 target 的 tzinfo 对齐
+        if target.tzinfo is not None:
+            ts = ts.replace(tzinfo=target.tzinfo)
+        delta = abs((ts - target).total_seconds())
+        if best is None or delta < best[1]:
+            best = (str(f), delta)
+    if best and best[1] < 600:  # 与 last_run 差 10 分钟内
+        return best[0]
+    return None
+
+
+def _resend(job_id: str, last_run: str) -> tuple[bool, str]:
+    """补发投递失败的消息原文. 返回 (成功, 方式说明).
+
+    优先: 读 cron output 原文 → `hermes send` (内容与原推送一致, 秒级).
+    fallback: 无输出文件时 `hermes cron run` 重跑 job (捕获超时不崩溃).
+    """
+    out_file = _find_output(job_id, last_run)
+    if out_file:
+        try:
+            content = Path(out_file).read_text(encoding="utf-8")
+        except OSError:
+            content = ""
+        if content.strip():
+            r = subprocess.run(
+                ["hermes", "send", "-t", WEIXIN_TARGET, "-q", content],
+                capture_output=True, text=True, timeout=60,
+            )
+            return r.returncode == 0, f"原文补发({Path(out_file).name})"
+    try:
+        r = subprocess.run(
+            ["hermes", "cron", "run", job_id], capture_output=True, text=True, timeout=120,
+        )
+        ok = "succeeded" in (r.stdout + r.stderr).lower()
+        return ok, "重跑job补发"
+    except subprocess.TimeoutExpired:
+        return False, "重跑job超时"
 
 
 def main() -> int:
@@ -113,16 +183,16 @@ def main() -> int:
             actions.append(f"🔍 [dry-run] {label}: {age_min:.0f}分钟前投递失败, 将补发")
             continue
 
-        r = subprocess.run(
-            ["hermes", "cron", "run", job_id], capture_output=True, text=True, timeout=120,
-        )
-        ok = "succeeded" in (r.stdout + r.stderr).lower()
+        r_ok, how = _resend(job_id, m.group(1))
         state.setdefault(key, {"attempts": 0, "retried_runs": []})
         state[key]["attempts"] += 1
-        state[key]["retried_runs"].append(m.group(1))
+        # 补发成功才记 retried_runs (防重复补发同一消息);
+        # 失败不记 → 下次看门狗运行 (限流恢复后) 自动重试, 直到达到 max_retries.
+        if r_ok:
+            state[key]["retried_runs"].append(m.group(1))
         actions.append(
-            f"{'✅' if ok else '❌'} {label}: {age_min:.0f}分钟前投递失败, "
-            f"补发{'成功' if ok else '失败'} (今日第{state[key]['attempts']}次)"
+            f"{'✅' if r_ok else '❌'} {label}: {age_min:.0f}分钟前投递失败, "
+            f"{how}, 补发{'成功' if r_ok else '失败'} (今日第{state[key]['attempts']}次)"
         )
 
     _save_state(state)

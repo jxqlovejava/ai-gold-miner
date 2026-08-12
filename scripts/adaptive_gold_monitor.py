@@ -138,6 +138,7 @@ OPP_DEFAULTS: dict = {
     "breakout_high_lookback_days": 20,        # N日高点窗口
     "breakout_high_approach_pct": 0.015,      # 距N日高点≤1.5% 视为逼近
     "cooldown_breakout_min": 60,              # 突破预警冷却
+    "cooldown_rebound_min": 60,               # 反弹通知冷却 (2026-08-12: 反弹持续时每5分钟推送触发 iLink 限流)
 }
 OPP_CONFIG_PATH = PROJECT_ROOT / "data/private/opportunity_config.yaml"
 SIGNAL_SNAPSHOT_PATH = PROJECT_ROOT / "data/signal_snapshot.json"
@@ -564,16 +565,36 @@ def _check_surge(current: float, state: dict) -> dict | None:
     return None
 
 
-def _check_rebound(current: float, state: dict, cost_basis: float | None = None) -> dict | None:
+def _check_rebound(
+    current: float, state: dict, cost_basis: float | None = None, cfg: dict | None = None
+) -> dict | None:
     """检测下跌后的反弹.
 
     触发条件: 之前在下行 (trend_low 存在且 < trend_high) + 当前在回升.
     返回反弹摘要: 从低点回升幅度/百分比 + 收复进度 (成本信息由卡片header统一展示).
+
+    cfg: 机会提醒配置 (反弹冷却 cooldown_rebound_min). 为 None 时用 OPP_DEFAULTS.
     """
     trend_low = state.get("trend_low")
     trend_high = state.get("trend_high")
     if not trend_low or not trend_high:
         return None
+
+    # 反弹冷却: 冷却期内不重复推送反弹进展 (2026-08-12)
+    # 背景: 反弹持续 (低点→现价逐级收复) 时 _check_rebound 每次都返回非空,
+    #   main() 里 should_output 含 "反弹始终通知" → 每5分钟推送一次微信.
+    #   叠加 Hermes cron 每5分钟投递, 触发 iLink 限流 (ret=-2 prepare failed),
+    #   导致早上黄金报告/创业日报等所有微信推送投递失败.
+    # 冷却期内反弹进展 (74%→76%→78%) 不值得打扰用户, 价格大幅异动由 surge 等告警覆盖.
+    cfg = cfg or OPP_DEFAULTS
+    last_at = state.get("rebound_alert_at")
+    if last_at:
+        try:
+            elapsed_min = (_now() - datetime.fromisoformat(last_at)).total_seconds() / 60
+        except (ValueError, TypeError):
+            elapsed_min = 999.0
+        if elapsed_min < cfg.get("cooldown_rebound_min", 60):
+            return None
 
     # 还在跌或持平 → 不是反弹
     if current <= trend_low:
@@ -1114,6 +1135,11 @@ def _send_alert(message: str) -> bool:
     优先级: Hermes weixin (hermes send, 服务器/本地均可) → macOS 通知 (osascript)。
     Hermes 微信为主通道 — 服务器 cron 场景下 macOS osascript 不可用。
     """
+    # 2026-08-12 修复: Hermes cron --no-agent 模式 stdout 已投递微信,
+    # 脚本内再 hermes send 会造成双投递 → 每5分钟×2次触发 iLink 限流。
+    # hermes_wrapper_adaptive.py 设置 GOLD_MONITOR_STDOUT_DELIVERY=1, 此模式跳过 hermes send.
+    if os.environ.get("GOLD_MONITOR_STDOUT_DELIVERY") == "1":
+        return True
     import subprocess
     success = _push_weixin(message)
 
@@ -1466,13 +1492,13 @@ def main() -> int:
     if reversal:
         alerts.append(reversal)
 
-    # 4f. 反弹检测 (下跌趋势中的回升)
-    rebound = _check_rebound(current, state, cost_basis)
+    # 4f. 反弹检测 (下跌趋势中的回升) — 冷却期内不重复推送
+    opp_cfg = _load_opp_config()
+    rebound = _check_rebound(current, state, cost_basis, opp_cfg)
     if rebound:
         alerts.append(rebound)
 
     # 4g. 机会提醒 (止盈/抄底/突破前兆) — 触发层 + 理由引擎
-    opp_cfg = _load_opp_config()
     tp_candidate = _check_take_profit_breakout(current, historical, cost_basis, opp_cfg, surge)
     dip_candidate = _check_dip_buy_opportunity(current, state, historical, opp_cfg)
     bk_candidate = _check_breakout_approach(current, state, historical, opp_cfg)
@@ -1534,6 +1560,10 @@ def main() -> int:
         card = _format_card(new_level, old_level, price_info, cost_basis, alerts, state, drop_reason, historical)
         print(card, flush=True)  # 同时输出到 log 文件
         _send_alert(card)        # Hermes → 微信
+        # 记录反弹通知时间戳, 供 _check_rebound 冷却判定
+        if rebound is not None:
+            state["rebound_alert_at"] = _now().isoformat()
+            state["rebound_alert_price"] = current
 
     # 6. 更新状态
     now_iso = _now().isoformat()

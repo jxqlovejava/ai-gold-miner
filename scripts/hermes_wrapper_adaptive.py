@@ -11,6 +11,8 @@ os.chdir("/home/ubuntu/ai-gold-miner")
 sys.path.insert(0, "/home/ubuntu/ai-gold-miner")
 os.environ["PYTHONPATH"] = "src:" + os.environ.get("PYTHONPATH", "")
 os.environ.setdefault("GOLD_MINER_ROOT", "/home/ubuntu/ai-gold-miner")
+# 2026-08-12: 告知脚本 stdout 会被 Hermes cron 投递微信, 脚本内不再重复 hermes send (防双投递限流)
+os.environ["GOLD_MONITOR_STDOUT_DELIVERY"] = "1"
 
 _mp = "/home/ubuntu/ai-gold-miner/scripts/adaptive_gold_monitor.py"
 code = open(_mp).read()
