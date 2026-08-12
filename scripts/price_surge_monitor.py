@@ -21,8 +21,6 @@ import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-import httpx
-
 BEIJING = timezone(timedelta(hours=8))
 
 # ── 配置 ──
@@ -59,45 +57,11 @@ def _save_state(state: dict) -> None:
     STATE_FILE.write_text(json.dumps(state, ensure_ascii=False, indent=2))
 
 
-_JD_API_URL = "https://ms.jr.jd.com/gw/generic/hj/h5/m/latestPrice"
-
-
 def _fetch_price() -> dict | None:
-    """获取积存金当前价 — 直调京东金融 H5 接口 (不依赖 gold_miner 模块)."""
-    try:
-        resp = httpx.get(
-            _JD_API_URL,
-            headers={
-                "User-Agent": (
-                    "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)"
-                ),
-                "Referer": "https://m.jd.com/",
-            },
-            timeout=8.0,
-        )
-        if resp.status_code != 200:
-            return None
-        data = resp.json()
-        if not data.get("success"):
-            return None
-        result_data = data.get("resultData", {})
-        if isinstance(result_data, dict):
-            datas = result_data.get("datas", {})
-        else:
-            datas = {}
-        price = float(datas.get("price", 0))
-        yesterday = float(datas.get("yesterdayPrice", 0))
-        if price <= 0:
-            return None
-        change_pct = (price - yesterday) / yesterday * 100 if yesterday > 0 else 0.0
-        return {
-            "price": round(price, 2),
-            "prev_close": round(yesterday, 2),
-            "change_pct": round(change_pct, 2),
-            "source": "京东金融",
-        }
-    except Exception:
-        return None
+    """获取积存金当前价 — jdgold 主源 → latestPrice H5 兜底 (收口至 jdgold_client)."""
+    from gold_miner.data.jdgold_client import fetch_accumulation_quote
+
+    return fetch_accumulation_quote()
 
 
 def _in_cooldown(last_alert_at: str | None, direction: str,

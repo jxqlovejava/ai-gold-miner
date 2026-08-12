@@ -327,6 +327,21 @@ def cmd_position() -> str:
     return "\n".join(lines)
 
 
+def cmd_sync() -> str:
+    """jdgold 登录对账: 条件单 + 持仓 + 交易记录 (幂等, 失败保留旧账本)."""
+    from gold_miner.data.jdgold_sync import run_all_sync
+
+    return run_all_sync()
+
+
+def cmd_sim() -> str:
+    """jdgold 模拟盘沙盒 (V9/L1 策略零风险验证, 本机, 需登录)."""
+    from gold_miner.backtest.sim_engine import SimSandboxEngine
+
+    engine = SimSandboxEngine()
+    return engine.format_report(engine.evaluate(execute=False))
+
+
 def cmd_track() -> str:
     """预测追踪: 统计 + 最近记录."""
     try:
@@ -694,7 +709,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="微信端金价命令封装器")
     parser.add_argument("subcommand",
                         choices=["quote", "watch", "doctrine", "orders", "position",
-                                 "track", "analyze", "scan", "advisor", "scenario"])
+                                 "sync", "sim", "track", "analyze", "scan", "advisor", "scenario"])
     parser.add_argument("--url", default=None, help="文章 URL (analyze)")
     parser.add_argument("--text", default=None, help="情景描述 (scenario)")
     parser.add_argument("--question", default=None, help="咨询问题 (advisor)")
@@ -722,6 +737,10 @@ def main() -> int:
         print(cmd_orders())
     elif args.subcommand == "position":
         print(cmd_position())
+    elif args.subcommand == "sync":
+        print(cmd_sync())
+    elif args.subcommand == "sim":
+        print(cmd_sim())
     elif args.subcommand == "track":
         print(cmd_track())
     elif args.subcommand == "analyze":

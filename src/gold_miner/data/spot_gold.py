@@ -70,9 +70,16 @@ class SpotGoldFetcher(DataFetcher):
         days: int = 30,
         **kwargs: Any,
     ) -> pd.DataFrame:
-        """获取历史 OHLCV 日线数据."""
+        """获取历史 OHLCV 日线数据.
+
+        主源: jdgold 官方 SGE 日K (免登录, ~1年); 依次兜底: akshare → Yahoo。
+        """
         end = end or datetime.now()
         start = start or (end - timedelta(days=days))
+
+        df = self._fetch_from_jdgold_kline(start, end)
+        if not df.empty:
+            return df
 
         df = self._fetch_from_akshare(start, end)
         if not df.empty:
@@ -85,13 +92,32 @@ class SpotGoldFetcher(DataFetcher):
         return self.fetch(days=5)
 
     def fetch_realtime_quote(self) -> dict[str, Any]:
-        """获取实时报价 — jinjia.com.cn (国内+国际)."""
-        domestic = self._fetch_jinjia_quote()
+        """获取实时报价 — jdgold SGE 官方主源 → jinjia.com.cn 兜底 (国内+国际)."""
+        # jdgold SGE Au99.99 官方实时 (集成 2026-08-13, 免登录)
+        domestic = None
+        try:
+            from gold_miner.data.jdgold_client import fetch_sge_quote
+
+            sge = fetch_sge_quote()
+            if sge and sge.get("price"):
+                domestic = {
+                    "symbol": "AU9999 (SGE)",
+                    "last_price": float(sge["price"]),
+                    "change_pct": sge.get("change_pct"),
+                    "source": "jdgold/SGE官方",
+                    "unit": "人民币/克",
+                    "update_time": "",
+                    "timestamp": datetime.now(),
+                }
+        except Exception:
+            pass
+        if not domestic:
+            domestic = self._fetch_jinjia_quote()
         international = self._fetch_jinjia_international()
 
         result: dict[str, Any] = {
             "symbol": "AU9999 (SGE)",
-            "source": "jinjia.com.cn",
+            "source": domestic.get("source", "jinjia.com.cn") if domestic else "jinjia.com.cn",
             "unit_domestic": "人民币/克",
             "unit_international": "美元/盎司",
             "timestamp": datetime.now(),
@@ -137,6 +163,24 @@ class SpotGoldFetcher(DataFetcher):
     # ------------------------------------------------------------------
     # 内部
     # ------------------------------------------------------------------
+
+    def _fetch_from_jdgold_kline(
+        self, start: datetime, end: datetime
+    ) -> pd.DataFrame:
+        """jdgold 官方 SGE 日K 历史 (免登录, ~1年, 集成 2026-08-13)."""
+        try:
+            from gold_miner.data.jdgold_client import fetch_sge_kline
+
+            df = fetch_sge_kline("day")
+            if df is None or df.empty:
+                return pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume"])
+            df = df[(df["timestamp"] >= pd.Timestamp(start)) &
+                    (df["timestamp"] <= pd.Timestamp(end))]
+            df = df.sort_values("timestamp").reset_index(drop=True)
+            return self.validate(df[["timestamp", "open", "high", "low", "close", "volume"]])
+        except Exception as e:
+            logger.warning(f"jdgold SGE K线获取失败: {e}")
+            return pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume"])
 
     def _fetch_from_akshare(
         self, start: datetime, end: datetime

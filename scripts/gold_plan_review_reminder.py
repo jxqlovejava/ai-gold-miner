@@ -28,37 +28,10 @@ def _now() -> datetime:
 
 
 def _fetch_price_jd() -> dict | None:
-    """获取积存金当前价 (京东民生)."""
-    try:
-        import httpx
+    """获取积存金当前价 — jdgold 主源 → latestPrice H5 兜底 (收口至 jdgold_client)."""
+    from gold_miner.data.jdgold_client import fetch_accumulation_quote
 
-        resp = httpx.get(
-            "https://ms.jr.jd.com/gw/generic/hj/h5/m/latestPrice",
-            headers={
-                "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)",
-                "Referer": "https://m.jd.com/",
-            },
-            timeout=8.0,
-        )
-        if resp.status_code != 200:
-            return None
-        data = resp.json()
-        if not data.get("success"):
-            return None
-        result_data = data.get("resultData", {})
-        datas = result_data.get("datas", {}) if isinstance(result_data, dict) else {}
-        price = float(datas.get("price", 0))
-        yesterday = float(datas.get("yesterdayPrice", 0))
-        if price <= 0:
-            return None
-        return {
-            "price": round(price, 2),
-            "change_pct": round((price - yesterday) / yesterday * 100, 2)
-            if yesterday > 0
-            else 0.0,
-        }
-    except Exception:
-        return None
+    return fetch_accumulation_quote()
 
 
 def _get_portfolio() -> str | None:

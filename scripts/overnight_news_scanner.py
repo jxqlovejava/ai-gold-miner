@@ -344,6 +344,30 @@ def _search_last30days(keyword: str) -> list[str]:
     return results[:MAX_NEWS_PER_TOPIC]
 
 
+def _search_jdjr_news(keyword: str = "黄金") -> list[str]:
+    """jdgold 黄金资讯兜底 (京东金融官方, 免登录, jdjr_query_news --no-flash).
+
+    数据层收口至 gold_miner.data.jdgold_client.fetch_news, 返回 "标题 — 摘要" 行。
+    集成背景: docs/analysis/jdgold-integration-analysis-2026-08-12.md E3。
+    """
+    results: list[str] = []
+    try:
+        from gold_miner.data.jdgold_client import fetch_news
+
+        news = fetch_news(keyword, size=MAX_NEWS_PER_TOPIC)
+        if not news:
+            return results
+        for item in news:
+            title = str(item.get("title") or "").strip()
+            if not title:
+                continue
+            content = str(item.get("content") or "").strip()
+            results.append(f"{title} — {content}"[:200] if content else title[:200])
+    except Exception:
+        pass
+    return results[:MAX_NEWS_PER_TOPIC]
+
+
 def _search_duckduckgo(query: str) -> list[str]:
     """DuckDuckGo 免费搜索 (无需 API Key), 作为 anysearch 额度耗尽时的国际新闻 fallback.
 
@@ -468,9 +492,10 @@ def _scan_international_news() -> list[dict]:
     if not anysearch_dry and findings:
         return findings
 
-    # 第二轮: anysearch 额度耗尽 → DuckDuckGo (国际英文) + last30days-cn (国内中文)
+    # 第二轮: anysearch 额度耗尽 → DuckDuckGo (国际英文) + last30days-cn (国内中文) + jdgold 官方资讯
     ddg_findings: list[dict] = []
     cn_findings: list[dict] = []
+    jdjr_findings: list[dict] = []
 
     for topic in P0_QUERIES:
         # DuckDuckGo 搜英文关键词
@@ -499,9 +524,20 @@ def _scan_international_news() -> list[dict]:
                     "source": "last30days-cn",
                 })
 
-    # 合并 DuckDuckGo + last30days-cn
-    if ddg_findings or cn_findings:
-        return ddg_findings + cn_findings
+        # jdgold 官方黄金资讯兜底 (免登录) — 仅黄金市场话题 (E3, 2026-08-13)
+        if topic["label"] == "黄金市场":
+            jdjr_results = _search_jdjr_news(topic.get("cn_keywords") or "黄金")
+            if jdjr_results:
+                jdjr_findings.append({
+                    "label": f"{topic['label']} (jdjr官方)",
+                    "emoji": topic["emoji"],
+                    "results": jdjr_results[:MAX_NEWS_PER_TOPIC],
+                    "source": "jdjr",
+                })
+
+    # 合并 DuckDuckGo + last30days-cn + jdgold
+    if ddg_findings or cn_findings or jdjr_findings:
+        return ddg_findings + cn_findings + jdjr_findings
 
     return []
 
@@ -791,7 +827,7 @@ def _portfolio_line(est_price: float) -> str | None:
         )
         cost = float(data["positions"]["gold_jd"]["avg_cost"])
         pnl = (est_price - cost) / cost * 100
-        return f"持仓: 成本¥{cost:.0f} | 预计开盘浮动盈亏 {pnl:+.1f}%"
+        return f"持仓: 成本¥{cost:.2f} | 预计开盘浮动盈亏 {pnl:+.1f}%"
     except Exception:
         return None
 
@@ -874,7 +910,7 @@ def _format_report(
     if intl_findings:
         source_tag = intl_findings[0].get("source", "anysearch")
         source_icon = {
-            "anysearch": "🌐", "DuckDuckGo": "🦆", "last30days-cn": "🇨🇳",
+            "anysearch": "🌐", "DuckDuckGo": "🦆", "last30days-cn": "🇨🇳", "jdjr": "🥇",
         }.get(source_tag, "🌐")
         lines.append(f"━━━━ 🔴 隔夜重大事件 ({source_icon} {source_tag}) ━━━━")
         for f in intl_findings:

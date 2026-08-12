@@ -11,7 +11,11 @@ from gold_miner.data.spot_gold import SpotGoldFetcher
 
 @pytest.fixture
 def patch_jinjia_quote(monkeypatch):
-    """屏蔽 jinjia.com.cn 网络请求，返回固定国内报价."""
+    """屏蔽 jdgold SGE 主源 + jinjia.com.cn 网络请求，返回固定国内报价."""
+    # jdgold SGE 官方实时是 fetch_realtime_quote 主源 → 先屏蔽, 落 jinjia 兜底
+    monkeypatch.setattr(
+        "gold_miner.data.jdgold_client.fetch_sge_quote", lambda: None
+    )
     monkeypatch.setattr(
         SpotGoldFetcher,
         "_fetch_jinjia_quote",

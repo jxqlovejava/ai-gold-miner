@@ -51,6 +51,8 @@ from gold_miner.signals.engine import ScoringEngine
 from gold_miner.signals.etf_flow_signal import EtfFlowSignalGenerator
 from gold_miner.signals.fundamental import FundamentalAnalyzer
 from gold_miner.signals.institutional_signal import InstitutionalSignalGenerator
+from gold_miner.signals.jd_blogger_sentiment_signal import JdBloggerSentimentSignalGenerator
+from gold_miner.signals.jd_fund_bomb_signal import JdFundBombSignalGenerator
 from gold_miner.signals.macro_pivot import MacroPivotSignalGenerator
 from gold_miner.signals.monitor_signal import MonitorSignalGenerator
 from gold_miner.signals.ma_trend_gate import MaTrendGateSignal
@@ -219,6 +221,16 @@ class AnalysisPipeline:
     # ------------------------------------------------------------------
 
     def _step_prepare(self, ctx: AnalysisContext, result: AnalysisResult) -> None:
+        # 分析第一步前置同步 (P2, 2026-08-13): 已登录 + 超节流阈值才对账三账本, 非阻塞
+        try:
+            from gold_miner.data.jdgold_sync import maybe_pre_sync
+
+            sync_report = maybe_pre_sync()
+            if sync_report:
+                logger.info(f"jdgold 前置对账完成:\n{sync_report}")
+        except Exception:
+            pass
+
         """Step 1: 信息准备 — 日历DOW校验 + 事件同步 + 深度新闻 + 7路数据采集 (4路并行)."""
         logger.info("[1/9] 信息准备 (4路并行: 日历校验+事件同步+深度新闻+数据采集)...")
 
@@ -615,6 +627,16 @@ class AnalysisPipeline:
             futures[pool.submit(
                 lambda: CotSignalGenerator().generate_signals()
             )] = "cot"
+
+            # jdgold 资金炸弹 (分钟级大单资金流, 补 COMEX 模拟窟窿, P3 2026-08-13)
+            futures[pool.submit(
+                lambda: JdFundBombSignalGenerator().generate_signals()
+            )] = "jd_fund_bomb"
+
+            # jdgold 大V加仓榜 (散户黄金情绪代理, P3 2026-08-13)
+            futures[pool.submit(
+                lambda: JdBloggerSentimentSignalGenerator().generate_signals()
+            )] = "jd_blogger_rank"
 
             # 油价传导 (通胀预期→利率预期渠道)
             futures[pool.submit(

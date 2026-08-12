@@ -38,7 +38,7 @@ SSH=(ssh -i "$PEM" -o StrictHostKeyChecking=no)
 SCP=(scp -i "$PEM" -o StrictHostKeyChecking=no)
 
 echo "==> 创建远程目录"
-"${SSH[@]}" "$HOST" "mkdir -p '$REMOTE_ROOT/src/gold_miner' '$REMOTE_ROOT/scripts' '$(dirname "$REMOTE_PORTFOLIO")' '$(dirname "$REMOTE_SURGE_STATE")'"
+"${SSH[@]}" "$HOST" "mkdir -p '$REMOTE_ROOT/src/gold_miner' '$REMOTE_ROOT/scripts' '$REMOTE_ROOT/.claude/skills/jdgold/scripts' '$(dirname "$REMOTE_PORTFOLIO")' '$(dirname "$REMOTE_SURGE_STATE")'"
 
 echo "==> 同步 gold_miner 代码 (rsync --delay-updates 原子, 含 sentinel/data/signals 等)"
 if command -v rsync >/dev/null 2>&1; then
@@ -54,6 +54,23 @@ fi
 # 确保包可导入
 "${SSH[@]}" "$HOST" "touch '$REMOTE_ROOT/src/gold_miner/__init__.py' 2>/dev/null || true"
 "${SSH[@]}" "$HOST" "touch '$REMOTE_ROOT/src/__init__.py' 2>/dev/null || true"
+
+echo "==> 同步 jdgold skill 免登录脚本 (数据层主源, gold_miner.data.jdgold_client 依赖)"
+JDGOLD_SCRIPTS="$ROOT/.claude/skills/jdgold/scripts"
+if [[ -d "$JDGOLD_SCRIPTS" ]]; then
+  if command -v rsync >/dev/null 2>&1; then
+    rsync -a --delete --delay-updates \
+      -e "ssh -i '$PEM' -o StrictHostKeyChecking=no" \
+      "$JDGOLD_SCRIPTS/" \
+      "$HOST:$REMOTE_ROOT/.claude/skills/jdgold/scripts/"
+  else
+    "${SSH[@]}" "$HOST" "mkdir -p '$REMOTE_ROOT/.claude/skills/jdgold/scripts'"
+    "${SCP[@]}" -r "$JDGOLD_SCRIPTS/." "$HOST:$REMOTE_ROOT/.claude/skills/jdgold/scripts/"
+  fi
+  echo "  ✅ jdgold skill scripts 已同步 (query_gold_analysis/jdjr_query_*/query_blogger_trend 等)"
+else
+  echo "  ⚠️ 本地无 .claude/skills/jdgold/scripts, jdgold 主源不生效, 监控将落 H5 兜底"
+fi
 
 "${SCP[@]}" \
   "$ROOT/scripts/hermes_gold_miner_config.json" \

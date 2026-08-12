@@ -14,6 +14,7 @@ from loguru import logger
 
 from gold_miner.config import settings
 from gold_miner.data.base import DataFetcher, DataSourceMeta
+from gold_miner.data.jdgold_client import fetch_accumulation_price as _jdgold_fetch_price
 from gold_miner.proxy import get_proxied_client
 
 _JD_API_URL = (
@@ -232,7 +233,25 @@ class JdAccumulationGoldFetcher(DataFetcher):
     def _fetch_from_sge_proxy(
         self, start: datetime, end: datetime
     ) -> pd.DataFrame:
-        """用 SGE Au99.99 数据作为代理, 标记 source='sge_proxy'."""
+        """用 SGE Au99.99 数据作为代理, 标记 source='sge_proxy'.
+
+        主源: jdgold 官方 SGE 日K (jdjr_query_stock kline, ~1年, 免登录);
+        兜底: akshare spot_hist_sge。
+        """
+        # 1) jdgold 官方 SGE 日K (集成 2026-08-13)
+        try:
+            from gold_miner.data.jdgold_client import fetch_sge_kline
+
+            kdf = fetch_sge_kline("day")
+            if kdf is not None and not kdf.empty:
+                df = kdf.copy()
+                df["volume"] = df["volume"].fillna(0.0)
+                df["source"] = "sge_proxy"
+                return df
+        except Exception as e:
+            logger.warning(f"jdgold SGE 日K获取失败: {e}")
+
+        # 2) akshare 兜底
         try:
             import akshare as ak
             df = ak.spot_hist_sge(symbol="Au99.99")
@@ -265,7 +284,25 @@ class JdAccumulationGoldFetcher(DataFetcher):
     # ------------------------------------------------------------------
 
     def _fetch_price_info(self) -> JdGoldPrice | None:
-        """请求京东金融 H5 接口并解析价格."""
+        """获取积存金价格: jdgold 主源 (免登录) → H5 getFirstRelatedProductInfo 兜底.
+
+        jdgold 仅支持 MS/ZS 银行; 其余银行 (ZX/GS/GF/XY) 直落 H5。
+        """
+        # 1) jdgold 主源 (query_gold_analysis 免登录, 数据层集成 2026-08-13)
+        try:
+            quote = _jdgold_fetch_price(self.bank)
+            if quote:
+                return JdGoldPrice(
+                    timestamp=datetime.now(),
+                    product_name=str(quote.get("name") or "京东积存金"),
+                    price=float(quote["price"]),
+                    change_pct=str(quote.get("change_pct") or ""),
+                    source="jdgold",
+                )
+        except Exception as e:
+            logger.warning(f"jdgold 积存金价格获取失败, 落 H5 兜底: {e}")
+
+        # 2) H5 兜底 (getFirstRelatedProductInfo)
         req_data = {
             "circleId": self.circle_id,
             "invokeSource": 5,

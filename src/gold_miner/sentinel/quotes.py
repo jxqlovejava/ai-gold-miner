@@ -29,9 +29,7 @@ _CACHE_FILE = Path("/tmp/gold_sentinel_quote_cache.json")
 _CACHE_TTL = 300  # 5 分钟 (正常)
 _CACHE_TTL_FALLBACK = 1800  # 30 分钟 (网络不可用时)
 
-# 京东金融积存金 H5 接口
-_JD_API_URL = "https://ms.jr.jd.com/gw/generic/hj/h5/m/latestPrice"
-_JD_PRODUCT_ID = "21001001000001"  # 民生银行积存金
+# 积存金价格源已收口至 gold_miner.data.jdgold_client (jdgold 主源 → latestPrice H5 兜底)
 
 
 def _now() -> datetime:
@@ -154,40 +152,14 @@ def fetch_quotes(bank: str = "MS") -> list[GoldQuote]:
 
 
 def _fetch_jd_gold() -> dict | None:
-    """京东金融积存金 H5 接口 — 获取真实民生积存金报价.
+    """积存金当前价 — jdgold 主源 (免登录) → latestPrice H5 兜底.
 
-    接口返回: {price, yesterdayPrice, upAndDownRate, upAndDownAmt, time}
+    返回 {price, prev_close, change_pct, source} (与下游 fetch_quotes 约定一致)。
+    集成背景: docs/analysis/jdgold-integration-analysis-2026-08-12.md
     """
-    try:
-        resp = httpx.get(
-            _JD_API_URL,
-            headers={
-                "User-Agent": (
-                    "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)"
-                ),
-                "Referer": "https://m.jd.com/",
-            },
-            timeout=8.0,
-        )
-        if resp.status_code != 200:
-            return None
-        data = resp.json()
-        if not data.get("success"):
-            return None
-        datas = data.get("resultData", {}).get("datas", {})
-        price = float(datas.get("price", 0))
-        yesterday = float(datas.get("yesterdayPrice", 0))
-        if price <= 0:
-            return None
-        change_pct = (price - yesterday) / yesterday * 100 if yesterday > 0 else 0.0
-        return {
-            "price": round(price, 2),
-            "prev_close": round(yesterday, 2),
-            "change_pct": round(change_pct, 2),
-            "source": "京东金融",
-        }
-    except Exception:
-        return None
+    from gold_miner.data.jdgold_client import fetch_accumulation_quote
+
+    return fetch_accumulation_quote("MS")
 
 
 def _fetch_xauusd_cn() -> dict | None:

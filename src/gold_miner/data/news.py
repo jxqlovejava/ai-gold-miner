@@ -451,6 +451,51 @@ class SearchEngineFetcher:
         return all_items[:max_results]
 
 
+class JdjrNewsFetcher:
+    """京东金融黄金资讯 (免登录, jdgold 数据层封装).
+
+    数据源: gold_miner.data.jdgold_client.fetch_news (jdjr_query_news --no-flash, 合并去重)。
+    集成背景: docs/analysis/jdgold-integration-analysis-2026-08-12.md E3 (news_monitor 加源)。
+    """
+
+    SOURCE = "jdjr"
+    SOURCE_TIER = "T1"  # 京东金融官方公开数据
+
+    def fetch_latest(self, query: str = "黄金", max_results: int = 5) -> list[NewsItem]:
+        """抓取京东金融黄金资讯 (快讯+资讯合并去重)."""
+        try:
+            from gold_miner.data.jdgold_client import fetch_news
+
+            raw = fetch_news(keyword=query, size=max_results)
+            if not raw:
+                return []
+            items: list[NewsItem] = []
+            for n in raw:
+                title = str(n.get("title") or "").strip()
+                if not title or len(title) < 5:
+                    continue
+                url = str(n.get("url") or "")
+                published_at = datetime.now()
+                ts = n.get("time")
+                if ts:
+                    try:
+                        published_at = datetime.fromisoformat(str(ts))
+                    except ValueError:
+                        pass
+                item = NewsItem(
+                    title=title,
+                    source=self.SOURCE,
+                    published_at=published_at,
+                    url=url,
+                    summary=str(n.get("content") or "").strip(),
+                )
+                item.metadata["source_tier"] = self.SOURCE_TIER
+                items.append(item)
+            return items
+        except Exception:
+            return []
+
+
 class NewsFetcher:
     """新闻数据获取器 — 多源聚合.
 
@@ -481,6 +526,7 @@ class NewsFetcher:
         self.newsapi_key = settings.news_api_key
         self.anysearch = AnySearchFetcher()
         self.search_engine = SearchEngineFetcher()
+        self.jdjr = JdjrNewsFetcher()
 
     def fetch_latest(
         self,
@@ -564,6 +610,12 @@ class NewsFetcher:
             if items:
                 logger.info(f"anysearch 返回 {len(items)} 条新闻")
                 return items
+
+        # 2.5 jdgold 官方黄金资讯兜底 (免登录, 中文快讯, E3 2026-08-13)
+        items = self.jdjr.fetch_latest(query="黄金", max_results=max_results)
+        if items:
+            logger.info(f"jdgold 资讯返回 {len(items)} 条新闻")
+            return items
 
         # 3. 搜索引擎回退 — 多查询并行（不硬编码具体月份/年份）
         target_queries = [

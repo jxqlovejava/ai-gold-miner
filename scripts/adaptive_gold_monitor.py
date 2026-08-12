@@ -169,35 +169,10 @@ def _now() -> datetime:
 # ═══════════════════════════════════════════════════════════════
 
 def _fetch_price() -> dict | None:
-    """获取积存金当前价."""
-    try:
-        import httpx
-        resp = httpx.get(
-            "https://ms.jr.jd.com/gw/generic/hj/h5/m/latestPrice",
-            headers={
-                "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)",
-                "Referer": "https://m.jd.com/",
-            },
-            timeout=8.0,
-        )
-        if resp.status_code != 200:
-            return None
-        data = resp.json()
-        if not data.get("success"):
-            return None
-        result_data = data.get("resultData", {})
-        datas = result_data.get("datas", {}) if isinstance(result_data, dict) else {}
-        price = float(datas.get("price", 0))
-        yesterday = float(datas.get("yesterdayPrice", 0))
-        if price <= 0:
-            return None
-        return {
-            "price": round(price, 2),
-            "prev_close": round(yesterday, 2),
-            "change_pct": round((price - yesterday) / yesterday * 100, 2) if yesterday > 0 else 0.0,
-        }
-    except Exception:
-        return None
+    """获取积存金当前价 — jdgold 主源 → latestPrice H5 兜底 (收口至 jdgold_client)."""
+    from gold_miner.data.jdgold_client import fetch_accumulation_quote
+
+    return fetch_accumulation_quote()
 
 
 def _load_portfolio() -> dict | None:
@@ -519,7 +494,7 @@ def _check_cost_proximity(current: float, cost: float) -> dict | None:
         loss_pct = (cost - current) / cost * 100
         return {
             "type": "cost_below",
-            "message": f"❌ 跌破净保本线 {cost:.0f}元! 当前 {current:.2f}, 卖出即实亏 {loss_pct:.1f}%",
+            "message": f"❌ 跌破净保本线 {cost:.2f}元! 当前 {current:.2f}, 卖出即实亏 {loss_pct:.1f}%",
             "severity": "CRITICAL",
         }
     profit_margin = (current - cost) / cost
@@ -527,7 +502,7 @@ def _check_cost_proximity(current: float, cost: float) -> dict | None:
         if profit_margin <= threshold:
             return {
                 "type": "cost_proximity",
-                "message": f"{msg} (净保本线 {cost:.0f}元, 当前 {current:.2f}, 净盈利仅剩 {profit_margin*100:.1f}%)",
+                "message": f"{msg} (净保本线 {cost:.2f}元, 当前 {current:.2f}, 净盈利仅剩 {profit_margin*100:.1f}%)",
                 "severity": "HIGH" if threshold <= 0.02 else "MEDIUM",
             }
     return None
@@ -982,12 +957,15 @@ def _gather_evidence(current: float, historical: list[dict], cfg: dict) -> dict:
         "active_orders": [],
     }
     try:
-        from gold_miner.data.calendar import EventCalendar, EventImpact
+        from gold_miner.data.calendar import EventCalendar, EventImpact, EventType
         cal = EventCalendar()
+        # 只列真实"待落地"的数据事件: 排除 MONITOR 观测 (由分析 pipeline 评估, 不是即将公布的数据)
+        # 和 actual 已填的结果已出事件. 与 _check_ongoing_events 同一套过滤 (2026-08-13 系统修复).
         ev["events"] = [
             {"name": e.name, "time": e.beijing_time_str, "impact": e.impact.value}
-            for e in cal.get_upcoming(days=2, min_impact=EventImpact.MEDIUM)[:3]
-        ]
+            for e in cal.get_upcoming(days=2, min_impact=EventImpact.MEDIUM)
+            if e.event_type != EventType.MONITOR and not e.actual
+        ][:3]
     except Exception:
         pass
     try:
@@ -1441,12 +1419,12 @@ def _format_card(
         price = price_info["price"]
         sell_fee = _get_sell_fee_pct()
         pnl = (price - cost_basis) / cost_basis * 100
-        line = f"📊 成本¥{cost_basis:.0f} | 浮{'盈' if pnl >= 0 else '亏'} {abs(pnl):.1f}%"
+        line = f"📊 成本¥{cost_basis:.2f} | 浮{'盈' if pnl >= 0 else '亏'} {abs(pnl):.1f}%"
         net_pnl = pnl
         if sell_fee > 0:
             net_breakeven = _net_breakeven(cost_basis, sell_fee)
             net_pnl = (price * (1 - sell_fee) - cost_basis) / cost_basis * 100
-            line += f" | 净{net_pnl:+.1f}%(已扣{sell_fee*100:.1f}%卖出费) 净保本¥{net_breakeven:.0f}"
+            line += f" | 净{net_pnl:+.1f}%(已扣{sell_fee*100:.1f}%卖出费) 净保本¥{net_breakeven:.2f}"
         if net_pnl < 0:
             line += " ⚠️ 已破净保本线, 卖出即实亏"
         lines.append(line)

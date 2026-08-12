@@ -69,6 +69,15 @@ def test_card_cost_clean_when_profitable():
     assert "已破成本线" not in card
 
 
+def test_card_cost_precision_two_decimals():
+    # 成本 921.20 必须显示 921.20 (原 .0f 舍成 921); 净保本 924.90 → 924.90 (原 .0f 舍成 925)
+    price_info = {"price": 959.17, "prev_close": 958.6, "change_pct": 0.06}
+    card = m._format_card("NORMAL", "NORMAL", price_info, 921.20, [], {})
+    assert "成本¥921.20" in card
+    assert "净保本¥924.90" in card
+    assert "净保本¥925" not in card  # .0f 舍入已禁用
+
+
 def test_card_breakout_approach_shown_once():
     """突破前兆置顶展示, 且不在 remaining 二次重复."""
     price_info = {"price": 947.5, "prev_close": 940.0, "change_pct": 0.80}

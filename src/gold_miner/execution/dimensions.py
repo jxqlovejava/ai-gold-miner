@@ -19,6 +19,8 @@ _SMART_MONEY_SOURCES = frozenset({
     "comex_large_traders", # COMEX 大户集中度
     "13f_institutional",   # 13F 机构持仓
     "smart_money_composite",  # 聪明钱综合信号
+    "jd_fund_bomb",        # jdgold 资金炸弹/大单资金流 (分钟级, P3 2026-08-13)
+    "jd_blogger_rank",     # jdgold 大V加仓榜 (散户情绪, P3 2026-08-13)
 })
 
 
@@ -259,13 +261,14 @@ def print_smart_money(bundle: SignalBundle) -> None:
         src = sig.metadata.get("source", "other")
         groups.setdefault(src, []).append(sig)
 
-    # 展示顺序: COT → ETF → 投行 → 大户 → 13F → 综合
+    # 展示顺序: COT → ETF → 投行 → 大户 → jdgold → 13F → 综合
     _order = [
         "cot_report", "gld_holdings_tonnes",
         "gold_etf_price_proxy", "gold_etf_volume_proxy",
         "intl_gold_etf_volume_proxy", "domestic_intl_divergence",
         "btc_etf", "cross_etf",
-        "bank_targets", "comex_large_traders", "13f_institutional",
+        "bank_targets", "comex_large_traders", "jd_fund_bomb",
+        "jd_blogger_rank", "13f_institutional",
         "smart_money_composite",
     ]
 
@@ -280,6 +283,8 @@ def print_smart_money(bundle: SignalBundle) -> None:
         "cross_etf": "\U0001f504 黄金vs比特币ETF交叉",
         "bank_targets": "\U0001f3e6 投行目标价共识",
         "comex_large_traders": "\U0001f3af COMEX大户集中度",
+        "jd_fund_bomb": "\U0001f4a3 jdgold资金炸弹 (分钟级大单)",
+        "jd_blogger_rank": "\U0001f451 jdgold大V加仓榜 (散户情绪)",
         "13f_institutional": "\U0001f4cb 13F机构持仓",
         "smart_money_composite": "\U0001f9e0 聪明钱综合评分",
     }
