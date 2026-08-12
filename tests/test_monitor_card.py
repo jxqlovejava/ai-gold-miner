@@ -79,3 +79,42 @@ def test_card_breakout_approach_shown_once():
     card = m._format_card("NORMAL", "NORMAL", price_info, 890.0, alerts, {})
     assert card.count("🚀 突破前兆") == 1
     assert "变盘窗口开启" in card
+
+
+def _trend_state(prices, window=12):
+    """跑一串价格过 _update_trend_bookkeeping, 返回最终 state."""
+    state = dict(m.DEFAULT_STATE)
+    prev = None
+    for p in prices:
+        m._update_trend_bookkeeping(p, prev, state, {"trend_high_window_polls": window})
+        prev = p
+    return state
+
+
+def test_trend_high_uses_window_peak():
+    # 下跌前冲高958, 下跌前最后一拍955 → 本轮高点取窗口内最高958, 而非955
+    state = _trend_state([950, 952, 958, 955, 949, 946])
+    assert state["trend_high"] == 958.0
+    assert state["trend_low"] == 946.0
+
+
+def test_trend_high_window_expiry():
+    # 久远高点(超过窗口)过期后, 本轮高点取近期价而非久远峰
+    state = _trend_state([958, 957, 957, 957, 957, 957, 957, 957, 957, 955, 952], window=6)
+    assert state["trend_high"] == 957.0
+
+
+def test_trend_reset_clears_recent_high():
+    # 回升>2% → trend + recent_high 全部重置
+    state = _trend_state([958, 956, 953, 950, 946, 948, 952, 958, 968])
+    assert state["trend_high"] is None
+    assert state["trend_low"] is None
+    assert state["recent_high"] is None
+
+
+def test_trend_first_poll_seeds_recent_high():
+    # 重启后首拍播种 recent_high, 不判定趋势
+    state = dict(m.DEFAULT_STATE)
+    m._update_trend_bookkeeping(958.0, None, state, {})
+    assert state["recent_high"] == 958.0
+    assert state["trend_high"] is None

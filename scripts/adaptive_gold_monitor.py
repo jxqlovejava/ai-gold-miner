@@ -139,6 +139,7 @@ OPP_DEFAULTS: dict = {
     "breakout_high_approach_pct": 0.015,      # 距N日高点≤1.5% 视为逼近
     "cooldown_breakout_min": 60,              # 突破预警冷却
     "cooldown_rebound_min": 60,               # 反弹通知冷却 (2026-08-12: 反弹持续时每5分钟推送触发 iLink 限流)
+    "trend_high_window_polls": 12,            # 本轮高点采样窗口(轮询次数, 5min×12≈1h): 用窗口内最高价而非下跌前单一快照
 }
 OPP_CONFIG_PATH = PROJECT_ROOT / "data/private/opportunity_config.yaml"
 SIGNAL_SNAPSHOT_PATH = PROJECT_ROOT / "data/signal_snapshot.json"
@@ -355,7 +356,9 @@ DEFAULT_STATE = {
     "consecutive_skips": 0,
     # 反弹检测
     "trend_low": None,       # 本次下跌的最低点
-    "trend_high": None,      # 下跌起点(阶段高点)
+    "trend_high": None,      # 下跌起点(阶段高点, 取最近N次轮询最高价)
+    "recent_high": None,     # 最近 N 次轮询的最高价 (定位本轮真实峰值)
+    "recent_high_polls": 0,  # recent_high 距今轮询数 (超过窗口则过期重启)
     "prev_change_pct": 0.0,  # 上次检查的涨跌幅
     # 机会提醒 (止盈/抄底)
     "tp_alert_at": None,
@@ -684,22 +687,49 @@ def _check_ongoing_events() -> list[dict]:
         return []
 
 
-def _update_trend_bookkeeping(current: float, prev_price: float | None, state: dict) -> None:
+def _update_trend_bookkeeping(
+    current: float, prev_price: float | None, state: dict, cfg: dict | None = None
+) -> None:
     """维护反弹检测所需的趋势状态.
 
     下跌中追踪低点; 回升后当价格远离低点 >2% 时重置趋势.
+    本轮高点 (trend_high) 取「最近 N 次轮询的最高价」而非下跌前单一快照,
+    避免 5 分钟轮询粒度漏掉两次采样之间的真实峰值 (曾出现 958.04 只反映
+    下跌前一拍快照价, 而真实阶段高点可能更高).
     """
     if prev_price is None or prev_price <= 0:
+        # 无前价(首轮/重启)时只播种近期高点, 不判定趋势
+        if current > 0:
+            state["recent_high"] = current
+            state["recent_high_polls"] = 0
         return
+
+    cfg = cfg or OPP_DEFAULTS
+    window = int(cfg.get("trend_high_window_polls", 12))
 
     change_pct = (current - prev_price) / prev_price * 100
 
-    # 下跌中 → 更新低点 + 记录阶段高点
+    # 维护短期高点窗口: 记录最近 window 次轮询内的最高价 (含当前价)
+    recent_high = state.get("recent_high")
+    recent_polls = state.get("recent_high_polls", 0)
+    if recent_high is None or current >= recent_high:
+        recent_high = current
+        recent_polls = 0
+    else:
+        recent_polls += 1
+        if recent_polls > window:
+            # 窗口过期: 用当前价重启, 防止把久远高点算作"本轮"起点
+            recent_high = current
+            recent_polls = 0
+    state["recent_high"] = recent_high
+    state["recent_high_polls"] = recent_polls
+
+    # 下跌中 → 更新低点 + 记录阶段高点 (取窗口最高价, 更贴近真实峰值)
     if change_pct < -0.15:
         if state.get("trend_low") is None or current < state["trend_low"]:
             state["trend_low"] = current
         if state.get("trend_high") is None:
-            state["trend_high"] = prev_price
+            state["trend_high"] = max(prev_price, recent_high)
 
     # 回升 + 已远离低点 >2% → 这波跌完了, 重置
     if change_pct > 0.15 and state.get("trend_low"):
@@ -707,6 +737,8 @@ def _update_trend_bookkeeping(current: float, prev_price: float | None, state: d
         if recovery_pct > 2.0:
             state["trend_low"] = None
             state["trend_high"] = None
+            state["recent_high"] = None
+            state["recent_high_polls"] = 0
 
 
 def _rsi(closes: list[float], period: int = 14) -> float | None:
@@ -1573,7 +1605,7 @@ def main() -> int:
         (current - prev_price) / prev_price * 100
         if prev_price and prev_price > 0 else 0.0
     )
-    _update_trend_bookkeeping(current, prev_price, state)
+    _update_trend_bookkeeping(current, prev_price, state, opp_cfg)
 
     state["level"] = new_level
     state["last_check_time"] = now_iso
