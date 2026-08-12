@@ -18,8 +18,11 @@ from loguru import logger
 from gold_miner.data.economic_data import EconomicDataPoint, EconomicDataRecorder
 from gold_miner.proxy import get_proxied_client
 
-# WGC Gold Demand Trends 最新季度报告 URL — 每季度 WGC 发布新报告后必须更新到最新季度。
-# 当前: Q2 2026 (2026-07-30 发布)。URL 停留在旧季度会持续抓取/回退到上季度数据（曾长期卡在 Q1 2026 的 244t）。
+# WGC Gold Demand Trends 索引页 — fetch() 会自动从此页发现最新已发布季度报告 URL，
+# 无需每季度手动更新（消除「URL 停留旧季度 → 持续抓取/回退上季度数据」的根因，曾长期卡在 Q1 2026 的 244t）。
+GDT_INDEX_URL = "https://www.gold.org/goldhub/research/gold-demand-trends"
+
+# 默认报告 URL — 仅作为自动发现失败时的兜底。当前: Q2 2026 (2026-07-30 发布)。
 WGC_GDT_URL = "https://www.gold.org/goldhub/research/gold-demand-trends/gold-demand-trends-q2-2026"
 
 # WGC GDT 最新季度权威数据 — 网络不可用时的 fallback，及 scrape 缺字段补全。
@@ -82,7 +85,15 @@ class CentralBankFetcher:
         self._recorder = recorder or EconomicDataRecorder()
 
     def fetch(self) -> CentralBankData | None:
-        """从WGC页面抓取最新央行购金数据."""
+        """从 WGC 页面抓取最新央行购金数据 — 自动发现最新已发布季度报告 URL.
+
+        使用默认 URL 时先从 GDT 索引页自动发现最新季度（Q3/Q4... 发布后无需改代码）；
+        仅当自动发现失败时才回退到默认 URL。
+        """
+        if self.url == WGC_GDT_URL:
+            discovered = self._discover_latest_url()
+            if discovered:
+                self.url = discovered
         html = self._get_html(self.url)
         if not html:
             return self._fallback_data()
@@ -197,6 +208,35 @@ class CentralBankFetcher:
         self._persist(data)
         return data
 
+    def _discover_latest_url(self) -> str | None:
+        """从 WGC GDT 索引页自动发现最新季度报告 URL.
+
+        只匹配主季度报告（gold-demand-trends-qN-YYYY），排除 focus/india/us 变体与
+        本地化路径（/ja/ 等）；按 (年, 季度) 取最大者。这样新季度报告一发布即可自动抓取。
+        """
+        try:
+            html = self._get_html(GDT_INDEX_URL)
+            if not html:
+                return None
+            soup = BeautifulSoup(html, "html.parser")
+            best: tuple[int, int, str] | None = None  # (year, quarter, url)
+            for a in soup.find_all("a", href=True):
+                href = a["href"]
+                m = re.search(r"gold-demand-trends-q([1-4])-(\d{4})/?$", href, re.IGNORECASE)
+                if not m:
+                    continue
+                quarter, year = int(m.group(1)), int(m.group(2))
+                if not href.startswith("/goldhub/"):  # 排除 /ja/ /zh/ 等本地化路径
+                    continue
+                if best is None or (year, quarter) > (best[0], best[1]):
+                    best = (year, quarter, href)
+            if not best:
+                return None
+            return "https://www.gold.org" + best[2]
+        except Exception as e:
+            logger.debug(f"WGC GDT 最新报告发现失败: {e}")
+            return None
+
     def _persist(self, data: CentralBankData) -> None:
         """将央行购金数据持久化到经济数据库."""
         try:
@@ -212,7 +252,11 @@ class CentralBankFetcher:
                 source="World Gold Council (WGC)",
                 source_tier="T0",
                 impact="high",
-                notes=f"全球央行季度净购金 {data.net_purchases_tonnes}t，同比 {data.yoy_change_pct:+.0%}",
+                # yoy 未知(新季度且未补全)时省略，不输出误导性的 "+0%"
+                notes=(
+                    f"全球央行季度净购金 {data.net_purchases_tonnes}t"
+                    + (f"，同比 {data.yoy_change_pct:+.0%}" if data.yoy_change_pct else "")
+                ),
             )
             self._recorder.save(point)
         except Exception as e:

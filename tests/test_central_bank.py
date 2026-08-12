@@ -83,6 +83,51 @@ class TestCentralBankFetcher:
         assert data.etf_flow_tonnes == -45.0
         assert data.bar_coin_tonnes == 307.0
 
+    def test_discover_latest_url(self):
+        """自动发现最新季度报告 URL: 取最大(年,季度)，排除 focus/本地化变体."""
+        fetcher = CentralBankFetcher()
+        index_html = (
+            '<html><body>'
+            '<a href="/goldhub/research/gold-demand-trends/gold-demand-trends-q1-2026">Q1</a>'
+            '<a href="/goldhub/research/gold-demand-trends/gold-demand-trends-q2-2026">Q2</a>'
+            '<a href="/goldhub/research/gold-demand-trends/gold-demand-trends-india-focus-q2-2026">focus</a>'
+            '<a href="/ja/goldhub/research/gold-demand-trends/gold-demand-trends-q2-2026">ja</a>'
+            '</body></html>'
+        )
+        fetcher._get_html = lambda url: index_html  # type: ignore[method-assign]
+        url = fetcher._discover_latest_url()
+        assert url == (
+            "https://www.gold.org/goldhub/research/gold-demand-trends/"
+            "gold-demand-trends-q2-2026"
+        )
+
+    def test_fetch_auto_discovers_newest_quarter(self):
+        """fetch() 默认 URL 时自动发现最新季度并抓取（模拟 Q3 报告已发布）. """
+        fetcher = CentralBankFetcher(recorder=FakeRecorder())
+
+        def fake_get(url):
+            if url.endswith("gold-demand-trends"):  # 索引页 → 含 Q3
+                return (
+                    '<html><body>'
+                    '<a href="/goldhub/research/gold-demand-trends/gold-demand-trends-q2-2026">Q2</a>'
+                    '<a href="/goldhub/research/gold-demand-trends/gold-demand-trends-q3-2026">Q3</a>'
+                    '</body></html>'
+                )
+            # Q3 报告页
+            return (
+                "<html><body>"
+                "<p>Central banks made significant gold purchases in Q3 (310t).</p>"
+                "<p>Total gold demand, including OTC, was unchanged y/y at 1,300t in Q3.</p>"
+                "</body></html>"
+            )
+
+        fetcher._get_html = fake_get  # type: ignore[method-assign]
+        data = fetcher.fetch()
+
+        assert data is not None
+        assert data.quarter == "Q3 2026"  # 自动发现到最新季度，未停留在 Q2
+        assert data.net_purchases_tonnes == 310.0
+
     def test_quarter_to_observation_date(self):
         fetcher = CentralBankFetcher()
         assert fetcher._quarter_to_observation_date("Q1 2026") == "2026-03-31"
