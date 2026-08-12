@@ -132,6 +132,7 @@ footer { text-align: center; color: #aaa; font-size: 12px; margin-top: 32px; pad
 <h3>8B. 条件单状态表（r032 净口径）</h3>
 <table><thead><tr><th>条件单 ID</th><th>类型</th><th>触发价</th><th>数量</th><th>状态</th><th>建议动作</th><th>原因</th></tr></thead><tbody><tr><td>co_20260806_001</td><td>limit_buy</td><td>880</td><td>15g</td><td>active</td><td><strong>保留 + 续期至 8/25</strong></td><td>深回调承接档，距现价-7.8%，ATR线(912)之下有安全边际；V9主通道。续期覆盖 8/18停火到期+FOMC纪要8/19</td></tr><tr><td>co_20260806_003</td><td>limit_buy</td><td>905→<strong>918</strong></td><td>5g</td><td>active</td><td><strong>修改：触发价上调至 918</strong></td><td><span class="warn">⚠️</span> ATR移动止盈位 912.66 高于 905——价到905必先跌破ATR线触发减仓却同时接货=方向矛盾(r021/r024)。上调至918(&gt;ATR线)化解，与880间距4.3%符合r028</td></tr></tbody></table>
 <blockquote>已更新 `data/private/conditional_orders.jsonl`：co_20260806_001 续期至 8/25，co_20260806_003 触发价 905→918。</blockquote>
+<blockquote><strong><span class="warn">🔴</span> 承接档位定位（2026-08-12 用户确认「保持现状当保险」）</strong>：<br>- <strong>880 @15g / 918 @5g = 多周级尾部保险</strong>，不是今晚 CPI 触发档。<br>距现价 -7.8%/-3.8%（4.4×/2.2×ATR），今晚 CPI 单事件到不了；需鹰派 CPI + 8/18 停火缓和 + risk-on 等组合叠加（1-2 周级）才可能触达。<br>不成交零成本，纯 V9 机会池式深值承接。<br>- <strong>近端现实承接 = L1 monitor 935-945 试盘</strong>（scenario b，-1%~-2%，0.6-1.2×ATR）——今晚 CPI 鹰派落点的现实档位，走 <strong>L1 monitor 手动触发</strong>（5% 首批 2.5% = ¥5k），非条件单自动承接。<br>- 若希望 CPI 鹰派回落自动接货，可另挂 940 条件单（当前未挂，靠 L1 手动）。</blockquote>
 <hr></div>
 <div class="section"><h2>九、后续关注 + 情景预案 + Monitor</h2>
 <h3>9.1 后续事件关注（未来 14 天）</h3>
