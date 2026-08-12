@@ -18,7 +18,23 @@ from loguru import logger
 from gold_miner.data.economic_data import EconomicDataPoint, EconomicDataRecorder
 from gold_miner.proxy import get_proxied_client
 
-WGC_GDT_URL = "https://www.gold.org/goldhub/research/gold-demand-trends/gold-demand-trends-q1-2026"
+# WGC Gold Demand Trends 最新季度报告 URL — 每季度 WGC 发布新报告后必须更新到最新季度。
+# 当前: Q2 2026 (2026-07-30 发布)。URL 停留在旧季度会持续抓取/回退到上季度数据（曾长期卡在 Q1 2026 的 244t）。
+WGC_GDT_URL = "https://www.gold.org/goldhub/research/gold-demand-trends/gold-demand-trends-q2-2026"
+
+# WGC GDT 最新季度权威数据 — 网络不可用时的 fallback，及 scrape 缺字段补全。
+# 来源: World Gold Council, Gold Demand Trends Q2 2026 (2026-07-30)。
+# ⚠️ WGC 2026-07 对 Q1 2026 数据做了下修: 244t → 57t（187t 重分类至 OTC/其他需求）。
+#    任何仍引用「Q1 2026 央行购金 244t」的数据/报告均为滞后且已被撤销的数字。
+WGC_LATEST_QUARTER: dict[str, Any] = {
+    "quarter": "Q2 2026",
+    "net_purchases_tonnes": 289.0,   # +62% y/y，四年来最高季度
+    "yoy_change_pct": 0.62,
+    "total_demand_tonnes": 1269.0,   # 含 OTC，同比持平
+    "avg_price_usd": 4506.29,        # LBMA 午盘季均
+    "etf_flow_tonnes": -45.0,        # 当季 ETF 净流出
+    "bar_coin_tonnes": 307.0,        # 金条金币需求，同比持平
+}
 HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -58,7 +74,7 @@ class CentralBankFetcher:
     用法:
         fetcher = CentralBankFetcher()
         data = fetcher.fetch()
-        print(f"Q1 2026 央行净购金: {data.net_purchases_tonnes}t")
+        print(f"{data.quarter} 央行净购金: {data.net_purchases_tonnes}t")
     """
 
     def __init__(self, url: str = WGC_GDT_URL, recorder: EconomicDataRecorder | None = None) -> None:
@@ -74,18 +90,17 @@ class CentralBankFetcher:
         soup = BeautifulSoup(html, "html.parser")
         text = soup.get_text(separator=" ")
 
-        # 提取央行购金量: "Central banks bought 244t"
+        # 提取央行购金量 — 兼容多种页面措辞:
+        #   "Central banks bought 244t" / "net purchases of 244t" / "Central banks ... (289t)"
         cb_match = re.search(
             r"Central\s+banks?\s+(?:bought|purchased|added)\s+(\d+)\s*t",
             text, re.IGNORECASE,
         )
-        # 也匹配 "net purchases of Xt"
         if not cb_match:
             cb_match = re.search(
                 r"net\s+(?:purchases?|buying)\s+(?:of\s+)?(\d+)\s*t",
                 text, re.IGNORECASE,
             )
-        # 匹配 "central banks.*?(\d+)t"
         if not cb_match:
             cb_match = re.search(
                 r"central\s+banks.*?(\d{3,4})\s*t",
@@ -108,47 +123,60 @@ class CentralBankFetcher:
             except ValueError:
                 yoy_pct = 0.0
 
-        # 总需求: "Total Q1 gold demand... was... 1,231t"
+        # 总需求: "Total gold demand, including OTC, ... at 1,269t"
         demand_match = re.search(
-            r"Total\s+Q\d\s+gold\s+demand.*?(\d{1,3}(?:,\d{3}){1,2})\s*t",
+            r"Total\s+gold\s+demand.*?(\d{1,3}(?:,\d{3}){1,2})\s*t",
             text, re.IGNORECASE,
         )
         total_demand = None
         if demand_match:
             total_demand = float(demand_match.group(1).replace(",", ""))
 
-        # 均价: "quarterly average record of US$4,873/oz"
+        # 均价: "gold price averaged US$4,506.29/oz"
         price_match = re.search(
-            r"quarterly\s+average.*?US?\$(\d{1,3}(?:,\d{3}){1,2})\s*(?:/oz|per\s+ounce)",
+            r"(?:averaged|average\s+price).*?US?\$(\d{1,3}(?:,\d{3}){1,2}(?:\.\d+)?)\s*/\s*oz",
             text, re.IGNORECASE,
         )
         avg_price = None
         if price_match:
             avg_price = float(price_match.group(1).replace(",", ""))
 
-        # ETF: "gold-backed ETFs continued in Q1 (+62t)"
+        # ETF: "Gold ETFs came under selling pressure in Q2 (-45t"
         etf_match = re.search(
-            r"gold.backed\s+ETFs?.*?\(?([+-]\d+)\s*t\)?",
+            r"(?:gold.backed\s+ETFs?|Gold ETFs).*?\(?([+-]\d+)\s*t\)?",
             text, re.IGNORECASE,
         )
         etf_flow = None
         if etf_match:
             etf_flow = float(etf_match.group(1))
 
-        # 金条金币: "Bar and coin demand of 474t (+42%)"
+        # 金条金币: "Bar and coin investment ... (307t)"
         bc_match = re.search(
-            r"Bar\s*(?:and|&)\s*coin\s*demand\s*(?:of\s*)?(\d{1,4})\s*t",
+            r"Bar\s*(?:and|&)\s*coin\s*(?:investment|demand).*?\(?(\d{1,4})\s*t\)?",
             text, re.IGNORECASE,
         )
         bar_coin = None
         if bc_match:
             bar_coin = float(bc_match.group(1))
 
-        # 提取季度
-        quarter = "Q1 2026"
-        q_match = re.search(r"Q([1-4])\s*(?:20)?(\d{2})", self.url)
-        if q_match:
-            quarter = f"Q{q_match.group(1)} 20{q_match.group(2)}"
+        # 提取季度 — WGC URL slug 为小写且带连字符（如 "...-q2-2026"），须忽略大小写并跳过 "-"
+        # 旧实现大小写敏感 + 未处理连字符 → 匹配失败回退成硬编码 "Q1 2026"（Q2 数据被错误标记为 Q1）
+        q_match = re.search(r"[Qq]([1-4])(?:\s*|-)(?:20)?(\d{2})", self.url)
+        quarter = f"Q{q_match.group(1)} 20{q_match.group(2)}" if q_match else ""
+
+        # 若 scrape 未提取到某些字段（页面措辞变化），且抓取季度与已知最新季度一致，
+        # 用权威数据补全 — 避免持久化 "同比 +0%" 等错误字段。
+        if quarter and quarter == WGC_LATEST_QUARTER["quarter"]:
+            if yoy_pct == 0.0:
+                yoy_pct = WGC_LATEST_QUARTER["yoy_change_pct"]
+            if total_demand is None:
+                total_demand = WGC_LATEST_QUARTER["total_demand_tonnes"]
+            if avg_price is None:
+                avg_price = WGC_LATEST_QUARTER["avg_price_usd"]
+            if etf_flow is None:
+                etf_flow = WGC_LATEST_QUARTER["etf_flow_tonnes"]
+            if bar_coin is None:
+                bar_coin = WGC_LATEST_QUARTER["bar_coin_tonnes"]
 
         logger.info(
             f"央行购金数据: {quarter} 净购金 {net_tonnes}t "
@@ -224,16 +252,15 @@ class CentralBankFetcher:
     def _fallback_data(self) -> CentralBankData | None:
         """当网络不可用时返回已知的最新数据."""
         logger.warning("无法获取最新WGC数据，使用已知数据")
-        # Q1 2026 known data from WGC
         data = CentralBankData(
-            quarter="Q1 2026",
-            net_purchases_tonnes=244.0,
-            yoy_change_pct=0.03,
-            total_demand_tonnes=1231.0,
-            avg_price_usd=4873.0,
-            etf_flow_tonnes=62.0,
-            bar_coin_tonnes=474.0,
-            source_url="fallback (cached Q1 2026 data)",
+            quarter=WGC_LATEST_QUARTER["quarter"],
+            net_purchases_tonnes=WGC_LATEST_QUARTER["net_purchases_tonnes"],
+            yoy_change_pct=WGC_LATEST_QUARTER["yoy_change_pct"],
+            total_demand_tonnes=WGC_LATEST_QUARTER["total_demand_tonnes"],
+            avg_price_usd=WGC_LATEST_QUARTER["avg_price_usd"],
+            etf_flow_tonnes=WGC_LATEST_QUARTER["etf_flow_tonnes"],
+            bar_coin_tonnes=WGC_LATEST_QUARTER["bar_coin_tonnes"],
+            source_url=f"fallback (cached {WGC_LATEST_QUARTER['quarter']} data)",
             fetched_at=datetime.now(),
         )
         self._persist(data)
@@ -275,6 +302,7 @@ class CentralBankHistoryFetcher:
 
     # WGC 官方季度央行净购金历史数据（吨）
     # 来源: World Gold Council Gold Demand Trends
+    # ⚠️ Q1 2026 已被 WGC 于 2026-07 下修（244t → 57t，187t 重分类至 OTC/其他需求）
     KNOWN_QUARTERLY_DATA: list[dict[str, Any]] = [
         {"quarter": "Q1 2023", "net_purchases_tonnes": 228.0},
         {"quarter": "Q2 2023", "net_purchases_tonnes": 175.0},
@@ -288,7 +316,8 @@ class CentralBankHistoryFetcher:
         {"quarter": "Q2 2025", "net_purchases_tonnes": 198.0},
         {"quarter": "Q3 2025", "net_purchases_tonnes": 220.0},
         {"quarter": "Q4 2025", "net_purchases_tonnes": 345.0},
-        {"quarter": "Q1 2026", "net_purchases_tonnes": 244.0},
+        {"quarter": "Q1 2026", "net_purchases_tonnes": 57.0},  # 下修后
+        {"quarter": "Q2 2026", "net_purchases_tonnes": 289.0},
     ]
 
     def fetch_quarterly_history(self) -> pd.DataFrame:
@@ -388,7 +417,9 @@ class MonthlyCentralBankFetcher:
         "中国": {
             "code": "PBOC",
             "url": "http://www.pbc.gov.cn/zhengcehuobisi/11111/index.html",
-            "fallback_monthly": 15.0,  # 吨/月 近似值 (基于Q1 2026约45t推算)
+            # 7月实际: +64万盎司 ≈ 20吨 (8/7 公布，2024年11月重启购金以来单月最大，连续21个月增持)
+            # 2026 年逐月: 3月~5t、4月~8t、5月~10t、6月~15t、7月~20t — 呈递增
+            "fallback_monthly": 20.0,
         },
         "土耳其": {
             "code": "CBRT",

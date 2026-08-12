@@ -136,7 +136,9 @@ CENTRAL_BANK_QUARTERLY: list[dict] = [
     {"quarter": "Q2 2025", "tonnes": 198, "date": "2025-06-30"},
     {"quarter": "Q3 2025", "tonnes": 220, "date": "2025-09-30"},
     {"quarter": "Q4 2025", "tonnes": 345, "date": "2025-12-31"},
-    {"quarter": "Q1 2026", "tonnes": 244, "date": "2026-03-31"},
+    # Q1 2026 已被 WGC 于 2026-07 下修（244t → 57t，187t 重分类至 OTC）
+    {"quarter": "Q1 2026", "tonnes": 57, "date": "2026-03-31"},
+    {"quarter": "Q2 2026", "tonnes": 289, "date": "2026-06-30"},
 ]
 
 
