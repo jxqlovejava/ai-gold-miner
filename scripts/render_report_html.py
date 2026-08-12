@@ -688,16 +688,12 @@ def render(md: str, out_path: Path) -> Path:
 
     # 每个 h2 开始新 section; 非 h2 块归入当前 section.
     # 决策卡片块 (decision-card) 单独渲染, 不套 .section (避免双层卡片边框).
-    # 纯 <hr> 块直接输出, 不包 section (避免出现空边框卡片).
+    # 纯 <hr> 分隔线直接丢弃: 每个板块已是独立卡片(有边框), hr 冗余且产生多余分隔线.
     sections: list[str] = []
     current: list[str] = []
     for blk in blocks:
         if blk == "<hr>":
-            if current:
-                sections.append(_section("\n".join(current)))
-                current = []
-            sections.append(blk)
-            continue
+            continue  # 丢弃纯分隔线
         if blk.startswith("<div class='decision-card'") or blk.startswith('<div class="decision-card"'):
             if current:
                 sections.append(_section("\n".join(current)))
