@@ -27,69 +27,82 @@ OUTPUT_DIR = PROJECT_ROOT / "data" / "output"
 # ═══════════════════════════════════════════════════════════════
 
 CSS_TEMPLATE = """:root {
-  --gold: #d4a017; --gold-dark: #8a6d00; --gold-light: #f4e9c8;
-  --bg: #faf8f2; --card: #ffffff; --text: #2b2b2b; --muted: #6b6b6b;
-  --green: #1a7f37; --green-bg: #e6f4ea; --red: #b3261e; --red-bg: #fdecea;
-  --amber-bg: #fff8e6; --border: #e5e0d5; --radius: 12px; --shadow: 0 2px 8px rgba(0,0,0,0.06);
+  /* 配色 — 克制, 少而统一 */
+  --gold: #b8860b; --gold-dark: #7a5c00;
+  --bg: #f6f5f2; --card: #ffffff; --text: #333333; --muted: #888888;
+  --green: #2e7d32; --red: #c62828; --amber: #9a6a00;
+  --border: #e3e0d8; --radius: 10px; --shadow: 0 1px 3px rgba(0,0,0,0.04);
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; padding: 24px 16px 60px; }
+body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--text); line-height: 1.75; padding: 24px 16px 60px; }
 .page { max-width: 920px; margin: 0 auto; }
-.hero { background: linear-gradient(135deg, #2b2110 0%, #4a3a15 60%, #6b551d 100%); color: #fff; border-radius: 16px; padding: 32px 28px; margin-bottom: 24px; box-shadow: var(--shadow); }
-.hero h1 { font-size: 26px; margin-bottom: 8px; letter-spacing: 1px; }
-.hero .sub { color: #e8d9a8; font-size: 14px; }
-.hero .tag { display: inline-block; background: rgba(212,160,23,0.25); color: #f4e9c8; border: 1px solid rgba(212,160,23,0.5); border-radius: 20px; padding: 2px 12px; font-size: 12px; margin-top: 12px; }
-.status-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 24px; }
-.status-item { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow); }
-.status-item .label { font-size: 12px; color: var(--muted); }
-.status-item .value { font-size: 18px; font-weight: 700; margin-top: 4px; }
-.status-item .value.gold { color: var(--gold-dark); }
-.status-item .value.green { color: var(--green); }
-.status-item .value.red { color: var(--red); }
-.section { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 20px; box-shadow: var(--shadow); }
-h2 { font-size: 19px; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 2px solid var(--gold); color: var(--gold-dark); display: flex; align-items: center; gap: 8px; }
-h3 { font-size: 15px; margin: 16px 0 8px; color: var(--text); }
-table { border-collapse: collapse; width: 100%; margin: 8px 0 16px; }
-th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; font-size: 13px; vertical-align: top; }
-th { background: var(--gold-light); font-weight: 600; color: var(--gold-dark); }
-tr:nth-child(even) { background: #fcfbf7; }
-blockquote { background: var(--amber-bg); border-left: 4px solid var(--gold); padding: 12px 16px; margin: 12px 0; border-radius: 0 8px 8px 0; font-size: 13px; }
-.highlight { background: #fff8e6; border: 1px solid #ecd9a0; border-radius: 8px; padding: 10px 14px; margin: 12px 0; font-size: 13px; }
-ul, ol { padding-left: 22px; margin: 8px 0 12px; }
-li { margin: 4px 0; font-size: 13px; }
-.li-nested { margin: 6px 0 2px; padding-left: 14px; border-left: 2px solid var(--gold-light); }
-.li-nest-item { font-size: 12.5px; margin: 3px 0; line-height: 1.7; }
-.li-nest-item code { background: #f5f1e6; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
-.ok { color: var(--green); font-weight: 600; }
-.warn { color: var(--red); font-weight: 600; }
-.amber { color: #9a6a00; font-weight: 600; }
-hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
-pre { background: #f5f1e6; border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; overflow-x: auto; font-size: 12px; margin: 8px 0 16px; white-space: pre; }
-.decision-card { background: linear-gradient(135deg, #faf6ec 0%, #f4e9c8 100%); border: 2px solid var(--gold); border-radius: var(--radius); padding: 18px 20px; }
-.decision-main { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-.decision-label { font-size: 13px; color: var(--gold-dark); font-weight: 600; letter-spacing: 1px; }
-.decision-value { font-size: 30px; font-weight: 800; color: var(--gold-dark); line-height: 1.2; }
-.decision-meta { display: flex; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
-.decision-meta span { background: rgba(212,160,23,0.14); padding: 2px 10px; border-radius: 20px; }
-.decision-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-top: 14px; }
-.df-item { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; }
-.df-label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 2px; }
-.df-value { font-size: 14px; font-weight: 600; }
-.position-card { background: linear-gradient(135deg, #fdfcf7 0%, #f6ecd2 100%); border: 1px solid #e5d9b0; border-radius: var(--radius); padding: 16px 18px; margin-bottom: 20px; box-shadow: var(--shadow); }
-.position-title { font-size: 13px; font-weight: 700; color: var(--gold-dark); letter-spacing: 1px; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
-.position-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
-.pos-item { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; }
-.pos-label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 2px; }
-.pos-value { font-size: 15px; font-weight: 700; color: var(--text); }
+/* 标题层级 — 统一字重, 只靠字号/下划线区分 */
+.hero { background: #2b2413; color: #fff; border-radius: 12px; padding: 26px 28px; margin-bottom: 20px; }
+.hero h1 { font-size: 22px; font-weight: 600; margin-bottom: 6px; letter-spacing: 0.5px; }
+.hero .sub { color: #cfc5a6; font-size: 13px; }
+/* 持仓概览卡片 */
+.position-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 18px; margin-bottom: 16px; }
+.position-title { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 1px; margin-bottom: 10px; }
+.position-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+.pos-item { border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; }
+.pos-label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+.pos-value { font-size: 15px; font-weight: 600; color: var(--text); }
 .pos-value.gold { color: var(--gold-dark); }
 .pos-value.green { color: var(--green); }
 .pos-value.red { color: var(--red); }
-.pos-value.amber { color: #9a6a00; }
-.key-block { background: linear-gradient(135deg, #fffdf5 0%, #fdf3d7 100%); border-left: 4px solid var(--gold); border-radius: 0 8px 8px 0; padding: 14px 18px; margin: 12px 0; }
-.key-tag { font-size: 13px; font-weight: 700; color: var(--gold-dark); margin-bottom: 6px; letter-spacing: 1px; }
-.key-body { font-size: 13px; line-height: 1.8; }
-footer { text-align: center; color: #aaa; font-size: 12px; margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--border); }
-@media (max-width: 600px) { .hero h1 { font-size: 21px; } .section { padding: 16px; } table { font-size: 12px; } th, td { padding: 6px 8px; } }
+.pos-value.amber { color: var(--amber); }
+/* 行情 status bar */
+.status-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin-bottom: 16px; }
+.status-item { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; }
+.status-item .label { font-size: 12px; color: var(--muted); }
+.status-item .value { font-size: 17px; font-weight: 600; margin-top: 2px; }
+.status-item .value.gold { color: var(--gold-dark); }
+.status-item .value.green { color: var(--green); }
+.status-item .value.red { color: var(--red); }
+.status-item .value.amber { color: var(--amber); }
+/* 内容 section */
+.section { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 22px; margin-bottom: 14px; }
+h2 { font-size: 16px; font-weight: 600; margin-bottom: 14px; padding-bottom: 6px; border-bottom: 1px solid var(--border); color: var(--text); }
+h3 { font-size: 14px; font-weight: 600; margin: 14px 0 6px; color: var(--text); }
+p { font-size: 14px; margin: 8px 0; color: var(--text); }
+p.para-multi { line-height: 1.85; }
+/* 表格 — 统一字号, 浅分隔线 */
+table { border-collapse: collapse; width: 100%; margin: 10px 0 14px; }
+th, td { border: 1px solid var(--border); padding: 7px 9px; text-align: left; font-size: 13px; vertical-align: top; font-weight: 400; }
+th { background: #f5f2e9; font-weight: 600; color: var(--text); }
+tr:nth-child(even) { background: #fbfaf7; }
+/* 引用块 — 克制: 浅灰底 + 细灰边, 不喧宾夺主 */
+blockquote { background: #f5f4f1; border-left: 3px solid #d5d0c5; padding: 10px 14px; margin: 10px 0; border-radius: 0 6px 6px 0; font-size: 13px; color: #555; }
+.highlight { background: #f5f4f1; border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; margin: 10px 0; font-size: 13px; }
+/* 列表 */
+ul, ol { padding-left: 20px; margin: 8px 0 12px; }
+li { margin: 4px 0; font-size: 14px; font-weight: 400; }
+.li-nested { margin: 6px 0 2px; padding-left: 12px; border-left: 2px solid var(--border); }
+.li-nest-item { font-size: 13px; margin: 3px 0; line-height: 1.7; }
+.li-nest-item code { background: #f0eee8; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+/* 方向色 — ok=绿(看多/通过), warn=红(看空/警示), amber=中性 */
+.ok { color: var(--green); }
+.warn { color: var(--red); }
+.amber { color: var(--amber); }
+hr { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
+pre { background: #f5f4f1; border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; overflow-x: auto; font-size: 12px; margin: 8px 0 14px; white-space: pre; }
+/* 决策卡片 — 金色主题, 大字决策值但只用一档字重 */
+.decision-card { background: linear-gradient(135deg, #faf6ea 0%, #f3e9c9 100%); border: 1px solid var(--gold); border-radius: var(--radius); padding: 16px 18px; }
+.decision-main { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.decision-label { font-size: 12px; color: var(--gold-dark); font-weight: 600; letter-spacing: 1px; }
+.decision-value { font-size: 24px; font-weight: 700; color: var(--gold-dark); line-height: 1.2; }
+.decision-meta { display: flex; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.decision-meta span { background: rgba(184,134,11,0.12); padding: 2px 10px; border-radius: 20px; }
+.decision-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; margin-top: 12px; }
+.df-item { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; }
+.df-label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+.df-value { font-size: 14px; font-weight: 600; }
+/* 关键结论块 — 统一为白底+浅边, 不再是大金边色块 */
+.key-block { border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; margin: 10px 0; }
+.key-tag { font-size: 13px; font-weight: 600; color: var(--gold-dark); margin-bottom: 4px; }
+.key-body { font-size: 14px; line-height: 1.8; color: var(--text); }
+footer { text-align: center; color: #bbb; font-size: 12px; margin-top: 28px; padding-top: 14px; border-top: 1px solid var(--border); }
+@media (max-width: 600px) { .hero h1 { font-size: 19px; } .section { padding: 14px; } th, td { padding: 5px 7px; } }
 """
 
 
@@ -175,7 +188,8 @@ def _table_block(lines: list[str]) -> str:
 def _list_block(prefix: str, lines: list[str]) -> str:
     """无序列表 (-/✓/✗) 或有序列表 (N.) → <ul>/<ol>.
 
-    ✓ 前缀的项 → 绿 (.ok); ✗ 前缀 → 红 (.warn).
+    Agent 博弈前缀语义: ✓ (BullAgent 论据) → 红 .warn;
+    ✗ (BearAgent 论据) → 绿 .ok. (2026-08-13 用户确认: Bull=红, Bear=绿)
     """
     tag = "ul" if prefix in ("-", "✓", "✗") else "ol"
     items = []
@@ -185,9 +199,9 @@ def _list_block(prefix: str, lines: list[str]) -> str:
         content = re.sub(r"^([-*✓✗]|\d+\.)\s+", "", stripped)
         cls = ""
         if stripped.startswith("✓"):
-            cls = ' class="ok"'
+            cls = ' class="warn"'  # BullAgent 论据 → 红色
         elif stripped.startswith("✗"):
-            cls = ' class="warn"'
+            cls = ' class="ok"'    # BearAgent 论据 → 绿色
         items.append(f"<li{cls}>{_inline(content)}</li>")
     return f"<{tag}>" + "".join(items) + f"</{tag}>"
 
@@ -504,9 +518,14 @@ def _md_to_html(md: str) -> list[str]:
                     body = (body + " " + rest).strip()
                 blocks.append(_key_block(tag, body))
             else:
-                blocks.append(
-                    f"<p>{_inline(' '.join(p.strip() for p in para_lines))}</p>"
-                )
+                text = " ".join(p.strip() for p in para_lines)
+                # 长段落按句号分行, 改善"推导依据"等大段文字的可读性
+                split = _split_lines(text)
+                if len(split) > 1:
+                    lines_html = "<br>".join(_inline(s) for s in split)
+                    blocks.append(f"<p class='para-multi'>{lines_html}</p>")
+                else:
+                    blocks.append(f"<p>{_inline(text)}</p>")
             continue
 
         i += 1

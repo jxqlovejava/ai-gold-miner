@@ -6,69 +6,82 @@
 <title>🥇 金价完整分析 · 2026-08-13 01:30</title>
 <style>
 :root {
-  --gold: #d4a017; --gold-dark: #8a6d00; --gold-light: #f4e9c8;
-  --bg: #faf8f2; --card: #ffffff; --text: #2b2b2b; --muted: #6b6b6b;
-  --green: #1a7f37; --green-bg: #e6f4ea; --red: #b3261e; --red-bg: #fdecea;
-  --amber-bg: #fff8e6; --border: #e5e0d5; --radius: 12px; --shadow: 0 2px 8px rgba(0,0,0,0.06);
+  /* 配色 — 克制, 少而统一 */
+  --gold: #b8860b; --gold-dark: #7a5c00;
+  --bg: #f6f5f2; --card: #ffffff; --text: #333333; --muted: #888888;
+  --green: #2e7d32; --red: #c62828; --amber: #9a6a00;
+  --border: #e3e0d8; --radius: 10px; --shadow: 0 1px 3px rgba(0,0,0,0.04);
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; padding: 24px 16px 60px; }
+body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--text); line-height: 1.75; padding: 24px 16px 60px; }
 .page { max-width: 920px; margin: 0 auto; }
-.hero { background: linear-gradient(135deg, #2b2110 0%, #4a3a15 60%, #6b551d 100%); color: #fff; border-radius: 16px; padding: 32px 28px; margin-bottom: 24px; box-shadow: var(--shadow); }
-.hero h1 { font-size: 26px; margin-bottom: 8px; letter-spacing: 1px; }
-.hero .sub { color: #e8d9a8; font-size: 14px; }
-.hero .tag { display: inline-block; background: rgba(212,160,23,0.25); color: #f4e9c8; border: 1px solid rgba(212,160,23,0.5); border-radius: 20px; padding: 2px 12px; font-size: 12px; margin-top: 12px; }
-.status-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 24px; }
-.status-item { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow); }
-.status-item .label { font-size: 12px; color: var(--muted); }
-.status-item .value { font-size: 18px; font-weight: 700; margin-top: 4px; }
-.status-item .value.gold { color: var(--gold-dark); }
-.status-item .value.green { color: var(--green); }
-.status-item .value.red { color: var(--red); }
-.section { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 20px; box-shadow: var(--shadow); }
-h2 { font-size: 19px; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 2px solid var(--gold); color: var(--gold-dark); display: flex; align-items: center; gap: 8px; }
-h3 { font-size: 15px; margin: 16px 0 8px; color: var(--text); }
-table { border-collapse: collapse; width: 100%; margin: 8px 0 16px; }
-th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; font-size: 13px; vertical-align: top; }
-th { background: var(--gold-light); font-weight: 600; color: var(--gold-dark); }
-tr:nth-child(even) { background: #fcfbf7; }
-blockquote { background: var(--amber-bg); border-left: 4px solid var(--gold); padding: 12px 16px; margin: 12px 0; border-radius: 0 8px 8px 0; font-size: 13px; }
-.highlight { background: #fff8e6; border: 1px solid #ecd9a0; border-radius: 8px; padding: 10px 14px; margin: 12px 0; font-size: 13px; }
-ul, ol { padding-left: 22px; margin: 8px 0 12px; }
-li { margin: 4px 0; font-size: 13px; }
-.li-nested { margin: 6px 0 2px; padding-left: 14px; border-left: 2px solid var(--gold-light); }
-.li-nest-item { font-size: 12.5px; margin: 3px 0; line-height: 1.7; }
-.li-nest-item code { background: #f5f1e6; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
-.ok { color: var(--green); font-weight: 600; }
-.warn { color: var(--red); font-weight: 600; }
-.amber { color: #9a6a00; font-weight: 600; }
-hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
-pre { background: #f5f1e6; border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; overflow-x: auto; font-size: 12px; margin: 8px 0 16px; white-space: pre; }
-.decision-card { background: linear-gradient(135deg, #faf6ec 0%, #f4e9c8 100%); border: 2px solid var(--gold); border-radius: var(--radius); padding: 18px 20px; }
-.decision-main { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-.decision-label { font-size: 13px; color: var(--gold-dark); font-weight: 600; letter-spacing: 1px; }
-.decision-value { font-size: 30px; font-weight: 800; color: var(--gold-dark); line-height: 1.2; }
-.decision-meta { display: flex; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
-.decision-meta span { background: rgba(212,160,23,0.14); padding: 2px 10px; border-radius: 20px; }
-.decision-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-top: 14px; }
-.df-item { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; }
-.df-label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 2px; }
-.df-value { font-size: 14px; font-weight: 600; }
-.position-card { background: linear-gradient(135deg, #fdfcf7 0%, #f6ecd2 100%); border: 1px solid #e5d9b0; border-radius: var(--radius); padding: 16px 18px; margin-bottom: 20px; box-shadow: var(--shadow); }
-.position-title { font-size: 13px; font-weight: 700; color: var(--gold-dark); letter-spacing: 1px; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
-.position-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
-.pos-item { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; }
-.pos-label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 2px; }
-.pos-value { font-size: 15px; font-weight: 700; color: var(--text); }
+/* 标题层级 — 统一字重, 只靠字号/下划线区分 */
+.hero { background: #2b2413; color: #fff; border-radius: 12px; padding: 26px 28px; margin-bottom: 20px; }
+.hero h1 { font-size: 22px; font-weight: 600; margin-bottom: 6px; letter-spacing: 0.5px; }
+.hero .sub { color: #cfc5a6; font-size: 13px; }
+/* 持仓概览卡片 */
+.position-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 18px; margin-bottom: 16px; }
+.position-title { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 1px; margin-bottom: 10px; }
+.position-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+.pos-item { border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; }
+.pos-label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+.pos-value { font-size: 15px; font-weight: 600; color: var(--text); }
 .pos-value.gold { color: var(--gold-dark); }
 .pos-value.green { color: var(--green); }
 .pos-value.red { color: var(--red); }
-.pos-value.amber { color: #9a6a00; }
-.key-block { background: linear-gradient(135deg, #fffdf5 0%, #fdf3d7 100%); border-left: 4px solid var(--gold); border-radius: 0 8px 8px 0; padding: 14px 18px; margin: 12px 0; }
-.key-tag { font-size: 13px; font-weight: 700; color: var(--gold-dark); margin-bottom: 6px; letter-spacing: 1px; }
-.key-body { font-size: 13px; line-height: 1.8; }
-footer { text-align: center; color: #aaa; font-size: 12px; margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--border); }
-@media (max-width: 600px) { .hero h1 { font-size: 21px; } .section { padding: 16px; } table { font-size: 12px; } th, td { padding: 6px 8px; } }
+.pos-value.amber { color: var(--amber); }
+/* 行情 status bar */
+.status-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin-bottom: 16px; }
+.status-item { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; }
+.status-item .label { font-size: 12px; color: var(--muted); }
+.status-item .value { font-size: 17px; font-weight: 600; margin-top: 2px; }
+.status-item .value.gold { color: var(--gold-dark); }
+.status-item .value.green { color: var(--green); }
+.status-item .value.red { color: var(--red); }
+.status-item .value.amber { color: var(--amber); }
+/* 内容 section */
+.section { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 22px; margin-bottom: 14px; }
+h2 { font-size: 16px; font-weight: 600; margin-bottom: 14px; padding-bottom: 6px; border-bottom: 1px solid var(--border); color: var(--text); }
+h3 { font-size: 14px; font-weight: 600; margin: 14px 0 6px; color: var(--text); }
+p { font-size: 14px; margin: 8px 0; color: var(--text); }
+p.para-multi { line-height: 1.85; }
+/* 表格 — 统一字号, 浅分隔线 */
+table { border-collapse: collapse; width: 100%; margin: 10px 0 14px; }
+th, td { border: 1px solid var(--border); padding: 7px 9px; text-align: left; font-size: 13px; vertical-align: top; font-weight: 400; }
+th { background: #f5f2e9; font-weight: 600; color: var(--text); }
+tr:nth-child(even) { background: #fbfaf7; }
+/* 引用块 — 克制: 浅灰底 + 细灰边, 不喧宾夺主 */
+blockquote { background: #f5f4f1; border-left: 3px solid #d5d0c5; padding: 10px 14px; margin: 10px 0; border-radius: 0 6px 6px 0; font-size: 13px; color: #555; }
+.highlight { background: #f5f4f1; border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; margin: 10px 0; font-size: 13px; }
+/* 列表 */
+ul, ol { padding-left: 20px; margin: 8px 0 12px; }
+li { margin: 4px 0; font-size: 14px; font-weight: 400; }
+.li-nested { margin: 6px 0 2px; padding-left: 12px; border-left: 2px solid var(--border); }
+.li-nest-item { font-size: 13px; margin: 3px 0; line-height: 1.7; }
+.li-nest-item code { background: #f0eee8; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+/* 方向色 — ok=绿(看多/通过), warn=红(看空/警示), amber=中性 */
+.ok { color: var(--green); }
+.warn { color: var(--red); }
+.amber { color: var(--amber); }
+hr { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
+pre { background: #f5f4f1; border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; overflow-x: auto; font-size: 12px; margin: 8px 0 14px; white-space: pre; }
+/* 决策卡片 — 金色主题, 大字决策值但只用一档字重 */
+.decision-card { background: linear-gradient(135deg, #faf6ea 0%, #f3e9c9 100%); border: 1px solid var(--gold); border-radius: var(--radius); padding: 16px 18px; }
+.decision-main { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.decision-label { font-size: 12px; color: var(--gold-dark); font-weight: 600; letter-spacing: 1px; }
+.decision-value { font-size: 24px; font-weight: 700; color: var(--gold-dark); line-height: 1.2; }
+.decision-meta { display: flex; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.decision-meta span { background: rgba(184,134,11,0.12); padding: 2px 10px; border-radius: 20px; }
+.decision-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; margin-top: 12px; }
+.df-item { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; }
+.df-label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+.df-value { font-size: 14px; font-weight: 600; }
+/* 关键结论块 — 统一为白底+浅边, 不再是大金边色块 */
+.key-block { border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; margin: 10px 0; }
+.key-tag { font-size: 13px; font-weight: 600; color: var(--gold-dark); margin-bottom: 4px; }
+.key-body { font-size: 14px; line-height: 1.8; color: var(--text); }
+footer { text-align: center; color: #bbb; font-size: 12px; margin-top: 28px; padding-top: 14px; border-top: 1px solid var(--border); }
+@media (max-width: 600px) { .hero h1 { font-size: 19px; } .section { padding: 14px; } th, td { padding: 5px 7px; } }
 
 </style>
 </head>
@@ -87,7 +100,7 @@ footer { text-align: center; color: #aaa; font-size: 12px; margin-top: 32px; pad
 <hr></div>
 <div class="section"><h2>一、信息准备</h2>
 <h3>1a. 日历校验（DOW 参考表 30 天）</h3>
-<p>日历校验全部 <span class="ok">✅</span> 通过。关键事件 DOW 与期望星期一致：CPI(8/12 周三)、PPI(8/14 周五)、FOMC纪要(8/19 周三)、核心PCE(8/27 周四)、初请(周四)、非农(周五)。</p>
+<p class='para-multi'>日历校验全部 <span class="ok">✅</span> 通过。<br>关键事件 DOW 与期望星期一致：CPI(8/12 周三)、PPI(8/14 周五)、FOMC纪要(8/19 周三)、核心PCE(8/27 周四)、初请(周四)、非农(周五)。</p>
 <h3>1b. 事件同步三查</h3>
 <table><thead><tr><th>检查项</th><th>结果</th></tr></thead><tbody><tr><td>近期未记录结果事件 (7d)</td><td>3 个 CPI monitor 已记录结果（见下）</td></tr><tr><td>活跃 Monitor</td><td>18 个，核心覆盖：美伊演变 / 停火回吐 / 核设施升级 / 长期三关 / CPI路由</td></tr><tr><td>Staleness 重新验证</td><td>6 个 fast-evolving 事件，最新 8/12 已更新 <span class="ok">✅</span></td></tr></tbody></table>
 <div class="key-block"><div class="key-tag">📌 CPI 结果同步（8/12，[verified: T0 BLS]</div><div class="key-body"></div></div>
@@ -109,7 +122,7 @@ footer { text-align: center; color: #aaa; font-size: 12px; margin-top: 32px; pad
 <blockquote>维度总览：<strong>4 看多 / 2 看空</strong>（程序化 SignalBundle 输出）。<br>数据不足维度不计入。</blockquote>
 <p>🀄 缠论结构（600天窗口 / 243根日线）：</p>
 <ul><li>结构：<strong>1 笔 + 0 中枢</strong>，状态=未形成</li><li>买卖点：<strong>（本期无触发）</strong></li><li>当前位置：数据窗口不足（243根&lt;400根日线阈值），无法形成有效中枢结构</li><li>映射：无买卖点可映射，暂不作为建仓锚点参考</li></ul>
-<p><span class="warn">⚠️</span> <strong>方向冲突披露</strong>：CPI 事件初始写入 gold_bias=neutral，与关键词推断 bearish 冲突。经复核：核心2.5%符合预期温和回落→暂停加息概率上升→利多金价，已修正为 <strong>bullish</strong>，冲突解除。</p>
+<p class='para-multi'><span class="warn">⚠️</span> <strong>方向冲突披露</strong>：CPI 事件初始写入 gold_bias=neutral，与关键词推断 bearish 冲突。<br>经复核：核心2.5%符合预期温和回落→暂停加息概率上升→利多金价，已修正为 <strong>bullish</strong>，冲突解除。</p>
 <hr></div>
 <div class="section"><h2>五、Source Truth + 事实 vs 解释</h2>
 <p><strong>来源验证表</strong></p>
@@ -119,9 +132,9 @@ footer { text-align: center; color: #aaa; font-size: 12px; margin-top: 32px; pad
 <hr></div>
 <div class="section"><h2>六、Agent 博弈</h2>
 <p>🐮 <strong>BullAgent</strong> (信心 58%)</p>
-<ul><li class="ok">CPI温和回落确认宽松路径：核心2.5%符合预期（前值2.6%），9月暂停加息概率上升</li><li class="ok">地缘风险溢价重新累积：胡塞袭船致6死（一年多首次），封锁沙特港口，特朗普威胁军事惩罚</li><li class="ok">央行购金结构牛未变：中国7月购金20吨（2023年10月以来最大月增），WGC Q2 289吨</li><li class="ok">布伦特 $88.78 油价高位传导通胀对冲需求</li></ul>
+<ul><li class="warn">CPI温和回落确认宽松路径：核心2.5%符合预期（前值2.6%），9月暂停加息概率上升</li><li class="warn">地缘风险溢价重新累积：胡塞袭船致6死（一年多首次），封锁沙特港口，特朗普威胁军事惩罚</li><li class="warn">央行购金结构牛未变：中国7月购金20吨（2023年10月以来最大月增），WGC Q2 289吨</li><li class="warn">布伦特 $88.78 油价高位传导通胀对冲需求</li></ul>
 <p>🐻 <strong>BearAgent</strong> (信心 44%)</p>
-<ul><li class="warn">COT聪明钱减仓 -0.95 强看空，与投行共识看空(-0.60)共振</li><li class="warn">RSI超买 + 连续收阴，短线动能转弱</li><li class="warn">MA60(919)&lt;MA200(993) 空头排列——本轮是超跌反弹非趋势反转（自1月高点$5,602已跌22%）</li><li class="warn">XAUUSD $4,368-4,390 未破 $4,500 主升确认线，L1三关未全过</li><li class="warn">若8/16谈判窗口续约成功→战争溢价快速回吐→金价急跌风险</li></ul>
+<ul><li class="ok">COT聪明钱减仓 -0.95 强看空，与投行共识看空(-0.60)共振</li><li class="ok">RSI超买 + 连续收阴，短线动能转弱</li><li class="ok">MA60(919)&lt;MA200(993) 空头排列——本轮是超跌反弹非趋势反转（自1月高点$5,602已跌22%）</li><li class="ok">XAUUSD $4,368-4,390 未破 $4,500 主升确认线，L1三关未全过</li><li class="ok">若8/16谈判窗口续约成功→战争溢价快速回吐→金价急跌风险</li></ul>
 <p>💼 <strong>PM</strong> (信心 65%)</p>
 <ul><li>多空力量：基本面+消息面偏多（结构牛未变），技术面+资金流偏空（短线敏感信号）</li><li>军规：仓位10.3%远低于上限<span class="ok">✅</span>、止损已设<span class="ok">✅</span>、ATR未触发<span class="ok">✅</span>、955非回调支撑不满足r029安全边际→不加仓</li><li>L1引擎：观察期（2/3关），试盘档不启用，递增加仓关闭</li><li>空仓视角(r023)：现价955高位+空头排列+地缘不确定，空仓不会买→不加仓</li><li><strong>裁定：持有观望，保留低吸条件单，紧盯8/16谈判窗口</strong></li></ul>
 <hr></div>
