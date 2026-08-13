@@ -89,7 +89,9 @@ class JdAccumulationGoldFetcher(DataFetcher):
         self.product_id = product_id
         self.circle_id = circle_id
         if history_path is None:
-            history_path = settings.data_path / f"jd_{bank.lower()}_gold_history.csv"
+            # 历史 CSV 属私有持仓数据, 统一写入 data/private/ (与 storage/local.py 一致),
+            # 避免散落到根目录 data/ 导致 git 跟踪混乱 (原 data_path 遗留).
+            history_path = settings.private_data_path / f"jd_{bank.lower()}_gold_history.csv"
         self.history_path = Path(history_path)
 
     # ------------------------------------------------------------------

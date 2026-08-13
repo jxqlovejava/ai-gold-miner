@@ -40,17 +40,6 @@ data/reports/
 # Runtime logs (regenerated every run, no longer tracked)
 logs/
 
-# Personal (sensitive) - keep for backward compat, but also covered by data/private/
-investor_profile.md
-data/personal_rules.md
-data/portfolio.yaml
-data/trade_log.md
-data/jd_ms_gold_history.csv
-data/doctrine_state.json
-data/scenarios.jsonl
-data/prediction_journal.jsonl
-data/event_store.jsonl
-
 # Proxy / network tools (contains credentials and binaries)
 data/proxy/provider.yaml
 data/proxy/config.yaml
