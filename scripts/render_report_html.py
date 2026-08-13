@@ -637,6 +637,13 @@ def _build_position_items(pos: dict[str, str], quote: str) -> list[tuple[str, st
         m = re.search(re.escape(field) + r"\s+([+\-−]?[\d,]+(?:\.\d+)?%?)", quote)
         return m.group(1) if m else None
 
+    # 毛浮盈 = 京东APP「当前持仓收益」口径 (未扣卖出费), 净浮盈 = r032 扣费后.
+    # 两者并排展示便于与 APP 对账 (毛 − 净 ≈ 0.4% 卖出费).
+    gross_pnl = _find("毛浮盈")
+    if gross_pnl:
+        is_pos = not gross_pnl.lstrip("+−-").startswith("-") and not gross_pnl.startswith("−")
+        cls = "green" if is_pos else "red"
+        items.append(("毛浮盈", gross_pnl, cls))
     net_pnl = _find("净浮盈")
     if net_pnl:
         is_pos = not net_pnl.lstrip("+−-").startswith("-") and not net_pnl.startswith("−")
@@ -715,7 +722,7 @@ def render(md: str, out_path: Path) -> Path:
                 m = re.search(r"([\d.]+)", part)
                 if m:
                     status_items.append(("硬止损", m.group(1), "red"))
-            elif part.startswith(("持仓 ", "成本 ", "市值 ", "净浮盈", "净保本")):
+            elif part.startswith(("持仓 ", "成本 ", "市值 ", "毛浮盈", "净浮盈", "净保本")):
                 continue  # 持仓行字段已入持仓卡片, 不进 status bar
             elif part:
                 status_items.append(("行情", part, ""))
