@@ -253,7 +253,7 @@ class TestAnalysisPipelineOutputSections:
         pipeline._print_doctrine_checklist(result)
         captured = capsys.readouterr().out
 
-        assert "投资军规自查 (r001-r030)" in captured
+        assert "投资军规自查 (r001-r033)" in captured
         assert "r001" in captured
         assert "r030" in captured
         # r001 仓位 25% > 20% 应标记 ❌

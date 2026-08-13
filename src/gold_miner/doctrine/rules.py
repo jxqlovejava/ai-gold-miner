@@ -311,6 +311,15 @@ RULE_FRICTION_COST = InvestmentRule(
     check_fn="check_friction_cost",
 )
 
+RULE_DATA_LANDING_TREND = InvestmentRule(
+    id="r033",
+    name="数据落地≠趋势确认",
+    description="重大数据（CPI/PPI/非农/FOMC）公布后结果温和/符合预期≠趋势确认：市场常已预先定价，数据落地本身不构成加仓依据。加仓须等独立趋势确认（关键点突破回踩/均线多头/资金流同向），禁止仅因'数据温和'在数据公布后24h内连续追买",
+    severity="warn",
+    category="entry",
+    check_fn="check_data_landing_trend",
+)
+
 
 # ------------------------------------------------------------------
 # 全部规则集合
@@ -349,6 +358,7 @@ ALL_RULES: list[InvestmentRule] = [
     RULE_MARGIN_OF_SAFETY,
     RULE_KELLY_POSITION,
     RULE_FRICTION_COST,
+    RULE_DATA_LANDING_TREND,
 ]
 
 

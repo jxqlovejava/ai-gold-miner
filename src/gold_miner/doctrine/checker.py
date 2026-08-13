@@ -605,6 +605,65 @@ class DoctrineChecker:
             details={"kelly_suggested": kelly_suggested, "actual_position": actual_position},
         )
 
+    def check_data_landing_trend(self, decision: dict, ctx: dict) -> RuleViolation:
+        """r033: 重大数据落地（结果温和/符合预期）≠ 趋势确认，禁止数据后24h内仅因数据温和连续追买.
+
+        ctx 字段:
+          - data_event_recent: bool — 近 24h 内刚公布重大数据（CPI/PPI/非农/FOMC）
+          - data_landed_mild: bool — 数据结果温和/符合预期（市场已预先定价）
+          - trend_confirmed: bool — 是否有独立趋势确认（关键点突破/均线多头/资金流同向）
+          - repeated_buy_24h: bool — 数据后 24h 内是否已多次连续买入
+        """
+        rule = self._get_rule("check_data_landing_trend")
+        add_actions = {"add", "buy", "increase"}
+        action = str(decision.get("action", "")).lower()
+        if action not in add_actions:
+            return RuleViolation(rule=rule, passed=True, message="非加仓决策，无需校验数据落地趋势确认")
+
+        data_event_recent = bool(ctx.get("data_event_recent", False))
+        data_landed_mild = bool(ctx.get("data_landed_mild", False))
+        trend_confirmed = bool(ctx.get("trend_confirmed", False))
+        repeated_buy_24h = bool(ctx.get("repeated_buy_24h", False))
+
+        # 核心：数据温和落地 + 无独立趋势确认 → 加仓缺乏依据
+        violated = data_event_recent and data_landed_mild and not trend_confirmed
+        # 严重化：若数据温和 + 24h内已多次追买 → 更明确警示
+        escalated = violated and repeated_buy_24h
+
+        passed = not violated
+        if not violated:
+            return RuleViolation(
+                rule=rule,
+                passed=True,
+                message=(
+                    "无'数据温和落地但趋势未确认'场景，加仓不受 r033 限制"
+                    if not data_event_recent
+                    else "数据虽刚落地，但有独立趋势确认（关键点突破/均线多头/资金流同向），加仓有依据"
+                ),
+                details={
+                    "data_event_recent": data_event_recent,
+                    "data_landed_mild": data_landed_mild,
+                    "trend_confirmed": trend_confirmed,
+                    "repeated_buy_24h": repeated_buy_24h,
+                },
+            )
+        hint = (
+            "且24h内已多次连续追买，重复'数据温和→追涨'模式"
+            if escalated
+            else "，市场可能已预先定价，数据落地≠趋势确认"
+        )
+        return RuleViolation(
+            rule=rule,
+            passed=False,
+            message=f"⚠️ 数据温和落地但趋势未确认{hint}。加仓须等：关键点(950)有效突破回踩 / MA200上方 / 资金流同向（r033）",
+            details={
+                "data_event_recent": data_event_recent,
+                "data_landed_mild": data_landed_mild,
+                "trend_confirmed": trend_confirmed,
+                "repeated_buy_24h": repeated_buy_24h,
+            },
+        )
+
     # ------------------------------------------------------------------
     # helper
     # ------------------------------------------------------------------

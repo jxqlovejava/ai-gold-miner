@@ -130,7 +130,7 @@ class AnalysisPipeline:
         1. prepare        — 日历DOW校验 + 事件同步 + 深度新闻 + 数据采集
         2. generate_signals — 8维信号生成（含Polymarket+Anomaly）
         3. source_truth   — 来源验证 + 事实vs解释分类
-        4. doctrine_check — 军规审查(r001-r030) + 风控审查
+        4. doctrine_check — 军规审查(r001-r033) + 风控审查
         5. munger_models  — Munger思维模型选3个+仓位约束
         6. profile_match  — 投资者画像约束检查
         7. agent_debate   — 🐮Bull/🐻Bear/💼PM三方辩论(综合前6步输入)
@@ -179,7 +179,7 @@ class AnalysisPipeline:
         t3 = time.perf_counter()
         logger.info(f"⏱ Step 3 来源验证: {t3 - t2:.1f}s")
 
-        # Step 4: doctrine_check — 军规审查(r001-r030) + 风控
+        # Step 4: doctrine_check — 军规审查(r001-r033) + 风控
         if not ctx.skip_doctrine:
             self._step_doctrine_check(ctx, result)
         t4 = time.perf_counter()
@@ -510,6 +510,82 @@ class AnalysisPipeline:
         except Exception as e:
             logger.debug(f"near_data_event 检查失败: {e}")
         return False
+
+    def _has_recent_high_impact_event(self, hours: int = 24) -> bool:
+        """近 hours 小时内是否刚公布中高影响宏观事件（用于 r033 数据落地判断）."""
+        try:
+            from gold_miner.data.calendar import EventCalendar, EventImpact
+            from datetime import datetime, timezone
+
+            cal = EventCalendar()
+            recent = cal.get_recent_events_with_results(lookback_days=1)
+            now = datetime.now(timezone.utc)
+            high_types = {"fed_rate", "cpi", "pce", "nfp", "fomc", "ppi"}
+            for e in recent:
+                et = getattr(e.event_type, "value", str(e.event_type)).lower()
+                if et not in high_types and e.impact not in (EventImpact.HIGH, EventImpact.EXTREME):
+                    continue
+                if e.actual:  # 有 actual 说明已落地
+                    return True
+        except Exception as e:
+            logger.debug(f"data_event_recent 检查失败: {e}")
+        return False
+
+    def _recent_data_landed_mild(self) -> bool:
+        """近24h公布的宏观数据结果是否温和/符合预期（市场已预先定价）.
+
+        判定：存在带 actual 的中高影响事件，且 actual 文本包含"符合预期/温和/回落"等预先定价特征词。
+        注意：这是启发式判断，供 r033 提示用；方向性判定以写入时 gold_bias 为准。
+        """
+        try:
+            from gold_miner.data.calendar import EventCalendar, EventImpact
+
+            cal = EventCalendar()
+            recent = cal.get_recent_events_with_results(lookback_days=1)
+            mild_markers = ("符合预期", "温和", "回落", "符预期", "略低", "中性", "预期内")
+            for e in recent:
+                et = getattr(e.event_type, "value", str(e.event_type)).lower()
+                if et not in {"fed_rate", "cpi", "pce", "nfp", "fomc", "ppi"}:
+                    continue
+                if not e.actual:
+                    continue
+                if any(m in (e.actual or "") for m in mild_markers):
+                    return True
+        except Exception as e:
+            logger.debug(f"data_landed_mild 检查失败: {e}")
+        return False
+
+    def _repeated_buy_within_24h(self) -> bool:
+        """近24h内是否已多次连续买入（用于 r033 重复追买警示）."""
+        try:
+            import re
+            from pathlib import Path
+            from datetime import datetime, timezone, timedelta
+
+            log_path = Path("data/private/trade_log.md")
+            if not log_path.exists():
+                return False
+            # 读取 jdgold 追记的 BUY_GOLD 行（近24h内 ≥2 笔买入）
+            buys = 0
+            now = datetime.now(timezone.utc)
+            cst = timezone(timedelta(hours=8))  # trade_log 时间戳为北京时间 (UTC+8)
+            for line in log_path.read_text().splitlines():
+                if "BUY_GOLD" not in line or "| COMPLETE |" not in line:
+                    continue
+                # 时间列格式: YYYY-MM-DD HH:MM
+                m = re.search(r"\| (\d{4}-\d{2}-\d{2} \d{2}:\d{2}) \|", line)
+                if not m:
+                    continue
+                try:
+                    t = datetime.strptime(m.group(1), "%Y-%m-%d %H:%M").replace(tzinfo=cst).astimezone(timezone.utc)
+                except ValueError:
+                    continue
+                if (now - t).total_seconds() <= 24 * 3600:
+                    buys += 1
+            return buys >= 2
+        except Exception as e:
+            logger.debug(f"repeated_buy_24h 检查失败: {e}")
+            return False
 
     # 缠论需足够 K 线才能形成笔/中枢结构：600 自然日 ≈ 400 根日线，
     # 实测短窗口(43 根)仅 0 笔、600 天可产出 4 笔 + 1 中枢 + 买卖点。
@@ -1276,11 +1352,11 @@ class AnalysisPipeline:
 
 
     # ------------------------------------------------------------------
-    # Step 4: 军规审查(r001-r030) + 风控
+    # Step 4: 军规审查(r001-r033) + 风控
     # ------------------------------------------------------------------
 
     def _step_doctrine_check(self, ctx: AnalysisContext, result: AnalysisResult) -> None:
-        """Step 4: 军规审查(r001-r030) + 风控整合."""
+        """Step 4: 军规审查(r001-r033) + 风控整合."""
         logger.info("[4/9] 风控 + 军规审查...")
 
         # --- 4a. 风控审查 ---
@@ -1375,6 +1451,13 @@ class AnalysisPipeline:
             "price_above_200ma": price_above_200ma,
             "has_fundamental_confirm": has_fundamental_confirm,
             "trend_gate_state": trend_gate.get("state", "insufficient_data"),
+            # r033 数据落地≠趋势确认 (2026-08-13): CPI温和预先定价 → 数据落地≠加仓依据
+            "data_event_recent": self._has_recent_high_impact_event(hours=24),
+            "data_landed_mild": self._recent_data_landed_mild(),
+            "trend_confirmed": bool(
+                price_above_200ma and trend_gate.get("state") == "bullish"
+            ) or bool(result.chanlun_summary and result.chanlun_summary.get("buy_points")),
+            "repeated_buy_24h": self._repeated_buy_within_24h(),
         }
 
         checker = DoctrineChecker()
@@ -1950,9 +2033,9 @@ class AnalysisPipeline:
         return keywords
 
     def _print_doctrine_checklist(self, result: AnalysisResult) -> None:
-        """逐条输出 r001-r030 军规自查清单."""
+        """逐条输出 r001-r033 军规自查清单."""
         print(f"\n{'='*60}")
-        print("  投资军规自查 (r001-r030)")
+        print("  投资军规自查 (r001-r033)")
         print(f"{'='*60}")
 
         doctrine = result.doctrine_result

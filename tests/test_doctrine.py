@@ -212,6 +212,67 @@ class TestDoctrineChecker:
         adjusted = checker.apply_doctrine(decision, result)
         assert adjusted == decision  # 无变更
 
+    # ------------------------------------------------------------------
+    # r033 数据落地≠趋势确认
+    # ------------------------------------------------------------------
+
+    def test_r033_passed_when_no_data_event(self) -> None:
+        """无近期数据落地 → r033 通过."""
+        checker = DoctrineChecker()
+        decision = {"direction": "long", "position_pct": 0.15, "action": "add"}
+        context = {"data_event_recent": False, "data_landed_mild": False, "trend_confirmed": False}
+        result = checker.check(decision, context)
+        violations = [v for v in result.violations if v.rule.id == "r033"]
+        assert len(violations) == 1
+        assert violations[0].passed
+
+    def test_r033_passed_when_not_add(self) -> None:
+        """非加仓动作 → r033 不触发."""
+        checker = DoctrineChecker()
+        decision = {"direction": "long", "position_pct": 0.15, "action": "hold"}
+        context = {"data_event_recent": True, "data_landed_mild": True, "trend_confirmed": False}
+        result = checker.check(decision, context)
+        violations = [v for v in result.violations if v.rule.id == "r033"]
+        assert len(violations) == 1
+        assert violations[0].passed
+
+    def test_r033_passed_when_trend_confirmed(self) -> None:
+        """数据落地但已有独立趋势确认 → 通过."""
+        checker = DoctrineChecker()
+        decision = {"direction": "long", "position_pct": 0.15, "action": "add"}
+        context = {"data_event_recent": True, "data_landed_mild": True, "trend_confirmed": True}
+        result = checker.check(decision, context)
+        violations = [v for v in result.violations if v.rule.id == "r033"]
+        assert len(violations) == 1
+        assert violations[0].passed
+
+    def test_r033_warn_mild_data_no_trend(self) -> None:
+        """数据温和落地 + 趋势未确认 + 加仓 → 警告（核心场景）."""
+        checker = DoctrineChecker()
+        decision = {"direction": "long", "position_pct": 0.15, "action": "add"}
+        context = {"data_event_recent": True, "data_landed_mild": True, "trend_confirmed": False}
+        result = checker.check(decision, context)
+        violations = [v for v in result.violations if v.rule.id == "r033"]
+        assert len(violations) == 1
+        assert not violations[0].passed
+        assert "趋势未确认" in violations[0].message
+
+    def test_r033_warn_escalated_repeated_buy(self) -> None:
+        """数据温和 + 24h内多次追买 + 趋势未确认 → 升级警示."""
+        checker = DoctrineChecker()
+        decision = {"direction": "long", "position_pct": 0.15, "action": "add"}
+        context = {
+            "data_event_recent": True,
+            "data_landed_mild": True,
+            "trend_confirmed": False,
+            "repeated_buy_24h": True,
+        }
+        result = checker.check(decision, context)
+        violations = [v for v in result.violations if v.rule.id == "r033"]
+        assert len(violations) == 1
+        assert not violations[0].passed
+        assert "多次连续追买" in violations[0].message
+
 
 class TestDoctrineStore:
     def test_toggle_rule(self) -> None:
