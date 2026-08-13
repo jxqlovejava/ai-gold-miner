@@ -463,6 +463,9 @@ class MonthlyCentralBankFetcher:
             "url": "http://www.pbc.gov.cn/zhengcehuobisi/11111/index.html",
             # 7月实际: +64万盎司 ≈ 20吨 (8/7 公布，2024年11月重启购金以来单月最大，连续21个月增持)
             # 2026 年逐月: 3月~5t、4月~8t、5月~10t、6月~15t、7月~20t — 呈递增
+            # 🔴 data_period: fallback 值对应的【数据月份】(央行每月7号公布上月, 勿用当前月打标签)
+            #   2026-08-14 权威验证: 7月末储备7608万盎司(较6月末7544万+64万≈20t), 连续21个月 [verified:T2 华尔街见闻8/7/新浪8/8/21财经8/11]
+            "data_period": "2026-07",
             "fallback_monthly": 20.0,
         },
         "土耳其": {
@@ -577,12 +580,23 @@ class MonthlyCentralBankFetcher:
         country: str,
         info: dict[str, Any],
     ) -> MonthlyCentralBankData:
-        """为指定国家生成回退数据."""
+        """为指定国家生成回退数据.
+
+        fallback_monthly 是对应【数据月份】的实际值（央行数据有公布滞后，
+        如中国每月7号公布上月）。date_label 必须用数据月份而非当前月，
+        否则会如 8 月分析把 7 月数据错标成 "2026-08"。
+        """
         now = datetime.now()
+        period = info.get("data_period")
+        if period and "-" in period:
+            year_s, month_s = period.split("-", 1)
+            year, month = int(year_s), int(month_s)
+        else:
+            year, month = now.year, now.month
         return MonthlyCentralBankData(
             country=country,
-            year=now.year,
-            month=now.month,
+            year=year,
+            month=month,
             net_purchases_tonnes=info.get("fallback_monthly", 5.0),
             total_reserves_tonnes=None,
             source=f"fallback ({info['code']})",
@@ -621,15 +635,23 @@ class MonthlyCentralBankFetcher:
                 oz_10k = float(oz_match.group(1))  # 万盎司
                 tonnes = oz_10k * 10000 / 32150.7  # 1 金衡盎司 = 31.1035g, 1吨 = 1e6g
 
-                now = datetime.now()
+                # 官网单页只给【总储备】，无法推出单月净购金。
+                # net_purchases 用 data_period 对应的 fallback 近似差值，绝不可用总储备当净购金
+                # （否则 2366t 总储备会被当成单月购金，信号荒谬）。
+                info = self.COUNTRIES["中国"]
+                period = info.get("data_period")
+                if period and "-" in period:
+                    year, month = map(int, period.split("-", 1))
+                else:
+                    year, month = datetime.now().year, datetime.now().month
                 return MonthlyCentralBankData(
                     country="中国",
-                    year=now.year,
-                    month=now.month,
-                    net_purchases_tonnes=round(tonnes, 1),
+                    year=year,
+                    month=month,
+                    net_purchases_tonnes=float(info.get("fallback_monthly", 5.0)),
                     total_reserves_tonnes=round(tonnes, 1),
-                    source="PBOC official",
-                    fetched_at=now,
+                    source="PBOC official (total), fallback (monthly delta)",
+                    fetched_at=datetime.now(),
                 )
 
         except Exception as e:
