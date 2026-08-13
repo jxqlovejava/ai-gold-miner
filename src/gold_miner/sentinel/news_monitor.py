@@ -37,6 +37,14 @@ _DEDUP_TTL = 21600  # 6 小时去重
 _NEWS_MAX_AGE = 7200  # 仅 2h 内新闻
 _MIN_KEYWORD_OVERLAP = 0.6  # 去重: 关键词重合度阈值
 
+# ── 跨运行推送去重 (2026-08-13) ──
+# 背景: MD5 去重只防完全相同的标题; 同一故事以不同标题跨运行出现时(如
+# 新浪/东财/金十多源标题措辞不同), 每 10 分钟重复告警, 叠加 iLink 限流.
+# 方案: 持久化已推送标题, 新告警与近期已推送标题关键词重合度 > 阈值 → 抑制.
+_PUSHED_TITLES_FILE = Path("/tmp/gold_news_pushed.json")
+_PUSHED_TTL = 21600  # 6 小时
+_MIN_REPEAT_OVERLAP = 0.6  # 与已推送标题重合度阈值 → 视为重复故事
+
 # ── AI 判定层健康监控 (2026-08-11) ──
 # 背景: AI 层失败时静默回退关键词规则, 用户收到的是规则判定的低质量推送且无从分辨.
 # 方案: 记录回退事件到状态文件, 2h 滑窗内 ≥3 次 → 推送健康告警 + 规则判定条目打标.
@@ -1090,6 +1098,28 @@ def _save_dedup(cache: dict[str, float]) -> None:
         _DEDUP_FILE.write_text(json.dumps(cache))
 
 
+def _load_pushed() -> list[dict]:
+    """加载近期推送过的新闻标题 (跨运行去重用)."""
+    if not _PUSHED_TITLES_FILE.exists():
+        return []
+    try:
+        data = json.loads(_PUSHED_TITLES_FILE.read_text())
+        now = time.time()
+        return [p for p in data if now - p["ts"] < _PUSHED_TTL]
+    except Exception:
+        return []
+
+
+def _save_pushed(pushed: list[dict]) -> None:
+    with contextlib.suppress(Exception):
+        _PUSHED_TITLES_FILE.write_text(json.dumps(pushed))
+
+
+def _is_repeat_story(title: str, pushed: list[dict]) -> bool:
+    """与近期已推送标题关键词重合度 > 阈值 → 视为同一故事重复, 抑制推送."""
+    return any(_keyword_overlap(title, p["title"]) > _MIN_REPEAT_OVERLAP for p in pushed)
+
+
 def _title_hash(title: str) -> str:
     return hashlib.md5(title.strip().encode()).hexdigest()[:12]
 
@@ -1186,7 +1216,19 @@ def run_news_check() -> str:
 
     headlines = fetch_gold_headlines()
     alerts = analyze_headlines(headlines, gold_change_pct=gold_change)
-    message = format_news_alerts(alerts, gold_price=gold_price, gold_change=gold_change)
+
+    # ── 跨运行去重 (2026-08-13): 抑制与近期已推送故事重复的告警 ──
+    # 同一事件多源标题措辞不同 → MD5 不命中 → 每 10 分钟重复告警, 叠加 iLink 限流.
+    pushed = _load_pushed()
+    fresh = [a for a in alerts if not _is_repeat_story(a["title"], pushed)]
+    if len(fresh) != len(alerts):
+        logger.info(f"[news_monitor] 跨运行去重: {len(alerts)}→{len(fresh)} 条 (抑制重复故事)")
+    if fresh:
+        now_ts = time.time()
+        _save_pushed([p for p in pushed if now_ts - p["ts"] < _PUSHED_TTL]
+                     + [{"title": a["title"], "ts": now_ts} for a in fresh])
+
+    message = format_news_alerts(fresh, gold_price=gold_price, gold_change=gold_change)
 
     # AI 判定层健康告警 (2026-08-11): 回退超阈值 → 即使无新闻也推送,
     # 让用户知晓当前推送为规则判定, 避免静默降级 (事故: 8/10晚 5 条规则判定误判推送).

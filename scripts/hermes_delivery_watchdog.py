@@ -27,7 +27,7 @@ import json
 import re
 import subprocess
 import sys
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 # 受监视的关键推送任务 (job_id: 说明) — 只收"错过就有实质损失"的定时推送;
@@ -154,6 +154,17 @@ def main() -> int:
     today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
     now = datetime.now(tz=UTC)
 
+    # ── 熔断器 (2026-08-13) ──
+    # 背景: iLink 微信持续限流时, 看门狗补发只会雪上加霜 (每条补发再产生 N 次重试).
+    # 方案: 上一次补发失败 → 熔断 2h 暂停全部补发, 让 iLink 通道喘息恢复.
+    cooldown_until = state.get("cooldown_until")
+    if cooldown_until:
+        try:
+            if now < datetime.fromisoformat(cooldown_until):
+                return 0  # 熔断期内: 静默跳过, 不补发不输出
+        except (ValueError, TypeError):
+            pass
+
     actions: list[str] = []
     for job_id, label in WATCHED_JOBS.items():
         block = blocks.get(job_id)
@@ -190,6 +201,15 @@ def main() -> int:
         # 失败不记 → 下次看门狗运行 (限流恢复后) 自动重试, 直到达到 max_retries.
         if r_ok:
             state[key]["retried_runs"].append(m.group(1))
+            # 补发成功 → 通道恢复, 清除熔断 (若有)
+            state.pop("cooldown_until", None)
+        else:
+            # 补发失败 → iLink 通道疑似持续故障, 熔断 2h 暂停后续补发 (不再雪上加霜)
+            state["cooldown_until"] = (now + timedelta(hours=2)).isoformat()
+            actions.append(
+                f"🧯 {label}: 补发失败, iLink 通道故障 → 熔断 2h, 暂停后续补发"
+            )
+            break  # 熔断: 通道故障对全部任务生效, 停止本轮剩余补发
         actions.append(
             f"{'✅' if r_ok else '❌'} {label}: {age_min:.0f}分钟前投递失败, "
             f"{how}, 补发{'成功' if r_ok else '失败'} (今日第{state[key]['attempts']}次)"
