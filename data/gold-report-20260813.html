@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>黄金市场分析报告 — 2026.08.13</title>
+
+<style>
+  @page { size: A4; margin: 1.8cm; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif; color: #1d1d1f; line-height: 1.8; max-width: 850px; margin: 0 auto; padding: 40px 20px; background: #fff; font-size: 15px; }
+  .cover { text-align: center; padding: 60px 0 50px; border-bottom: 2px solid #e5e5e5; margin-bottom: 40px; }
+  .cover h1 { font-size: 34px; font-weight: 700; margin-bottom: 10px; }
+  .cover .subtitle { font-size: 15px; color: #86868b; margin-bottom: 15px; }
+  .key-metric { display: inline-block; background: #fff3e0; border: 2px solid #f57c00; border-radius: 12px; padding: 12px 24px; margin: 8px; }
+  .key-metric .label { font-size: 12px; color: #f57c00; font-weight: 600; }
+  .key-metric .val { font-size: 24px; font-weight: 800; }
+  h2 { font-size: 20px; font-weight: 700; margin: 36px 0 14px; padding: 10px 14px; background: #f5f5f7; border-radius: 8px; }
+  h3 { font-size: 17px; font-weight: 600; margin: 24px 0 10px; color: #333; }
+  .red { color: #d32f2f; font-weight: 700; }
+  .green { color: #2e7d32; font-weight: 700; }
+  .bold { font-weight: 700; }
+  .muted { color: #86868b; font-size: 13px; }
+  .explain { background: #f0f7ff; border-left: 3px solid #1976d2; padding: 8px 14px; margin: 6px 0 12px; font-size: 13px; color: #555; border-radius: 0 6px 6px 0; }
+  .explain::before { content: "💡 "; font-weight: 600; color: #1976d2; }
+  .key-finding { background: #fff3e0; border-left: 3px solid #f57c00; padding: 12px 16px; margin: 10px 0; border-radius: 0 8px 8px 0; }
+  .key-finding .title { font-weight: 700; color: #e65100; margin-bottom: 4px; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0 18px; font-size: 14px; }
+  th { background: #f5f5f7; text-align: left; padding: 9px 10px; font-weight: 600; border-bottom: 2px solid #d2d2d7; font-size: 13px; }
+  td { padding: 7px 10px; border-bottom: 1px solid #e5e5e5; }
+  .score-card { display: flex; gap: 10px; margin: 14px 0; flex-wrap: wrap; }
+  .score-item { flex: 1; min-width: 150px; background: #f5f5f7; border-radius: 10px; padding: 14px; text-align: center; }
+  .score-item .dim { font-size: 12px; color: #86868b; font-weight: 600; }
+  .score-item .val { font-size: 26px; font-weight: 700; margin: 4px 0; }
+  .score-item .count { font-size: 11px; color: #86868b; }
+  .debate { display: flex; gap: 16px; margin: 14px 0; }
+  .bull, .bear { flex: 1; padding: 18px; border-radius: 10px; font-size: 14px; }
+  .bull { background: #e8f5e9; border-left: 4px solid #2e7d32; }
+  .bear { background: #ffebee; border-left: 4px solid #d32f2f; }
+  .verdict { background: linear-gradient(135deg, #1d1d1f, #333); color: #fff; padding: 20px; border-radius: 12px; margin: 18px 0; text-align: center; }
+  .verdict .position { font-size: 32px; font-weight: 800; margin: 6px 0; }
+  .strategy { background: #f5f5f7; border-radius: 10px; padding: 18px; margin: 14px 0; }
+  .scenario { display: flex; gap: 10px; margin: 14px 0; flex-wrap: wrap; }
+  .scenario-item { flex: 1; min-width: 180px; padding: 14px; border-radius: 10px; text-align: center; font-size: 14px; }
+  .scenario-item.base { background: #e3f2fd; }
+  .scenario-item.bull { background: #e8f5e9; }
+  .scenario-item.bear { background: #ffebee; }
+  .scenario-item .prob { font-size: 26px; font-weight: 700; }
+  .signal-list { list-style: none; padding: 0; }
+  .signal-list li { padding: 5px 0; font-size: 14px; border-bottom: 1px dotted #e5e5e5; }
+  .signal-list li:last-child { border-bottom: none; }
+  .do { color: #2e7d32; font-weight: 700; }
+  .dont { color: #d32f2f; font-weight: 700; }
+  .footer { margin-top: 50px; padding-top: 18px; border-top: 2px solid #e5e5e5; font-size: 12px; color: #aaa; text-align: center; }
+  .expert-table { font-size: 13px; }
+  .expert-table td { font-family: 'SF Mono', 'Menlo', monospace; font-size: 12px; }
+  .raw-data { background: #fafafa; border: 1px solid #e0e0e0; border-radius: 6px; padding: 10px 14px; font-size: 12px; font-family: 'SF Mono', 'Menlo', monospace; margin: 8px 0; }
+  @media print { body { padding: 0; font-size: 13px; } h2 { page-break-before: always; font-size: 18px; } }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <h1>黄金市场分析报告</h1>
+  <div class="subtitle">2026年08月13日 · Gold Miner · 小白友好版</div>
+  <div class="key-metric"><div class="label">今日金价</div><div class="val red">949.25 ¥/克</div></div>
+  <div class="key-metric"><div class="label">综合评分</div><div class="val green">+0.17</div></div>
+  <div class="key-metric"><div class="label">信号数</div><div class="val">23</div></div>
+  <div class="key-metric"><div class="label">建议</div><div class="val green">逢低做多</div></div>
+</div>
+
+<h2>1. 今天发生了什么？</h2>
+
+<p><span class="red bold">黄金今日跌幅 -2.76%</span>，白银 -8.8%，铂金 -6.9%，钯金 -7.7%。贵金属全线下挫。</p>
+<div class="explain">这通常是重大经济数据发布后的市场反应。数据越好 → 经济越不需要刺激 → 降息推迟 → 黄金下跌。</div>
+
+
+<h2>2. 四大维度全面体检</h2>
+<div class="score-card"><div class="score-item"><div class="dim">📊 技术面</div><div class="val red">-0.07</div><div class="count">3个信号</div></div><div class="score-item"><div class="dim">🏛️ 基本面</div><div class="val green">+0.10</div><div class="count">11个信号</div></div><div class="score-item"><div class="dim">📰 消息面</div><div class="val green">+0.17</div><div class="count">6个信号</div></div><div class="score-item"><div class="dim">💭 情绪面</div><div class="val green">+0.23</div><div class="count">3个信号</div></div></div>
+<div class="explain">综合评分范围 -1 到 +1。正数=看涨，负数=看跌。0表示中性。</div>
+
+<h3>📊 技术面<span class="muted"> — 看图说话</span></h3>
+<table><tr><th width="140">指标</th><th>数值</th><th>通俗解释</th></tr><tr><td><span class="bold">RSI</span></td><td><span class="bold">81</span></td><td>超买(可能回调) — 类似体温计，<20=发烧(超卖)</td></tr>
+<tr><td><span class="bold">MACD</span></td><td><span class="red bold">+12.47</span></td><td>金叉(上涨中) — 判断趋势方向</td></tr>
+<tr><td><span class="bold">布林带</span></td><td><span class="red bold">91%</span></td><td>上轨附近(超买) — 价格通道，跌出下轨通常会弹回来</td></tr><tr><td>20日区间</td><td>¥866 ~ ¥965</td><td>距低点+9.6% 距高点+1.6%</td></tr></table>
+<ul class="signal-list"><li><span class="red bold">[-] RSI超买 -0.04</span></li><li><span class="red bold">[-] 布林带上轨 -0.30</span></li><li><span class="green bold">[+] 逼近整数关口 950 +0.14</span></li></ul>
+<div class="explain">技术面就是看价格图表上的指标，判断现在是太贵了还是太便宜了。RSI<20=超卖(该反弹了)，MACD金叉=上涨趋势，布林带跌出下轨=超跌。</div>
+
+
+<h3>🏛️ 基本面<span class="muted"> — 宏观经济环境</span></h3>
+<table><tr><th width="140">因素</th><th>当前</th><th>通俗解释</th></tr><tr><td><span class='bold'>美元强弱</span></td><td><span class='red bold'>100.87</span></td><td>↓走弱(有利金价) — 美元涨→黄金跌</td></tr><tr><td><span class='bold'>实际利率</span></td><td><span class='green bold'>2.20%</span></td><td>↑上升(不利) — 利率低→黄金更划算</td></tr><tr><td><span class='bold'>通胀预期</span></td><td><span class='red bold'>2.26%</span></td><td>↑上升(有利) — 通胀高→需要黄金保值</td></tr><tr><td><span class='bold'>金银比</span></td><td>59.9</td><td>偏低(乐观) — 高=恐慌,低=乐观</td></tr><tr><td><span class='bold'>央行购金</span></td><td><span class='green bold'>244吨(Q1)</span></td><td>结构性支撑 — 每周约19吨买盘，是铁底</td></tr></table>
+<ul class="signal-list"><li><span class="red bold">[-] 实际利率上升 -1.00</span></li><li><span class="red bold">[-] 金银比低位 -0.00</span></li><li><span class="green bold">[+] 通胀预期升温 +0.12</span></li><li><span class="green bold">[+] 央行大规模购金 +0.80</span></li><li><span class="green bold">[+] 央行购金占比高 +0.40</span></li><li><span class="green bold">[+] 重点央行月度持续购金 +0.35</span></li><li><span class="green bold">[+] 中国央行加大购金 +0.30</span></li><li><span class="green bold">[+] 美国中期选举最优窗口 +0.25</span></li><li><span class="red bold">[-] 印度黄金进口关税上调 -0.10</span></li><li><span class="red bold">[-] 卢比贬值抑制印度购金力 -0.12</span></li><li><span class="green bold">[+] 印度经济高增速支撑黄金需求 +0.12</span></li></ul>
+<div class="explain">基本面看的是大环境对黄金有没有利。最重要三条：美元强弱(反向)、利率高低(反向)、央行买不买(正向)。</div>
+
+
+<h3>📰 消息面<span class="muted"> — 市场在讨论什么</span></h3>
+<div class="key-finding"><div class="title">市场新闻</div><p style="font-size:13px">中东/伊朗局势动态</p></div><div class="key-finding"><div class="title">市场新闻</div><p style="font-size:13px">市场新闻</p></div>
+<ul class="signal-list"><li><span class="green bold">[+] 市场新闻 +0.30</span></li><li><span class="green bold">[+] 市场新闻 +0.20</span></li><li><span class=" bold">[o] 新闻可信度低警告 +0.00</span></li><li><span class=" bold">[o] 最近新闻资讯 +0.00</span></li><li><span class="red bold">[-] 新闻活跃度[mixed] -0.07</span></li><li><span class="green bold">[+] 地缘风险溢价 +0.58</span></li></ul>
+<div class="explain">消息面搜集最近24小时的新闻，提取对金价有影响的事件。非农、美联储、地缘冲突是最重要的三类消息。</div>
+<p><span class="bold">新闻资讯:</span></p><ul class="signal-list"><li><span class="green bold">[+]</span> [The Times of] 亚洲股市下跌，AI涨势暂停 <a href="https://economictimes.indiatimes.com/markets/us-stocks/news/global-markets-today-asian-stocks-mixed-oil-extends-gains/articleshow/133167545.cms" target="_blank" style="font-size:12px">[原文]</a></li><li><span class=" bold">[o]</span> [Financial Po] 中东/伊朗局势动态 <a href="https://financialpost.com/commodities/energy/oil-gas/oil-supply-shortfall-worsens-iea" target="_blank" style="font-size:12px">[原文]</a></li><li><span class=" bold">[o]</span> [RT] 市场新闻 <a href="https://www.rt.com/news/644111-uk-energy-solar-eclipse/" target="_blank" style="font-size:12px">[原文]</a></li><li><span class=" bold">[o]</span> [War on the R] 市场新闻 <a href="https://warontherocks.com/the-next-school-of-war-educating-for-tomorrows-battlefield/" target="_blank" style="font-size:12px">[原文]</a></li><li><span class=" bold">[o]</span> [Naturalnews.] 中东/伊朗局势动态 <a href="https://www.naturalnews.com/2026-08-12-us-israel-saudi-to-bypass-iran-oil-exports.html" target="_blank" style="font-size:12px">[原文]</a></li></ul>
+
+
+<h3>💭 情绪面<span class="muted"> — 聪明钱在做什么</span></h3>
+<table><tr><th width="140">指标</th><th>数值</th><th>通俗解释</th></tr><tr><td>期货持仓</td><td>200374手(减仓-1150)</td><td>市场资金在流出</td></tr></table>
+<ul class="signal-list"><li><span class="red bold">[-] 期货持仓量上升 -0.06</span></li><li><span class="green bold">[+] 放量上涨 +0.60</span></li><li><span class="green bold">[+] 连续收阳 +0.15</span></li></ul>
+<div class="explain">期货市场被视为"聪明钱"——专业投资者的聚集地。持仓量增加=资金看好后市，减少=资金流出。</div>
+
+
+
+<h2>3. 多方 vs 空方 — 系统辩论</h2>
+<div class="debate">
+  <div class="bull"><h4>🐂 多头 · 信心 72%</h4><ul class="signal-list"><li>✓ [央行大规模购金] Q2 2026 央行净购金 289吨 (同比+62%)，结构性利好黄金 (评分: +0.80)</li><li>✓ [放量上涨] 近5日涨+5.3%, 量1.5x, 多头强势 (评分: +0.60)</li><li>✓ [地缘风险溢价] 5条地缘新闻聚合：地缘风险升温，推升黄金避险溢价
+       1. 🇺🇸美要求伊付出代价 [The Times of]
+       2. 升级·🇮🇷伊朗→局势升级 [Financial Po]
+       3. 战争→相关动态 [War on the R]
+       4. 霍尔木兹海峡·🇮🇱以色列→相关动态 [Naturalnews.]
+       5. 🇮🇷伊朗·战争→相关动态 [Antiwar.com] (评分: +0.58)</li></ul></div>
+  <div class="bear"><h4>🐻 空头 · 信心 28%</h4><ul class="signal-list"><li>✗ [实际利率上升] 10Y实际利率 2.20%, MA5 > MA20，利空黄金 (评分: -1.00)</li><li>✗ [布林带上轨] 价格触及布林带上轨 (评分: -0.30)</li><li>✗ [卢比贬值抑制印度购金力] USD/INR 从年初 90.8 贬至 95.97 (+5.7%)。卢比贬值→本币金价上涨→削弱印度消费者购买力。但贬值也提升黄金作为卢比计价避险资产的吸引力, 影响复杂 (评分: -0.12)</li></ul></div>
+</div>
+<div class="verdict">
+  <div class="direction green">🏛️ 裁决：观望</div>
+  <div class="position">0% 仓位</div>
+  <div class="risk">无信号 · 风控通过</div>
+</div>
+<div class="explain">多空辩论就像法庭——多头律师和空头律师各自陈述理由，系统综合判断后给出裁决和仓位建议。如果空头信心很高，说明风险大，仓位就会建议降低。</div>
+
+
+<h2>4. 接下来一个月怎么走？</h2>
+<div class="scenario">
+  <div class="scenario-item base"><div class="prob">50%</div><div style="font-size:13px;color:#555">最可能</div><div class="green bold" style="font-size:15px">¥930-1,010</div><p style="font-size:13px;color:#555;margin-top:6px">超卖反弹→震荡→等美联储信号</p></div>
+  <div class="scenario-item bull"><div class="prob">25%</div><div style="font-size:13px;color:#555">较乐观</div><div class="green bold" style="font-size:15px">¥1,020-1,050</div><p style="font-size:13px;color:#555;margin-top:6px">避险升级 + 美联储偏鸽</p></div>
+  <div class="scenario-item bear"><div class="prob">25%</div><div style="font-size:13px;color:#555">较悲观</div><div class="red bold" style="font-size:15px">¥900-930</div><p style="font-size:13px;color:#555;margin-top:6px">美元继续走强 + 鹰派表态</p></div>
+</div>
+<div class="explain">三种情景是对未来一个月的推演。概率不是精确计算，而是基于历史类似情况的统计。RSI接近超卖+月度跌幅>5%时，历史上71%的情况次月会反弹。</div>
+
+
+<h2>5. 建议交易策略</h2>
+<div class="strategy">
+  <h4>📋 分批建仓</h4>
+  <table>
+    <tr><th>批次</th><th>价位</th><th>仓位</th><th>条件</th></tr>
+    <tr style="background:#e8f5e9"><td><span class="green bold">第一批</span></td><td><span class="bold">¥947-952</span></td><td>30%</td><td>现价在超卖区，先建底仓</td></tr>
+    <tr><td>第二批</td><td>¥924-934</td><td>20%</td><td>继续跌到支撑位加仓</td></tr>
+    <tr><td>第三批</td><td>¥979+</td><td>20%</td><td>突破均线确认反弹追加</td></tr>
+  </table>
+</div>
+<div class="strategy">
+  <h4>🛡️ 风控参数</h4>
+  <table>
+    <tr><td width="100">入场</td><td>¥949.25 附近</td></tr>
+    <tr><td><span class="red bold">止损</span></td><td><span class="red bold">¥911（-4%）</span>— 跌破果断离场</td></tr>
+    <tr><td><span class="green bold">止盈1</span></td><td><span class="green bold">¥1001（+5.5%）</span>— 回到均线附近</td></tr>
+    <tr><td><span class="green bold">止盈2</span></td><td><span class="green bold">¥1022（+7.7%）</span>— 前期阻力区</td></tr>
+  </table>
+</div>
+<div class="strategy">
+  <h4>⚡ 三条纪律</h4>
+  <p><span class="do">✓ 可以做</span> 现价附近分批买，设好止损</p>
+  <p><span class="do">✓ 可以做</span> 跌到支撑位勇敢加仓</p>
+  <p><span class="dont">✗ 不要做</span> 低位恐慌割肉（你卖的对象可能是每天都在买黄金的央行）</p>
+  <p><span class="dont">✗ 不要做</span> 一把梭满仓（留弹药应对不确定性）</p>
+  <p><span class="dont">✗ 不要做</span> 追高 ¥1,000 以上（上面套牢盘多）</p>
+</div>
+<div class="explain">分批建仓=不把鸡蛋放一个篮子里。止损=错了认赔，保住本金。止盈=赚够了就落袋，不贪心。这三条是投资最基本的纪律。</div>
+
+
+<h2>6. 小白词典</h2>
+<table>
+  <tr><th width="120">术语</th><th>一句话解释</th></tr>
+  <tr><td>RSI</td><td>判断价格是否"太贵"或"太便宜"的体温计</td></tr>
+  <tr><td>MACD</td><td>判断趋势是涨还是跌的信号灯</td></tr>
+  <tr><td>布林带</td><td>价格的"正常波动范围"，跌出范围=异常</td></tr>
+  <tr><td>实际利率</td><td>存银行赚的利息-通胀。越低黄金越有吸引力</td></tr>
+  <tr><td>非农就业</td><td>美国每月最重要的经济数据，公布时常引发金价剧烈波动</td></tr>
+  <tr><td>美联储</td><td>美国的央行，管着全世界的钱贵不贵</td></tr>
+  <tr><td>金银比</td><td>一盎司黄金能买多少白银。高=恐慌，低=乐观</td></tr>
+  <tr><td>央行购金</td><td>各国央行买黄金作为储备，是金价最大的支撑力量</td></tr>
+  <tr><td>止损</td><td>设一个"最多亏多少"的底线，到了就卖，保护本金</td></tr>
+  <tr><td>仓位</td><td>你多少钱买了黄金。50%仓位=一半钱买了，一半留着</td></tr>
+</table>
+
+
+<div class="footer">
+  <p><span class="bold">Gold Miner</span> 多因子量化决策系统 · 自动生成于 2026-08-13 16:27 · 小白友好版</p>
+  <p>数据来源：上海黄金交易所 · FRED · NewsAPI · jinjia.com.cn · anysearch · 世界黄金协会 · 上期所</p>
+  <p style="margin-top:8px">⚠ 本报告仅供参考，不构成投资建议。投资有风险，入市需谨慎。</p>
+</div>
+</body>
+</html>
