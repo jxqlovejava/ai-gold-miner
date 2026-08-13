@@ -244,7 +244,8 @@ def test_quote_after_blank_line_still_consumed_as_status(tmp_path):
     content = out.read_text(encoding="utf-8")
     assert "class=\"status-bar\"" in content
     assert "¥947.26" in content
-    assert "净保本 ¥894.38" in content
+    # 净保本是持仓卡片字段 (无持仓行时本测试不渲染卡片), 不进 status-bar
+    assert "净保本" not in content
     # 引文不再作为 blockquote 重复出现在正文
     assert "<blockquote>" not in content
 

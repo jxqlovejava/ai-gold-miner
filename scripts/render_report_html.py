@@ -586,6 +586,41 @@ def _parse_position_line(quote: str) -> dict[str, str] | None:
     return {"grams": m.group(1), "avg_cost": m.group(2), "gross_value": m.group(3)}
 
 
+def _warn_position_mismatch(pos: dict[str, str]) -> None:
+    """持仓卡片 vs portfolio.yaml 交叉校验 — 防陈旧持仓快照混入 HTML 渲染.
+
+    报告引用行的克数/成本与 portfolio.yaml (唯一数字真相源) 不一致时打印醒目
+    警告 (不阻断渲染), 提醒先核实持仓快照. 2026-08-13 事故: HTML 用了 8/12
+    旧快照 22.4587g@921.20 渲染出 +689 净浮盈, 与京东 APP 实际 580 不符.
+    """
+    try:
+        import yaml
+    except ImportError:
+        return
+    pf_path = PROJECT_ROOT / "data" / "private" / "portfolio.yaml"
+    if not pf_path.exists():
+        return
+    try:
+        with open(pf_path, encoding="utf-8") as f:
+            pf = yaml.safe_load(f)
+        gold = (pf or {}).get("positions", {}).get("gold_jd", {})
+        real_grams = float(gold.get("grams") or 0)
+        real_cost = float(gold.get("avg_cost") or 0)
+    except Exception:
+        return
+    if real_grams <= 0 or real_cost <= 0:
+        return
+    md_grams = float(pos["grams"])
+    md_cost = float(pos["avg_cost"])
+    if abs(md_grams - real_grams) > 1e-9 or abs(md_cost - real_cost) > 1e-9:
+        print(
+            f"\n⚠️ [render] 持仓卡片与 portfolio.yaml 不一致: "
+            f"报告 {md_grams}g@¥{md_cost} vs 实际 {real_grams}g@¥{real_cost}. "
+            f"报告可能用了陈旧持仓快照, 请核实后再渲染.\n",
+            file=sys.stderr,
+        )
+
+
 def _build_position_items(pos: dict[str, str], quote: str) -> list[tuple[str, str, str]]:
     """构造持仓卡片条目: (label, value, css_class).
 
@@ -660,6 +695,7 @@ def render(md: str, out_path: Path) -> Path:
         pos = _parse_position_line(combined)
         if pos:
             pos_items = _build_position_items(pos, combined)
+            _warn_position_mismatch(pos)
         # 解析 "积存金 **¥958.81** | 国际 $4408/oz | ATR止盈 ..." → status items
         for part in combined.split("|"):
             part = part.strip()
