@@ -511,14 +511,19 @@ class AnalysisPipeline:
             logger.debug(f"near_data_event 检查失败: {e}")
         return False
 
-    def _has_recent_high_impact_event(self, hours: int = 24) -> bool:
-        """近 hours 小时内是否刚公布中高影响宏观事件（用于 r033 数据落地判断）."""
+    def _has_recent_high_impact_event(self, hours: int = 24, lookback_days: int | None = None) -> bool:
+        """近 hours 小时内是否刚公布中高影响宏观事件（用于 r033/r034 数据落地判断）.
+
+        lookback_days 覆盖 hours 换算（hours//24 向上取整，默认 24h→1 天）。
+        """
         try:
             from gold_miner.data.calendar import EventCalendar, EventImpact
             from datetime import datetime, timezone
 
+            if lookback_days is None:
+                lookback_days = max(1, -(-hours // 24))
             cal = EventCalendar()
-            recent = cal.get_recent_events_with_results(lookback_days=1)
+            recent = cal.get_recent_events_with_results(lookback_days=lookback_days)
             now = datetime.now(timezone.utc)
             high_types = {"fed_rate", "cpi", "pce", "nfp", "fomc", "ppi"}
             for e in recent:
@@ -531,17 +536,17 @@ class AnalysisPipeline:
             logger.debug(f"data_event_recent 检查失败: {e}")
         return False
 
-    def _recent_data_landed_mild(self) -> bool:
-        """近24h公布的宏观数据结果是否温和/符合预期（市场已预先定价）.
+    def _recent_data_landed_mild(self, lookback_days: int = 1) -> bool:
+        """近 lookback_days 天公布的宏观数据结果是否温和/符合预期（市场已预先定价）.
 
         判定：存在带 actual 的中高影响事件，且 actual 文本包含"符合预期/温和/回落"等预先定价特征词。
-        注意：这是启发式判断，供 r033 提示用；方向性判定以写入时 gold_bias 为准。
+        注意：这是启发式判断，供 r033/r034 提示用；方向性判定以写入时 gold_bias 为准。
         """
         try:
             from gold_miner.data.calendar import EventCalendar, EventImpact
 
             cal = EventCalendar()
-            recent = cal.get_recent_events_with_results(lookback_days=1)
+            recent = cal.get_recent_events_with_results(lookback_days=lookback_days)
             mild_markers = ("符合预期", "温和", "回落", "符预期", "略低", "中性", "预期内")
             for e in recent:
                 et = getattr(e.event_type, "value", str(e.event_type)).lower()
@@ -555,8 +560,8 @@ class AnalysisPipeline:
             logger.debug(f"data_landed_mild 检查失败: {e}")
         return False
 
-    def _repeated_buy_within_24h(self) -> bool:
-        """近24h内是否已多次连续买入（用于 r033 重复追买警示）."""
+    def _repeated_buy_within(self, hours: int = 24) -> bool:
+        """近 hours 小时内是否已多次连续买入（用于 r033 重复追买警示，默认 24h）."""
         try:
             import re
             from pathlib import Path
@@ -580,12 +585,48 @@ class AnalysisPipeline:
                     t = datetime.strptime(m.group(1), "%Y-%m-%d %H:%M").replace(tzinfo=cst).astimezone(timezone.utc)
                 except ValueError:
                     continue
-                if (now - t).total_seconds() <= 24 * 3600:
+                if (now - t).total_seconds() <= hours * 3600:
                     buys += 1
             return buys >= 2
         except Exception as e:
-            logger.debug(f"repeated_buy_24h 检查失败: {e}")
+            logger.debug(f"repeated_buy 检查失败: {e}")
             return False
+
+    @staticmethod
+    def _near_20d_high(gold_df: Any) -> bool:
+        """是否处于区间上沿：现价距 20 日高点 <3%（r034 高位震荡判定）."""
+        try:
+            if gold_df is None or len(gold_df) < 2:
+                return False
+            last = float(gold_df["close"].iloc[-1])
+            high20 = float(gold_df["close"].tail(20).max())
+            if high20 <= 0:
+                return False
+            return (high20 - last) / high20 < 0.03
+        except Exception as e:
+            logger.debug(f"near_range_high 检查失败: {e}")
+            return False
+
+    @staticmethod
+    def _smart_money_outflow(flow_info: dict) -> bool:
+        """聪明钱是否流出（r034）：机构流状态 outflow，或 COT减仓/聪明钱综合信号偏空.
+
+        与 institutional_flow 证据标签对齐：cot_outflow(-0.85) / smart_money_composite(score偏空)。
+        """
+        try:
+            if flow_info:
+                if flow_info.get("status") == "outflow":
+                    return True
+                for e in flow_info.get("evidence", []) or []:
+                    if e.get("label") in ("cot_outflow", "smart_money_composite"):
+                        try:
+                            if float(e.get("contribution", 0)) <= -0.3:
+                                return True
+                        except (TypeError, ValueError):
+                            continue
+        except Exception as e:
+            logger.debug(f"smart_money_outflow 检查失败: {e}")
+        return False
 
     # 缠论需足够 K 线才能形成笔/中枢结构：600 自然日 ≈ 400 根日线，
     # 实测短窗口(43 根)仅 0 笔、600 天可产出 4 笔 + 1 中枢 + 买卖点。
@@ -1452,12 +1493,22 @@ class AnalysisPipeline:
             "has_fundamental_confirm": has_fundamental_confirm,
             "trend_gate_state": trend_gate.get("state", "insufficient_data"),
             # r033 数据落地≠趋势确认 (2026-08-13): CPI温和预先定价 → 数据落地≠加仓依据
+            # 2026-08-14: 升级为"温和数据落地后 3天(72h) 内禁止任何加仓"（绝对时间盒）
             "data_event_recent": self._has_recent_high_impact_event(hours=24),
+            "data_event_recent_72h": self._has_recent_high_impact_event(hours=72),
             "data_landed_mild": self._recent_data_landed_mild(),
             "trend_confirmed": bool(
                 price_above_200ma and trend_gate.get("state") == "bullish"
             ) or bool(result.chanlun_summary and result.chanlun_summary.get("buy_points")),
-            "repeated_buy_24h": self._repeated_buy_within_24h(),
+            "repeated_buy_24h": self._repeated_buy_within(hours=24),
+            "repeated_buy_72h": self._repeated_buy_within(hours=72),
+            # r034 数据温和期震荡止盈 (2026-08-14): 温和数据+高位震荡+聪明钱流出+浮盈 → 主动部分止盈
+            "data_event_recent_48h": self._has_recent_high_impact_event(hours=48),
+            "data_landed_mild_48h": self._recent_data_landed_mild(lookback_days=2),
+            "near_range_high": self._near_20d_high(result.gold_df),
+            "smart_money_outflow": self._smart_money_outflow(flow_info),
+            "in_profit": unrealized > 0,  # 净口径浮盈（pipeline 已按 r032 计费）
+            "has_position": current_gold_pct > 0,
         }
 
         checker = DoctrineChecker()

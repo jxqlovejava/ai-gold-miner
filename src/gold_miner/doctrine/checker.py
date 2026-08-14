@@ -606,13 +606,13 @@ class DoctrineChecker:
         )
 
     def check_data_landing_trend(self, decision: dict, ctx: dict) -> RuleViolation:
-        """r033: 重大数据落地（结果温和/符合预期）≠ 趋势确认，禁止数据后24h内仅因数据温和连续追买.
+        """r033: 重大数据温和落地后 3 天(72h)内禁止任何加仓；3 天后加仓仍须独立趋势确认.
 
         ctx 字段:
-          - data_event_recent: bool — 近 24h 内刚公布重大数据（CPI/PPI/非农/FOMC）
+          - data_event_recent_72h: bool — 近 72h 内刚公布重大数据（回退 data_event_recent 24h）
           - data_landed_mild: bool — 数据结果温和/符合预期（市场已预先定价）
           - trend_confirmed: bool — 是否有独立趋势确认（关键点突破/均线多头/资金流同向）
-          - repeated_buy_24h: bool — 数据后 24h 内是否已多次连续买入
+          - repeated_buy_72h: bool — 72h 内是否已多次连续买入（回退 repeated_buy_24h）
         """
         rule = self._get_rule("check_data_landing_trend")
         add_actions = {"add", "buy", "increase"}
@@ -620,15 +620,19 @@ class DoctrineChecker:
         if action not in add_actions:
             return RuleViolation(rule=rule, passed=True, message="非加仓决策，无需校验数据落地趋势确认")
 
-        data_event_recent = bool(ctx.get("data_event_recent", False))
+        data_event_recent = bool(
+            ctx.get("data_event_recent_72h", ctx.get("data_event_recent", False))
+        )
         data_landed_mild = bool(ctx.get("data_landed_mild", False))
         trend_confirmed = bool(ctx.get("trend_confirmed", False))
-        repeated_buy_24h = bool(ctx.get("repeated_buy_24h", False))
+        repeated_buy = bool(
+            ctx.get("repeated_buy_72h", ctx.get("repeated_buy_24h", False))
+        )
 
-        # 核心：数据温和落地 + 无独立趋势确认 → 加仓缺乏依据
-        violated = data_event_recent and data_landed_mild and not trend_confirmed
-        # 严重化：若数据温和 + 24h内已多次追买 → 更明确警示
-        escalated = violated and repeated_buy_24h
+        # 核心：数据温和落地后 3 天(72h)内禁止任何加仓（绝对时间盒，趋势确认不构成豁免）
+        violated = data_event_recent and data_landed_mild
+        # 严重化：72h 内已出现多次加仓动作 → 连续追买
+        escalated = violated and repeated_buy
 
         passed = not violated
         if not violated:
@@ -636,31 +640,115 @@ class DoctrineChecker:
                 rule=rule,
                 passed=True,
                 message=(
-                    "无'数据温和落地但趋势未确认'场景，加仓不受 r033 限制"
+                    "无'数据温和落地'场景，加仓不受 r033 限制"
                     if not data_event_recent
-                    else "数据虽刚落地，但有独立趋势确认（关键点突破/均线多头/资金流同向），加仓有依据"
+                    else "数据落地但非温和/已过 3 天窗口，加仓不受 r033 硬禁"
                 ),
                 details={
                     "data_event_recent": data_event_recent,
                     "data_landed_mild": data_landed_mild,
                     "trend_confirmed": trend_confirmed,
-                    "repeated_buy_24h": repeated_buy_24h,
+                    "repeated_buy": repeated_buy,
                 },
             )
         hint = (
-            "且24h内已多次连续追买，重复'数据温和→追涨'模式"
+            "，且72h内已出现多次加仓（连续追买）"
             if escalated
-            else "，市场可能已预先定价，数据落地≠趋势确认"
+            else "，3天(72h)内禁止任何加仓"
         )
         return RuleViolation(
             rule=rule,
             passed=False,
-            message=f"⚠️ 数据温和落地但趋势未确认{hint}。加仓须等：关键点(950)有效突破回踩 / MA200上方 / 资金流同向（r033）",
+            message=(
+                f"⚠️ 数据温和落地后72h内{hint}。即使有独立趋势确认也须等 3 天窗口消化（r033）；"
+                "3 天后加仓仍须：关键点(950)有效突破回踩 / MA200上方 / 资金流同向"
+            ),
             details={
                 "data_event_recent": data_event_recent,
                 "data_landed_mild": data_landed_mild,
                 "trend_confirmed": trend_confirmed,
-                "repeated_buy_24h": repeated_buy_24h,
+                "repeated_buy": repeated_buy,
+            },
+        )
+
+    def check_data_landing_reduce(self, decision: dict, ctx: dict) -> RuleViolation:
+        """r034: 数据温和落地后多空博弈震荡期，有浮盈应主动部分止盈，不'死扛等再涨'.
+
+        ctx 字段:
+          - data_event_recent_48h: bool — 近 48h 内刚公布重大数据（回退 72h/24h）
+          - data_landed_mild: bool — 数据结果温和/符合预期
+          - near_range_high: bool — 处于区间上沿（距 20 日高点 <3%）
+          - smart_money_outflow: bool — 聪明钱流出（COT减仓/投行共识看空/大单空占优）
+          - in_profit: bool — 已有浮盈（当前价 > 净保本价）
+          - has_position: bool — 当前有持仓（默认取 decision.position_pct/current_gold_pct > 0）
+        """
+        rule = self._get_rule("check_data_landing_reduce")
+        hold_actions = {"hold", "stand_aside", "reduce", "reduce_half", "reduce_quarter", "sell"}
+        action = str(decision.get("action", "")).lower()
+        has_position = bool(
+            ctx.get(
+                "has_position",
+                float(decision.get("position_pct", 0)) > 0
+                or float(decision.get("current_gold_pct", 0)) > 0,
+            )
+        )
+        if action not in hold_actions or not has_position:
+            return RuleViolation(
+                rule=rule,
+                passed=True,
+                message="无持仓或非持有/减仓类决策，无需校验震荡止盈",
+            )
+
+        data_event_recent = bool(
+            ctx.get(
+                "data_event_recent_48h",
+                ctx.get("data_event_recent_72h", ctx.get("data_event_recent", False)),
+            )
+        )
+        data_landed_mild = bool(ctx.get("data_landed_mild", False))
+        near_range_high = bool(ctx.get("near_range_high", False))
+        smart_money_outflow = bool(ctx.get("smart_money_outflow", False))
+        in_profit = bool(ctx.get("in_profit", False))
+
+        # 核心：数据温和落地 + 高位震荡 + 聪明钱流出 + 有浮盈 → 主动部分止盈信号
+        violated = (
+            data_event_recent and data_landed_mild
+            and near_range_high and smart_money_outflow and in_profit
+        )
+
+        passed = not violated
+        if not violated:
+            return RuleViolation(
+                rule=rule,
+                passed=True,
+                message=(
+                    "无'数据温和落地+高位震荡+聪明钱流出+浮盈'组合场景，持有不受 r034 限制"
+                    if not (data_event_recent and data_landed_mild)
+                    else "数据温和但未同时满足高位震荡/聪明钱流出/浮盈，暂无需主动止盈"
+                ),
+                details={
+                    "data_event_recent": data_event_recent,
+                    "data_landed_mild": data_landed_mild,
+                    "near_range_high": near_range_high,
+                    "smart_money_outflow": smart_money_outflow,
+                    "in_profit": in_profit,
+                },
+            )
+        hold_flag = action in {"hold", "stand_aside"}
+        hint = "，应评估主动减仓而非'持有不动'" if hold_flag else ""
+        return RuleViolation(
+            rule=rule,
+            passed=False,
+            message=(
+                f"⚠️ 数据温和落地+高位震荡+聪明钱流出+已有浮盈{hint}："
+                "机动池主动部分止盈≥1/3（或p010减半）、核心池最多减1/4，不等ATR破位才动作（r034）"
+            ),
+            details={
+                "data_event_recent": data_event_recent,
+                "data_landed_mild": data_landed_mild,
+                "near_range_high": near_range_high,
+                "smart_money_outflow": smart_money_outflow,
+                "in_profit": in_profit,
             },
         )
 

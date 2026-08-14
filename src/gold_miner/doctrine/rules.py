@@ -314,10 +314,19 @@ RULE_FRICTION_COST = InvestmentRule(
 RULE_DATA_LANDING_TREND = InvestmentRule(
     id="r033",
     name="数据落地≠趋势确认",
-    description="重大数据（CPI/PPI/非农/FOMC）公布后结果温和/符合预期≠趋势确认：市场常已预先定价，数据落地本身不构成加仓依据。加仓须等独立趋势确认（关键点突破回踩/均线多头/资金流同向），禁止仅因'数据温和'在数据公布后24h内连续追买",
+    description="重大数据（CPI/PPI/非农/FOMC）公布后结果温和/符合预期≠趋势确认：市场常已预先定价。数据温和落地后 3 天(72h)内禁止任何加仓动作（绝对时间盒，趋势确认不构成豁免）；3 天后加仓仍须独立趋势确认（关键点突破回踩/均线多头/资金流同向）",
     severity="warn",
     category="entry",
     check_fn="check_data_landing_trend",
+)
+
+RULE_MILD_DATA_OSCILLATION_REDUCE = InvestmentRule(
+    id="r034",
+    name="数据温和期震荡止盈",
+    description="重大数据温和落地后常现多空博弈震荡（冲高乏力+回落有撑）：满足「温和数据落地+高位震荡+聪明钱流出+已有浮盈」时，机动池主动部分止盈（≥1/3）、核心池最多减1/4，不等ATR破位才动作。与r033互补（r033管'温和不追买'，r034管'温和震荡不死扛'）",
+    severity="warn",
+    category="operations",
+    check_fn="check_data_landing_reduce",
 )
 
 
@@ -359,6 +368,7 @@ ALL_RULES: list[InvestmentRule] = [
     RULE_KELLY_POSITION,
     RULE_FRICTION_COST,
     RULE_DATA_LANDING_TREND,
+    RULE_MILD_DATA_OSCILLATION_REDUCE,
 ]
 
 

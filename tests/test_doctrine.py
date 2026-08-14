@@ -236,42 +236,166 @@ class TestDoctrineChecker:
         assert len(violations) == 1
         assert violations[0].passed
 
-    def test_r033_passed_when_trend_confirmed(self) -> None:
-        """数据落地但已有独立趋势确认 → 通过."""
+    def test_r033_warn_within_72h_even_trend_confirmed(self) -> None:
+        """数据温和落地后 3 天(72h)内，即使有趋势确认 → 仍警告（绝对时间盒）."""
         checker = DoctrineChecker()
         decision = {"direction": "long", "position_pct": 0.15, "action": "add"}
-        context = {"data_event_recent": True, "data_landed_mild": True, "trend_confirmed": True}
+        context = {
+            "data_event_recent_72h": True,
+            "data_landed_mild": True,
+            "trend_confirmed": True,
+        }
+        result = checker.check(decision, context)
+        violations = [v for v in result.violations if v.rule.id == "r033"]
+        assert len(violations) == 1
+        assert not violations[0].passed
+        assert "禁止任何加仓" in violations[0].message
+
+    def test_r033_passed_when_outside_window(self) -> None:
+        """72h 窗口外（无近期数据落地）→ 通过."""
+        checker = DoctrineChecker()
+        decision = {"direction": "long", "position_pct": 0.15, "action": "add"}
+        context = {
+            "data_event_recent_72h": False,
+            "data_landed_mild": True,
+            "trend_confirmed": False,
+        }
+        result = checker.check(decision, context)
+        violations = [v for v in result.violations if v.rule.id == "r033"]
+        assert len(violations) == 1
+        assert violations[0].passed
+
+    def test_r033_passed_when_data_not_mild(self) -> None:
+        """数据落地但非温和（市场未预先定价）→ 通过."""
+        checker = DoctrineChecker()
+        decision = {"direction": "long", "position_pct": 0.15, "action": "add"}
+        context = {
+            "data_event_recent_72h": True,
+            "data_landed_mild": False,
+            "trend_confirmed": False,
+        }
         result = checker.check(decision, context)
         violations = [v for v in result.violations if v.rule.id == "r033"]
         assert len(violations) == 1
         assert violations[0].passed
 
     def test_r033_warn_mild_data_no_trend(self) -> None:
-        """数据温和落地 + 趋势未确认 + 加仓 → 警告（核心场景）."""
+        """数据温和落地 + 加仓 → 警告（核心场景，72h 禁加仓）."""
         checker = DoctrineChecker()
         decision = {"direction": "long", "position_pct": 0.15, "action": "add"}
-        context = {"data_event_recent": True, "data_landed_mild": True, "trend_confirmed": False}
+        context = {"data_event_recent_72h": True, "data_landed_mild": True, "trend_confirmed": False}
         result = checker.check(decision, context)
         violations = [v for v in result.violations if v.rule.id == "r033"]
         assert len(violations) == 1
         assert not violations[0].passed
-        assert "趋势未确认" in violations[0].message
+        assert "禁止任何加仓" in violations[0].message
 
     def test_r033_warn_escalated_repeated_buy(self) -> None:
-        """数据温和 + 24h内多次追买 + 趋势未确认 → 升级警示."""
+        """数据温和 + 72h内多次追买 → 升级警示."""
         checker = DoctrineChecker()
         decision = {"direction": "long", "position_pct": 0.15, "action": "add"}
         context = {
-            "data_event_recent": True,
+            "data_event_recent_72h": True,
             "data_landed_mild": True,
-            "trend_confirmed": False,
-            "repeated_buy_24h": True,
+            "repeated_buy_72h": True,
         }
         result = checker.check(decision, context)
         violations = [v for v in result.violations if v.rule.id == "r033"]
         assert len(violations) == 1
         assert not violations[0].passed
-        assert "多次连续追买" in violations[0].message
+        assert "连续追买" in violations[0].message
+
+    # ------------------------------------------------------------------
+    # r034 数据温和期震荡止盈
+    # ------------------------------------------------------------------
+
+    def test_r034_passed_when_no_position(self) -> None:
+        """无持仓 → r034 通过."""
+        checker = DoctrineChecker()
+        decision = {"direction": "long", "position_pct": 0.0, "action": "hold"}
+        context = {
+            "data_event_recent_48h": True,
+            "data_landed_mild": True,
+            "near_range_high": True,
+            "smart_money_outflow": True,
+            "in_profit": True,
+            "has_position": False,
+        }
+        result = checker.check(decision, context)
+        violations = [v for v in result.violations if v.rule.id == "r034"]
+        assert len(violations) == 1
+        assert violations[0].passed
+
+    def test_r034_passed_when_not_hold_action(self) -> None:
+        """加仓动作 → r034 不触发（管持有/减仓，加仓归 r033）."""
+        checker = DoctrineChecker()
+        decision = {"direction": "long", "position_pct": 0.15, "action": "add"}
+        context = {
+            "data_event_recent_48h": True,
+            "data_landed_mild": True,
+            "near_range_high": True,
+            "smart_money_outflow": True,
+            "in_profit": True,
+            "has_position": True,
+        }
+        result = checker.check(decision, context)
+        violations = [v for v in result.violations if v.rule.id == "r034"]
+        assert len(violations) == 1
+        assert violations[0].passed
+
+    def test_r034_passed_when_missing_conditions(self) -> None:
+        """数据温和但缺高位震荡/聪明钱流出/浮盈之一 → 通过（避免矫枉过正）."""
+        checker = DoctrineChecker()
+        decision = {"direction": "long", "position_pct": 0.15, "action": "hold"}
+        context = {
+            "data_event_recent_48h": True,
+            "data_landed_mild": True,
+            "near_range_high": True,
+            "smart_money_outflow": False,  # 聪明钱未流出
+            "in_profit": True,
+            "has_position": True,
+        }
+        result = checker.check(decision, context)
+        violations = [v for v in result.violations if v.rule.id == "r034"]
+        assert len(violations) == 1
+        assert violations[0].passed
+
+    def test_r034_warn_mild_data_oscillation(self) -> None:
+        """数据温和+高位震荡+聪明钱流出+浮盈+持有 → 警告（核心场景）."""
+        checker = DoctrineChecker()
+        decision = {"direction": "long", "position_pct": 0.15, "action": "hold"}
+        context = {
+            "data_event_recent_48h": True,
+            "data_landed_mild": True,
+            "near_range_high": True,
+            "smart_money_outflow": True,
+            "in_profit": True,
+            "has_position": True,
+        }
+        result = checker.check(decision, context)
+        violations = [v for v in result.violations if v.rule.id == "r034"]
+        assert len(violations) == 1
+        assert not violations[0].passed
+        assert "部分止盈" in violations[0].message
+        assert "评估主动减仓" in violations[0].message  # hold 动作升级提示
+
+    def test_r034_warn_reduce_action_no_escalation(self) -> None:
+        """减仓动作已符合 r034 → 警告但不含'应评估主动减仓'提示."""
+        checker = DoctrineChecker()
+        decision = {"direction": "long", "position_pct": 0.15, "action": "reduce_half"}
+        context = {
+            "data_event_recent_48h": True,
+            "data_landed_mild": True,
+            "near_range_high": True,
+            "smart_money_outflow": True,
+            "in_profit": True,
+            "has_position": True,
+        }
+        result = checker.check(decision, context)
+        violations = [v for v in result.violations if v.rule.id == "r034"]
+        assert len(violations) == 1
+        assert not violations[0].passed
+        assert "应评估主动减仓" not in violations[0].message
 
 
 class TestDoctrineStore:
