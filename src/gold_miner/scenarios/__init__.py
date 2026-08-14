@@ -9,6 +9,11 @@ from gold_miner.scenarios.models import (
     ScenarioReport,
     StrategyRecommendation,
 )
+from gold_miner.scenarios.price_target import (
+    PriceTargetScenario,
+    build_price_target_matrix,
+    validate_scenario_transmissions,
+)
 from gold_miner.scenarios.store import ScenarioStore
 
 __all__ = [
@@ -19,4 +24,7 @@ __all__ = [
     "ImpactChannel",
     "PriceImpactEstimate",
     "StrategyRecommendation",
+    "PriceTargetScenario",
+    "build_price_target_matrix",
+    "validate_scenario_transmissions",
 ]

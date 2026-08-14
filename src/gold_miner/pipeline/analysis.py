@@ -1530,6 +1530,10 @@ class AnalysisPipeline:
             "smart_money_outflow": self._smart_money_outflow(flow_info),
             "in_profit": unrealized > 0,  # 净口径浮盈（pipeline 已按 r032 计费）
             "has_position": current_gold_pct > 0,
+            # r035 情景传导链完整性: Step 9 生成三情景矩阵后回填校验结果;
+            # Step 4 尚无情景数据, 默认通过, Step 9 补判 (见 _step_plan 9.26).
+            "scenario_transmission_ok": True,
+            "scenario_transmission_warnings": [],
         }
 
         checker = DoctrineChecker()
@@ -2525,6 +2529,126 @@ class AnalysisPipeline:
                 )
         except Exception as e:
             logger.warning(f"[9/9] 情景触发条件生成失败: {e}")
+
+        # 9.26 三情景目标区间矩阵 + 传导链完整性校验 (2026-08-14 事故修复)
+        #   事故: 「停火破裂→地缘避险→冲965」只写单层利多, 漏「油价→通胀→联储→利率压制」二阶效应.
+        #   此处结构化生成三情景矩阵, 并用 validate_scenario_transmissions 强制校验:
+        #   地缘/油价驱动情景必须同时有利多+利空传导 + 时间尺度分化.
+        try:
+            from gold_miner.scenarios.price_target import (
+                build_price_target_matrix,
+                validate_scenario_transmissions,
+            )
+
+            ref_price = float(
+                result.minsheng_accumulation_price
+                or result.current_price
+                or result.intl_price
+                or 0
+            )
+            # ATR: 与 _inject_atr_trailing_stop 相同数据源重算 (失败 fallback 0)
+            atr_val = 0.0
+            if ref_price > 0:
+                try:
+                    from gold_miner.data.jd_accumulation_gold import (
+                        JdAccumulationGoldFetcher,
+                    )
+                    from gold_miner.strategy.trailing_stop import ATRTrailingStop
+
+                    jd = JdAccumulationGoldFetcher(bank="MS")
+                    df = jd.fetch(days=90)
+                    if df is not None and len(df) >= 14:
+                        sig = ATRTrailingStop(atr_period=14).calculate(df)
+                        atr_val = float(getattr(sig, "atr", 0) or 0)
+                except Exception as e:
+                    logger.warning(f"[9/9] ATR 重算失败, 目标区间用默认波动: {e}")
+
+            # 通用三情景规格 (骨架, 分析报告在此基础填充细节).
+            # delta 相对现价 %: 看多=短期脉冲冲高; 震荡=中枢区间; 回调=跌破 ATR 下沿.
+            base_xauusd = float(result.intl_price or 0)
+            scenario_specs = [
+                {
+                    "name": "看多突破(先冲后落)",
+                    "direction": "bullish",
+                    "probability_pct": 25,
+                    "gold_delta_pct_low": 0.5,
+                    "gold_delta_pct_high": 1.5,
+                    "trigger_conditions": "停火破裂/地缘升级 + 央行购金延续 + 技术突破",
+                    "transmission_channels": [
+                        "利多: 地缘避险溢价 → 短期冲高 (short-term)",
+                        "利空: 油价↑→通胀↑→联储鹰派→实际利率↑ → 中期回落 (medium-term, 先冲后落)",
+                    ],
+                    "falsification": "停火续约/协议签署 → 溢价回吐, 脉冲证伪",
+                    "reasoning": f"基于现价 {ref_price:.2f}, ATR {atr_val:.2f}; 上沿参考整数关口/前高",
+                },
+                {
+                    "name": "高位震荡",
+                    "direction": "neutral",
+                    "probability_pct": 50,
+                    "gold_delta_pct_low": -2.0,
+                    "gold_delta_pct_high": 0.5,
+                    "trigger_conditions": "停火拖延模糊 + 数据温和 + 聪明钱流出",
+                    "transmission_channels": [
+                        "中性: 多空博弈, 冲高乏力+回落有撑 (medium-term)",
+                    ],
+                    "falsification": "单日波动>3% 突破区间上下沿 → 震荡证伪",
+                    "reasoning": f"现价 {ref_price:.2f} 上方一档与 ATR 下沿之间",
+                },
+                {
+                    "name": "回调修正",
+                    "direction": "bearish",
+                    "probability_pct": 25,
+                    "gold_delta_pct_low": -5.0,
+                    "gold_delta_pct_high": -2.0,
+                    "trigger_conditions": "停火续约/签署→溢价回吐 或 9月加息概率回升",
+                    "transmission_channels": [
+                        "利空: 溢价回吐 → 回落 (short-term)",
+                        "利多: 深跌后央行购金/避险承接 → 跌深有撑 (medium-term)",
+                    ],
+                    "falsification": "地缘再升级 → 回调证伪, 反转向上",
+                    "reasoning": f"下沿参考承接档/净保本价下方; ATR {atr_val:.2f}",
+                },
+            ]
+            matrix = build_price_target_matrix(
+                current_price=ref_price,
+                atr=atr_val,
+                base_xauusd=base_xauusd,
+                scenarios=scenario_specs,
+            )
+            if matrix:
+                result.scenario_plan["price_targets"] = [s.__dict__ for s in matrix]
+                warnings = validate_scenario_transmissions(matrix)
+                result.scenario_plan["transmission_warnings"] = warnings
+
+                # r035 回填: 情景数据在 Step 9 才就绪, 补判军规并追加到 doctrine_result
+                result.doctrine_ctx["scenario_transmission_warnings"] = warnings
+                result.doctrine_ctx["scenario_transmission_ok"] = not warnings
+                if warnings and result.doctrine_result is not None:
+                    try:
+                        from gold_miner.doctrine.rules import get_rule_by_id
+                        from gold_miner.doctrine.models import RuleViolation
+
+                        rule = get_rule_by_id("r035")
+                        violation = RuleViolation(
+                            rule=rule,
+                            passed=False,
+                            message=(
+                                "⚠️ 情景预案传导链不完整：地缘/油价驱动情景须同时评估利多+利空传导"
+                                "（油价→通胀→联储→实际利率）并标注时间尺度（短期脉冲 vs 中期回落）"
+                                f"（r035）；{'; '.join(warnings[:2])}"
+                            ),
+                            details={"warnings": warnings},
+                        )
+                        result.doctrine_result.warnings.append(violation)
+                        result.doctrine_result.violations.append(violation)
+                        result.doctrine_result.failed_count += 1
+                    except Exception as e:
+                        logger.warning(f"[9/9] r035 回填失败: {e}")
+
+                for w in warnings:
+                    logger.warning(f"[9/9] 传导链校验: {w}")
+        except Exception as e:
+            logger.warning(f"[9/9] 目标区间矩阵生成失败: {e}")
 
         # 9.3 自动追踪 (原 _step_track)
         if not ctx.skip_tracking:

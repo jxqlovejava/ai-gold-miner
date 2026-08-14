@@ -329,6 +329,15 @@ RULE_MILD_DATA_OSCILLATION_REDUCE = InvestmentRule(
     check_fn="check_data_landing_reduce",
 )
 
+RULE_SCENARIO_TRANSMISSION = InvestmentRule(
+    id="r035",
+    name="情景传导链完整性",
+    description="三情景目标区间预测中，地缘/油价驱动情景（触发条件含停火/战争/封锁/霍尔木兹/油价等）必须同时评估直接传导与二阶传导（油价↑→通胀↑→联储鹰派→实际利率↑→压制金价或美元走强），并标注时间尺度分化（短期脉冲 vs 中期回落），防止把短期脉冲当可持续目标。单层传导=遗漏二阶效应，决策失真",
+    severity="warn",
+    category="operations",
+    check_fn="check_scenario_transmission",
+)
+
 
 # ------------------------------------------------------------------
 # 全部规则集合
@@ -369,6 +378,7 @@ ALL_RULES: list[InvestmentRule] = [
     RULE_FRICTION_COST,
     RULE_DATA_LANDING_TREND,
     RULE_MILD_DATA_OSCILLATION_REDUCE,
+    RULE_SCENARIO_TRANSMISSION,
 ]
 
 

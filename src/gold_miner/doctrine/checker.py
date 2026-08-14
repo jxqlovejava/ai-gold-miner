@@ -752,6 +752,41 @@ class DoctrineChecker:
             },
         )
 
+    def check_scenario_transmission(self, decision: dict, ctx: dict) -> RuleViolation:
+        """r035: 情景预案须评估二阶传导（直接+二阶+时间尺度），单层传导=遗漏二阶效应.
+
+        ctx 字段:
+          - scenario_transmission_ok: bool — 三情景目标区间中, 地缘/油价驱动情景是否
+            同时评估利多+利空传导并标注时间尺度分化（由 validate_scenario_transmissions 判定）
+          - scenario_transmission_warnings: list[str] — 校验警告明细（可选，用于信息级展示）
+        """
+        rule = self._get_rule("check_scenario_transmission")
+        ok = bool(ctx.get("scenario_transmission_ok", True))
+        warnings = ctx.get("scenario_transmission_warnings", [])
+
+        if ok:
+            return RuleViolation(
+                rule=rule,
+                passed=True,
+                message="情景预案传导链完整（直接+二阶+时间尺度）",
+                details={"scenario_transmission_ok": True},
+            )
+
+        detail = f"；{'; '.join(warnings[:3])}" if warnings else ""
+        return RuleViolation(
+            rule=rule,
+            passed=False,
+            message=(
+                "⚠️ 情景预案传导链不完整：地缘/油价驱动情景须同时评估利多+利空传导"
+                "（油价→通胀→联储→实际利率）并标注时间尺度（短期脉冲 vs 中期回落）"
+                f"{detail}（r035）"
+            ),
+            details={
+                "scenario_transmission_ok": False,
+                "warnings": warnings,
+            },
+        )
+
     # ------------------------------------------------------------------
     # helper
     # ------------------------------------------------------------------
