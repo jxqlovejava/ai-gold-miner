@@ -140,6 +140,10 @@ OPP_DEFAULTS: dict = {
     "cooldown_breakout_min": 60,              # 突破预警冷却
     "cooldown_rebound_min": 60,               # 反弹通知冷却 (2026-08-12: 反弹持续时每5分钟推送触发 iLink 限流)
     "trend_high_window_polls": 12,            # 本轮高点采样窗口(轮询次数, 5min×12≈1h): 用窗口内最高价而非下跌前单一快照
+    "cooldown_atr_sl_min": 60,                # ATR浮亏轨破位提醒冷却 (2026-08-14: 908破位清机动仓评估, 60min不重复)
+    "atr_sl_break_key_levels": [908.0],       # 自定义破位警戒位(元/克) 优先级高于动态ATR浮亏轨; 空列表=[只跟动态]
+    "atr_sl_break_band_pct": 0.003,           # 破位带宽 ±0.3% (接近但不触发, 供"逼近"提示)
+    "atr_sl_recovery_pct": 0.01,              # 破位后回升超1%再跌破才重提醒 (防跌穿后反复)
 }
 OPP_CONFIG_PATH = PROJECT_ROOT / "data/private/opportunity_config.yaml"
 SIGNAL_SNAPSHOT_PATH = PROJECT_ROOT / "data/signal_snapshot.json"
@@ -230,6 +234,7 @@ def _get_stop_context(current: float) -> dict:
         "to_atr_pct": None,
         "to_hard_pct": None,
         "to_secondary_pct": None,
+        "tactical_g": 0.0,
     }
     p = _load_portfolio()
     if not p:
@@ -238,6 +243,8 @@ def _get_stop_context(current: float) -> dict:
         gold = p["positions"]["gold_jd"]
         ctx["hard_stop"] = float(gold.get("hard_stop", 0) or 0)
         ctx["secondary_stop"] = float(gold.get("secondary_stop", 0) or 0)
+        split = gold.get("split", {}) if isinstance(gold.get("split"), dict) else {}
+        ctx["tactical_g"] = float(split.get("tactical", 0) or 0)
     except (KeyError, ValueError, TypeError):
         pass
 
@@ -383,6 +390,9 @@ DEFAULT_STATE = {
     "breakout_alert_price": None,
     # 进行中事件去重 (2026-08-13): 同一事件窗口内只推送一次的 key 列表
     "ongoing_notified": [],
+    # ATR 浮亏轨破位去重 (2026-08-14): 跌破 908 后冷却期内不重复推送
+    "atr_sl_break_at": None,
+    "atr_sl_break_price": None,
 }
 
 
@@ -506,6 +516,46 @@ def _check_cost_proximity(current: float, cost: float) -> dict | None:
                 "message": f"{msg} (净保本线 {cost:.2f}元, 当前 {current:.2f}, 净盈利仅剩 {profit_margin*100:.1f}%)",
                 "severity": "HIGH" if threshold <= 0.02 else "MEDIUM",
             }
+    return None
+
+
+def _check_atr_stop_break(current: float, stop_ctx: dict, state: dict, cfg: dict) -> dict | None:
+    """ATR 浮亏轨破位检测 — 跌破 ATR 止损位(浮亏轨)时推送微信提醒.
+
+    2026-08-14: 用户机动仓已降至 7.13g, 不再挂 908 卖出条件单(克数太小, 摩擦>保护),
+    改用监控脚本对 ATR 浮亏轨(成本-3×ATR≈908)破位做提醒, 触发时人工决定是否清机动仓.
+
+    破位判定: 现价 ≤ atr_stop_loss(浮亏轨). 但注意现价在净保本上方时走浮盈轨,
+    stop_ctx["atr_stop_loss"] 恒为浮亏轨(成本-3ATR), 是保守止损位.
+    去重: 同一次破位只在冷却期内推一次 (ATR_SL_COOLDOWN_SEC).
+
+    返回 None 表示未破位/已冷却.
+    """
+    atr_sl = stop_ctx.get("atr_stop_loss") or 0.0
+    if atr_sl <= 0 or current > atr_sl:
+        return None
+    if current <= atr_sl:
+        # 已冷却: 冷却期内不重复推
+        last_at = state.get("atr_sl_break_at")
+        if last_at:
+            try:
+                from datetime import datetime as _dt
+                elapsed = (_now() - _dt.fromisoformat(last_at)).total_seconds()
+            except (ValueError, TypeError):
+                elapsed = 99999.0
+            if elapsed < cfg.get("cooldown_atr_sl_sec", 3600):
+                return None
+        # 记录本次破位时间
+        state["atr_sl_break_at"] = _now().isoformat()
+        return {
+            "type": "atr_stop_break",
+            "message": (
+                f"🔴 跌破ATR浮亏轨止损位 {atr_sl:.2f}元/克! 当前 {current:.2f}\n"
+                f"   💡 机动仓 {stop_ctx.get('tactical_g', 0):.2f}g 评估是否清仓; "
+                f"880低吸档暂停(r021/r024, 不一边减一边接)"
+            ),
+            "severity": "CRITICAL",
+        }
     return None
 
 
@@ -1605,6 +1655,16 @@ def main() -> int:
     for evt in ongoing_events:
         alerts.append(evt)
 
+    # 4i. ATR 浮亏轨破位检测 (2026-08-14): 跌破 ATR止损位(≈908) 推送微信提醒
+    # 现价在净保本上方时走浮盈轨, 但 atr_stop_loss 恒为浮亏轨(成本-3ATR),
+    # 作为保守保护位检测. 冷却 1h 内不重复 (state.atr_sl_break_at).
+    # 提前计算 stop_ctx (原在输出时延迟计算, 此处需要 atr_stop_loss 判破位),
+    # 输出卡片时复用同一 stop_ctx 避免重复计算.
+    stop_ctx = _get_stop_context(current)
+    atr_stop_break = _check_atr_stop_break(current, stop_ctx, state, opp_cfg)
+    if atr_stop_break:
+        alerts.append(atr_stop_break)
+
     # 5. 🆕 下跌原因分析 — 检测是否是机构在抛售
     #    价格下跌超阈值时触发, 结果缓存30分钟
     drop_reason = None
@@ -1630,8 +1690,7 @@ def main() -> int:
     )
 
     if should_output:
-        # 输出时才计算风控上下文: 卡片常驻 ATR止盈/止损数值行 + 急变告警距离提示
-        stop_ctx = _get_stop_context(current)
+        # 风控上下文已在 4i 提前计算 (stop_ctx 复用), 卡片常驻 ATR止盈/止损数值行
         if surge and stop_ctx:
             ctx_line = _format_stop_context(stop_ctx)
             if ctx_line:
