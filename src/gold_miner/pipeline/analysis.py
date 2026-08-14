@@ -256,7 +256,7 @@ class AnalysisPipeline:
 
     @staticmethod
     def _validate_calendar(result: AnalysisResult) -> None:
-        """1.1 日历日期+钟点+覆盖度校验."""
+        """1.1 日历日期+钟点+覆盖度 + 官方 schedule 比对."""
         try:
             import subprocess
             import sys
@@ -271,6 +271,27 @@ class AnalysisPipeline:
             if r.returncode != 0:
                 logger.warning(f"[日历校验] 警告/错误详情:\n{output[:500]}")
             result.prepare_result["calendar_validation"] = output[-800:]
+
+            # 官方 schedule 比对 (validate_bls_schedule.py): TradingEconomics 源.
+            # 拦截 "DOW 校验无法发现" 的日期偏移 (如 PPI 8/14 vs 官方 8/13).
+            # 网络不可用 → 脚本内部降级 warning (exit 0); 日期不一致 → exit 1 阻断.
+            try:
+                s = subprocess.run(
+                    [sys.executable, "scripts/validate_bls_schedule.py",
+                     "--days-back", "7", "--days-ahead", "45", "--fail-on-error"],
+                    capture_output=True, text=True, timeout=60,
+                    cwd=str(_PROJECT_DATA_DIR.parent),
+                )
+                s_out = s.stdout + s.stderr
+                result.prepare_result["bls_schedule_validation"] = s_out[-800:]
+                if s.returncode != 0:
+                    result.messages.append("[官方日历比对] ❌ 发现宏观事件日期错误, 禁止继续分析")
+                    logger.error(f"[官方日历比对] 宏观事件日期错误, 须先修正 calendar_events.jsonl:\n{s_out[:800]}")
+                    result.prepare_result["calendar_validation_error"] = True
+                else:
+                    logger.info("[官方日历比对] ✅ 通过 (TE 官方日历日期一致)")
+            except Exception as e:
+                logger.warning(f"[官方日历比对] 执行失败(降级跳过): {e}")
         except Exception as e:
             logger.warning(f"[日历校验] 执行失败: {e}")
             result.prepare_result["calendar_validation"] = f"执行失败: {e}"

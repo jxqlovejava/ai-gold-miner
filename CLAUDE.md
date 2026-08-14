@@ -48,6 +48,8 @@
 2. **搜后反查星期** — 得到日期后立即算当日周几，确认不是周末/节假日（官方数据不会在非工作日发布）
 3. **关键事件日期（PCE、非农、CPI、FOMC 等）必须查官网 release schedule 确认**，不以搜索摘要为最终依据
 4. **🆕 DOW 参考表强制校验** — 每次分析输出前，必须先运行 `PYTHONPATH=src python scripts/validate_calendar_dates.py --ref-table 30`，将输出的事件 DOW 参考表与报告中提到的所有事件日期逐条对照。报告中任何"周X + 事件名"的组合必须与参考表中的 ET 星期完全一致。**此规则不可绕过——代码层面 `add_event` 已对已知确定性事件（如初请失业金=周四、FOMC决议=周三、非农=周五）做 DOW 硬阻断**。
+5. **🆕 官方 schedule 日期比对强制校验（2026-08-14 起）** — DOW 校验拦不住"日期错一天但星期合法"（PPI 8/14 vs 官方 8/13；ppi 期望星期=周一至周五全放行）。`gold-miner prepare` 已自动跑 `scripts/validate_bls_schedule.py`（TradingEconomics 官方日历比对——BLS 官网 bls.gov/schedule 被 Akamai 反爬 403，TE 可达）。校验范围：**未发布** 的 ppi/cpi/pce/非农/FOMC纪要，日期不一致 → `❌ 阻断分析`（`--fail-on-error` exit 1）。TE 网络不可用 → 降级 warning 不阻断。**本地兜底**：`calendar_time_rules.check_relative_anchors()`（同月 CPI/PPI 发布时间相邻 ≤5 天，顺序不限——9 月 PPI 可先于 CPI）已在 validate_calendar_dates.py 内运行。
+   - 事故根因：日历宏观事件日期靠推算/抄录（非官网），曾出现 PPI 8/13 标 8/14、PCE 8/26 标 8/27、9 月 PPI/CPI/PCE 全偏 4-5 天（9/10→9/14、9/11→9/15、9/30→9/25）。三处均已按官网 schedule 修正。
 
 > 背景：曾因忽略系统年份（2026）而用 2025 年关键词搜索，叠加未校验星期，导致 PCE 日期输出错误（周五 vs 实际周四）。
 > 🆕 2026-07-18：分析报告中"周三初请失业金"实际为周四（7/23），根因：输出时未用 DOW 参考表逐条校验。已通过 `calendar_time_rules.check_event_dow()` + `--ref-table` 工具链修复。

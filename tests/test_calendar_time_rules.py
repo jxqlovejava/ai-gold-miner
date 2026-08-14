@@ -9,6 +9,7 @@ import pytest
 from gold_miner.data.calendar import CalendarEvent, EventCalendar, EventImpact, EventType
 from gold_miner.data.calendar_time_rules import (
     check_event_clock,
+    check_relative_anchors,
     dual_clock_str,
     is_hearing_like,
     make_et_iso,
@@ -218,3 +219,56 @@ class TestDowCheck:
         assert "周三" in table  # FOMC
         assert "✅" in table     # 全部通过校验
         assert not is_hearing_like("ISM制造业PMI", "pmi")
+
+
+class TestRelativeAnchors:
+    """方案 B (2026-08-14): 同月 CPI/PPI 相邻性 — 拦截"日期偏移但 DOW 放行"粗错误."""
+
+    @staticmethod
+    def _ev(name: str, etype: str, iso: str) -> dict:
+        return {"name": name, "event_type": etype, "scheduled_at": iso}
+
+    def test_same_month_adjacent_ok(self):
+        # BLS 8月: CPI 8/12 + PPI 8/13 (隔1天) → 无警告
+        evs = [
+            self._ev("美国CPI", "cpi", "2026-08-12T08:30:00-04:00"),
+            self._ev("美国PPI", "ppi", "2026-08-13T08:30:00-04:00"),
+        ]
+        findings = check_relative_anchors(evs)
+        assert not [f for f in findings if f.severity == "warning"]
+
+    def test_sep_ppi_before_cpi_ok(self):
+        # 2026-09 特殊: PPI 9/10 先于 CPI 9/11 — 顺序不限, 仍相邻 → 无警告
+        evs = [
+            self._ev("美国CPI", "cpi", "2026-09-11T08:30:00-04:00"),
+            self._ev("美国PPI", "ppi", "2026-09-10T08:30:00-04:00"),
+        ]
+        findings = check_relative_anchors(evs)
+        assert not [f for f in findings if f.severity == "warning"]
+
+    def test_gap_over_5_days_warns(self):
+        # PPI 与 CPI 相隔 6 天 → 警告 (BLS 同周惯例被打破)
+        evs = [
+            self._ev("美国CPI", "cpi", "2026-08-12T08:30:00-04:00"),
+            self._ev("美国PPI", "ppi", "2026-08-18T08:30:00-04:00"),
+        ]
+        findings = check_relative_anchors(evs)
+        assert any(f.severity == "warning" and f.code == "cpi_ppi_gap" for f in findings)
+
+    def test_cross_month_no_pair_skips(self):
+        # PPI 与 CPI 发布月不同 → 无法配对, 跳过不误报
+        evs = [
+            self._ev("美国CPI", "cpi", "2026-08-12T08:30:00-04:00"),
+            self._ev("美国PPI", "ppi", "2026-09-10T08:30:00-04:00"),
+        ]
+        findings = check_relative_anchors(evs)
+        assert not [f for f in findings if f.severity == "warning"]
+
+    def test_non_us_cpi_excluded(self):
+        # UK CPI 不应干扰美国 PPI 配对
+        evs = [
+            self._ev("UK CPI(7月)", "cpi", "2026-08-19T02:00:00-04:00"),
+            self._ev("美国PPI", "ppi", "2026-09-10T08:30:00-04:00"),
+        ]
+        findings = check_relative_anchors(evs)
+        assert not [f for f in findings if f.severity == "warning"]

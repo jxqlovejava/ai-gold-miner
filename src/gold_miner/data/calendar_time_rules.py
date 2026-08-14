@@ -323,6 +323,71 @@ def check_event_dow(
     return findings
 
 
+def _ev_date(ev: dict) -> datetime | None:
+    """从 jsonl 行事件提取 scheduled_at datetime (解析失败返回 None)."""
+    sat = ev.get("scheduled_at", "")
+    if not sat:
+        return None
+    try:
+        return datetime.fromisoformat(sat)
+    except ValueError:
+        return None
+
+
+def check_relative_anchors(events: Iterable[dict]) -> list[TimeCheckFinding]:
+    """跨事件相对锚点校验 — 不依赖网络/官方排期, 离线兜底.
+
+    规则: 同发布月的美国 CPI 与 PPI 应相邻发布 (间隔 ≤ 5 天, 顺序不限).
+    BLS 惯例 CPI 与 PPI 同周发布 (多相隔 1-3 天, 偶因假期跨周);
+    顺序不固定 — 如 2026-09 是 PPI 9/10 先发, CPI 9/11 后发.
+    此校验能拦截 "CPI/PPI 之一日期明显偏移(>5天)" 或 "发布月错配" 的粗错误.
+    注意: 拦不住"整体偏移 1-5 天且仍相邻"的错误 — 那需官方 schedule 比对
+    (scripts/validate_bls_schedule.py, TE 源, 网络可用时跑).
+
+    Returns: findings (异常 = warning, 需人工核对官网 schedule).
+    """
+    findings: list[TimeCheckFinding] = []
+
+    def _is_us(ev: dict, types: set[str]) -> bool:
+        if ev.get("event_type", "") not in types:
+            return False
+        name = ev.get("name", "")
+        return not any(
+            kw in name for kw in ("UK", "德国", "法国", "欧元区", "EU ", "中国", "日本")
+        )
+
+    cpis = [e for e in events if _is_us(e, {"cpi"})]
+    ppis = [e for e in events if _is_us(e, {"ppi"})]
+
+    for ppi in ppis:
+        p_date = _ev_date(ppi)
+        if p_date is None:
+            continue
+        same_month = [
+            c for c in cpis
+            if _ev_date(c) is not None
+            and _ev_date(c).year == p_date.year
+            and _ev_date(c).month == p_date.month
+        ]
+        if not same_month:
+            continue  # 无同发布月 CPI, 无法配对校验
+        for cpi in same_month:
+            c_date = _ev_date(cpi)
+            if c_date is None:
+                continue
+            diff = abs((p_date.date() - c_date.date()).days)
+            if diff > 5:
+                findings.append(TimeCheckFinding(
+                    "warning",
+                    "cpi_ppi_gap",
+                    f"[ppi] {ppi.get('name')} ({p_date.date()}) 与同发布月 "
+                    f"{cpi.get('name')} ({c_date.date()}) 相隔 {diff} 天, "
+                    f"超过 BLS 同周惯例(≤5天). 请核对 BLS schedule 确认日期.",
+                ))
+
+    return findings
+
+
 # ---- 输出参考表 ----
 
 def generate_dow_reference_table(

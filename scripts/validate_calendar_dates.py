@@ -47,6 +47,7 @@ if str(_SRC) not in sys.path:
 from gold_miner.data.calendar_time_rules import (  # noqa: E402
     check_event_clock,
     check_event_dow,
+    check_relative_anchors,
     dual_clock_str,
     generate_dow_reference_table,
     to_beijing,
@@ -108,6 +109,13 @@ def validate() -> tuple[list[str], list[str]]:
                 errors.append(finding.message)
             else:
                 warnings.append(finding.message)
+
+    # ---- 3. 跨事件相对锚点 (离线兜底): 同月 CPI/PPI 相邻性 ----
+    for finding in check_relative_anchors(events):
+        if finding.severity == "error":
+            errors.append(finding.message)
+        else:
+            warnings.append(finding.message)
 
     return errors, warnings
 
