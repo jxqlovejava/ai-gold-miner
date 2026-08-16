@@ -168,6 +168,17 @@ def _now() -> datetime:
     return datetime.now(BEIJING)
 
 
+def _is_accum_trading_time() -> bool:
+    """民生积存金是否处于交易时段 (交易日 9:05 — 次日 02:00).
+
+    休市期间价格冻结, 价格类检查无新信号; 门禁在 main() 入口使用,
+    防止同一冻结价反复触发 cost_proximity/rebound 等告警推送 (2026-08-16).
+    """
+    from gold_miner.data.trading_hours import is_accumulation_trading_time
+
+    return is_accumulation_trading_time(_now())
+
+
 # ═══════════════════════════════════════════════════════════════
 # 价格获取
 # ═══════════════════════════════════════════════════════════════
@@ -1559,6 +1570,19 @@ def _format_card(
 
 def main() -> int:
     state = _load_state()
+
+    # 0. 休市时段门禁 (2026-08-16): 积存金休市 → 价格冻结, 同一冻结价反复触发
+    #    cost_proximity/rebound/surge 等告警是纯噪音 (每5分钟推一次微信).
+    #    跳过全部价格类检查, 仅保留宏观事件提醒 (FOMC/CPI/PCE 可发生在任意钟点,
+    #    如 FOMC 02:00 北京) — _check_ongoing_events 内部已按事件窗口去重.
+    if not _is_accum_trading_time():
+        ongoing = _check_ongoing_events(state)
+        if ongoing:
+            card = "📅 休市期宏观事件提醒\n" + "\n".join(a["message"] for a in ongoing)
+            print(card, flush=True)
+            _send_alert(card)
+        _save_state(state)
+        return 0
 
     # 1. 自适应频率: 决定是否执行完整检查
     should_check, reason = _should_check(state)

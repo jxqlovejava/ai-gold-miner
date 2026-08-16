@@ -180,8 +180,12 @@ def _card(now: datetime, price: dict | None, portfolio: str | None, orders: str,
 
 def main() -> int:
     now = _now()
-    if now.weekday() >= 5:
-        return 0  # 周六日积存金休市, 不提醒
+    # 积存金休市时段 (交易日 9:05-次日02:00 之外, 含周末/节假日) → 静默.
+    # 2026-08-16: 从仅周末升级为完整交易时段门禁 — 休市期价格冻结, 无新信号.
+    from gold_miner.data.trading_hours import is_accumulation_trading_time
+
+    if not is_accumulation_trading_time(now):
+        return 0
 
     price = _fetch_price_jd()
     if price is None:

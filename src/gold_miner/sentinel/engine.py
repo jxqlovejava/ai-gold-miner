@@ -23,23 +23,11 @@ from .models import (
 from .orders import check_order_proximity, load_active_orders
 from .quotes import fetch_quotes
 
+# 交易日/交易时段判断 — 单一真相源 (2026-08-16 迁移至 gold_miner.data.trading_hours)
+# is_cn_trading_day / next_cn_trading_day 在此 re-export 以兼容旧引用
+from gold_miner.data.trading_hours import is_cn_trading_day, next_cn_trading_day
+
 BEIJING = timezone(timedelta(hours=8))
-
-# 国内主要节假日 (非交易日) — 覆盖 2026 下半年 (日期为北京时间)
-# 周六/周日永远非交易日; 法定节假日补班/放假在此维护
-_CN_HOLIDAYS: set[str] = {
-    # 中秋节 (2026-09-25, 周五) + 周末
-    "2026-09-25",
-    # 国庆节 (2026-10-01 ~ 10-07)
-    "2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04",
-    "2026-10-05", "2026-10-06", "2026-10-07",
-}
-
-# 调休补班日 (周六/周日但为工作日, 市场正常交易) — 按官方调休安排维护
-_CN_MAKEUP_WORKDAYS: set[str] = {
-    # 2026 中秋/国庆调休补班示例 (以国务院正式通知为准):
-    # "2026-09-27",  # 若国庆前周日补班
-}
 
 # 例行观察 → 通俗人话解释 (按 monitor 名字关键词匹配, 让用户一眼看懂在监控什么)
 # 结构: 多个 (关键词, 通俗解释)。命中多个关键词时拼接。
@@ -67,33 +55,6 @@ def monitor_plain_hint(name: str) -> str:
         if kw in name:
             return hint
     return ""
-
-
-def is_cn_trading_day(day: datetime) -> bool:
-    """判断北京时间 day 是否为国内黄金交易日.
-
-    积存金/上金所交易日 = 工作日且非法定节假日, 或调休补班日(周六日实为交易日)。
-    """
-    bj = day.astimezone(BEIJING)
-    date_str = bj.strftime("%Y-%m-%d")
-    # 法定节假日 → 非交易日 (即使是工作日)
-    if date_str in _CN_HOLIDAYS:
-        return False
-    # 调休补班日 → 交易日 (即使是周六/周日)
-    if date_str in _CN_MAKEUP_WORKDAYS:
-        return True
-    if bj.weekday() >= 5:  # 周六(5)/周日(6) 且非补班 → 非交易日
-        return False
-    return True
-
-
-def next_cn_trading_day(day: datetime) -> datetime:
-    """返回 day 之后的第一个国内交易日 (北京时间)."""
-    bj = day.astimezone(BEIJING)
-    candidate = bj + timedelta(days=1)
-    while not is_cn_trading_day(candidate):
-        candidate += timedelta(days=1)
-    return candidate
 
 
 class SentinelEngine:
