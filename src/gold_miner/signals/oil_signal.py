@@ -102,6 +102,9 @@ class OilSignalGenerator:
         signals.extend(self._spike_signal(latest, chg1))
         signals.extend(self._trend_signal(latest, chg5))
         signals.extend(self._stagflation_signal(latest, chg20))
+        # 统一标注 source_tier (T0=FRED官方), 供 _audit_source_tiers 覆盖审计
+        for s in signals:
+            s.metadata.setdefault("source_tier", self.SOURCE_TIER)
         return signals
 
     @staticmethod

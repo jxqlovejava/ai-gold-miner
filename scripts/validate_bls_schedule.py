@@ -216,6 +216,14 @@ def run(
     window_start = today - timedelta(days=days_back)
     window_end = today + timedelta(days=days_ahead)
 
+    # 非美国国家标记 — BLS/TE 校验仅针对美国数据 (CPI/PPI/PCE/非农/FOMC).
+    # 2026-08-17 事故: UK CPI(8月) 日历 9/16 被误当美国 CPI 与 TE 9/11 比对 → 误报阻断.
+    # 其他国家同类型事件(UK CPI/德国CPI等)不适用 BLS schedule, 必须排除.
+    _NON_US_NAMES = [
+        "UK", "英国", "德国", "欧元区", "法国", "意大利", "西班牙",
+        "日本", "中国", "印度", "加拿大", "澳大利亚", "欧盟", "瑞士",
+    ]
+
     # 提取窗口内需要校验的事件
     targets: list[tuple[dict, str, date]] = []
     for e in cal_events:
@@ -225,6 +233,10 @@ def run(
             continue
         # 已发布事件 (actual 非空): 日期已由发布确认, 无校验意义, 跳过
         if e.get("actual"):
+            continue
+        name = e.get("name", "")
+        # 非美国事件排除: 名称含非美国国家标记 → 跳过 BLS schedule 校验
+        if et in ("cpi", "ppi", "pce") and any(nm in name for nm in _NON_US_NAMES):
             continue
         sat = e.get("scheduled_at", "")
         if not sat:

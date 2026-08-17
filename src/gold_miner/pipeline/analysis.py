@@ -1153,6 +1153,11 @@ class AnalysisPipeline:
         from gold_miner.signals.base import FactType
 
         fact_rules: list[tuple[str, list[str], FactType]] = [
+            # ⚠️ 预测市场/概率类数据 = 预测（非事实），必须优先于"金价/官方数据"等事实规则匹配
+            #   (2026-08-17 事故: Polymarket/Kalshi 的「9月降息概率2%」曾被当事实引用。
+            #   预测市场概率是实时变动的市场预期, 不是已发生事件)
+            ("", ["预测市场", "Polymarket", "Kalshi", "FedWatch", "CME Fed",
+                  "加息概率", "降息概率", "隐含概率", "概率为", "概率达"], FactType.PROJECTION),
             # 技术指标数值 = 事实
             ("technical", ["RSI(", "MACD:", "均线", "布林带", "ATR", "成交量",
                            "支撑", "阻力", "20日", "60日", "200日"], FactType.FACT),
@@ -1168,7 +1173,7 @@ class AnalysisPipeline:
                   "大概率", "可能将", "或将"], FactType.PROJECTION),
             # 机构观点
             ("", ["分析师认为", "机构认为", "策略师", "研报", "投行",
-                  "高盛", "摩根", "花旗", "建议"], FactType.OPINION),
+                  "高盛", "摩根", "花旗", "共识", "建议"], FactType.OPINION),
             # 地缘事件 = 事实(不可争议发生了)
             ("event", ["空袭", "停火", "谈判", "封锁", "制裁", "协议",
                        "冲突", "袭击", "声明", "决议"], FactType.FACT),
