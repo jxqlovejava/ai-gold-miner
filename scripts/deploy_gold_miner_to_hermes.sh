@@ -182,6 +182,11 @@ if [[ -f "$ROOT/scripts/hermes_wrapper_evening.py" ]]; then
     "${SSH[@]}" "$HOST" "chmod +x /home/ubuntu/.hermes/scripts/gold_evening_preview.py"
     echo "  ✅ gold_evening_preview.py"
 fi
+if [[ -f "$ROOT/scripts/hermes_wrapper_overnight.py" ]]; then
+    "${SCP[@]}" "$ROOT/scripts/hermes_wrapper_overnight.py" "$HOST:/home/ubuntu/.hermes/scripts/gold_overnight_news.py"
+    "${SSH[@]}" "$HOST" "chmod +x /home/ubuntu/.hermes/scripts/gold_overnight_news.py"
+    echo "  ✅ gold_overnight_news.py (timeout 240s + 超时优雅降级)"
+fi
 
 echo "==> 部署 crontab 配置文件"
 "${SCP[@]}" "$ROOT/scripts/hermes_crontab.txt" "$HOST:$REMOTE_ROOT/scripts/"
