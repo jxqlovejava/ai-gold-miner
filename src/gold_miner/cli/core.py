@@ -127,7 +127,13 @@ def main() -> None:
     elif args.command == "quote":
         run_quote()
     elif args.command == "scan":
-        run_scan(days=args.days, deep=args.deep, report_file=args.report_file)
+        run_scan(
+            days=args.days,
+            with_news=args.news,
+            with_sentiment=args.sentiment,
+            deep=args.deep,
+            report_file=args.report_file,
+        )
     elif args.command == "backtest":
         run_backtest(args)
     elif args.command == "journal":
