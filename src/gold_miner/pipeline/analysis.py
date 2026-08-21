@@ -42,7 +42,14 @@ from gold_miner.execution.notifier import Notifier
 from gold_miner.experience import ExperienceLoader
 from gold_miner.improvement.tracker import PredictionRecord, PredictionTracker
 from gold_miner.llm.client import LLMClient
-from gold_miner.signals.base import FactType, Signal, SignalBundle, SignalDirection, SignalStrength
+from gold_miner.signals.base import (
+    FactType,
+    Signal,
+    SignalBundle,
+    SignalDirection,
+    SignalStrength,
+    dimension_label,
+)
 from gold_miner.signals.candlestick import CandlestickPatternDetector
 from gold_miner.signals.chanlun_signal import ChanlunSignalGenerator
 from gold_miner.signals.cot_signal import CotSignalGenerator
@@ -1079,10 +1086,11 @@ class AnalysisPipeline:
         # --- 1. Source tier 覆盖审计 ---
         tier_coverage = self._audit_source_tiers(bundle)
         for dim, tiers in tier_coverage.items():
+            dim_zh = dimension_label(dim)
             if not tiers:
-                warnings.append(f"[source_tier] {dim} 维度缺少来源标注")
+                warnings.append(f"[source_tier] {dim_zh} 维度缺少来源标注")
             elif all(t in ("T3", "unknown") for t in tiers):
-                warnings.append(f"[source_tier] {dim} 维度全部为低可信源 (T3/unknown)")
+                warnings.append(f"[source_tier] {dim_zh} 维度全部为低可信源 (T3/unknown)")
 
         # --- 2. 跨维度方向一致性 ---
         inconsistencies = self._check_cross_dimension_consistency(bundle)
@@ -1350,6 +1358,7 @@ class AnalysisPipeline:
 
         # 对比维度对
         dims = list(dim_stance.keys())
+        zh_dir = {"bullish": "看多", "bearish": "看空"}
         warnings: list[str] = []
         for i in range(len(dims)):
             for j in range(i + 1, len(dims)):
@@ -1357,8 +1366,8 @@ class AnalysisPipeline:
                 s1, s2 = dim_stance[d1], dim_stance[d2]
                 if s1[0] != s2[0] and s1[1] > 0.6 and s2[1] > 0.6:
                     warnings.append(
-                        f"维度矛盾: {d1}({s1[0]} {s1[1]:.0%}) vs "
-                        f"{d2}({s2[0]} {s2[1]:.0%})，信号方向相反"
+                        f"维度矛盾: {dimension_label(d1)}({zh_dir.get(s1[0], s1[0])} {s1[1]:.0%}) vs "
+                        f"{dimension_label(d2)}({zh_dir.get(s2[0], s2[0])} {s2[1]:.0%})，信号方向相反"
                     )
 
         return warnings

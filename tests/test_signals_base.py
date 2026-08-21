@@ -3,7 +3,13 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from gold_miner.signals.base import Signal, SignalBundle, SignalDirection, SignalStrength
+from gold_miner.signals.base import (
+    DIMENSION_LABELS,
+    Signal,
+    SignalBundle,
+    SignalDirection,
+    SignalStrength,
+)
 
 
 class TestSignalDirection:
@@ -231,15 +237,32 @@ class TestSignalBundle:
     # ── format_dimension_table ──
 
     def test_format_dimension_table_contains_dimension_names(self) -> None:
-        """表格应包含维度名称和汇总行."""
+        """表格应包含中文维度名称和汇总行（输出语言铁律：维度名必须中文）."""
         bundle = SignalBundle()
         bundle.add(Signal(name="a", dimension="technical", direction=SignalDirection.BULLISH, strength=SignalStrength.STRONG, score=0.5))
         bundle.add(Signal(name="b", dimension="news", direction=SignalDirection.BEARISH, strength=SignalStrength.MODERATE, score=-0.3))
 
         table = bundle.format_dimension_table()
-        assert "technical" in table
-        assert "news" in table
+        assert "技术面" in table
+        assert "消息面" in table
+        # 不得泄漏英文 dimension key
+        assert "technical" not in table
+        assert "news" not in table
         assert "有效维度方向对比" in table  # 汇总行必须有
+
+    def test_format_dimension_table_all_known_dimensions_in_chinese(self) -> None:
+        """所有已知维度 key 在表格中均显示中文标签，无英文泄漏."""
+        bundle = SignalBundle()
+        for dim in DIMENSION_LABELS:
+            bundle.add(Signal(
+                name=f"sig_{dim}", dimension=dim,
+                direction=SignalDirection.NEUTRAL, strength=SignalStrength.WEAK, score=0.0,
+            ))
+
+        table = bundle.format_dimension_table()
+        for dim, label in DIMENSION_LABELS.items():
+            assert label in table, f"维度 {dim} 应显示中文「{label}」"
+            assert dim not in table, f"维度 {dim} 不得以英文出现在表格中"
 
     def test_format_dimension_table_dual_totals(self) -> None:
         """双口径汇总: 维度数对比 + 信号数对比并存, 揭示维度粒度掩盖的背离.

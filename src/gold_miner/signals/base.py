@@ -1,6 +1,7 @@
 """信号基类与通用类型."""
 from __future__ import annotations
 
+import unicodedata
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -32,6 +33,54 @@ class FactType(StrEnum):
     INTERPRETATION = "interpretation"  # 因果推断: "X 因为 Y 上涨"
     PROJECTION = "projection"         # 预测/展望: "预计 X 将..."
     OPINION = "opinion"               # 机构/分析师主观观点
+
+
+DIMENSION_LABELS: dict[str, str] = {
+    # 信号维度 key → 中文标签（输出语言铁律：维度名一律中文）
+    "technical": "技术面",
+    "fundamental": "基本面",
+    "sentiment": "情绪面",
+    "news": "消息面",
+    "long_term": "长期趋势",
+    "oil": "油价",
+    "hype_bias": "反带节奏",
+    "recent_events": "近期事件",
+    "polymarket": "预测市场",
+    "monitor": "监控触发",
+    "event": "事件驱动",
+    "event_calendar": "经济日历",
+    "scenario": "情景推演",
+    "macro_pivot": "宏观政策转向",
+    # 记忆/主题 ID 兼容（事件驱动信号可能以主题维出现，兜底显示）
+    "smart_money": "聪明钱",
+    "geopolitical": "地缘冲突",
+    "fed_policy": "美联储政策",
+    "ceasefire_diplomacy": "停火谈判与外交",
+    "israel_houthi": "以色列-胡塞-也门",
+}
+
+
+def dimension_label(dim: str) -> str:
+    """信号维度 key → 中文标签；未收录的 key 原样返回."""
+    return DIMENSION_LABELS.get(dim, dim)
+
+
+def _char_width(ch: str) -> int:
+    """单字符显示宽度（CJK 全角=2，其余=1）."""
+    return 2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1
+
+
+def _fit_display(s: str, width: int) -> str:
+    """按显示宽度截断并补空格，使中英文混排的表格对齐."""
+    cur = 0
+    for i, ch in enumerate(s):
+        w = _char_width(ch)
+        if cur + w > width:
+            s = s[:i]
+            break
+        cur += w
+    pad = width - cur
+    return s + " " * max(pad, 0)
 
 
 @dataclass
@@ -253,11 +302,11 @@ class SignalBundle:
         }
 
         for dim, info in summary.items():
-            # 维度名截断至多16字符
-            dim_display = dim[:16]
+            # 维度名输出中文标签（输出语言铁律），按显示宽度对齐
+            dim_display = dimension_label(dim)
             dir_display = dir_labels.get(info["dominant"], info["dominant"])
             lines.append(
-                f"│ {dim_display:<16} │ {dir_display:<18} │ "
+                f"│ {_fit_display(dim_display, 16)} │ {_fit_display(dir_display, 18)} │ "
                 f"{info['bullish']:>4} │ {info['bearish']:>4} │ "
                 f"{info['neutral']:>4} │ {info['avg_score']:>+6.2f} │"
             )
