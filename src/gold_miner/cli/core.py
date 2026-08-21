@@ -76,6 +76,8 @@ def main() -> None:
     parser.add_argument("--target-pct", type=float, default=None, help="预期涨跌幅")
     parser.add_argument("--reasoning", type=str, default=None, help="预判推理链")
     parser.add_argument("--deep", action="store_true", default=False, help="使用LLM深度分析文章 (analyze)")
+    parser.add_argument("--report-file", type=str, default=None,
+                        help="scan 报告完整输出保存到文件（Tee：同时保留控制台实时输出）")
     # daemon 命令参数
     parser.add_argument("--interval", type=int, default=60, help="扫描间隔(分钟)")
     parser.add_argument("--once", action="store_true", default=False, help="仅执行一次")
@@ -125,7 +127,7 @@ def main() -> None:
     elif args.command == "quote":
         run_quote()
     elif args.command == "scan":
-        run_scan(days=args.days, deep=args.deep)
+        run_scan(days=args.days, deep=args.deep, report_file=args.report_file)
     elif args.command == "backtest":
         run_backtest(args)
     elif args.command == "journal":
