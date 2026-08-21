@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import io
 import subprocess
+import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from time import sleep as _sleep
@@ -87,6 +88,11 @@ class CotReportFetcher(DataFetcher):
     # 黄金在CFTC报告中的市场和合约代码
     GOLD_MARKET = "CMX"
     GOLD_CONTRACT = "GOLD"
+
+    # 进程内 TTL 缓存: COT 每周五更新一次, 同一次 scan 内 _trend/_extreme/_divergence/
+    # _structure 四个信号入口会重复拉取同一份数据 → 缓存合并为 1 次网络请求 (fast-analysis).
+    _cftc_records_cache: dict[str, tuple[float, list[CotGoldData] | None]] = {}
+    _CFTC_CACHE_TTL_SECONDS = 3600  # 1h (报告周频, 1h 足够跨多次 scan)
 
     def __init__(self) -> None:
         super().__init__(
@@ -203,15 +209,25 @@ class CotReportFetcher(DataFetcher):
         }
 
     def _fetch_from_cftc(self) -> list[CotGoldData] | None:
-        """从CFTC下载并解析COT报告."""
+        """从CFTC下载并解析COT报告 (带进程内 TTL 缓存).
+
+        同一次 scan 内 fetch/fetch_net_position/fetch_real 多次调用只触发一次网络下载,
+        后续命中缓存直接返回 — 避免 4 个信号入口各自下载同一份周频报告.
+        """
+        now = time.time()
+        cached = CotReportFetcher._cftc_records_cache.get("gold")
+        if cached and now - cached[0] <= CotReportFetcher._CFTC_CACHE_TTL_SECONDS:
+            return cached[1]
+
+        records: list[CotGoldData] | None = None
         try:
             records = self._parse_cftc_csv()
-            if records:
-                return records
         except Exception as e:
             logger.warning(f"CFTC数据下载失败: {e}")
 
-        return None
+        # 缓存结果 (含 None 失败态: 短窗口内不再重复重试, 避免连续 N 个信号入口各自触发降级链)
+        CotReportFetcher._cftc_records_cache["gold"] = (now, records)
+        return records
 
     def _parse_cftc_csv(self) -> list[CotGoldData] | None:
         """解析 CFTC comma-delimited COT 报告.
