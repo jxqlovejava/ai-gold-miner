@@ -24,6 +24,7 @@ import pandas as pd
 from loguru import logger
 
 from gold_miner.data.base import DataFetcher, DataSourceMeta
+from gold_miner.data.caching import TtlCache
 from gold_miner.data.economic_data import EconomicDataPoint, EconomicDataRecorder
 from gold_miner.proxy import get_proxied_client
 
@@ -39,6 +40,10 @@ class GldHoldingsFetcher(DataFetcher):
         "?product=gld&exchange=NYSE&lang=en"
     )
     SHEET_NAME = "US GLD Historical Archive"
+
+    # 类级 TTL 缓存: 同进程内 etf 与 smart_money 生成器并行抢拉同一份 GLD 持仓,
+    # 通过 double-checked locking 保证并发冷启动只下载一次, 消除重复的慢速 SSL 降级重试
+    _fetch_cache = TtlCache(ttl_seconds=600)
 
     def __init__(self, recorder: EconomicDataRecorder | None = None) -> None:
         super().__init__(
@@ -118,20 +123,38 @@ class GldHoldingsFetcher(DataFetcher):
         end: datetime | None = None,
         **kwargs: Any,
     ) -> pd.DataFrame:
-        """下载并解析 GLD 历史持仓数据.
+        """下载并解析 GLD 历史持仓数据 (进程内 TTL 缓存去重).
 
         返回 DataFrame 列：timestamp, value（吨）, nav_per_share, shares_volume
+        """
+        full = self._fetch_cache.get_or(self._download_and_parse)
+        if full is None:
+            logger.debug("GLD 持仓数据不可用")
+            return pd.DataFrame(columns=["timestamp", "value", "nav_per_share", "shares_volume"])
+
+        # 缓存的是全量数据, 按需裁剪日期
+        df = full
+        if start:
+            df = df[df["timestamp"] >= pd.Timestamp(start)]
+        if end:
+            df = df[df["timestamp"] <= pd.Timestamp(end)]
+        return df.reset_index(drop=True)
+
+    def _download_and_parse(self) -> pd.DataFrame | None:
+        """下载+解析 GLD 全量历史持仓; 失败/空返回 None (不缓存, 下次重试).
+
+        含持久化最新值 (仅在真正下载时执行, 缓存命中跳过)。
         """
         content = self._download_content()
         if content is None:
             logger.debug("GLD 持仓数据下载失败: 所有策略不可用")
-            return pd.DataFrame(columns=["timestamp", "value", "nav_per_share", "shares_volume"])
+            return None
 
         try:
             df = pd.read_excel(BytesIO(content), sheet_name=self.SHEET_NAME)
         except Exception as e:
             logger.warning(f"GLD Excel 解析失败: {e}")
-            return pd.DataFrame(columns=["timestamp", "value", "nav_per_share", "shares_volume"])
+            return None
 
         # 标准化列名
         df = df.rename(
@@ -146,7 +169,7 @@ class GldHoldingsFetcher(DataFetcher):
         required = {"date", "value"}
         if not required.issubset(df.columns):
             logger.warning(f"GLD 数据缺少必要列: {required - set(df.columns)}")
-            return pd.DataFrame(columns=["timestamp", "value", "nav_per_share", "shares_volume"])
+            return None
 
         df["timestamp"] = pd.to_datetime(df["date"], errors="coerce")
         df["value"] = pd.to_numeric(df["value"], errors="coerce")
@@ -158,16 +181,11 @@ class GldHoldingsFetcher(DataFetcher):
         )
         df = df.sort_values("timestamp").reset_index(drop=True)
 
-        if not df.empty:
-            self._persist_latest(df)
+        if df.empty:
+            return None
 
-        # 应用日期过滤
-        if start:
-            df = df[df["timestamp"] >= pd.Timestamp(start)]
-        if end:
-            df = df[df["timestamp"] <= pd.Timestamp(end)]
-
-        return df.reset_index(drop=True)
+        self._persist_latest(df)
+        return df
 
     def fetch_latest(self) -> pd.DataFrame:
         """获取最新一条 GLD 持仓数据."""

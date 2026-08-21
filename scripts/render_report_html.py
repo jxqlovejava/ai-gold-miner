@@ -236,9 +236,8 @@ def _ordered_list_block(lines: list[str]) -> str:
                 if not s:
                     continue
                 if re.match(r"^[-*]\s+", s):
-                    nested.append(
-                        f"<div class='li-nest-item'>{_inline(re.sub(r'^[-*]\s+', '', s))}</div>"
-                    )
+                    nested_text = _inline(re.sub(r"^[-*]\s+", "", s))
+                    nested.append(f"<div class='li-nest-item'>{nested_text}</div>")
                 else:
                     nested.append(f"<div class='li-nest-item'>{_inline(s)}</div>")
             if nested:

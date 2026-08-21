@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -12,6 +14,9 @@ from gold_miner.config import settings
 from gold_miner.data.base import DataFetcher, DataSourceMeta
 from gold_miner.data.economic_data import EconomicDataPoint, EconomicDataRecorder
 from gold_miner.proxy import get_proxied_client
+
+# 项目 data 目录 (与 pipeline analysis.py _PROJECT_DATA_DIR 一致)
+_DATA_DIR = Path(__file__).resolve().parents[3] / "data"
 
 
 class MacroDataFetcher(DataFetcher):
@@ -205,9 +210,49 @@ class MacroDataFetcher(DataFetcher):
         except Exception as e:
             logger.warning(f"持久化宏观数据失败 ({series_id}): {e}")
 
-    # 最近已知 DXY 值 — Yahoo Finance 限速时用作缓存 fallback
+    # 最近已知 DXY 值 — 限速/离线时用作缓存 fallback (进程内 + 磁盘持久化跨进程)
     _DXY_CACHE: float | None = None
     _DXY_CACHE_TS: float = 0.0  # epoch seconds
+    _DXY_FAST_TTL_SECONDS = 600.0  # 磁盘缓存 10 分钟内直接用, 跳过 Yahoo (避免 429)
+    _DXY_STALE_TTL_SECONDS = 24 * 3600.0  # 降级 fallback 有效期
+
+    @staticmethod
+    def _dxy_cache_path() -> Path:
+        """磁盘缓存路径: data/cache/dxy_cache.json (跨进程生效)."""
+        return _DATA_DIR / "cache" / "dxy_cache.json"
+
+    @staticmethod
+    def _read_dxy_disk_cache() -> tuple[float, float] | None:
+        """读取磁盘缓存 → (value, epoch_ts); 无/损坏返回 None."""
+        p = MacroDataFetcher._dxy_cache_path()
+        try:
+            if p.exists():
+                data = json.loads(p.read_text(encoding="utf-8"))
+                return float(data["value"]), float(data["ts"])
+        except Exception:
+            pass
+        return None
+
+    @staticmethod
+    def _write_dxy_disk_cache(value: float) -> None:
+        """写入磁盘缓存 (失败静默)."""
+        from time import time as _now
+
+        try:
+            p = MacroDataFetcher._dxy_cache_path()
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(
+                json.dumps({"value": value, "ts": _now()}),
+                encoding="utf-8",
+            )
+        except Exception:
+            pass
+
+    @staticmethod
+    def _is_rate_limited(err: Exception) -> bool:
+        """判断 yfinance 异常是否为 Yahoo 限流 (429); 限流时无需长退避等待."""
+        msg = str(err).lower()
+        return "429" in msg or "too many requests" in msg or "rate limited" in msg
 
     def fetch_dxy(self) -> pd.DataFrame:
         """抓取 ICE 美元指数 (DXY) 历史数据 — Yahoo Finance ``DX-Y.NYB``.
@@ -215,12 +260,24 @@ class MacroDataFetcher(DataFetcher):
         注意: 不要与 FRED ``DTWEXBGS``（贸易加权美元指数，水平约 120）混淆。
         交易者口中的 DXY 指 ICE Dollar Index，水平约 100。
 
-        多层降级: yfinance HTTPS → yfinance HTTP (noproxy) → 缓存 → 空
+        多层降级: 磁盘缓存(10min) → yfinance HTTPS → 直连 session → 磁盘缓存(24h) → 硬编码
+        429 限流时不长退避空等 (原 10s+20s 指数退避空耗 33s), 直接走缓存/fallback。
         """
         from time import sleep as _sleep
         from time import time as _time
 
         symbol = settings.yahoo_symbol_dxy
+
+        # Strategy 0: 磁盘缓存快路径 (10 分钟内, 避免触发 Yahoo 限流)
+        disk = MacroDataFetcher._read_dxy_disk_cache()
+        if disk is not None and (_time() - disk[1]) <= MacroDataFetcher._DXY_FAST_TTL_SECONDS:
+            logger.debug(
+                f"ICE DXY 使用磁盘缓存 ({disk[0]:.2f}, age={(_time() - disk[1]) / 60:.0f}min)"
+            )
+            MacroDataFetcher._DXY_CACHE = disk[0]
+            MacroDataFetcher._DXY_CACHE_TS = disk[1]
+            return pd.DataFrame([{"timestamp": datetime.now(), "value": disk[0]}])
+
         hist = None
 
         # Strategy 1: yfinance 默认 (可能触发 429)
@@ -228,18 +285,19 @@ class MacroDataFetcher(DataFetcher):
             try:
                 import yfinance as yf
 
-                if attempt > 0:
-                    _sleep((2 ** attempt) * 5)  # 10s, 20s 指数退避 — Yahoo 429 需要更长时间冷却
-
                 ticker = yf.Ticker(symbol)
                 hist = ticker.history(period="1y")
                 if hist is not None and not hist.empty:
                     break
-            except Exception as e:
                 if attempt < 2:
-                    logger.debug(f"ICE DXY yfinance 失败 (attempt {attempt + 1}/3): {e}")
-                else:
-                    logger.debug(f"ICE DXY yfinance 全部失败: {e}")
+                    _sleep(2 ** attempt)  # 1s, 2s (原 10s/20s 指数退避 — 429 无需等满)
+            except Exception as e:
+                logger.debug(f"ICE DXY yfinance 失败 (attempt {attempt + 1}/3): {e}")
+                if MacroDataFetcher._is_rate_limited(e):
+                    logger.debug("ICE DXY 被 Yahoo 限流(429), 跳过退避直接用缓存/fallback")
+                    break
+                if attempt < 2:
+                    _sleep(2 ** attempt)
 
         # Strategy 2: yfinance + session (绕过代理，有时代理本身触发限速)
         if hist is None or hist.empty:
@@ -263,23 +321,33 @@ class MacroDataFetcher(DataFetcher):
             df["value"] = pd.to_numeric(df["value"], errors="coerce")
             out = df[["timestamp", "value"]].dropna().reset_index(drop=True)
             if not out.empty:
-                # 更新缓存
+                # 更新进程内 + 磁盘缓存 (跨进程生效)
                 MacroDataFetcher._DXY_CACHE = float(out["value"].iloc[-1])
                 MacroDataFetcher._DXY_CACHE_TS = _time()
+                MacroDataFetcher._write_dxy_disk_cache(MacroDataFetcher._DXY_CACHE)
                 logger.debug(f"ICE DXY 获取成功: {MacroDataFetcher._DXY_CACHE:.2f}")
                 return out
 
-        # Strategy 3: 使用缓存 fallback (24h 内的缓存有效)
+        # Strategy 3: 磁盘缓存 fallback (跨进程; 24h 内有效)
+        if disk is not None and (_time() - disk[1]) <= MacroDataFetcher._DXY_STALE_TTL_SECONDS:
+            logger.debug(
+                f"ICE DXY 使用磁盘缓存 ({disk[0]:.2f}, age={(_time() - disk[1]) / 3600:.1f}h)"
+            )
+            MacroDataFetcher._DXY_CACHE = disk[0]
+            MacroDataFetcher._DXY_CACHE_TS = disk[1]
+            return pd.DataFrame([{"timestamp": datetime.now(), "value": disk[0]}])
+
+        # Strategy 4: 进程内缓存 fallback (24h 内的缓存有效)
         if MacroDataFetcher._DXY_CACHE is not None:
             age_h = (_time() - MacroDataFetcher._DXY_CACHE_TS) / 3600
             if age_h < 24:
-                logger.debug(f"ICE DXY 使用缓存 ({MacroDataFetcher._DXY_CACHE:.2f}, age={age_h:.1f}h)")
+                logger.debug(f"ICE DXY 使用进程缓存 ({MacroDataFetcher._DXY_CACHE:.2f}, age={age_h:.1f}h)")
                 return pd.DataFrame([{
                     "timestamp": datetime.now(),
                     "value": MacroDataFetcher._DXY_CACHE,
                 }])
 
-        # Strategy 4: 硬编码 fallback (~101 为 2026-07 典型区间)
+        # Strategy 5: 硬编码 fallback (~101 为 2026-07 典型区间)
         logger.debug("ICE DXY 所有策略失败，使用硬编码 fallback (~101)")
         return pd.DataFrame([{
             "timestamp": datetime.now(),
@@ -376,7 +444,24 @@ class MacroDataFetcher(DataFetcher):
             return pd.DataFrame(columns=["timestamp", "value"])
 
     def fetch_silver(self) -> pd.DataFrame:
-        """获取白银价格 — 上海金交所 Ag99.99 (元/克)."""
+        """获取白银价格 — 上海金交所 Ag99.99 (元/克).
+
+        主源: jdgold 免登录 SGE 白银日K (快, ~1s); 兜底: akshare spot_hist_sge。
+        SGE 白银报价单位为元/千克, 统一 /1000 转为元/克。
+        """
+        try:
+            from gold_miner.data.jdgold_client import _SILVER_CODE, fetch_sge_kline
+
+            df = fetch_sge_kline("day", code=_SILVER_CODE)
+            if df is not None and not df.empty:
+                out = df[["timestamp", "close"]].rename(columns={"close": "value"})
+                out["value"] = pd.to_numeric(out["value"], errors="coerce") / 1000
+                out = out.dropna()
+                if not out.empty:
+                    return out.reset_index(drop=True)
+        except Exception as e:
+            logger.warning(f"jdgold 白银数据获取失败, 回退 akshare: {e}")
+
         try:
             import akshare as ak
             df = ak.spot_hist_sge(symbol="Ag99.99")

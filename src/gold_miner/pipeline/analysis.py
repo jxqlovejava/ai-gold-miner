@@ -265,32 +265,54 @@ class AnalysisPipeline:
 
     @staticmethod
     def _validate_calendar(result: AnalysisResult) -> None:
-        """1.1 日历日期+钟点+覆盖度 + 官方 schedule 比对."""
+        """1.1 日历日期+钟点+覆盖度 + 官方 schedule 比对 (两个校验子进程并行)."""
         try:
             import subprocess
             import sys
-            r = subprocess.run(
-                [sys.executable, "scripts/validate_calendar_dates.py", "--ref-table", "30"],
-                capture_output=True, text=True, timeout=30,
-                cwd=str(_PROJECT_DATA_DIR.parent),
-            )
-            output = r.stdout + r.stderr
-            result.messages.append(f"[日历校验] {'✅ 通过' if r.returncode == 0 else '⚠️ 有警告/错误'}")
-            logger.info(f"[日历校验] {'✅ 通过' if r.returncode == 0 else '⚠️ 有警告/错误，详见输出'}")
-            if r.returncode != 0:
-                logger.warning(f"[日历校验] 警告/错误详情:\n{output[:500]}")
-            result.prepare_result["calendar_validation"] = output[-800:]
+            from concurrent.futures import ThreadPoolExecutor
+
+            cwd = str(_PROJECT_DATA_DIR.parent)
+
+            def _run_calendar() -> subprocess.CompletedProcess:
+                return subprocess.run(
+                    [sys.executable, "scripts/validate_calendar_dates.py", "--ref-table", "30"],
+                    capture_output=True, text=True, timeout=30, cwd=cwd,
+                )
+
+            def _run_bls() -> subprocess.CompletedProcess:
+                return subprocess.run(
+                    [sys.executable, "scripts/validate_bls_schedule.py",
+                     "--days-back", "7", "--days-ahead", "45", "--fail-on-error"],
+                    capture_output=True, text=True, timeout=60, cwd=cwd,
+                )
+
+            # 两个校验子进程并行 (各自独立启动 Python + 网络, 串行会累加耗时)
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                f_cal = pool.submit(_run_calendar)
+                f_bls = pool.submit(_run_bls)
+                try:
+                    r = f_cal.result()
+                except Exception as e:
+                    logger.warning(f"[日历校验] validate_calendar_dates 执行失败: {e}")
+                    r = None
+                try:
+                    s = f_bls.result()
+                except Exception as e:
+                    logger.warning(f"[官方日历比对] validate_bls_schedule 执行失败(降级跳过): {e}")
+                    s = None
+
+            if r is not None:
+                output = r.stdout + r.stderr
+                result.messages.append(f"[日历校验] {'✅ 通过' if r.returncode == 0 else '⚠️ 有警告/错误'}")
+                logger.info(f"[日历校验] {'✅ 通过' if r.returncode == 0 else '⚠️ 有警告/错误，详见输出'}")
+                if r.returncode != 0:
+                    logger.warning(f"[日历校验] 警告/错误详情:\n{output[:500]}")
+                result.prepare_result["calendar_validation"] = output[-800:]
 
             # 官方 schedule 比对 (validate_bls_schedule.py): TradingEconomics 源.
             # 拦截 "DOW 校验无法发现" 的日期偏移 (如 PPI 8/14 vs 官方 8/13).
             # 网络不可用 → 脚本内部降级 warning (exit 0); 日期不一致 → exit 1 阻断.
-            try:
-                s = subprocess.run(
-                    [sys.executable, "scripts/validate_bls_schedule.py",
-                     "--days-back", "7", "--days-ahead", "45", "--fail-on-error"],
-                    capture_output=True, text=True, timeout=60,
-                    cwd=str(_PROJECT_DATA_DIR.parent),
-                )
+            if s is not None:
                 s_out = s.stdout + s.stderr
                 result.prepare_result["bls_schedule_validation"] = s_out[-800:]
                 if s.returncode != 0:
@@ -299,8 +321,6 @@ class AnalysisPipeline:
                     result.prepare_result["calendar_validation_error"] = True
                 else:
                     logger.info("[官方日历比对] ✅ 通过 (TE 官方日历日期一致)")
-            except Exception as e:
-                logger.warning(f"[官方日历比对] 执行失败(降级跳过): {e}")
         except Exception as e:
             logger.warning(f"[日历校验] 执行失败: {e}")
             result.prepare_result["calendar_validation"] = f"执行失败: {e}"

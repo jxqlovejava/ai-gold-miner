@@ -1,15 +1,16 @@
 """ETF 资金流数据 — 黄金ETF + 比特币ETF流入流出追踪."""
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime
-from time import sleep
 from typing import Any
 
 import pandas as pd
 from loguru import logger
 
 from gold_miner.data.base import DataFetcher, DataSourceMeta
+from gold_miner.data.caching import TtlCache
 
 
 @dataclass
@@ -39,7 +40,15 @@ class GoldEtfFlowFetcher(DataFetcher):
         "518800": "黄金ETF国泰",
         "518660": "黄金ETF工银",
         "518850": "黄金ETF华夏",
+        "159812": "黄金ETF前海开源",
     }
+
+    # 已知黄金ETF的东财 secid (沪=1, 深=0) — 与 akshare fund_etf_spot_em 名称含"黄金ETF" 集合一致
+    # (2026-08 实测 7 只). 用于定向查询, 替代全市场 15 页分页拉取 (~20s → ~0.4s)
+    GOLD_ETF_SECIDS = ",".join([
+        "1.518850", "0.159934", "0.159937", "1.518800",
+        "1.518880", "0.159812", "1.518660",
+    ])
 
     def __init__(self) -> None:
         super().__init__(
@@ -51,22 +60,76 @@ class GoldEtfFlowFetcher(DataFetcher):
             )
         )
 
+    # 类级 TTL 缓存: 同进程内 _gold_etf_signals 与 _cross_asset_signals 重复拉取复用
+    _fetch_cache = TtlCache(ttl_seconds=600)
+
     def fetch(self, **kwargs: Any) -> pd.DataFrame:
-        """获取所有黄金ETF实时行情."""
+        """获取所有黄金ETF实时行情 (进程内 TTL 缓存去重)."""
+        df = self._fetch_cache.get_or(self._fetch_impl)
+        return df if df is not None else pd.DataFrame()
+
+    def _fetch_impl(self) -> pd.DataFrame | None:
+        """实际拉取; 失败/空返回 None (不缓存, 下次调用会重试).
+
+        优先定向快查已知黄金ETF (ulist, ~0.4s), 失败回退 akshare 全市场分页 (~20s)。
+        """
+        df = self._fetch_gold_etf_fast()
+        if df is None or df.empty:
+            logger.warning("黄金ETF定向查询失败, 回退 akshare 全市场分页")
+            df = self._fetch_gold_etf_akshare()
+        return df if (df is not None and not df.empty) else None
+
+    @staticmethod
+    def _fetch_gold_etf_fast() -> pd.DataFrame | None:
+        """东财 ulist 定向查询已知黄金ETF (替代 fund_etf_spot_em 全市场 15 页分页 ~20s→~0.4s).
+
+        返回列与 akshare fund_etf_spot_em 黄金子集一致: 代码/名称/最新价/涨跌额/涨跌幅/成交量/成交额
+        """
+        try:
+            import httpx
+
+            url = "https://push2delay.eastmoney.com/api/qt/ulist.np/get"
+            params = {
+                "fltt": "2",
+                "invt": "2",
+                "secids": GoldEtfFlowFetcher.GOLD_ETF_SECIDS,
+                "fields": "f12,f14,f2,f3,f4,f5,f6",
+            }
+            resp = httpx.get(
+                url, params=params, timeout=15,
+                headers={"User-Agent": "Mozilla/5.0"},
+            )
+            resp.raise_for_status()
+            diff = ((resp.json().get("data") or {}).get("diff")) or []
+            if not diff:
+                return None
+            df = pd.DataFrame(diff)
+            df = df.rename(columns={
+                "f12": "代码", "f14": "名称", "f2": "最新价",
+                "f3": "涨跌幅", "f4": "涨跌额", "f5": "成交量", "f6": "成交额",
+            })
+            df = df[["代码", "名称", "最新价", "涨跌额", "涨跌幅", "成交量", "成交额"]]
+            for col in ["最新价", "涨跌额", "涨跌幅", "成交量", "成交额"]:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+            return df
+        except Exception as e:
+            logger.debug(f"黄金ETF定向查询失败: {e}")
+            return None
+
+    @staticmethod
+    def _fetch_gold_etf_akshare() -> pd.DataFrame | None:
+        """回退: akshare fund_etf_spot_em 全市场分页 (慢但权威)."""
         try:
             import akshare as ak
 
             df = ak.fund_etf_spot_em()
             if df is None or df.empty:
-                logger.warning("黄金ETF行情数据为空")
-                return pd.DataFrame()
-
-            gold_mask = df["名称"].str.contains("黄金ETF", na=False)
-            gold_df = df[gold_mask].copy()
-            return gold_df
+                return None
+            gold_df = df[df["名称"].str.contains("黄金ETF", na=False)].copy()
+            return gold_df if not gold_df.empty else None
         except Exception as e:
             logger.warning(f"黄金ETF数据获取失败: {e}")
-            return pd.DataFrame()
+            return None
 
     def fetch_latest(self) -> pd.DataFrame:
         """抓取最新黄金ETF数据."""
@@ -161,37 +224,56 @@ class BtcEtfFlowFetcher(DataFetcher):
             )
         )
 
+    # 类级 TTL 缓存: _btc_etf_signals 与 _cross_asset_signals 重复拉取复用
+    _fetch_cache = TtlCache(ttl_seconds=600)
+
     def fetch(self, **kwargs: Any) -> pd.DataFrame:
-        """获取比特币ETF行情（成交量+价格变化）."""
+        """获取比特币ETF行情 (进程内 TTL 缓存去重 + ticker 并行下载)."""
+        df = self._fetch_cache.get_or(self._fetch_impl)
+        return df if df is not None else pd.DataFrame()
+
+    def _fetch_impl(self) -> pd.DataFrame | None:
+        """实际拉取; 失败/空返回 None (不缓存, 下次调用会重试)."""
         try:
             import yfinance as yf
 
-            records = []
-            for i, (symbol, name) in enumerate(self.BTC_ETF_SYMBOLS.items()):
-                if i > 0:
-                    sleep(1.5)  # rate-limit: Yahoo Finance 429 avoidance
+            def _fetch_one(symbol: str, name: str) -> dict[str, Any] | None:
                 try:
                     ticker = yf.Ticker(symbol)
                     hist = ticker.history(period="5d")
                     if hist.empty:
-                        continue
+                        return None
                     latest = hist.iloc[-1]
                     prev = hist.iloc[-2] if len(hist) >= 2 else latest
-                    records.append({
+                    return {
                         "symbol": symbol,
                         "name": name,
                         "close": float(latest["Close"]),
                         "volume": int(latest["Volume"]),
                         "change_pct": float((latest["Close"] / prev["Close"] - 1) * 100) if len(hist) >= 2 else 0.0,
                         "volume_ratio": float(latest["Volume"] / hist["Volume"].mean()) if len(hist) >= 3 else 1.0,
-                    })
+                    }
                 except Exception:
-                    continue
+                    return None
 
+            # 并行下载 ticker (原串行 + ticker 间 sleep 1.5s; 并发下自然间隔, 提速 ~3x)
+            records: list[dict[str, Any]] = []
+            with ThreadPoolExecutor(max_workers=3) as pool:
+                futs = {
+                    pool.submit(_fetch_one, symbol, name): symbol
+                    for symbol, name in self.BTC_ETF_SYMBOLS.items()
+                }
+                for fut in as_completed(futs):
+                    rec = fut.result()
+                    if rec is not None:
+                        records.append(rec)
+
+            if not records:
+                return None
             return pd.DataFrame(records)
         except Exception as e:
             logger.warning(f"比特币ETF数据获取失败: {e}")
-            return pd.DataFrame()
+            return None
 
     def fetch_latest(self) -> pd.DataFrame:
         """抓取最新比特币ETF数据."""
@@ -278,32 +360,44 @@ class IntlGoldEtfFlowFetcher(DataFetcher):
         )
         self._holdings_fetcher = None  # lazy import GldHoldingsFetcher
 
+    # 类级 TTL 缓存: etf 生成器与 smart_money 均会拉取国际ETF, 复用同一份
+    _fetch_cache = TtlCache(ttl_seconds=600)
+
     def fetch(
         self,
         start: datetime | None = None,
         end: datetime | None = None,
         **kwargs: Any,
     ) -> pd.DataFrame:
-        """获取所有国际黄金ETF日频数据."""
+        """获取所有国际黄金ETF日频数据 (进程内 TTL 缓存去重 + ticker 并行下载)."""
+        df = self._fetch_cache.get_or(self._fetch_impl)
+        if df is None:
+            return pd.DataFrame()
+        # 缓存的是全量数据, 按需裁剪日期
+        if start:
+            df = df[df["timestamp"] >= pd.Timestamp(start)]
+        if end:
+            df = df[df["timestamp"] <= pd.Timestamp(end)]
+        return df
+
+    def _fetch_impl(self) -> pd.DataFrame | None:
+        """实际拉取; 失败/空返回 None (不缓存, 下次调用会重试)."""
         try:
             import yfinance as yf
 
-            records = []
-            for i, (symbol, name) in enumerate(self.INTL_GOLD_ETFS.items()):
-                if i > 0:
-                    sleep(1.5)  # rate-limit: Yahoo Finance 429 avoidance
+            def _fetch_one(symbol: str, name: str) -> dict[str, Any] | None:
                 try:
                     ticker = yf.Ticker(symbol)
                     hist = ticker.history(period="30d")
                     if hist.empty or len(hist) < 5:
-                        continue
+                        return None
 
                     latest = hist.iloc[-1]
                     prev = hist.iloc[-2]
                     vol_ma20 = hist["Volume"].tail(20).mean()
                     price_ma20 = hist["Close"].tail(20).mean()
 
-                    records.append({
+                    return {
                         "timestamp": hist.index[-1].to_pydatetime(),
                         "symbol": symbol,
                         "name": name,
@@ -315,18 +409,28 @@ class IntlGoldEtfFlowFetcher(DataFetcher):
                         "open": float(latest["Open"]),
                         "high": float(latest["High"]),
                         "low": float(latest["Low"]),
-                    })
+                    }
                 except Exception:
-                    continue
+                    return None
+
+            # 并行下载 ticker (原串行 + ticker 间 sleep 1.5s; 并发下自然间隔, 提速 ~3x)
+            records: list[dict[str, Any]] = []
+            with ThreadPoolExecutor(max_workers=3) as pool:
+                futs = {
+                    pool.submit(_fetch_one, symbol, name): symbol
+                    for symbol, name in self.INTL_GOLD_ETFS.items()
+                }
+                for fut in as_completed(futs):
+                    rec = fut.result()
+                    if rec is not None:
+                        records.append(rec)
 
             if not records:
-                return pd.DataFrame()
-
-            df = pd.DataFrame(records)
-            return df
+                return None
+            return pd.DataFrame(records)
         except Exception as e:
             logger.warning(f"国际黄金ETF数据获取失败: {e}")
-            return pd.DataFrame()
+            return None
 
     def fetch_latest(self) -> pd.DataFrame:
         """抓取最新数据."""

@@ -37,6 +37,8 @@ class TestMacroDxyVsTradeWeighted:
 
     def test_fetch_dxy_uses_yahoo_ice_symbol(self, monkeypatch):
         """fetch_dxy 必须走 Yahoo ICE DXY，而非 FRED DTWEXBGS."""
+        # 隔离磁盘缓存 (真实运行会写 data/cache/dxy_cache.json, 快路径会跳过 yfinance)
+        monkeypatch.setattr(MacroDataFetcher, "_read_dxy_disk_cache", staticmethod(lambda: None))
         idx = pd.to_datetime(["2026-07-01", "2026-07-02", "2026-07-03"])
         hist = pd.DataFrame(
             {"Close": [100.5, 101.0, 100.8], "Volume": [1, 1, 1]},

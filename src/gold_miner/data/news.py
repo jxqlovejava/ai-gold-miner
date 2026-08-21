@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import threading
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -528,16 +529,47 @@ class NewsFetcher:
         self.search_engine = SearchEngineFetcher()
         self.jdjr = JdjrNewsFetcher()
 
+    # 进程内 TTL 缓存: news 信号生成与 news_raw 并行拉取共用, 避免重复调 NewsAPI/anysearch
+    # (key=(query,hours) → (ts, items)); 同一 pipeline 进程内有效
+    _fetch_cache: dict[tuple[str, int], tuple[float, list[NewsItem]]] = {}
+    _fetch_cache_lock = threading.Lock()
+    _FETCH_CACHE_TTL_SECONDS = 300.0
+
     def fetch_latest(
         self,
         query: str = "gold OR XAU OR FED OR 美联储 OR 黄金",
         hours: int = 24,
         max_results: int = 10,
     ) -> list[NewsItem]:
-        """抓取最新新闻 — 多源回退.
+        """抓取最新新闻 — 多源回退 (进程内 TTL 缓存去重).
 
-        依次尝试 NewsAPI → anysearch → 搜索引擎，任一成功即返回.
+        同一进程内 news 信号与 news_raw 并发调用时只拉取一次 (double-checked locking);
+        慢源/超时重试不会被重复执行。
         """
+        cache_key = (query, hours)
+
+        # 快路径: 无锁读缓存 (dict 读是原子的, 命中即返回)
+        hit = NewsFetcher._fetch_cache.get(cache_key)
+        if hit and time.time() - hit[0] <= NewsFetcher._FETCH_CACHE_TTL_SECONDS:
+            return hit[1]
+
+        with NewsFetcher._fetch_cache_lock:
+            # 已持锁, 直接读内部状态 (threading.Lock 非重入, 不能在此调 _from_cache)
+            hit = NewsFetcher._fetch_cache.get(cache_key)
+            if hit and time.time() - hit[0] <= NewsFetcher._FETCH_CACHE_TTL_SECONDS:
+                return hit[1]
+            # 持锁拉取: 并发调用方等待本次完成后命中缓存
+            items = self._fetch_latest_uncached(query, hours, max_results)
+            NewsFetcher._fetch_cache[cache_key] = (time.time(), items)
+            return items
+
+    def _fetch_latest_uncached(
+        self,
+        query: str,
+        hours: int,
+        max_results: int,
+    ) -> list[NewsItem]:
+        """无缓存的多源抓取 (news 信号/raw 首个调用真正执行)."""
         items: list[NewsItem] = []
 
         # 检测是否非农发布日（每月第一个周五）
@@ -588,34 +620,35 @@ class NewsFetcher:
                 logger.info(f"NewsAPI 返回 {len(items)} 条新闻")
                 return items
 
-        # 2. anysearch + NFP专项（每月第一个周五自动补充）
-        if is_nfp_day:
-            nfp_items = self.anysearch.search(
-                query="nonfarm payrolls results",
-                max_results=3, freshness="day", content_types=["news"],
+        # 2. 并行尝试 fallback 源 (anysearch / jdjr / 搜索引擎多查询), 保留优先级取首个成功.
+        #    任一源慢/失败时不用串行等完 (原串行 anysearch → jdjr → fetch_multi 会累加几十秒).
+        from concurrent.futures import ThreadPoolExecutor as _TPE
+
+        def _try_anysearch() -> list[NewsItem]:
+            # anysearch + NFP专项（每月第一个周五自动补充）
+            if is_nfp_day:
+                nfp_items = self.anysearch.search(
+                    query="nonfarm payrolls results",
+                    max_results=3, freshness="day", content_types=["news"],
+                )
+                if nfp_items:
+                    nfp_items = [i for i in nfp_items if len(i.title) > 20]
+                    logger.info(f"anysearch NFP专项: {len(nfp_items)} 条")
+
+            items = self.anysearch.search(
+                query="gold price",
+                max_results=max_results,
+                freshness="day" if hours <= 24 else "week",
+                content_types=["news"],
             )
-            if nfp_items:
-                nfp_items = [i for i in nfp_items if len(i.title) > 20]
-                logger.info(f"anysearch NFP专项: {len(nfp_items)} 条")
-
-        items = self.anysearch.search(
-            query="gold price",
-            max_results=max_results,
-            freshness="day" if hours <= 24 else "week",
-            content_types=["news"],
-        )
-        if items:
-            # 过滤噪音行 (URL-only 条目)
-            items = [i for i in items if len(i.title) > 20 and not i.title.startswith("http")]
             if items:
-                logger.info(f"anysearch 返回 {len(items)} 条新闻")
-                return items
+                # 过滤噪音行 (URL-only 条目)
+                items = [i for i in items if len(i.title) > 20 and not i.title.startswith("http")]
+            return items or []
 
-        # 2.5 jdgold 官方黄金资讯兜底 (免登录, 中文快讯, E3 2026-08-13)
-        items = self.jdjr.fetch_latest(query="黄金", max_results=max_results)
-        if items:
-            logger.info(f"jdgold 资讯返回 {len(items)} 条新闻")
-            return items
+        def _try_jdjr() -> list[NewsItem]:
+            # jdgold 官方黄金资讯兜底 (免登录, 中文快讯, E3 2026-08-13)
+            return self.jdjr.fetch_latest(query="黄金", max_results=max_results) or []
 
         # 3. 搜索引擎回退 — 多查询并行（不硬编码具体月份/年份）
         target_queries = [
@@ -628,22 +661,44 @@ class NewsFetcher:
             "伊朗 和谈 黄金",
             "央行 购金 黄金",
         ]
-        items = self.search_engine.fetch_multi(target_queries, max_results=max_results)
-        if items:
-            logger.info(f"搜索引擎多查询返回 {len(items)} 条新闻")
-            return items
 
-        # 4. 单查询兜底
-        items = self.search_engine.fetch_from_duckduckgo("gold price news", max_results)
-        if items:
-            logger.info(f"DuckDuckGo 返回 {len(items)} 条新闻")
-            return items
+        def _try_search_engine() -> list[NewsItem]:
+            return self.search_engine.fetch_multi(target_queries, max_results=max_results) or []
 
-        # 5. Bing 兜底
-        items = self.search_engine.fetch_from_bing("gold price news", max_results)
-        if items:
-            logger.info(f"Bing 返回 {len(items)} 条新闻")
-            return items
+        def _try_ddg() -> list[NewsItem]:
+            return self.search_engine.fetch_from_duckduckgo("gold price news", max_results) or []
+
+        def _try_bing() -> list[NewsItem]:
+            return self.search_engine.fetch_from_bing("gold price news", max_results) or []
+
+        # 前三个源并行; 拿首个成功即返回, 慢源不阻塞 (shutdown(wait=False) 不等待后台慢任务)
+        executor = _TPE(max_workers=3, thread_name_prefix="news-fallback")
+        try:
+            f_as = executor.submit(_try_anysearch)
+            f_jdjr = executor.submit(_try_jdjr)
+            f_se = executor.submit(_try_search_engine)
+            for fut, label in [
+                (f_as, "anysearch"),
+                (f_jdjr, "jdgold 资讯"),
+                (f_se, "搜索引擎多查询"),
+            ]:
+                items = fut.result()
+                if items:
+                    logger.info(f"{label} 返回 {len(items)} 条新闻")
+                    executor.shutdown(wait=False, cancel_futures=True)
+                    return items
+
+            # 4/5. 单查询兜底并行 (DuckDuckGo / Bing)
+            f_ddg = executor.submit(_try_ddg)
+            f_bing = executor.submit(_try_bing)
+            for fut, label in [(f_ddg, "DuckDuckGo"), (f_bing, "Bing")]:
+                items = fut.result()
+                if items:
+                    logger.info(f"{label} 返回 {len(items)} 条新闻")
+                    executor.shutdown(wait=False, cancel_futures=True)
+                    return items
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
 
         logger.warning("所有新闻源均无法获取数据")
         return []
