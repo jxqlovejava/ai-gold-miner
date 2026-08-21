@@ -192,21 +192,14 @@ class TestIntlGoldHoldingsFlow:
             "source": "gld_holdings_tonnes",
             "source_tier": "T0",
         }
-        # 价格上涨，若误用价格会变成 inflow — 必须仍是 holdings outflow
-        price_df = pd.DataFrame({
-            "symbol": ["GLD", "IAU"],
-            "change_pct": [2.0, 1.5],
-            "volume_ratio": [1.2, 1.1],
-            "volume": [10_000_000, 5_000_000],
-        })
         with patch.object(fetcher, "fetch_holdings_flow", return_value=holdings):
-            with patch.object(fetcher, "fetch", return_value=price_df):
-                summary = fetcher.fetch_flow_summary()
+            summary = fetcher.fetch_flow_summary()
         assert summary["status"] == "ok"
         assert summary["flow_direction"] == "outflow"
         assert summary["source"] == "gld_holdings_tonnes"
         assert summary["source_tier"] == "T0"
-        assert summary["gld_change_pct"] == 2.0  # price still reported as proxy field
+        # yfinance volume proxy 已移除 (2026-08-21), proxy 字段保持默认值
+        assert summary["gld_change_pct"] == 0.0
 
 
 class TestEtfFlowSignalGenerator:
@@ -382,13 +375,6 @@ class TestEtfFlowSignalGenerator:
             "total_volume": 6_000_000,
             "total_turnover": 50_000_000,
         }
-        btc = {
-            "status": "ok",
-            "direction": "strong_outflow",
-            "score": -0.8,
-            "avg_change_pct": -2.5,
-            "volume_surge_etfs": 4,
-        }
         intl = {
             "status": "ok",
             "flow_direction": "inflow",
@@ -402,12 +388,10 @@ class TestEtfFlowSignalGenerator:
             "source_tier": "T0",
         }
         with patch.object(gen.gold_fetcher, "fetch_daily_change", return_value=gold):
-            with patch.object(gen.btc_fetcher, "fetch_flow_signal", return_value=btc):
-                with patch.object(gen.intl_fetcher, "fetch_flow_summary", return_value=intl):
-                    signals = gen.generate_signals()
-                    names = [s.name for s in signals]
-                    assert "国内黄金ETF价格变动(proxy)" in names
-                    assert "国内黄金ETF成交放量(proxy)" in names
-                    assert "国际黄金ETF资金流入" in names
-                    assert "BTC ETF大幅流出(避险↑)" in names
-                    assert "金银背离: 黄金↑BTC↓ (强烈避险)" in names
+            with patch.object(gen.intl_fetcher, "fetch_flow_summary", return_value=intl):
+                signals = gen.generate_signals()
+                names = [s.name for s in signals]
+                assert "国内黄金ETF价格变动(proxy)" in names
+                assert "国内黄金ETF成交放量(proxy)" in names
+                assert "国际黄金ETF资金流入" in names
+                # btc_etf/cross_etf 维度 2026-08-21 禁用, 不再生成 BTC/金银背离信号

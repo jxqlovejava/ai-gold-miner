@@ -10,7 +10,23 @@ import pandas as pd
 from loguru import logger
 
 from gold_miner.data.base import DataFetcher, DataSourceMeta
-from gold_miner.data.caching import TtlCache
+from gold_miner.data.caching import DiskCache, TtlCache
+
+
+def _is_yf_rate_limited(err: Exception) -> bool:
+    """判断 yfinance 异常是否为 Yahoo 限流 (429); 限流时快速短路不空等.
+
+    每个 429 要等 ~3.8s 才失败, 若逐个 ticker 串行等待, 9 个 BTC ticker
+    白耗 ~19s。检测到即停止拉取剩余 (参考 macro.py DXY 的 429 处理模式)。
+    """
+    msg = str(err).lower()
+    return "429" in msg or "too many requests" in msg or "rate limited" in msg
+
+
+# 跨进程 yfinance 429 冷却标记: 检测到限流后 30min 内直接跳过 yfinance
+# 拉取 (当前环境持续 429, 每次 scan 白等 ~6s 拿不到数据, 冷却期零等待;
+# 到期自动重试, 网络恢复即恢复数据)。
+_YLIMIT_COOLDOWN = DiskCache(key="yf_rate_limited", ttl_seconds=1800)
 
 
 @dataclass
@@ -60,12 +76,15 @@ class GoldEtfFlowFetcher(DataFetcher):
             )
         )
 
-    # 类级 TTL 缓存: 同进程内 _gold_etf_signals 与 _cross_asset_signals 重复拉取复用
+    # 双层缓存: 进程内 TtlCache + 跨进程 DiskCache (东财盘中快照, 短 TTL)
     _fetch_cache = TtlCache(ttl_seconds=600)
+    _disk_cache = DiskCache(key="gold_etf", ttl_seconds=600)
 
     def fetch(self, **kwargs: Any) -> pd.DataFrame:
-        """获取所有黄金ETF实时行情 (进程内 TTL 缓存去重)."""
-        df = self._fetch_cache.get_or(self._fetch_impl)
+        """获取所有黄金ETF实时行情 (双层缓存去重: 进程内 TTL + 跨进程磁盘)."""
+        df = self._fetch_cache.get_or(
+            lambda: self._disk_cache.get_or(self._fetch_impl)
+        )
         return df if df is not None else pd.DataFrame()
 
     def _fetch_impl(self) -> pd.DataFrame | None:
@@ -224,20 +243,37 @@ class BtcEtfFlowFetcher(DataFetcher):
             )
         )
 
-    # 类级 TTL 缓存: _btc_etf_signals 与 _cross_asset_signals 重复拉取复用
+    # 双层缓存: 进程内 TtlCache + 跨进程 DiskCache (yfinance 日频数据当天不变, 6h)
     _fetch_cache = TtlCache(ttl_seconds=600)
+    _disk_cache = DiskCache(key="btc_etf", ttl_seconds=21600)
 
     def fetch(self, **kwargs: Any) -> pd.DataFrame:
-        """获取比特币ETF行情 (进程内 TTL 缓存去重 + ticker 并行下载)."""
-        df = self._fetch_cache.get_or(self._fetch_impl)
+        """获取比特币ETF行情 (双层缓存去重 + ticker 并行下载)."""
+        df = self._fetch_cache.get_or(
+            lambda: self._disk_cache.get_or(self._fetch_impl)
+        )
         return df if df is not None else pd.DataFrame()
 
     def _fetch_impl(self) -> pd.DataFrame | None:
-        """实际拉取; 失败/空返回 None (不缓存, 下次调用会重试)."""
+        """实际拉取; 失败/空返回 None (不缓存, 下次调用会重试).
+
+        yfinance 429 限流快速短路: 分批发 (每批 max_workers 个),
+        批内任一 ticker 被 429 即停止后续批次 — 避免 9 个 ticker 逐个
+        白等 ~3.8s (共 ~19s)。
+        """
         try:
+            import threading
             import yfinance as yf
 
+            if _YLIMIT_COOLDOWN.get() is not None:
+                logger.debug("yfinance 429 冷却中, 跳过 BTC ETF 拉取")
+                return None
+
+            rate_limited = threading.Event()
+
             def _fetch_one(symbol: str, name: str) -> dict[str, Any] | None:
+                if rate_limited.is_set():
+                    return None
                 try:
                     ticker = yf.Ticker(symbol)
                     hist = ticker.history(period="5d")
@@ -253,20 +289,28 @@ class BtcEtfFlowFetcher(DataFetcher):
                         "change_pct": float((latest["Close"] / prev["Close"] - 1) * 100) if len(hist) >= 2 else 0.0,
                         "volume_ratio": float(latest["Volume"] / hist["Volume"].mean()) if len(hist) >= 3 else 1.0,
                     }
-                except Exception:
+                except Exception as e:
+                    if _is_yf_rate_limited(e):
+                        rate_limited.set()
+                        _YLIMIT_COOLDOWN.set(True)
                     return None
 
-            # 并行下载 ticker (原串行 + ticker 间 sleep 1.5s; 并发下自然间隔, 提速 ~3x)
+            # 分批下载 ticker (原一次全提交; 429 短路后不再提交后续批次)
             records: list[dict[str, Any]] = []
+            items = list(self.BTC_ETF_SYMBOLS.items())
             with ThreadPoolExecutor(max_workers=3) as pool:
-                futs = {
-                    pool.submit(_fetch_one, symbol, name): symbol
-                    for symbol, name in self.BTC_ETF_SYMBOLS.items()
-                }
-                for fut in as_completed(futs):
-                    rec = fut.result()
-                    if rec is not None:
-                        records.append(rec)
+                while items and not rate_limited.is_set():
+                    batch, items = items[:3], items[3:]
+                    futs = {
+                        pool.submit(_fetch_one, symbol, name): symbol
+                        for symbol, name in batch
+                    }
+                    for fut in as_completed(futs):
+                        rec = fut.result()
+                        if rec is not None:
+                            records.append(rec)
+                        if rate_limited.is_set():
+                            break
 
             if not records:
                 return None
@@ -360,8 +404,9 @@ class IntlGoldEtfFlowFetcher(DataFetcher):
         )
         self._holdings_fetcher = None  # lazy import GldHoldingsFetcher
 
-    # 类级 TTL 缓存: etf 生成器与 smart_money 均会拉取国际ETF, 复用同一份
+    # 双层缓存: 进程内 TtlCache + 跨进程 DiskCache (yfinance 日频数据当天不变, 6h)
     _fetch_cache = TtlCache(ttl_seconds=600)
+    _disk_cache = DiskCache(key="intl_etf", ttl_seconds=21600)
 
     def fetch(
         self,
@@ -369,8 +414,10 @@ class IntlGoldEtfFlowFetcher(DataFetcher):
         end: datetime | None = None,
         **kwargs: Any,
     ) -> pd.DataFrame:
-        """获取所有国际黄金ETF日频数据 (进程内 TTL 缓存去重 + ticker 并行下载)."""
-        df = self._fetch_cache.get_or(self._fetch_impl)
+        """获取所有国际黄金ETF日频数据 (双层缓存去重 + ticker 并行下载)."""
+        df = self._fetch_cache.get_or(
+            lambda: self._disk_cache.get_or(self._fetch_impl)
+        )
         if df is None:
             return pd.DataFrame()
         # 缓存的是全量数据, 按需裁剪日期
@@ -381,11 +428,25 @@ class IntlGoldEtfFlowFetcher(DataFetcher):
         return df
 
     def _fetch_impl(self) -> pd.DataFrame | None:
-        """实际拉取; 失败/空返回 None (不缓存, 下次调用会重试)."""
+        """实际拉取; 失败/空返回 None (不缓存, 下次调用会重试).
+
+        yfinance 429 限流快速短路: 分批发 (每批 max_workers 个),
+        批内任一 ticker 被 429 即停止后续批次 — 避免 5 个 ticker 逐个
+        白等 ~3.8s。
+        """
         try:
+            import threading
             import yfinance as yf
 
+            if _YLIMIT_COOLDOWN.get() is not None:
+                logger.debug("yfinance 429 冷却中, 跳过国际 ETF 拉取")
+                return None
+
+            rate_limited = threading.Event()
+
             def _fetch_one(symbol: str, name: str) -> dict[str, Any] | None:
+                if rate_limited.is_set():
+                    return None
                 try:
                     ticker = yf.Ticker(symbol)
                     hist = ticker.history(period="30d")
@@ -410,20 +471,28 @@ class IntlGoldEtfFlowFetcher(DataFetcher):
                         "high": float(latest["High"]),
                         "low": float(latest["Low"]),
                     }
-                except Exception:
+                except Exception as e:
+                    if _is_yf_rate_limited(e):
+                        rate_limited.set()
+                        _YLIMIT_COOLDOWN.set(True)
                     return None
 
-            # 并行下载 ticker (原串行 + ticker 间 sleep 1.5s; 并发下自然间隔, 提速 ~3x)
+            # 分批下载 ticker (429 短路后不再提交后续批次)
             records: list[dict[str, Any]] = []
+            items = list(self.INTL_GOLD_ETFS.items())
             with ThreadPoolExecutor(max_workers=3) as pool:
-                futs = {
-                    pool.submit(_fetch_one, symbol, name): symbol
-                    for symbol, name in self.INTL_GOLD_ETFS.items()
-                }
-                for fut in as_completed(futs):
-                    rec = fut.result()
-                    if rec is not None:
-                        records.append(rec)
+                while items and not rate_limited.is_set():
+                    batch, items = items[:3], items[3:]
+                    futs = {
+                        pool.submit(_fetch_one, symbol, name): symbol
+                        for symbol, name in batch
+                    }
+                    for fut in as_completed(futs):
+                        rec = fut.result()
+                        if rec is not None:
+                            records.append(rec)
+                        if rate_limited.is_set():
+                            break
 
             if not records:
                 return None
@@ -509,37 +578,14 @@ class IntlGoldEtfFlowFetcher(DataFetcher):
     def fetch_flow_summary(self) -> dict[str, Any]:
         """获取国际黄金ETF资金流摘要.
 
-        主信号: GLD 持仓(吨)日变化 (T0)
-        辅字段: yfinance 价格/成交量 proxy（不可当作真实资金流）
-
-        Returns:
-            dict with holdings-based flow_direction/flow_score, plus secondary
-            volume/price fields labeled as proxy.
+        主信号: GLD 持仓(吨)日变化 (T0, SPDR 官方 API)。
+        yfinance volume proxy 已移除 (2026-08-21, Yahoo 持续 429 限流;
+        volume proxy 仅为弱辅助, 主信号 GLD 官方持仓不受影响)。
         """
         holdings = self.fetch_holdings_flow()
         if holdings.get("status") != "ok":
             # 持仓不可用时不回退到价格当资金流，只返回 no_data
             return {"status": "no_data", "reason": "gld_holdings_unavailable"}
-
-        # Secondary: volume proxy (optional, never used as primary flow)
-        vol_surge_count = 0
-        gld_vol_ratio = 1.0
-        gld_change = 0.0
-        total_volume = 0
-        avg_change = 0.0
-        etf_count = 0
-        try:
-            df = self.fetch()
-            if not df.empty:
-                total_volume = int(df["volume"].sum())
-                avg_change = float(df["change_pct"].mean())
-                vol_surge_count = int((df["volume_ratio"] > self.VOLUME_SURGE_THRESHOLD).sum())
-                gld_row = df[df["symbol"] == "GLD"]
-                gld_change = float(gld_row["change_pct"].iloc[0]) if not gld_row.empty else avg_change
-                gld_vol_ratio = float(gld_row["volume_ratio"].iloc[0]) if not gld_row.empty else 1.0
-                etf_count = len(df)
-        except Exception as e:
-            logger.debug(f"国际ETF价格/成交量 proxy 获取失败(非致命): {e}")
 
         return {
             "status": "ok",
@@ -553,60 +599,11 @@ class IntlGoldEtfFlowFetcher(DataFetcher):
             "flow_score": holdings["flow_score"],
             "source": "gld_holdings_tonnes",
             "source_tier": "T0",
-            # secondary price/volume proxy fields (NOT real flow)
-            "total_volume": total_volume,
-            "avg_change_pct": round(avg_change, 2),
-            "gld_change_pct": round(gld_change, 2),
-            "gld_volume_ratio": round(gld_vol_ratio, 2),
-            "volume_surge_count": vol_surge_count,
-            "etf_count": etf_count,
+            # proxy 字段保留默认值 (yfinance volume proxy 已停用, 弱辅助不参与主信号)
+            "total_volume": 0,
+            "avg_change_pct": 0.0,
+            "gld_change_pct": 0.0,
+            "gld_volume_ratio": 1.0,
+            "volume_surge_count": 0,
+            "etf_count": 0,
         }
-
-    def fetch_weekly_trend(self, weeks: int = 4) -> dict[str, Any]:
-        """获取近N周趋势.
-
-        基于每周最后一个交易日的量价数据计算趋势。
-        """
-        try:
-            import yfinance as yf
-
-            # 获取GLD足够长的历史数据
-            ticker = yf.Ticker("GLD")
-            hist = ticker.history(period=f"{weeks + 2}w")
-            if hist.empty or len(hist) < 10:
-                return {"status": "no_data"}
-
-            # 按周聚合
-            hist = hist.reset_index()
-            hist["week"] = hist["Date"].dt.isocalendar().week
-            hist["year"] = hist["Date"].dt.isocalendar().year
-
-            weekly = hist.groupby(["year", "week"]).agg({
-                "Close": ["first", "last", "mean"],
-                "Volume": "sum",
-            }).reset_index()
-            weekly.columns = ["year", "week", "open", "close", "avg", "volume"]
-            weekly = weekly.tail(weeks)
-
-            if len(weekly) < 2:
-                return {"status": "no_data"}
-
-            # 计算周变化
-            weekly["change_pct"] = (weekly["close"] / weekly["open"] - 1) * 100
-            avg_weekly_change = float(weekly["change_pct"].mean())
-            latest_week = float(weekly["change_pct"].iloc[-1])
-
-            trend = "up" if latest_week > 0 and avg_weekly_change > 0 else \
-                    "down" if latest_week < 0 and avg_weekly_change < 0 else "mixed"
-
-            return {
-                "status": "ok",
-                "weeks": len(weekly),
-                "latest_week_change_pct": round(latest_week, 2),
-                "avg_weekly_change_pct": round(avg_weekly_change, 2),
-                "trend": trend,
-                "total_volume_4w": int(weekly.tail(4)["volume"].sum()),
-            }
-        except Exception as e:
-            logger.warning(f"周趋势获取失败: {e}")
-            return {"status": "error", "message": str(e)}

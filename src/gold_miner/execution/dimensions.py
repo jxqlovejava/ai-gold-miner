@@ -13,7 +13,6 @@ _SMART_MONEY_SOURCES = frozenset({
     "gold_etf_volume_proxy",
     "intl_gold_etf_volume_proxy",
     "domestic_intl_divergence",
-    "btc_etf",
     "cross_etf",
     "bank_targets",        # 投行目标价共识
     "comex_large_traders", # COMEX 大户集中度
@@ -266,7 +265,7 @@ def print_smart_money(bundle: SignalBundle) -> None:
         "cot_report", "gld_holdings_tonnes",
         "gold_etf_price_proxy", "gold_etf_volume_proxy",
         "intl_gold_etf_volume_proxy", "domestic_intl_divergence",
-        "btc_etf", "cross_etf",
+        "cross_etf",
         "bank_targets", "comex_large_traders", "jd_fund_bomb",
         "jd_blogger_rank", "13f_institutional",
         "smart_money_composite",
@@ -279,7 +278,6 @@ def print_smart_money(bundle: SignalBundle) -> None:
         "gold_etf_volume_proxy": "\U0001f4ca 黄金ETF成交量代理",
         "intl_gold_etf_volume_proxy": "\U0001f30d 国际黄金ETF资金流",
         "domestic_intl_divergence": "\U00002194 国内外ETF背离",
-        "btc_etf": "\U000020bf 比特币ETF资金流",
         "cross_etf": "\U0001f504 黄金vs比特币ETF交叉",
         "bank_targets": "\U0001f3e6 投行目标价共识",
         "comex_large_traders": "\U0001f3af COMEX大户集中度",

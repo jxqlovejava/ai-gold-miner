@@ -27,6 +27,7 @@ import pandas as pd
 from loguru import logger
 
 from gold_miner.data.base import DataFetcher, DataSourceMeta
+from gold_miner.data.caching import DiskCache
 from gold_miner.proxy import get_proxied_client
 
 # CFTC 每周发布的 comma-delimited legacy report（futures only）
@@ -77,6 +78,34 @@ class CotGoldData:
         return self.noncomm_long + self.noncomm_short + self.comm_long + self.comm_short
 
 
+def _cot_record_to_dict(r: CotGoldData) -> dict[str, Any]:
+    """CotGoldData → JSON 兼容 dict (report_date 转 isoformat, 供 DiskCache)."""
+    return {
+        "report_date": r.report_date.isoformat(),
+        "noncomm_long": r.noncomm_long,
+        "noncomm_short": r.noncomm_short,
+        "noncomm_spread": r.noncomm_spread,
+        "comm_long": r.comm_long,
+        "comm_short": r.comm_short,
+        "nonrep_long": r.nonrep_long,
+        "nonrep_short": r.nonrep_short,
+    }
+
+
+def _cot_record_from_dict(d: dict[str, Any]) -> CotGoldData:
+    """JSON dict → CotGoldData (report_date 从 isoformat 还原)."""
+    return CotGoldData(
+        report_date=datetime.fromisoformat(d["report_date"]),
+        noncomm_long=d["noncomm_long"],
+        noncomm_short=d["noncomm_short"],
+        noncomm_spread=d["noncomm_spread"],
+        comm_long=d["comm_long"],
+        comm_short=d["comm_short"],
+        nonrep_long=d["nonrep_long"],
+        nonrep_short=d["nonrep_short"],
+    )
+
+
 class CotReportFetcher(DataFetcher):
     """CFTC COT报告数据获取器.
 
@@ -93,6 +122,10 @@ class CotReportFetcher(DataFetcher):
     # _structure 四个信号入口会重复拉取同一份数据 → 缓存合并为 1 次网络请求 (fast-analysis).
     _cftc_records_cache: dict[str, tuple[float, list[CotGoldData] | None]] = {}
     _CFTC_CACHE_TTL_SECONDS = 3600  # 1h (报告周频, 1h 足够跨多次 scan)
+
+    # 跨进程磁盘缓存: 进程内缓存不跨 scan, 每次 scan 新进程都重复下载 CFTC CSV (~2.4s).
+    # COT 周频数据当天不变, 磁盘缓存 6h 内跨 scan 复用.
+    _disk_cache = DiskCache(key="cot_report", ttl_seconds=21600)
 
     def __init__(self) -> None:
         super().__init__(
@@ -209,21 +242,32 @@ class CotReportFetcher(DataFetcher):
         }
 
     def _fetch_from_cftc(self) -> list[CotGoldData] | None:
-        """从CFTC下载并解析COT报告 (带进程内 TTL 缓存).
+        """从CFTC下载并解析COT报告 (进程内 TTL + 跨进程磁盘双层缓存).
 
         同一次 scan 内 fetch/fetch_net_position/fetch_real 多次调用只触发一次网络下载,
         后续命中缓存直接返回 — 避免 4 个信号入口各自下载同一份周频报告.
+        磁盘缓存 (6h) 跨进程: scan 每次新进程复用, 无需重复下载 CFTC CSV (~2.4s).
         """
         now = time.time()
         cached = CotReportFetcher._cftc_records_cache.get("gold")
         if cached and now - cached[0] <= CotReportFetcher._CFTC_CACHE_TTL_SECONDS:
             return cached[1]
 
+        # 跨进程磁盘缓存 (COT 周频数据, 6h 内跨 scan 复用)
+        disk = self._disk_cache.get()
+        if disk is not None:
+            records = [_cot_record_from_dict(d) for d in disk]
+            CotReportFetcher._cftc_records_cache["gold"] = (now, records)
+            return records
+
         records: list[CotGoldData] | None = None
         try:
             records = self._parse_cftc_csv()
         except Exception as e:
             logger.warning(f"CFTC数据下载失败: {e}")
+
+        if records:
+            self._disk_cache.set([_cot_record_to_dict(r) for r in records])
 
         # 缓存结果 (含 None 失败态: 短窗口内不再重复重试, 避免连续 N 个信号入口各自触发降级链)
         CotReportFetcher._cftc_records_cache["gold"] = (now, records)

@@ -24,7 +24,7 @@ import pandas as pd
 from loguru import logger
 
 from gold_miner.data.base import DataFetcher, DataSourceMeta
-from gold_miner.data.caching import TtlCache
+from gold_miner.data.caching import DiskCache, TtlCache
 from gold_miner.data.economic_data import EconomicDataPoint, EconomicDataRecorder
 from gold_miner.proxy import get_proxied_client
 
@@ -48,6 +48,11 @@ class GldHoldingsFetcher(DataFetcher):
     # 类级 TTL 缓存: 同进程内 etf 与 smart_money 生成器并行抢拉同一份 GLD 持仓,
     # 通过 double-checked locking 保证并发冷启动只下载一次, 消除重复的慢速 SSL 降级重试
     _fetch_cache = TtlCache(ttl_seconds=600)
+
+    # 跨进程磁盘缓存: 进程内缓存不跨 scan, 每次 scan 新进程数据库 miss 时
+    # 都重新下载 SPDR Excel (多层降级 ~6s). GLD 持仓日频数据当天不变,
+    # 磁盘缓存 6h 内跨 scan 复用, 避免重复慢速下载.
+    _disk_cache = DiskCache(key="gld_holdings", ttl_seconds=21600)
 
     def __init__(self, recorder: EconomicDataRecorder | None = None) -> None:
         super().__init__(
@@ -131,7 +136,9 @@ class GldHoldingsFetcher(DataFetcher):
 
         返回 DataFrame 列：timestamp, value（吨）, nav_per_share, shares_volume
         """
-        full = self._fetch_cache.get_or(self._load_holdings)
+        full = self._fetch_cache.get_or(
+            lambda: self._disk_cache.get_or(self._load_holdings)
+        )
         if full is None:
             logger.debug("GLD 持仓数据不可用")
             return pd.DataFrame(columns=["timestamp", "value", "nav_per_share", "shares_volume"])

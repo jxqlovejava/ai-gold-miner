@@ -17,6 +17,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 from loguru import logger
 
+from gold_miner.data.caching import DiskCache
 from gold_miner.data.macro import MacroDataFetcher
 from gold_miner.signals.base import Signal, SignalDirection, SignalStrength
 
@@ -42,13 +43,20 @@ class OilSignalGenerator:
     SOURCE_TIER = "T0"  # FRED 官方一手数据
     FRED_SERIES = "DCOILWTICO"
 
+    # 跨进程磁盘缓存: FRED 日频油价 + 新浪实时价, 1h 内跨 scan 复用
+    # (油价日频, scan 每次新进程不重复下载 FRED ~5.8s)
+    _disk_cache = DiskCache(key="oil_wti", ttl_seconds=3600)
+
     def __init__(self, oil_df: pd.DataFrame | None = None) -> None:
         self.oil = oil_df
 
     def _fetch_oil(self) -> pd.DataFrame:
-        """获取 WTI 近 40 日价格 (FRED), 并用新浪实时价覆盖最新点."""
+        """获取 WTI 近 40 日价格 (FRED), 并用新浪实时价覆盖最新点 (磁盘缓存 1h)."""
         if self.oil is not None and not self.oil.empty:
             return self.oil
+        cached = self._disk_cache.get()
+        if cached is not None:
+            return cached
         df = MacroDataFetcher().fetch(
             start=datetime.now() - timedelta(days=40),
             series_id=self.FRED_SERIES,
@@ -62,6 +70,7 @@ class OilSignalGenerator:
                     "value": latest_rt,
                     "series_id": "hf_CL",
                 }
+        self._disk_cache.set(df)
         return df
 
     @staticmethod

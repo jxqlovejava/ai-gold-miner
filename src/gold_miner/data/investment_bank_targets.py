@@ -18,6 +18,7 @@
 
 from __future__ import annotations
 
+import copy
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -25,6 +26,7 @@ from typing import Any
 
 from loguru import logger
 
+from gold_miner.data.caching import DiskCache, TtlCache
 from gold_miner.proxy import get_proxied_client
 
 
@@ -98,6 +100,12 @@ class InvestmentBankTargetFetcher:
             PriceTarget("Bank of America", 3650, 3300, "Buy", datetime(2026, 5, 18)),
             PriceTarget("Deutsche Bank", 3550, 3300, "Buy", datetime(2026, 5, 3)),
         ]
+        # 双层缓存: 进程内 TtlCache + 跨进程 DiskCache (投行目标价低频, 24h).
+        # 搜索引擎抓取是最慢环节 (3 个串行 Bing 查询), scan 中
+        # _bank_target_signals 与 _composite_smart_money_signal 会重复调用,
+        # 且每次 scan 都是新进程 — 磁盘缓存让后续 scan 直接读文件跳过 Bing.
+        self._search_cache = TtlCache(ttl_seconds=600)
+        self._bank_disk = DiskCache(key="bank_targets", ttl_seconds=86400)
 
     def fetch_all_targets(self, current_spot: float = 3300) -> list[PriceTarget]:
         """获取所有投行最新目标价.
@@ -106,9 +114,12 @@ class InvestmentBankTargetFetcher:
             current_spot: 当前现货黄金价格 (USD/oz)
         """
         try:
-            # 尝试从搜索引擎获取最新目标价
-            web_targets = self._fetch_from_search(current_spot)
+            # 尝试从搜索引擎获取最新目标价 (600s 内缓存命中不重复搜索)
+            web_targets = self._fetch_from_search_cached()
             if web_targets:
+                # 重新绑定当前现货价 (缓存中 target_price 固定, current_price 按调用时点刷新)
+                for t in web_targets:
+                    t.current_price = current_spot
                 return web_targets
         except Exception as e:
             logger.debug(f"投行目标价搜索失败: {e}")
@@ -117,6 +128,32 @@ class InvestmentBankTargetFetcher:
         for t in self._fallback:
             t.current_price = current_spot
         return self._fallback
+
+    def _fetch_from_search_cached(self) -> list[PriceTarget] | None:
+        """缓存版本 — 进程内 TtlCache + 跨进程 DiskCache(24h), 避免重复 Bing 搜索.
+
+        DiskCache 只存稳定字段 (bank/target_price); current_price/date/rating
+        由 fetch_all_targets 按调用时点刷新。
+        """
+        targets = self._search_cache.get()
+        if targets is not None:
+            # 返回拷贝, 避免调用方修改共享缓存对象 (current_price 会被 fetch_all_targets 改写)
+            return [copy.copy(t) for t in targets]
+        disk = self._bank_disk.get()
+        if disk:
+            targets = [
+                PriceTarget(bank=d["bank"], target_price=d["target_price"])
+                for d in disk
+            ]
+            self._search_cache.set(targets)
+            return [copy.copy(t) for t in targets]
+        result = self._fetch_from_search(3300)
+        if result:
+            self._search_cache.set(result)
+            self._bank_disk.set(
+                [{"bank": t.bank, "target_price": t.target_price} for t in result]
+            )
+        return result
 
     def fetch_consensus(self, current_spot: float = 3300) -> dict[str, Any]:
         """获取投行共识摘要.

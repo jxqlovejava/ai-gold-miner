@@ -24,12 +24,29 @@ class EtfFlowSignalGenerator:
         self.intl_fetcher = IntlGoldEtfFlowFetcher()
 
     def generate_signals(self) -> list[Signal]:
-        """生成所有ETF资金流信号."""
+        """生成所有ETF资金流信号 — 独立 fetcher 并行拉取.
+
+        国内(东财)/国际(GLD持仓)两个数据源互相独立, 串行执行耗时相加
+        (profile: gold_etf ~6.5s + intl_etf ~4.2s ≈ 11s 网络)。
+        并行后总耗时由最慢一条决定 (~max ≈6.5s)。_cross_asset_signals
+        依赖前两者数据, 在并行完成后执行 — 其 fetch 命中 TtlCache(600s),
+        不再发网络请求。
+
+        btc_etf 维度 2026-08-21 禁用 (yfinance 持续 429 拿不到数据,
+        CoinGlass 接入后恢复)。cross_etf 依赖 BTC 数据, 一并跳过。
+        _btc_etf_signals/_cross_asset_signals 方法保留供测试/恢复。
+        """
+        from concurrent.futures import ThreadPoolExecutor
+
         signals: list[Signal] = []
-        signals.extend(self._gold_etf_signals())
-        signals.extend(self._intl_gold_etf_signals())
-        signals.extend(self._btc_etf_signals())
-        signals.extend(self._cross_asset_signals())
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            f_gold = pool.submit(self._gold_etf_signals)
+            f_intl = pool.submit(self._intl_gold_etf_signals)
+            for name, f in (("国内黄金ETF", f_gold), ("国际黄金ETF", f_intl)):
+                try:
+                    signals.extend(f.result())
+                except Exception as e:
+                    logger.warning(f"{name}信号异常: {e}")
         for s in signals:
             s.metadata.setdefault("source_tier", self.SOURCE_TIER)
         return signals
