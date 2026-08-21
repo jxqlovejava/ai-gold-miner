@@ -4,8 +4,10 @@ from __future__ import annotations
 import json
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -534,6 +536,69 @@ class NewsFetcher:
     _fetch_cache: dict[tuple[str, int], tuple[float, list[NewsItem]]] = {}
     _fetch_cache_lock = threading.Lock()
     _FETCH_CACHE_TTL_SECONDS = 300.0
+    # 磁盘缓存: 跨进程/跨 scan 复用, 同一天多次分析直接读缓存不再碰 NewsAPI
+    # (fast-analysis: 完整分析 ≤1min, NewsAPI 网络抖动不阻塞)
+    _DISK_CACHE_TTL_SECONDS = 1800.0  # 30 分钟
+
+    @staticmethod
+    def _newsitem_to_dict(item: NewsItem) -> dict[str, Any]:
+        """NewsItem → dict (磁盘缓存持久化)."""
+        return {
+            "title": item.title,
+            "source": item.source,
+            "published_at": item.published_at.isoformat(),
+            "url": item.url,
+            "summary": item.summary,
+            "sentiment": item.sentiment,
+            "keywords": item.keywords,
+            "is_breaking": item.is_breaking,
+            "metadata": item.metadata,
+        }
+
+    @staticmethod
+    def _dict_to_newsitem(d: dict[str, Any]) -> NewsItem:
+        """dict → NewsItem (磁盘缓存反序列化)."""
+        try:
+            published_at = datetime.fromisoformat(d["published_at"])
+        except (KeyError, ValueError, TypeError):
+            published_at = datetime.now()
+        return NewsItem(
+            title=d.get("title", ""),
+            source=d.get("source", "Unknown"),
+            published_at=published_at,
+            url=d.get("url", ""),
+            summary=d.get("summary", ""),
+            sentiment=float(d.get("sentiment", 0.0)),
+            keywords=list(d.get("keywords", [])),
+            is_breaking=bool(d.get("is_breaking", False)),
+            metadata=dict(d.get("metadata", {})),
+        )
+
+    @property
+    def _disk_cache_path(self) -> Path:
+        return settings.private_data_path / "cache" / "news_fetch.json"
+
+    def _load_disk_cache(self) -> dict[str, dict[str, Any]]:
+        """读取磁盘新闻缓存 (跨进程复用)."""
+        try:
+            p = self._disk_cache_path
+            if p.exists():
+                return json.loads(p.read_text(encoding="utf-8"))
+        except Exception as e:
+            logger.debug(f"news 磁盘缓存读取失败: {e}")
+        return {}
+
+    def _save_disk_cache(self, cache: dict[str, dict[str, Any]]) -> None:
+        """写磁盘新闻缓存, 并清理过期条目."""
+        try:
+            now = time.time()
+            cache = {k: v for k, v in cache.items()
+                     if now - v.get("ts", 0) <= NewsFetcher._DISK_CACHE_TTL_SECONDS}
+            p = self._disk_cache_path
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(json.dumps(cache, ensure_ascii=False), encoding="utf-8")
+        except Exception as e:
+            logger.debug(f"news 磁盘缓存写入失败: {e}")
 
     def fetch_latest(
         self,
@@ -547,11 +612,20 @@ class NewsFetcher:
         慢源/超时重试不会被重复执行。
         """
         cache_key = (query, hours)
+        now = time.time()
 
-        # 快路径: 无锁读缓存 (dict 读是原子的, 命中即返回)
+        # 快路径 1: 进程内缓存 (dict 读是原子的, 命中即返回)
         hit = NewsFetcher._fetch_cache.get(cache_key)
-        if hit and time.time() - hit[0] <= NewsFetcher._FETCH_CACHE_TTL_SECONDS:
+        if hit and now - hit[0] <= NewsFetcher._FETCH_CACHE_TTL_SECONDS:
             return hit[1]
+
+        # 快路径 2: 磁盘缓存 (跨进程复用, 30min TTL) — 同一天多次分析不碰 NewsAPI
+        disk_key = f"{query}||{hours}"
+        disk_hit = self._load_disk_cache().get(disk_key)
+        if disk_hit and now - disk_hit.get("ts", 0) <= NewsFetcher._DISK_CACHE_TTL_SECONDS:
+            items = [NewsFetcher._dict_to_newsitem(i) for i in disk_hit.get("items", [])]
+            NewsFetcher._fetch_cache[cache_key] = (now, items)
+            return items
 
         with NewsFetcher._fetch_cache_lock:
             # 已持锁, 直接读内部状态 (threading.Lock 非重入, 不能在此调 _from_cache)
@@ -561,6 +635,11 @@ class NewsFetcher:
             # 持锁拉取: 并发调用方等待本次完成后命中缓存
             items = self._fetch_latest_uncached(query, hours, max_results)
             NewsFetcher._fetch_cache[cache_key] = (time.time(), items)
+            # 非空结果写磁盘缓存 (避免缓存失败态)
+            if items:
+                disk = self._load_disk_cache()
+                disk[disk_key] = {"ts": time.time(), "items": [NewsFetcher._newsitem_to_dict(i) for i in items]}
+                self._save_disk_cache(disk)
             return items
 
     def _fetch_latest_uncached(
@@ -590,8 +669,15 @@ class NewsFetcher:
             all_items: list[NewsItem] = []
             seen_urls: set[str] = set()
 
-            for label, q in queries:
-                batch = self._fetch_from_newsapi(q, hours)
+            # 并行拉取 3 条 query: NewsAPI 挂时最坏耗时收敛到单次超时×重试,
+            # 而非 3 倍串行 (fast-analysis: 完整分析 ≤1min)
+            with ThreadPoolExecutor(max_workers=3) as _news_exec:
+                batches = list(_news_exec.map(
+                    lambda q: self._fetch_from_newsapi(q, hours),
+                    [q for _, q in queries],
+                ))
+
+            for (label, _q), batch in zip(queries, batches):
                 new_count = 0
                 for item in batch:
                     if item.url and item.url not in seen_urls:
@@ -716,9 +802,15 @@ class NewsFetcher:
         }
 
         last_error: Exception | None = None
-        for attempt in range(3):
+        # 重试上限 2 (fast-analysis: NewsAPI 挂时 ≤2×timeout 收敛, 不拖慢整条 pipeline)
+        for attempt in range(2):
             try:
-                response = fallback_get("https://newsapi.org/v2/everything", params=params, timeout=30)
+                # newsapi.org 国内必须走 mihomo 代理: proxy_required=True 使 mihomo 失败即快速失败,
+                # 不叠 direct/curl/sys/node 多层回退 (每层各吃一个 timeout 会拖慢 pipeline)
+                response = fallback_get(
+                    "https://newsapi.org/v2/everything", params=params,
+                    timeout=8, proxy_required=True,
+                )
                 response.raise_for_status()
                 data = response.json()
 
@@ -755,11 +847,11 @@ class NewsFetcher:
                     break
                 if not _is_retryable_error(e) and not isinstance(e, httpx.HTTPStatusError):
                     break
-                if attempt < 2:
-                    logger.warning(f"NewsAPI请求失败 (尝试 {attempt + 1}/3): {e}, 即将重试")
+                if attempt < 1:
+                    logger.warning(f"NewsAPI请求失败 (尝试 {attempt + 1}/2): {e}, 即将重试")
                     _sleep_backoff(attempt)
                 else:
-                    logger.warning(f"NewsAPI请求失败 (尝试 {attempt + 1}/3): {e}")
+                    logger.warning(f"NewsAPI请求失败 (尝试 {attempt + 1}/2): {e}")
 
         logger.warning(f"NewsAPI请求最终失败: {last_error}")
         return []

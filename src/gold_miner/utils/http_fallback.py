@@ -363,6 +363,7 @@ def fallback_get(
     headers: dict[str, str] | None = None,
     timeout: float = 30.0,
     retries: int = 2,
+    proxy_required: bool = False,
 ) -> _FallbackResponse:
     """GET with multi-layer fallback: mihomo → direct → curl → system-python → node.
 
@@ -372,6 +373,10 @@ def fallback_get(
     2. Fallback: direct connection (proxy=None, trust_env=False) — works for
        non-blocked sites; bypasses broken system VPN proxy (port 7897).
     3. Last resort: curl → system-python → node (clean env, no proxies).
+
+    proxy_required=True: 仅走 mihomo 代理, 失败立即快速失败 (不尝试 direct/curl/sys/node)。
+    用于国内必须走代理的站点 (如 newsapi.org): 网络抖动时避免多层回退各吃一个 timeout
+    拖慢整条 pipeline (fast-analysis: 完整分析 ≤1min)。
     """
     full_url = _build_url(url, params)
     last_error: Exception | None = None
@@ -382,6 +387,9 @@ def fallback_get(
         return _FallbackResponse(
             result["status_code"], result["text"], result["headers"]
         )
+    if proxy_required:
+        # 代理必需站点 mihomo 失败即快速失败 — 单层 timeout 收敛, 不叠多层回退
+        raise httpx.ConnectError(f"proxy-required fetch failed for {url}")
 
     # Phase 2: direct connection (works for non-blocked sites)
     for attempt in range(retries + 1):
