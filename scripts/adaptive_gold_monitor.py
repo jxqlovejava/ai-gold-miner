@@ -144,6 +144,8 @@ OPP_DEFAULTS: dict = {
     "atr_sl_break_key_levels": [908.0],       # 自定义破位警戒位(元/克) 优先级高于动态ATR浮亏轨; 空列表=[只跟动态]
     "atr_sl_break_band_pct": 0.003,           # 破位带宽 ±0.3% (接近但不触发, 供"逼近"提示)
     "atr_sl_recovery_pct": 0.01,              # 破位后回升超1%再跌破才重提醒 (防跌穿后反复)
+    "order_near_pct": 1.5,                    # 条件单接近阈值: 距触发价≤1.5%提醒 (与盘前哨兵同款)
+    "cooldown_order_prox_min": 60,            # 条件单接近提醒冷却 (防价位居阈值带内反复横跳刷屏)
 }
 OPP_CONFIG_PATH = PROJECT_ROOT / "data/private/opportunity_config.yaml"
 SIGNAL_SNAPSHOT_PATH = PROJECT_ROOT / "data/signal_snapshot.json"
@@ -1029,6 +1031,59 @@ def _load_signal_snapshot(cfg: dict) -> dict | None:
         return None
 
 
+# 条件单类型 → 中文 (供接近提醒展示)
+_ORDER_TYPE_CN: dict[str, str] = {
+    "limit_buy": "限价买入",
+    "limit_sell": "限价卖出",
+    "take_profit": "止盈",
+    "stop_loss": "止损",
+    "oco": "OCO止盈止损",
+}
+
+
+def _check_order_proximity(current: float, state: dict, cfg: dict) -> list[dict]:
+    """条件单接近提醒 — 现价距活跃买入/卖出条件单触发价 ≤ order_near_pct 时推送.
+
+    复用哨兵 check_order_proximity (含 OCO 双腿), 与盘前哨兵口径一致.
+    冷却: 每单 60min (state.order_prox_at_<id>), 防价位居阈值带内反复横跳刷屏.
+    休市静默由 main() 门禁统一处理 (休市期不进入本函数).
+    """
+    if current <= 0 or not ORDERS_PATH.exists():
+        return []
+    try:
+        from gold_miner.sentinel.orders import check_order_proximity, load_active_orders
+
+        orders = load_active_orders(ORDERS_PATH)
+        if not orders:
+            return []
+        near_pct = float(cfg.get("order_near_pct", 1.5))
+        cooldown_sec = int(cfg.get("cooldown_order_prox_min", 60)) * 60
+        alerts: list[dict] = []
+        for o, dist in check_order_proximity(orders, current, near_pct)[:3]:  # 最多3条
+            # 冷却去重: 同单冷却期内不重复提醒
+            key = f"order_prox_at_{o.id}" if o.id else f"order_prox_at_{o.trigger_price}"
+            last_at = state.get(key)
+            if last_at:
+                try:
+                    elapsed = (_now() - datetime.fromisoformat(last_at)).total_seconds()
+                except (ValueError, TypeError):
+                    elapsed = cooldown_sec + 1
+                if elapsed < cooldown_sec:
+                    continue
+            type_cn = _ORDER_TYPE_CN.get(o.type, o.type)
+            direction_sym = "↓" if o.direction == "卖出" else "↑"
+            qty = f" ×{o.quantity_g:g}g" if o.quantity_g else ""
+            msg = (
+                f"🎯 条件单接近: {type_cn}@{o.trigger_price:.0f}元 "
+                f"({direction_sym}{dist:.1f}%){qty} — 当前 {current:.0f}元"
+            )
+            alerts.append({"type": "order_proximity", "message": msg, "severity": "MEDIUM"})
+            state[key] = _now().isoformat()
+        return alerts
+    except Exception:
+        return []  # 读取/导入失败 → 静默降级, 不阻断监控
+
+
 def _gather_evidence(current: float, historical: list[dict], cfg: dict) -> dict:
     """理由引擎证据包: 技术面 + 信号快照 + 48h事件 + 活跃条件单. 各源失败独立降级."""
     closes = [p["close"] for p in historical] + [current]
@@ -1713,6 +1768,11 @@ def main() -> int:
     atr_stop_break = _check_atr_stop_break(current, stop_ctx, state, opp_cfg)
     if atr_stop_break:
         alerts.append(atr_stop_break)
+
+    # 4j. 条件单接近提醒 (2026-08-21): 现价逼近活跃买入/卖出条件单触发价 → 微信提醒
+    #     复用哨兵 check_order_proximity, 阈值 1.5%, 每单 60min 冷却 (与反弹同款)
+    for order_alert in _check_order_proximity(current, state, opp_cfg):
+        alerts.append(order_alert)
 
     # 5. 🆕 下跌原因分析 — 检测是否是机构在抛售
     #    价格下跌超阈值时触发, 结果缓存30分钟
