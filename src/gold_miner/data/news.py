@@ -802,8 +802,9 @@ class NewsFetcher:
         }
 
         last_error: Exception | None = None
-        # 重试上限 2 (fast-analysis: NewsAPI 挂时 ≤2×timeout 收敛, 不拖慢整条 pipeline)
-        for attempt in range(2):
+        # 重试上限 1 (fast-analysis 2026-08-21: proxy_required 已让 mihomo 失败快速失败,
+        # 再重试一次只是叠加等待; 磁盘缓存兜底已有 30min TTL)
+        for attempt in range(1):
             try:
                 # newsapi.org 国内必须走 mihomo 代理: proxy_required=True 使 mihomo 失败即快速失败,
                 # 不叠 direct/curl/sys/node 多层回退 (每层各吃一个 timeout 会拖慢 pipeline)
@@ -847,11 +848,8 @@ class NewsFetcher:
                     break
                 if not _is_retryable_error(e) and not isinstance(e, httpx.HTTPStatusError):
                     break
-                if attempt < 1:
-                    logger.warning(f"NewsAPI请求失败 (尝试 {attempt + 1}/2): {e}, 即将重试")
-                    _sleep_backoff(attempt)
-                else:
-                    logger.warning(f"NewsAPI请求失败 (尝试 {attempt + 1}/2): {e}")
+                # 单次尝试, 失败不再退避重试 (fast-analysis: 磁盘缓存兜底)
+                logger.warning(f"NewsAPI请求失败 (尝试 {attempt + 1}/1): {e}")
 
         logger.warning(f"NewsAPI请求最终失败: {last_error}")
         return []
