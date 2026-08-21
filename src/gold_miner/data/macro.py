@@ -12,6 +12,7 @@ from loguru import logger
 
 from gold_miner.config import settings
 from gold_miner.data.base import DataFetcher, DataSourceMeta
+from gold_miner.data.caching import DiskCache
 from gold_miner.data.economic_data import EconomicDataPoint, EconomicDataRecorder
 from gold_miner.proxy import get_proxied_client
 
@@ -216,6 +217,15 @@ class MacroDataFetcher(DataFetcher):
     _DXY_FAST_TTL_SECONDS = 600.0  # 磁盘缓存 10 分钟内直接用, 跳过 Yahoo (避免 429)
     _DXY_STALE_TTL_SECONDS = 24 * 3600.0  # 降级 fallback 有效期
 
+    # 完整历史磁盘缓存: 单值 dxy 缓存命中会让 MA5/MA20 信号退化 (<20 行直接跳过),
+    # 这里缓存完整 1y 历史 DataFrame (1h), 命中保留 MA 计算能力, 避免重复 yfinance 慢下载.
+    _dxy_full_cache = DiskCache(key="dxy_full", ttl_seconds=3600)
+    _rate_full_cache = DiskCache(key="real_rate", ttl_seconds=21600)  # FRED 日频 6h
+    _breakeven_full_cache = DiskCache(key="breakeven", ttl_seconds=21600)  # FRED 日频 6h
+    # yfinance 429 冷却: DXY 是最后一个 yfinance 依赖, 限流时 30min 内直接用
+    # 缓存/fallback, 避免每次 scan 重复等 9-12s (Yahoo 429 下 DXY 完整历史本就拿不到).
+    _dxy_cooldown = DiskCache(key="dxy_429", ttl_seconds=1800)
+
     @staticmethod
     def _dxy_cache_path() -> Path:
         """磁盘缓存路径: data/cache/dxy_cache.json (跨进程生效)."""
@@ -278,6 +288,19 @@ class MacroDataFetcher(DataFetcher):
             MacroDataFetcher._DXY_CACHE_TS = disk[1]
             return pd.DataFrame([{"timestamp": datetime.now(), "value": disk[0]}])
 
+        # Strategy 0.5: 完整历史磁盘缓存 (1h, 保留 MA5/MA20 计算能力, 避免 yfinance 慢下载)
+        full = MacroDataFetcher._dxy_full_cache.get()
+        if full is not None:
+            logger.debug(f"ICE DXY 使用完整历史磁盘缓存 ({len(full)} 行)")
+            return full
+
+        # Strategy 0.75: yfinance 429 冷却 (30min) — 限流时不重试, 直接用缓存/fallback
+        if MacroDataFetcher._dxy_cooldown.get() is not None:
+            logger.debug("ICE DXY 429 冷却中, 走缓存/fallback (不重试 yfinance)")
+            if disk is not None:
+                return pd.DataFrame([{"timestamp": datetime.now(), "value": disk[0]}])
+            return pd.DataFrame([{"timestamp": datetime.now(), "value": 100.87}])
+
         hist = None
 
         # Strategy 1: yfinance 默认 (可能触发 429)
@@ -295,6 +318,7 @@ class MacroDataFetcher(DataFetcher):
                 logger.debug(f"ICE DXY yfinance 失败 (attempt {attempt + 1}/3): {e}")
                 if MacroDataFetcher._is_rate_limited(e):
                     logger.debug("ICE DXY 被 Yahoo 限流(429), 跳过退避直接用缓存/fallback")
+                    MacroDataFetcher._dxy_cooldown.set(True)
                     break
                 if attempt < 2:
                     _sleep(2 ** attempt)
@@ -325,6 +349,7 @@ class MacroDataFetcher(DataFetcher):
                 MacroDataFetcher._DXY_CACHE = float(out["value"].iloc[-1])
                 MacroDataFetcher._DXY_CACHE_TS = _time()
                 MacroDataFetcher._write_dxy_disk_cache(MacroDataFetcher._DXY_CACHE)
+                MacroDataFetcher._dxy_full_cache.set(out)  # 完整历史缓存 (保留 MA 能力)
                 logger.debug(f"ICE DXY 获取成功: {MacroDataFetcher._DXY_CACHE:.2f}")
                 return out
 
@@ -399,18 +424,28 @@ class MacroDataFetcher(DataFetcher):
         }
 
     def fetch_real_rate(self, lookback_days: int = 365) -> pd.DataFrame:
-        """获取10年期实际利率 (TIPS)."""
+        """获取10年期实际利率 (TIPS) (磁盘缓存 6h, FRED 日频)."""
+        cached = MacroDataFetcher._rate_full_cache.get()
+        if cached is not None:
+            return cached
         df = self.fetch(series_id="REAINTRATREARAT10Y")
         if df.empty:
             return pd.DataFrame(columns=["timestamp", "value"])
-        return df[["timestamp", "value"]].copy()
+        out = df[["timestamp", "value"]].copy()
+        MacroDataFetcher._rate_full_cache.set(out)
+        return out
 
     def fetch_breakeven(self, lookback_days: int = 365) -> pd.DataFrame:
-        """获取10年期盈亏平衡通胀率 (T10YIE)."""
+        """获取10年期盈亏平衡通胀率 (T10YIE) (磁盘缓存 6h, FRED 日频)."""
+        cached = MacroDataFetcher._breakeven_full_cache.get()
+        if cached is not None:
+            return cached
         df = self.fetch(series_id="T10YIE")
         if df.empty:
             return pd.DataFrame(columns=["timestamp", "value"])
-        return df[["timestamp", "value"]].copy()
+        out = df[["timestamp", "value"]].copy()
+        MacroDataFetcher._breakeven_full_cache.set(out)
+        return out
 
     def fetch_vix(self) -> pd.DataFrame:
         """获取 CBOE 波动率指数 VIX — FRED series VIXCLS."""
