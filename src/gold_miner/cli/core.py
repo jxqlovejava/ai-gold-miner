@@ -8,22 +8,50 @@ from loguru import logger as log
 
 from gold_miner.config import settings
 
-from .analysis import run_analyze
-from .backtest import run_backtest
-from .daemon import run_daemon
-from .doctrine import run_doctrine
-from .journal import run_journal
-from .long_term import run_longterm
-from .prepare import run_prepare
-from .proxy_install import run_proxy_install
-from .quote import run_quote
-from .record import run_record
-from .report import run_report
-from .scan import run_scan
-from .scenario import run_scenario
-from .tracking import run_findings, run_review, run_track
-from .verify import run_doctor_wrapper, run_setup_wrapper, run_verify_wrapper
-from .web import run_web
+# 懒加载: 命令模块按需导入。此前 16 个 run_* 全部顶层 import, 导致
+# gold-miner scan 也要连带加载 analysis/web/scenario/long_term 重型链
+# (pandas/bs4/pydantic_settings 等, 实测 CLI 启动 ~4s, 服务器更甚)。
+# 改为 PEP 562 __getattr__ 惰性导入, 首次访问 run_* 才加载对应模块。
+_LAZY_COMMANDS: dict[str, str] = {
+    "run_analyze": ".analysis",
+    "run_backtest": ".backtest",
+    "run_daemon": ".daemon",
+    "run_doctrine": ".doctrine",
+    "run_journal": ".journal",
+    "run_longterm": ".long_term",
+    "run_prepare": ".prepare",
+    "run_proxy_install": ".proxy_install",
+    "run_quote": ".quote",
+    "run_record": ".record",
+    "run_report": ".report",
+    "run_scan": ".scan",
+    "run_scenario": ".scenario",
+    "run_findings": ".tracking",
+    "run_review": ".tracking",
+    "run_track": ".tracking",
+    "run_doctor_wrapper": ".verify",
+    "run_setup_wrapper": ".verify",
+    "run_verify_wrapper": ".verify",
+    "run_web": ".web",
+}
+
+
+def _resolve(name: str):
+    """惰性获取命令函数: 优先读已存在的模块属性(兼容测试 monkeypatch), 否则按需导入.
+
+    说明: 模块内函数体引用全局名走 LOAD_GLOBAL, 不会触发模块 __getattr__,
+    因此用显式 _resolve() 而非 PEP 562。首次真实调用后缓存为模块属性, 后续直接命中。
+    """
+    fn = globals().get(name)
+    if fn is not None:
+        return fn
+    import importlib
+
+    fn = getattr(
+        importlib.import_module(_LAZY_COMMANDS[name], package=__package__), name
+    )
+    globals()[name] = fn  # 缓存, 避免下次重复导入
+    return fn
 
 
 def setup_logging() -> None:
@@ -123,11 +151,11 @@ def main() -> None:
         log.info("[Demo 模式] 已启用：跳过新闻/情绪/Polymarket 等需要 API key 的功能")
 
     if args.command == "prepare":
-        run_prepare()
+        _resolve("run_prepare")()
     elif args.command == "quote":
-        run_quote()
+        _resolve("run_quote")()
     elif args.command == "scan":
-        run_scan(
+        _resolve("run_scan")(
             days=args.days,
             with_news=args.news,
             with_sentiment=args.sentiment,
@@ -135,29 +163,29 @@ def main() -> None:
             report_file=args.report_file,
         )
     elif args.command == "backtest":
-        run_backtest(args)
+        _resolve("run_backtest")(args)
     elif args.command == "journal":
-        run_journal()
+        _resolve("run_journal")()
     elif args.command == "proxy-install":
-        run_proxy_install()
+        _resolve("run_proxy_install")()
     elif args.command == "track":
-        run_track(args)
+        _resolve("run_track")(args)
     elif args.command == "review":
-        run_review(args)
+        _resolve("run_review")(args)
     elif args.command == "findings":
-        run_findings(args)
+        _resolve("run_findings")(args)
     elif args.command == "scenario":
-        run_scenario(args)
+        _resolve("run_scenario")(args)
     elif args.command == "doctrine":
-        run_doctrine(args)
+        _resolve("run_doctrine")(args)
     elif args.command == "analyze":
-        run_analyze(args)
+        _resolve("run_analyze")(args)
     elif args.command == "report":
-        run_report(args)
+        _resolve("run_report")(args)
     elif args.command == "daemon":
-        run_daemon(args)
+        _resolve("run_daemon")(args)
     elif args.command == "verify":
-        run_verify_wrapper(args)
+        _resolve("run_verify_wrapper")(args)
     elif args.command == "advisor":
         if args.question:
             from gold_miner.advisor.orchestrator import Advisor
@@ -184,12 +212,12 @@ def main() -> None:
             )
             print(report.to_markdown())
     elif args.command == "doctor":
-        run_doctor_wrapper()
+        _resolve("run_doctor_wrapper")()
     elif args.command == "setup":
-        run_setup_wrapper(args)
+        _resolve("run_setup_wrapper")(args)
     elif args.command == "web":
-        run_web(args)
+        _resolve("run_web")(args)
     elif args.command == "longterm":
-        run_longterm(args)
+        _resolve("run_longterm")(args)
     elif args.command == "record":
-        run_record(args)
+        _resolve("run_record")(args)

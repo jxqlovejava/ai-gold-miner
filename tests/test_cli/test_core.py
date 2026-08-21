@@ -31,7 +31,8 @@ def _capture_scan_args(monkeypatch):
     def fake_run_scan(**kwargs):
         captured.update(kwargs)
 
-    monkeypatch.setattr(core, "run_scan", fake_run_scan)
+    # raising=False: 懒加载后 core.run_scan 不再预先存在, 允许 monkeypatch 注入
+    monkeypatch.setattr(core, "run_scan", fake_run_scan, raising=False)
     return captured
 
 
