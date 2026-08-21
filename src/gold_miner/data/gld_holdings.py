@@ -31,6 +31,10 @@ from gold_miner.proxy import get_proxied_client
 # GLD 近期已知持仓量 (吨) — 2026-07 约 900 吨，用于不可恢复失败时的 fallback
 _GLD_KNOWN_HOLDINGS_TONNES = 900.0
 
+# GLD Excel 下载超时 (秒) — 健康网络 2-8s 即可完成; 60s 会让网络抖动时单策略空烧 60s
+# (曾致管线 393s: 首次全策略失败~90s + 第二生成器重试又烧一轮). 25s 足够覆盖慢速下载, 同时限制最坏情况
+_GLD_DOWNLOAD_TIMEOUT = 25.0
+
 
 class GldHoldingsFetcher(DataFetcher):
     """GLD 每日黄金持仓量获取器."""
@@ -62,7 +66,7 @@ class GldHoldingsFetcher(DataFetcher):
         # Strategy 1: 代理 HTTPS
         for attempt in range(2):
             try:
-                with get_proxied_client(timeout=60.0) as client:
+                with get_proxied_client(timeout=_GLD_DOWNLOAD_TIMEOUT) as client:
                     resp = client.get(self.ARCHIVE_URL)
                     resp.raise_for_status()
                     logger.debug("GLD 数据获取成功 [strategy=proxied-https]")
@@ -75,7 +79,7 @@ class GldHoldingsFetcher(DataFetcher):
         # Strategy 2: 直连 HTTPS (绕过代理)
         try:
             import httpx
-            with httpx.Client(timeout=60.0) as client:
+            with httpx.Client(timeout=_GLD_DOWNLOAD_TIMEOUT) as client:
                 resp = client.get(self.ARCHIVE_URL, follow_redirects=True)
                 resp.raise_for_status()
                 logger.debug("GLD 数据获取成功 [strategy=direct-https]")
@@ -91,7 +95,7 @@ class GldHoldingsFetcher(DataFetcher):
             ctx.verify_mode = ssl.CERT_NONE
             # 禁用旧版本 TLS 避免 EOF 问题
             ctx.minimum_version = ssl.TLSVersion.TLSv1_2
-            with httpx.Client(timeout=60.0, verify=False) as client:
+            with httpx.Client(timeout=_GLD_DOWNLOAD_TIMEOUT, verify=False) as client:
                 resp = client.get(self.ARCHIVE_URL, follow_redirects=True)
                 resp.raise_for_status()
                 logger.debug("GLD 数据获取成功 [strategy=direct-http-noverify]")
@@ -102,10 +106,10 @@ class GldHoldingsFetcher(DataFetcher):
         # Strategy 4: curl 子进程 (绕过 Python TLS 栈)
         try:
             result = subprocess.run(
-                ["curl", "-sS", "--max-time", "60", "--noproxy", "*",
+                ["curl", "-sS", "--max-time", str(int(_GLD_DOWNLOAD_TIMEOUT)), "--noproxy", "*",
                  "-H", "User-Agent: Mozilla/5.0",
                  self.ARCHIVE_URL],
-                capture_output=True, text=False, timeout=65,
+                capture_output=True, text=False, timeout=int(_GLD_DOWNLOAD_TIMEOUT) + 5,
             )
             if result.returncode == 0 and result.stdout and len(result.stdout) > 1000:
                 logger.debug("GLD 数据获取成功 [strategy=curl-direct]")
@@ -123,11 +127,11 @@ class GldHoldingsFetcher(DataFetcher):
         end: datetime | None = None,
         **kwargs: Any,
     ) -> pd.DataFrame:
-        """下载并解析 GLD 历史持仓数据 (进程内 TTL 缓存去重).
+        """下载并解析 GLD 历史持仓数据 (进程内 TTL 缓存 + 数据库优先复用).
 
         返回 DataFrame 列：timestamp, value（吨）, nav_per_share, shares_volume
         """
-        full = self._fetch_cache.get_or(self._download_and_parse)
+        full = self._fetch_cache.get_or(self._load_holdings)
         if full is None:
             logger.debug("GLD 持仓数据不可用")
             return pd.DataFrame(columns=["timestamp", "value", "nav_per_share", "shares_volume"])
@@ -139,6 +143,40 @@ class GldHoldingsFetcher(DataFetcher):
         if end:
             df = df[df["timestamp"] <= pd.Timestamp(end)]
         return df.reset_index(drop=True)
+
+    def _load_holdings(self) -> pd.DataFrame | None:
+        """优先读经济数据库 (当日已有则不重复下载, GLD 持仓每日仅更新一次), 否则走下载+解析."""
+        db = self._from_db()
+        if db is not None:
+            logger.debug("GLD 持仓复用经济数据库 (免下载)")
+            return db
+        return self._download_and_parse()
+
+    def _from_db(self) -> pd.DataFrame | None:
+        """从经济数据库读取最近 GLD 持仓 (前值+最新两行), 用于流向计算.
+
+        仅当观测日期在近 48h 内有效 (GLD 每日更新, 过旧视为不可用, 触发重新下载)。
+        """
+        try:
+            points = self._recorder.find(indicator="gld_holdings_tonnes")
+            if not points:
+                return None
+            p = points[-1]
+            if p.actual is None:
+                return None
+            obs = pd.Timestamp(p.observation_date)
+            if obs < pd.Timestamp.now() - pd.Timedelta(hours=48):
+                logger.debug(f"GLD 持仓数据库观测日期过旧 ({obs.date()}), 重新下载")
+                return None
+            latest_val = float(p.actual)
+            prev_val = float(p.previous) if p.previous is not None else latest_val
+            return pd.DataFrame([
+                {"timestamp": obs - pd.Timedelta(days=1), "value": prev_val},
+                {"timestamp": obs, "value": latest_val},
+            ])
+        except Exception as e:
+            logger.debug(f"读取 GLD 持仓数据库失败: {e}")
+            return None
 
     def _download_and_parse(self) -> pd.DataFrame | None:
         """下载+解析 GLD 全量历史持仓; 失败/空返回 None (不缓存, 下次重试).

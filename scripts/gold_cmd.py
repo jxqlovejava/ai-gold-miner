@@ -548,8 +548,13 @@ def _run_scan_background(quick: bool) -> str:
     return f"⏳ 完整分析已启动 ({'快速' if quick else '完整'}模式)，约 {eta} 后推送微信。"
 
 
-def _scan_worker(quick: bool) -> int:
-    """后台 worker: 真正跑 AnalysisPipeline."""
+def _scan_worker(quick: bool, foreground: bool = False) -> int:
+    """跑 AnalysisPipeline.
+
+    foreground=True: 前台同步完整报告 — 单次跑完输出全量控制台报告, 不派后台worker,
+                     不推微信, 记录预测 (对话式分析用, 避免先后台再前台跑两遍)。
+    foreground=False: 后台 worker (cron/定时, 推微信)。
+    """
     try:
         from gold_miner.pipeline.analysis import AnalysisPipeline, AnalysisContext
 
@@ -560,7 +565,7 @@ def _scan_worker(quick: bool) -> int:
             deep=False,
             skip_alerts=True,
             skip_notification=True,
-            skip_tracking=True,
+            skip_tracking=not foreground,  # 前台完整分析记录预测(供回测), 后台worker不记
         )
         if quick:
             from gold_miner.config import settings
@@ -587,17 +592,21 @@ def _scan_worker(quick: bool) -> int:
         except Exception as _e:
             logger.warning(f"HTML 报告渲染失败, 不影响推送: {_e}")
 
-        # 推送 (微信单条限长, 按节拆多条)
-        ok = _push_weixin(md[:1800])
-        if len(md) > 1800:
-            _push_weixin(md[1800:3600])
-        logger.info(f"scan 完成, 归档 {archive}, 推送 {'成功' if ok else '失败'}")
+        # 推送 (微信单条限长, 按节拆多条) — 仅后台 worker 模式推微信
+        if not foreground:
+            ok = _push_weixin(md[:1800])
+            if len(md) > 1800:
+                _push_weixin(md[1800:3600])
+            logger.info(f"scan 完成, 归档 {archive}, 推送 {'成功' if ok else '失败'}")
+        else:
+            logger.info(f"scan 完成, 归档 {archive} (前台模式, 不推微信)")
         return 0
     except Exception as e:
         import traceback
         err = traceback.format_exc()
         logger.error(f"scan worker 失败: {e}\n{err}")
-        _push_weixin(f"❌ 完整分析失败: {e}")
+        if not foreground:
+            _push_weixin(f"❌ 完整分析失败: {e}")
         return 1
 
 
@@ -714,6 +723,8 @@ def main() -> int:
     parser.add_argument("--text", default=None, help="情景描述 (scenario)")
     parser.add_argument("--question", default=None, help="咨询问题 (advisor)")
     parser.add_argument("--quick", action="store_true", help="快速模式 (scan, 关新闻/情绪)")
+    parser.add_argument("--foreground", action="store_true",
+                        help="前台同步模式 (scan): 单次跑完输出完整报告, 不派后台worker, 不推微信, 记录预测")
     parser.add_argument("--async-worker", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
 
@@ -751,6 +762,9 @@ def main() -> int:
 
     # 异步命令: 前台触发后台任务
     elif args.subcommand == "scan":
+        # --foreground: 单次同步跑完输出完整报告 (对话式分析用, 不派后台worker/不推微信)
+        if args.foreground:
+            return _scan_worker(args.quick, foreground=True)
         print(_run_scan_background(args.quick))
     elif args.subcommand == "advisor":
         print(_run_advisor_background(args.question or ""))
