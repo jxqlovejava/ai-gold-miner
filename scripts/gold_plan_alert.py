@@ -127,6 +127,9 @@ def _portfolio_snapshot(p: dict | None) -> str | None:
         pos = p["positions"]["gold_jd"]
         grams = pos["grams"]
         avg_cost = pos["avg_cost"]
+        # 空仓 (grams<=0): 成本/净保本仅历史参考, 不展示为持仓 (2026-08-21 清仓误推修复)
+        if float(grams or 0) <= 0:
+            return "空仓 — 无持仓, 待回调择机重建 (V9)"
         sell_fee_pct = pos.get("sell_fee_pct", 0.4)
         net_breakeven = avg_cost / (1 - sell_fee_pct / 100)
         profit_pct = (grams and 0.0)  # 占位
@@ -193,6 +196,9 @@ def _profit_trail_check(portfolio: dict | None, price: float) -> dict | None:
         return None
     try:
         pos = portfolio["positions"]["gold_jd"]
+        # 空仓 (grams<=0): 无浮盈可守护, 不触发 r010 (2026-08-21 清仓误推修复)
+        if float(pos.get("grams", 0) or 0) <= 0:
+            return None
         avg_cost = float(pos["avg_cost"])
         sell_fee = float(pos.get("sell_fee_pct", 0.4))
         net_breakeven = avg_cost / (1 - sell_fee / 100)
@@ -298,6 +304,9 @@ def _fast_stop_level(portfolio: dict | None) -> float | None:
         return None
     try:
         pos = portfolio["positions"]["gold_jd"]
+        # 空仓 (grams<=0): 无仓位可快止损, 不触发 S档告警 (2026-08-21 清仓误推修复)
+        if float(pos.get("grams", 0) or 0) <= 0:
+            return None
         avg_cost = float(pos["avg_cost"])
         fast_pct = float(
             portfolio.get("long_term", {}).get("s_protocol", {}).get("fast_stop_pct", _DEFAULT_FAST_STOP_PCT)

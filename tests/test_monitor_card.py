@@ -145,3 +145,76 @@ def test_trend_first_poll_seeds_recent_high():
     m._update_trend_bookkeeping(958.0, None, state, {})
     assert state["recent_high"] == 958.0
     assert state["trend_high"] is None
+
+
+# ─────────────────────────────────────────────────────────────
+# 空仓检测 (2026-08-21 清仓后仍误推持仓浮盈/ATR 的 bug 修复)
+# portfolio.yaml 清仓后 grams=0 但 avg_cost 保留作历史参考 → 不得据此误判有仓
+# ─────────────────────────────────────────────────────────────
+
+def _write_empty_portfolio(tmp_path):
+    """清仓后状态: grams=0 但 avg_cost 保留作历史参考."""
+    p = tmp_path / "portfolio.yaml"
+    p.write_text(
+        """
+positions:
+  gold_jd:
+    instrument: 积存金
+    bank: MS
+    grams: 0.0
+    avg_cost: 933.62
+    sell_fee_pct: 0.4
+    split:
+      core: 0.0
+      tactical: 0.0
+""".lstrip(),
+        encoding="utf-8",
+    )
+    return p
+
+
+def test_get_cost_basis_none_when_empty_position(tmp_path, monkeypatch):
+    # 清仓后 avg_cost 保留, 但 grams=0 → 不得视为有仓
+    monkeypatch.setattr(m, "PORTFOLIO_PATH", _write_empty_portfolio(tmp_path))
+    assert m._get_cost_basis() is None
+
+
+def test_card_empty_position_shows_marker_no_pnl(tmp_path, monkeypatch):
+    # 空仓卡片: 不展示成本/浮盈/ATR, 显示"空仓"标记
+    monkeypatch.setattr(m, "PORTFOLIO_PATH", _write_empty_portfolio(tmp_path))
+    price_info = {"price": 979.11, "prev_close": 974.49, "change_pct": 0.21}
+    card = m._format_card("NORMAL", "NORMAL", price_info, None, [], {})
+    assert "空仓" in card
+    assert "成本" not in card
+    assert "浮盈" not in card
+    assert "ATR" not in card
+
+
+def test_stop_context_empty_when_empty_position(tmp_path, monkeypatch):
+    # 空仓时即使 K 线可获取, 也不计算 ATR止盈/止损 (无持仓无意义)
+    import pandas as pd
+    import gold_miner.data.jd_accumulation_gold as jd_mod
+
+    idx = pd.date_range("2026-08-01", periods=20, freq="D")
+    fake_df = pd.DataFrame({
+        "timestamp": idx,
+        "open": [950 + i * 0.5 for i in range(20)],
+        "high": [955 + i * 0.5 for i in range(20)],
+        "low": [945 + i * 0.5 for i in range(20)],
+        "close": [952 + i * 0.5 for i in range(20)],
+    })
+
+    class _FakeJD:
+        def __init__(self, bank="MS"):
+            pass
+
+        def fetch(self, days=90):
+            return fake_df
+
+    monkeypatch.setattr(m, "PORTFOLIO_PATH", _write_empty_portfolio(tmp_path))
+    monkeypatch.setattr(jd_mod, "JdAccumulationGoldFetcher", _FakeJD)
+
+    ctx = m._get_stop_context(979.11)
+    assert ctx["atr_take_profit"] == 0.0
+    assert ctx["atr_stop_loss"] == 0.0
+    assert ctx["atr_stop"] == 0.0

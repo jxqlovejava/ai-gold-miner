@@ -202,7 +202,25 @@ def _load_portfolio() -> dict | None:
         return None
 
 
+def _position_grams() -> float:
+    """当前持仓克数; 文件缺失/解析失败视为 0 (空仓)."""
+    p = _load_portfolio()
+    if not p:
+        return 0.0
+    try:
+        return float(p["positions"]["gold_jd"].get("grams", 0) or 0)
+    except (KeyError, ValueError, TypeError, AttributeError):
+        return 0.0
+
+
 def _get_cost_basis() -> float | None:
+    """成本基准价; 空仓 (grams<=0) 返回 None.
+
+    2026-08-21 修复: 清仓后 portfolio.yaml 的 avg_cost 仍保留作历史参考,
+    若只读 avg_cost 会误判"有仓"→ 微信推送仍展示浮盈/ATR。持仓存在性以 grams 为准。
+    """
+    if _position_grams() <= 0:
+        return None
     p = _load_portfolio()
     if not p:
         return None
@@ -249,6 +267,10 @@ def _get_stop_context(current: float) -> dict:
     }
     p = _load_portfolio()
     if not p:
+        return ctx
+    # 空仓 (grams<=0): 无持仓, ATR止盈/止损与硬止损均无意义 → 直接返回空 ctx
+    # (2026-08-21 修复: 清仓后不再误推 ATR 线。提前返回也避免拉取 JD K 线做无谓计算)
+    if _position_grams() <= 0:
         return ctx
     try:
         gold = p["positions"]["gold_jd"]
@@ -1490,6 +1512,9 @@ def _format_card(
         if net_pnl < 0:
             line += " ⚠️ 已破净保本线, 卖出即实亏"
         lines.append(line)
+    elif _position_grams() <= 0:
+        # 空仓: 无持仓, 不展示浮盈/ATR (2026-08-21 清仓后误推持仓信息 bug 修复)
+        lines.append("🈳 空仓 — 无持仓, 仅监控价格, 待回调择机重建(V9)")
 
     # ── ATR 止盈/止损 (r025) — 常驻, 无论是否有告警都带上 (止盈/止损各一行) ──
     if stop_ctx:

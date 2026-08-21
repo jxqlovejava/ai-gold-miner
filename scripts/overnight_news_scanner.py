@@ -825,7 +825,11 @@ def _portfolio_line(est_price: float) -> str | None:
         data = yaml.safe_load(
             Path("data/private/portfolio.yaml").read_text(encoding="utf-8")
         )
-        cost = float(data["positions"]["gold_jd"]["avg_cost"])
+        pos = data["positions"]["gold_jd"]
+        # 空仓 (grams<=0): 无持仓, 不展示成本/浮盈 (2026-08-21 清仓后误推修复)
+        if float(pos.get("grams", 0) or 0) <= 0:
+            return None
+        cost = float(pos["avg_cost"])
         pnl = (est_price - cost) / cost * 100
         return f"持仓: 成本¥{cost:.2f} | 预计开盘浮动盈亏 {pnl:+.1f}%"
     except Exception:

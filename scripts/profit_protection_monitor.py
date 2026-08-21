@@ -89,12 +89,18 @@ def _load_portfolio() -> dict | None:
 
 
 def _get_cost_basis() -> float | None:
-    """获取成本均价."""
+    """获取成本均价; 空仓 (grams<=0) 返回 None.
+
+    2026-08-21 修复: 清仓后 avg_cost 仍保留作历史参考, 只读它会把空仓误判为有仓.
+    """
     p = _load_portfolio()
     if not p:
         return None
     try:
-        return float(p["positions"]["gold_jd"]["avg_cost"])
+        pos = p["positions"]["gold_jd"]
+        if float(pos.get("grams", 0) or 0) <= 0:
+            return None
+        return float(pos["avg_cost"])
     except (KeyError, ValueError, TypeError):
         return None
 
