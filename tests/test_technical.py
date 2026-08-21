@@ -409,3 +409,121 @@ class TestBreakoutPrecursorSignals:
         ta = TechnicalAnalyzer(df)
         signals = ta.generate_signals()
         assert any(s.name == "布林带收窄·蓄势待变" for s in signals)
+
+
+# ------------------------------------------------------------------
+# IntradayAnalyzer - SGE 1分钟分时 (2026-08-21 新增)
+# ------------------------------------------------------------------
+
+def _make_intraday(
+    n: int = 120,
+    base: float = 970.0,
+    drift: float = 0.0,
+    end_dt=None,
+) -> dict:
+    """构造 SGE 分时数据 (1分钟点, 结束时间默认=now 保证非陈旧)."""
+    from datetime import datetime, timedelta
+
+    end = end_dt or datetime.now().replace(second=0, microsecond=0)
+    prices = [base + drift * i for i in range(n)]
+    points = []
+    for i, price in enumerate(prices):
+        t = end - timedelta(minutes=n - 1 - i)
+        points.append({
+            "date": t.strftime("%Y-%m-%d"),
+            "time": t.strftime("%H:%M"),
+            "price": round(price, 2),
+            "change_pct": round((price - base) / base * 100, 2),
+        })
+    return {"prev_close": base, "points": points, "fetched_at": end}
+
+
+class TestIntradayAnalyzer:
+
+    def test_summary_metrics(self):
+        from gold_miner.signals.technical import IntradayAnalyzer
+
+        d = _make_intraday(n=120, base=970.0, drift=0.1)  # 970 -> 981.9
+        s = IntradayAnalyzer(d).summary_dict()
+
+        assert s["point_count"] == 120
+        assert s["day_open"] == 970.0
+        assert s["day_low"] == 970.0
+        assert s["day_high"] == pytest.approx(981.9, abs=0.05)
+        assert s["position"] == pytest.approx(1.0, abs=0.01)
+        assert s["momentum_30m_pct"] == pytest.approx(0.1 * 29 / 970 * 100, abs=0.05)
+        assert s["amplitude_pct"] == pytest.approx(11.9 / 970 * 100, abs=0.05)
+        assert s["up_minutes"] == 119 and s["down_minutes"] == 0
+        assert s["stale"] is False
+
+    def test_empty_input_no_signals(self):
+        from gold_miner.signals.technical import IntradayAnalyzer
+
+        gen = IntradayAnalyzer(None)
+        assert gen.generate_signals() == []
+        assert "gap" in gen.summary_dict()
+
+        gen2 = IntradayAnalyzer({"points": []})
+        assert gen2.generate_signals() == []
+
+    def test_strong_momentum_signals(self):
+        from gold_miner.signals.technical import IntradayAnalyzer
+
+        d = _make_intraday(n=120, base=970.0, drift=0.5)  # 30分钟动能约 +1.5%
+        sigs = IntradayAnalyzer(d).generate_signals()
+
+        names = [s.name for s in sigs]
+        assert "日内分时·盘中偏强" in names
+        assert "日内动能转强" in names
+        assert "日内高位徘徊" in names
+        mom = next(s for s in sigs if s.name == "日内动能转强")
+        assert mom.direction == SignalDirection.BULLISH
+        assert mom.score > 0
+
+    def test_weak_momentum_signals(self):
+        from gold_miner.signals.technical import IntradayAnalyzer
+
+        d = _make_intraday(n=120, base=970.0, drift=-0.5)
+        sigs = IntradayAnalyzer(d).generate_signals()
+
+        names = [s.name for s in sigs]
+        assert "日内分时·盘中偏弱" in names
+        assert "日内动能转弱" in names
+        mom = next(s for s in sigs if s.name == "日内动能转弱")
+        assert mom.direction == SignalDirection.BEARISH
+        assert mom.score < 0
+
+    def test_flat_oscillation_neutral(self):
+        from gold_miner.signals.technical import IntradayAnalyzer
+
+        # 前 90 分钟围绕中轴正弦震荡, 末 30 分钟走平收在中轴上方 -> 无动能无位置信号
+        import math
+        d = _make_intraday(n=120, base=970.0, drift=0.0)
+        pts = d["points"]
+        for i, p in enumerate(pts):
+            if i < 90:
+                p["price"] = round(970.0 + 3.0 * math.sin(i / 6), 2)
+            else:
+                p["price"] = 971.5  # 高点973 低点967 -> 位置0.75, 未到0.8阈值
+        sigs = IntradayAnalyzer(d).generate_signals()
+
+        assert len(sigs) == 1
+        snap = sigs[0]
+        assert snap.name == "日内分时·盘中震荡"
+        assert snap.direction == SignalDirection.NEUTRAL
+        assert snap.metadata["source_tier"] == "T1"
+
+    def test_stale_data_snapshot_only(self):
+        from datetime import datetime, timedelta
+        from gold_miner.signals.technical import IntradayAnalyzer
+
+        # 末点在 5 小时前 -> 陈旧 (休市), 只输出快照且标注截至时间
+        end = datetime.now() - timedelta(hours=5)
+        d = _make_intraday(n=120, base=970.0, drift=0.5, end_dt=end)
+        gen = IntradayAnalyzer(d)
+        assert gen.summary_dict()["stale"] is True
+
+        sigs = gen.generate_signals()
+        assert len(sigs) == 1
+        assert "日内动能" not in sigs[0].name
+        assert "数据截至" in sigs[0].description

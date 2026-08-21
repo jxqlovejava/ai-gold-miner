@@ -60,7 +60,7 @@ from gold_miner.signals.news_signal import NewsSignalGenerator
 from gold_miner.signals.oil_signal import OilSignalGenerator
 from gold_miner.signals.recent_events import RecentEventSignalGenerator
 from gold_miner.signals.sentiment_signal import SentimentAnalyzer
-from gold_miner.signals.technical import TechnicalAnalyzer
+from gold_miner.signals.technical import IntradayAnalyzer, TechnicalAnalyzer
 from gold_miner.storage import get_store
 
 _KEYWORD_RE = re.compile(r"[a-z]+|\d+|[一-鿿]+")
@@ -121,6 +121,8 @@ class AnalysisResult:
     scenario_plan: dict[str, Any] = field(default_factory=dict)
     chanlun_summary: dict[str, Any] = field(default_factory=dict)  # 缠论结构摘要（报告板块）
     trend_gate: dict[str, Any] = field(default_factory=dict)  # MA50/100/200 长期趋势闸门状态（军规 r026 + 报告）
+    intraday_data: dict[str, Any] | None = None  # SGE 1分钟分时原始数据（jdgold 免登录）
+    intraday_summary: dict[str, Any] = field(default_factory=dict)  # 日内分时摘要（报告板块）
 
 
 class AnalysisPipeline:
@@ -350,8 +352,8 @@ class AnalysisPipeline:
             logger.warning(f"[深度新闻] 执行失败: {e}")
 
     def _collect_market_data(self, ctx: AnalysisContext, result: AnalysisResult) -> None:
-        """1.4 7路并行数据采集 (gold/intl/minsheng/dxy/rate/silver/breakeven)."""
-        logger.info("[数据采集] 7路并行...")
+        """1.4 8路并行数据采集 (gold/intl/minsheng/dxy/rate/silver/breakeven/intraday)."""
+        logger.info("[数据采集] 8路并行...")
 
         # 独立 fetcher 实例确保线程安全
         gold_fetcher = SpotGoldFetcher()
@@ -361,7 +363,7 @@ class AnalysisPipeline:
         silver_fetcher = MacroDataFetcher()
         be_fetcher = MacroDataFetcher()
 
-        with ThreadPoolExecutor(max_workers=7) as pool:
+        with ThreadPoolExecutor(max_workers=8) as pool:
             futures: dict[Future, str] = {
                 pool.submit(gold_fetcher.fetch, days=ctx.days): "gold",
                 pool.submit(intl_fetcher.fetch_international_quote): "intl",
@@ -370,6 +372,7 @@ class AnalysisPipeline:
                 pool.submit(rate_fetcher.fetch_real_rate): "rate",
                 pool.submit(silver_fetcher.fetch_silver): "silver",
                 pool.submit(be_fetcher.fetch_breakeven): "breakeven",
+                pool.submit(self._fetch_sge_intraday): "intraday",
             }
 
             raw: dict[str, Any] = {}
@@ -438,6 +441,18 @@ class AnalysisPipeline:
         result.silver_df = raw.get("silver") if raw.get("silver") is not None else pd.DataFrame()
         result.breakeven_df = raw.get("breakeven") if raw.get("breakeven") is not None else pd.DataFrame()
 
+        # --- SGE 1分钟分时 (日内走势, 可选) ---
+        intraday = raw.get("intraday")
+        if intraday and intraday.get("points"):
+            result.intraday_data = intraday
+            last_pt = intraday["points"][-1]
+            logger.info(
+                f"SGE分时: {len(intraday['points'])} 点, 数据截至 "
+                f"{last_pt['date']} {last_pt['time']}, 现价 {last_pt['price']:.2f}"
+            )
+        else:
+            logger.debug("SGE分时无数据 (接口不可用), 日内板块降级跳过")
+
         if not result.rate_df.empty:
             logger.info(f"实际利率最新: {result.rate_df['value'].iloc[-1]:.2f}%")
         if not result.breakeven_df.empty:
@@ -469,6 +484,17 @@ class AnalysisPipeline:
             return JdAccumulationGoldFetcher(bank="MS").fetch_price()
         except Exception as e:
             logger.debug(f"民生银行积存金价格获取失败: {e}")
+            return None
+
+    @staticmethod
+    def _fetch_sge_intraday() -> dict[str, Any] | None:
+        """抓取 SGE 1分钟分时走势 (jdgold 免登录, 失败返回 None 不阻断)."""
+        try:
+            from gold_miner.data.jdgold_client import fetch_sge_intraday
+
+            return fetch_sge_intraday()
+        except Exception as e:
+            logger.debug(f"SGE分时获取失败: {e}")
             return None
 
     @staticmethod
@@ -707,6 +733,14 @@ class AnalysisPipeline:
             futures[pool.submit(
                 lambda: TechnicalAnalyzer(result.gold_df).generate_signals()
             )] = "technical"
+
+            # 日内分时分析 (SGE 1分钟, 数据在 Step1 已采集; 失败/无数据输出空列表)
+            def _intraday_task() -> list[Signal]:
+                gen = IntradayAnalyzer(result.intraday_data)
+                result.intraday_summary = gen.summary_dict()  # 供报告板块渲染
+                return gen.generate_signals()
+
+            futures[pool.submit(_intraday_task)] = "intraday"
 
             # K线形态识别 (独立模块, 信号归 dimension="technical")
             futures[pool.submit(
@@ -1090,6 +1124,13 @@ class AnalysisPipeline:
                 result.messages.append(chanlun_block)
                 logger.info(f"\n{chanlun_block}")
 
+        # --- 4a-2. 日内分时板块 (SGE 1分钟: 动能/位置/振幅) ---
+        if result.intraday_summary:
+            intraday_block = self._format_intraday_structure(result.intraday_summary)
+            if intraday_block:
+                result.messages.append(intraday_block)
+                logger.info(f"\n{intraday_block}")
+
         # --- 4b. 信号快照落盘 (供 adaptive_gold_monitor 理由引擎读取) ---
         try:
             from gold_miner.signals.snapshot import save_signal_snapshot
@@ -1099,6 +1140,52 @@ class AnalysisPipeline:
 
         # --- 5. 事实/解释分类汇总 ---
         self._print_fact_type_summary(bundle)
+
+    @staticmethod
+    def _format_intraday_structure(summary: dict) -> str:
+        """格式化日内分时板块 - 夜盘/日盘区间 + 现价位置 + 30分钟动能.
+
+        数据缺失时仍输出一行原因，避免板块静默消失。
+        """
+        gap = summary.get("gap")
+        if gap:
+            return "⏱️ 日内分时（SGE 1分钟 · 当前交易日）\n  ⚠️ 本次跳过：" + str(gap)
+
+        lines = ["⏱️ 日内分时（SGE 1分钟 · 当前交易日 · 技术面参考）"]
+        night_range = summary.get("night_range")
+        if night_range:
+            lines.append(
+                f"  夜盘区间: {night_range[0]:.2f} - {night_range[1]:.2f}"
+                f"（{summary.get('night_points', 0)} 点）"
+            )
+        amplitude = summary.get("amplitude_pct")
+        amp_text = f" | 振幅 {amplitude:.2f}%" if amplitude is not None else ""
+        lines.append(
+            f"  日内区间: 低 {summary['day_low']:.2f} | 高 {summary['day_high']:.2f}"
+            f" | 现价 {summary['last_price']:.2f}（{summary['last_time']}）{amp_text}"
+        )
+        position = summary.get("position", 0.5)
+        pos_desc = (
+            "区间上沿" if position >= 0.8 else
+            "区间偏上" if position >= 0.6 else
+            "区间中轴" if position > 0.4 else
+            "区间偏下" if position > 0.2 else "区间下沿"
+        )
+        momentum = summary.get("momentum_30m_pct", 0.0)
+        mom_desc = "走强" if momentum > 0.05 else ("走弱" if momentum < -0.05 else "走平")
+        dev = summary.get("dev_vs_vwap_pct", 0.0)
+        lines.append(
+            f"  现价位置: {position:.0%}（{pos_desc}）| 30分钟动能 {momentum:+.2f}%（{mom_desc}）"
+            f" | 较日内均价 {'上方' if dev >= 0 else '下方'} {abs(dev):.2f}%"
+        )
+        up_ratio = summary.get("up_ratio", 0.5)
+        lines.append(
+            f"  涨跌节奏: 上涨 {summary.get('up_minutes', 0)} 分钟 / 下跌 "
+            f"{summary.get('down_minutes', 0)} 分钟（上涨占比 {up_ratio:.0%}）"
+        )
+        if summary.get("stale"):
+            lines.append(f"  ⚠️ 数据截至 {summary['last_time']}（休市/盘外，分时冻结）")
+        return "\n".join(lines)
 
     @staticmethod
     def _format_chanlun_structure(summary: dict) -> str:

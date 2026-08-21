@@ -618,3 +618,216 @@ class TechnicalAnalyzer:
             ))
 
         return signals
+
+
+class IntradayAnalyzer:
+    """日内分时分析器 - SGE 1分钟分时 (jdjr_query_stock intraday 免登录).
+
+    输出日内动能/区间位置/振幅信号 (dimension="technical", WEAK 强度) + summary_dict 供报告板块。
+    分时仅描述当日盘中状态，不构成独立趋势判断 (r033: 温和数据≠趋势确认)；
+    休市时段数据冻结，快照信号会标注「数据截至」时间。
+    """
+
+    SOURCE_TIER = "T1"  # 京东金融网关转发的 SGE 分时
+
+    # 阈值 (百分数值, 如 0.15 = 0.15%)
+    _MOMENTUM_PCT = 0.15  # 30分钟动能触发阈值
+    _POSITION_EXTREME = 0.8  # 日内区间位置高位/低位阈值
+    _STALE_MINUTES = 120  # 分时数据陈旧阈值 (休市/接口延迟)
+
+    def __init__(self, intraday: dict | None) -> None:
+        self.points: list[dict] = [
+            p for p in ((intraday or {}).get("points") or [])
+            if p.get("price") and p.get("time") and p.get("date")
+        ]
+        self.prev_close = (intraday or {}).get("prev_close")
+
+    # ------------------------------------------------------------------
+    # 指标计算
+    # ------------------------------------------------------------------
+
+    def _last_point_dt(self):
+        """末点时间 -> datetime; 解析失败返回 None."""
+        from datetime import datetime
+
+        try:
+            last = self.points[-1]
+            return datetime.strptime(f"{last['date']} {last['time']}", "%Y-%m-%d %H:%M")
+        except (KeyError, ValueError):
+            return None
+
+    def _is_stale(self) -> bool:
+        """末点距 now 超过阈值 (休市/接口延迟) -> 数据陈旧."""
+        from datetime import datetime
+
+        last_dt = self._last_point_dt()
+        if last_dt is None:
+            return True
+        return (datetime.now() - last_dt).total_seconds() > self._STALE_MINUTES * 60
+
+    def summary_dict(self) -> dict:
+        """日内分时摘要 (报告板块渲染用)."""
+        if not self.points:
+            return {"gap": "无分时数据 (接口不可用或休市)"}
+
+        prices = [float(p["price"]) for p in self.points]
+        last = self.points[-1]
+        day_open = prices[0]
+        day_high, day_low = max(prices), min(prices)
+        last_price = prices[-1]
+        range_span = day_high - day_low
+        position = (last_price - day_low) / range_span if range_span > 0 else 0.5
+        vwap = sum(prices) / len(prices)
+
+        # 30分钟动能 (最近30个1分钟点)
+        window = prices[-30:]
+        momentum_pct = ((window[-1] - window[0]) / window[0] * 100) if len(window) >= 2 and window[0] > 0 else 0.0
+
+        # 振幅 (相对昨收)
+        amplitude_pct = (
+            (day_high - day_low) / self.prev_close * 100
+            if self.prev_close and self.prev_close > 0 else None
+        )
+
+        # 涨跌分钟占比
+        ups = sum(1 for i in range(1, len(prices)) if prices[i] > prices[i - 1])
+        downs = sum(1 for i in range(1, len(prices)) if prices[i] < prices[i - 1])
+        total_moves = ups + downs
+
+        # 夜盘/日盘拆分 (夜盘: 时间>=20:00, 日盘: 09:00-15:30)
+        night = [p for p in self.points if p["time"] >= "20:00"]
+        day = [p for p in self.points if "09:00" <= p["time"] <= "15:30"]
+
+        return {
+            "point_count": len(self.points),
+            "session_dates": sorted({p["date"] for p in self.points}),
+            "day_open": round(day_open, 2),
+            "day_high": round(day_high, 2),
+            "day_low": round(day_low, 2),
+            "last_price": round(last_price, 2),
+            "last_time": f"{last['date']} {last['time']}",
+            "position": round(position, 2),
+            "vwap": round(vwap, 2),
+            "dev_vs_vwap_pct": round((last_price - vwap) / vwap * 100, 2) if vwap > 0 else 0.0,
+            "momentum_30m_pct": round(momentum_pct, 2),
+            "amplitude_pct": round(amplitude_pct, 2) if amplitude_pct is not None else None,
+            "change_pct": last.get("change_pct"),
+            "up_minutes": ups,
+            "down_minutes": downs,
+            "up_ratio": round(ups / total_moves, 2) if total_moves else 0.5,
+            "night_points": len(night),
+            "day_points": len(day),
+            "night_range": (
+                [round(min(float(p["price"]) for p in night), 2), round(max(float(p["price"]) for p in night), 2)]
+                if night else None
+            ),
+            "stale": self._is_stale(),
+        }
+
+    # ------------------------------------------------------------------
+    # 信号生成
+    # ------------------------------------------------------------------
+
+    def generate_signals(self) -> list[Signal]:
+        """生成日内分时信号.
+
+        快照信号始终输出 (含完整日内统计); 动能/位置信号条件触发;
+        数据陈旧 (休市) 时仅输出快照并标注截至时间。
+        """
+        if not self.points:
+            return []
+
+        s = self.summary_dict()
+        if "gap" in s:
+            return []
+
+        stale_note = f"，数据截至 {s['last_time']}（休市/盘外）" if s["stale"] else ""
+        signals: list[Signal] = []
+
+        pos_desc = self._position_desc(s["position"])
+        momentum = s["momentum_30m_pct"]
+        mom_desc = "走强" if momentum > 0.05 else ("走弱" if momentum < -0.05 else "走平")
+
+        # 1) 快照信号 (始终输出, 方向微偏由 30 分钟动能定)
+        if momentum > self._MOMENTUM_PCT:
+            snap_dir = SignalDirection.BULLISH
+            snap_name = "日内分时·盘中偏强"
+            snap_score = min(momentum / 10, 0.1)
+        elif momentum < -self._MOMENTUM_PCT:
+            snap_dir = SignalDirection.BEARISH
+            snap_name = "日内分时·盘中偏弱"
+            snap_score = -min(abs(momentum) / 10, 0.1)
+        else:
+            snap_dir = SignalDirection.NEUTRAL
+            snap_name = "日内分时·盘中震荡"
+            snap_score = 0.0
+
+        amplitude_desc = f"振幅 {s['amplitude_pct']:.2f}%" if s["amplitude_pct"] is not None else ""
+        signals.append(Signal(
+            name=snap_name,
+            dimension="technical",
+            direction=snap_dir,
+            strength=SignalStrength.WEAK,
+            score=round(snap_score, 3),
+            description=(
+                f"现价 {s['last_price']:.2f}（{s['last_time']}）| 日内区间 "
+                f"{s['day_low']:.2f}-{s['day_high']:.2f} {amplitude_desc} | "
+                f"位置 {pos_desc} | 30分钟动能 {momentum:+.2f}% {mom_desc} | "
+                f"现价较日内均价 {'上方' if s['dev_vs_vwap_pct'] >= 0 else '下方'} "
+                f"{abs(s['dev_vs_vwap_pct']):.2f}%{stale_note}"
+            ),
+            metadata={"source_tier": self.SOURCE_TIER, **{k: v for k, v in s.items() if k != "gap"}},
+        ))
+
+        # 陈旧数据 (休市) 不再输出动能/位置信号 - 冻结盘面无交易意义
+        if s["stale"]:
+            return signals
+
+        # 2) 30分钟动能信号
+        if abs(momentum) >= self._MOMENTUM_PCT:
+            is_up = momentum > 0
+            signals.append(Signal(
+                name=f"日内动能{'转强' if is_up else '转弱'}",
+                dimension="technical",
+                direction=SignalDirection.BULLISH if is_up else SignalDirection.BEARISH,
+                strength=SignalStrength.WEAK,
+                score=round(min(abs(momentum) / 20, 0.15), 3) * (1 if is_up else -1),
+                description=(
+                    f"最近30分钟 {momentum:+.2f}%，盘中短线动能{'上行' if is_up else '回落'}；"
+                    f"仅日内状态描述，不构成加仓依据 (r033 温和动能≠趋势确认)"
+                ),
+                metadata={"source_tier": self.SOURCE_TIER, "momentum_30m_pct": momentum},
+            ))
+
+        # 3) 日内区间位置信号 (高位/低位徘徊)
+        if s["position"] >= self._POSITION_EXTREME or s["position"] <= 1 - self._POSITION_EXTREME:
+            near_high = s["position"] >= self._POSITION_EXTREME
+            signals.append(Signal(
+                name=f"日内{'高位' if near_high else '低位'}徘徊",
+                dimension="technical",
+                direction=SignalDirection.NEUTRAL,
+                strength=SignalStrength.WEAK,
+                score=0.0,
+                description=(
+                    f"现价处于日内区间 {s['position']:.0%} 位置（{'上沿' if near_high else '下沿'}），"
+                    f"日内 {'冲高' if near_high else '回落'} 至 {'高点' if near_high else '低点'} "
+                    f"{s['day_high'] if near_high else s['day_low']:.2f} 附近；"
+                    f"对短线买卖点择时有参考意义"
+                ),
+                metadata={"source_tier": self.SOURCE_TIER, "position": s["position"]},
+            ))
+
+        return signals
+
+    @staticmethod
+    def _position_desc(position: float) -> str:
+        """0-1 区间位置 -> 中文描述."""
+        if position >= 0.8:
+            return "区间上沿"
+        if position >= 0.6:
+            return "区间偏上"
+        if position > 0.4:
+            return "区间中轴"
+        if position > 0.2:
+            return "区间偏下"
+        return "区间下沿"

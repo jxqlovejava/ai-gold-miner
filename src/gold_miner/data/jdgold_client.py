@@ -274,6 +274,52 @@ def fetch_sge_kline(k_type: str = "day", code: str = _SGE_CODE) -> Any | None:
     return df.sort_values("timestamp").reset_index(drop=True)
 
 
+def fetch_sge_intraday(code: str = _SGE_CODE) -> dict | None:
+    """SGE 官方分时走势 (jdjr_query_stock intraday 免登录, 1分钟粒度).
+
+    覆盖当前交易日: 夜盘 (前一日日历日 20:00 起) + 当日盘中, 滚动窗口。
+    返回 {"prev_close": float|None, "points": [...], "fetched_at": datetime};
+    point = {"date": "YYYY-MM-DD", "time": "HH:MM", "price": float, "change_pct": float|None}。
+    失败/无数据返回 None。休市时段返回上一交易日的完整分时。
+    """
+    data = _run_script("jdjr_query_stock.py", ["intraday", code, *_claw_arg()])
+    if not data:
+        return None
+    d = data.get("data") or {}
+    rows = d.get("timeChartDtoList") or []
+    points: list[dict[str, Any]] = []
+    for r in rows:
+        price = _to_float(r.get("price"))
+        if price is None or price <= 0:
+            continue
+        date_iso = _cn_date_to_iso(str(r.get("date") or ""))
+        if not date_iso:
+            continue
+        points.append({
+            "date": date_iso,
+            "time": str(r.get("time") or ""),
+            "price": price,
+            "change_pct": _pct_float(r.get("changeRatio")),
+        })
+    if not points:
+        return None
+    return {
+        "prev_close": _to_float(d.get("closedYesterday")),
+        "points": points,
+        "fetched_at": datetime.now(),
+    }
+
+
+def _cn_date_to_iso(text: str) -> str | None:
+    """"2026年08月21日" -> "2026-08-21"; 无法解析返回 None."""
+    import re
+
+    m = re.match(r"^(\d{4})年(\d{1,2})月(\d{1,2})日$", text.strip())
+    if not m:
+        return None
+    return f"{int(m.group(1)):04d}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
+
+
 def fetch_silver_quote() -> dict | None:
     """SGE Ag99.99 实时报价 (金银比联动, E8)."""
     data = _run_script("jdjr_query_stock.py", ["quote", _SILVER_CODE, *_claw_arg()], timeout=_QUOTE_TIMEOUT)

@@ -235,6 +235,7 @@ def test_scripts_missing_returns_none(monkeypatch):
     assert jdgold_client.fetch_accumulation_price("MS") is None
     assert jdgold_client.fetch_sge_quote() is None
     assert jdgold_client.fetch_sge_kline("day") is None
+    assert jdgold_client.fetch_sge_intraday() is None
     assert jdgold_client.fetch_news("黄金", 1) is None
 
 
@@ -273,3 +274,48 @@ def test_h5_latest_price_fallback_failure(monkeypatch):
     monkeypatch.setattr(httpx, "get", boom)
 
     assert jdgold_client._h5_latest_price_fallback() is None
+
+
+# ── SGE 分时 (intraday, 免登录) ─────────────────────────────────
+
+def test_fetch_sge_intraday_parses(monkeypatch):
+    """timeChartDtoList -> 标准化 points + prev_close."""
+    monkeypatch.setattr(
+        jdgold_client,
+        "_run_script",
+        lambda *a, **k: {"success": True, "data": {
+            "closedYesterday": "968.14",
+            "timeChartDtoList": [
+                {"date": "2026年08月20日", "price": "968.14", "changeRatio": "0.00%", "time": "20:01"},
+                {"date": "2026年08月20日", "price": "967.00", "changeRatio": "-0.12%", "time": "20:04"},
+                {"date": "2026年08月21日", "price": "978.10", "changeRatio": "1.03%", "time": "10:04"},
+                # 异常行: 无价格/坏日期 -> 跳过
+                {"date": "2026年08月21日", "price": None, "changeRatio": "0%", "time": "10:05"},
+                {"date": "bad-date", "price": "978.00", "changeRatio": "0%", "time": "10:06"},
+            ],
+        }},
+    )
+
+    d = jdgold_client.fetch_sge_intraday()
+
+    assert d is not None
+    assert d["prev_close"] == 968.14
+    assert len(d["points"]) == 3
+    assert d["points"][0] == {"date": "2026-08-20", "time": "20:01", "price": 968.14, "change_pct": 0.0}
+    assert d["points"][-1]["price"] == 978.10
+    assert d["points"][-1]["change_pct"] == 1.03
+
+
+def test_fetch_sge_intraday_empty(monkeypatch):
+    """空 timeChartDtoList -> None."""
+    monkeypatch.setattr(
+        jdgold_client, "_run_script",
+        lambda *a, **k: {"success": True, "data": {"timeChartDtoList": []}},
+    )
+    assert jdgold_client.fetch_sge_intraday() is None
+
+
+def test_cn_date_to_iso():
+    assert jdgold_client._cn_date_to_iso("2026年08月21日") == "2026-08-21"
+    assert jdgold_client._cn_date_to_iso(" 2026年8月1日 ") == "2026-08-01"
+    assert jdgold_client._cn_date_to_iso("bad") is None

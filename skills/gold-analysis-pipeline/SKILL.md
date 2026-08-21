@@ -476,6 +476,20 @@ for s in TechnicalAnalyzer(f.fetch(days=90)).generate_signals():
 "
 ```
 
+**日内分时（2026-08-21 接入，pipeline 第 8 路数据自动采集）**：SGE 1 分钟分时（免登录 T1），覆盖当前交易日（夜盘 20:00 起 + 当日盘中）。`scan` 自动输出「⏱️ 日内分时」板块（夜盘/日内区间 + 现价位置 + 30 分钟动能 + 涨跌节奏），技术面维度新增日内快照/动能/位置信号。单独调用：
+
+```bash
+PYTHONPATH=src python3 -c "
+from gold_miner.data.jdgold_client import fetch_sge_intraday
+from gold_miner.signals.technical import IntradayAnalyzer
+gen = IntradayAnalyzer(fetch_sge_intraday())
+for s in gen.generate_signals():
+    print(f'[{s.direction.value}] {s.name} | {s.description}')
+"
+```
+
+注意：日内信号仅描述盘中状态，**不构成加仓依据**（r033 温和动能≠趋势确认）；休市时段数据冻结，快照会标注「数据截至」。
+
 #### 2.3 基本面
 
 ```bash
