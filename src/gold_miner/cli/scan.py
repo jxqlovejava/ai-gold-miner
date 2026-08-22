@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import os
 import sys
 from pathlib import Path
 
@@ -38,18 +39,31 @@ class _ReportTee:
 
 
 def _run_with_report(run, report_file: str | None):
-    """在 report_file 上 tee stdout 执行 run()；report_file 为空则原样运行."""
+    """在 report_file 上 tee stdout 执行 run()；report_file 为空则原样运行.
+
+    原子写入：先写 <report>.tmp，成功后 os.replace 到目标路径。
+    防止并行读取方（quick_scan 启动批的 Read）读到半截文件——
+    2026-08-22 事故：scan 渐进写入期间 Read 得到 1 行警告，引发连环排障调用。
+    """
     if not report_file:
         return run()
     report_path = Path(report_file)
     report_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(report_path, "w", encoding="utf-8") as f:
+    tmp_path = report_path.with_suffix(report_path.suffix + ".tmp")
+    result = None
+    with open(tmp_path, "w", encoding="utf-8") as f:
         tee = _ReportTee(sys.stdout, f)
         try:
             with contextlib.redirect_stdout(tee):
-                return run()
+                result = run()
         finally:
             tee.flush()
+    if result is not None:
+        os.replace(tmp_path, report_path)
+    else:
+        # run() 失败（如金价数据获取失败）：不把半截 tmp 落成正式报告
+        tmp_path.unlink(missing_ok=True)
+    return result
 
 
 def run_scan(days: int = 30, with_news: bool = True, with_sentiment: bool = True, deep: bool = False,

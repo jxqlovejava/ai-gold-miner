@@ -33,5 +33,11 @@ if [ -f "$REPORT" ]; then
   fi
 fi
 echo "RERUN_MODE|$REPORT|无新鲜报告(<3h)，执行scan（约15-25s，完成后任务通知）"
+# 陈旧报告移开（.stale 后缀不匹配 scan_report_*.md glob，不会被 assemble_report 选中）：
+# scan 现为原子写入（tmp + rename），报告落盘前并行 Read 得到干净的「文件不存在」，
+# 而不是读到陈旧报告或半截文件（2026-08-22 事故修复）
+if [ -f "$REPORT" ]; then
+  mv "$REPORT" "${REPORT}.stale"
+fi
 # --report-file: scan 输出 tee 到 scan_report 文件 (P2 assemble_report.py 依赖最新 scan_report)
 exec gold-miner scan --days 30 --news --sentiment --report-file "$REPORT"

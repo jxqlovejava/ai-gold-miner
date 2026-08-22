@@ -296,10 +296,10 @@ def assemble(scan_text: str, out_path: Path) -> None:
 
     now = datetime.now()
     signal = decision.get("signal", "观望")
-    score = decision.get("score", "—")
-    conf = decision.get("confidence", "—")
-    accum = prices.get("accum") or prices.get("domestic", "—")
-    intl = prices.get("intl", "—")
+    score = decision.get("score", "-")
+    conf = decision.get("confidence", "-")
+    accum = prices.get("accum") or prices.get("domestic", "-")
+    intl = prices.get("intl", "-")
 
     lines: list[str] = []
     lines.append(f"# 🥇 金价完整分析 · {now.strftime('%Y-%m-%d %H:%M')}")
@@ -311,8 +311,10 @@ def assemble(scan_text: str, out_path: Path) -> None:
     if decision.get("stop_loss"):
         lines.append(f"止损: {decision['stop_loss']}")
     else:
-        lines.append("止损: —")
-    lines.append("止盈: —")
+        lines.append("止损: 无")
+    # 占位符用「无」不用 em-dash「—」：LLM Edit 回填时复打 dash 极易打成变体，
+    # 精确匹配失败报「Error editing file」（2026-08-22 事故）。全 ASCII/无近形字。
+    lines.append("止盈: 无")
     lines.append("")
     lines.append("## 1.1 🔍 主驱动因素")
     lines.append("> （LLM 增量填充：一句话第一性主驱动 + 驱动排序表）")
@@ -344,7 +346,7 @@ def assemble(scan_text: str, out_path: Path) -> None:
         lines.append("💼 **PortfolioManager**（观望）")
     lines.append("")
     lines.append("## 4. 军规自查")
-    lines.append(f"通过 {doctrine or '—'}")
+    lines.append(f"通过 {doctrine or '-'}")
     if warns:
         lines.extend(f"⚠️ {w}" for w in warns)
     else:
