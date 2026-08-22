@@ -63,6 +63,29 @@ def find_violations(text: str):
     return violations
 
 
+def remove_separators(text: str) -> tuple[str, int]:
+    """删除文本中的独立 --- 分隔线（非表格、非 frontmatter），返回 (修复后文本, 删除行数)。
+
+    hook 自动修复复用 find_violations 的判定逻辑，保证与报错路径一致。
+    """
+    lines = text.split('\n')
+    n = len(lines)
+    skip_ranges: list[tuple[int, int]] = []
+    if n >= 1 and SEP_RE.match(lines[0]):
+        for i in range(1, n):
+            if SEP_RE.match(lines[i]):
+                skip_ranges.append((0, i))  # YAML frontmatter 内不删
+                break
+    keep: list[str] = []
+    removed = 0
+    for idx, line in enumerate(lines, start=1):
+        if SEP_RE.match(line) and not any(start <= idx - 1 <= end for start, end in skip_ranges):
+            removed += 1
+            continue
+        keep.append(line)
+    return '\n'.join(keep), removed
+
+
 def _check(text: str, path: str = '') -> int:
     violations = find_violations(text)
     if violations:
@@ -114,7 +137,26 @@ def main() -> int:
                 return 0
         if not is_report_file(path):
             return 0
-        return _check(content, path)
+        violations = find_violations(content)
+        if not violations:
+            print(f'✅ 报告格式校验通过（{path or "输出"}）: 无独立 "---" 分隔线')
+            return 0
+        # 违规 → 自动修复：删除独立 --- 行并写回磁盘，Write 不拦截（程序化强制格式，不阻断落盘）。
+        # 以磁盘文件为准（PostToolUse 在写入后运行）；读取失败时回退到本次 content。
+        try:
+            with open(path, encoding='utf-8') as fh:
+                disk_text = fh.read()
+        except OSError:
+            disk_text = content
+        fixed, removed = remove_separators(disk_text)
+        try:
+            with open(path, 'w', encoding='utf-8') as fh:
+                fh.write(fixed)
+            print(f'✅ 已自动删除 {removed} 处独立 "---" 分隔线（{path}），板块以空行分隔', file=sys.stderr)
+            return 0
+        except OSError as e:
+            print(f'❌ 自动修复写入失败（{path}）: {e}', file=sys.stderr)
+            return 2
 
     print(__doc__)
     return 0
