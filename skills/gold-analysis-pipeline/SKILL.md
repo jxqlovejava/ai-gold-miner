@@ -36,8 +36,9 @@ description: 黄金价格走势分析完整 pipeline - 启动批协议+输出铁
     - **组装已内嵌 `quick_scan.sh`**（P3/P5，2026-08-22）：scan/复用完成后自动跑 `assemble_report.py` 生成骨架到 `data/output/金价分析_YYYY-MM-DD.md`（提取 scan 的决策/维度表/军规/Munger/画像/博弈/后续关注/经验提醒 + portfolio 持仓 + active 条件单），LLM **只增量填充 3 个推理板块**：主驱动因素(§1.1)、目标区间(§1.2)、条件单审查(§7)。**脚本返回时骨架已就绪（bundle 内），禁止再手动跑 assemble_report.py**（当日已填充报告会输出 `ASSEMBLE_SKIP` 不覆盖；强制重建用 `ASSEMBLE_FORCE=1 bash scripts/quick_scan.sh`）。
     - 🛡️ **Edit 回填防 dash 陷阱**：骨架占位符已全 ASCII/「无」（`止盈: 无`，无 em-dash「-」）。Edit old_string 必须**从 Read 输出逐字复制**，禁止手打 dash 类近形字（-/–/-/- 视觉相同但编码不同，匹配必失败）；连续 2 次 Edit 失败即改用 python 行号定位替换，不要反复试错（2026-08-22 事故：`Error editing file` 排障 1 轮）。
     - **补最新价**：REUSE 场景 quick_scan 返回 LATEST_PRICE，骨架行情引文用其覆盖 scan 价格（assemble_report.py 用 scan 报告内价格）。
-    - **落盘**：骨架填充后用 `Write` 写入 `data/output/金价分析_YYYY-MM-DD.md`--PostToolUse hook（`.claude/settings.json`，matcher=Write）自动运行 `scripts/validate_report_format.py` 校验「板块间禁止独立 `---` 分隔线」（表格 `|---|` / frontmatter 除外）。校验失败（exit 2）hook 拦截并给出违规行号，删除 `---` 后重新 Write 直到通过，再输出终端。
-    - **禁止绕过**：不手写整份报告（assemble_report.py 已生成 90% 程序化板块）；不绕过落盘校验直接手写终端文本--绕过=失去程序校验=靠记忆约束，即 2026-08-22 复发根因。手动复跑：`python3 scripts/validate_report_format.py --file data/output/金价分析_YYYY-MM-DD.md`。
+    - **落盘**：骨架填充后用 `Write` 写入 `data/output/金价分析_YYYY-MM-DD.md`--PostToolUse hook（`.claude/settings.json`，matcher=Write）自动运行 `scripts/validate_report_format.py` 校验「板块间禁止独立 `---` 分隔线」（表格 `|---|` / frontmatter 除外）。校验失败（exit 2）hook 拦截并给出违规行号，删除 `---` 后重新 Write 直到通过，再按下方 cat 直出展示。
+    - **📺 cat 直出（P7，2026-08-23，⏱ 省 60-90s/轮）**：终端展示**禁止模型复述报告全文**——落盘后（或 REUSE+SKIP 时报告已在盘上）用 `cat data/output/金价分析_YYYY-MM-DD.md` 工具输出直接展示全文。模型自己的终端文本只保留：决策一句话 + 价格校验结论（LATEST_PRICE vs 报告价格，一致就一句「价格无变化」，跳变 >1% 走 FORCE_SCAN）+ 条件单变动说明（如有）。复述 = 同一内容生成两遍（Write 参数 ~5k + 终端 ~5k ≈ 10k token ≈ 60-90s），REUSE+SKIP 场景更是零变更白生成一遍。cat 输出=完整全文到控制台，不违反输出铁律 1/2（铁律 2 禁的是「只给摘要」，cat 是全文；代价仅是终端表格不渲染，用户已选定此模式，切回=删除本条）。
+    - **禁止绕过**：不手写整份报告（assemble_report.py 已生成 90% 程序化板块）；不绕过落盘校验直接手写终端文本（cat 直出不属绕过--展示的是已校验落盘文件本身）--绕过=失去程序校验=靠记忆约束，即 2026-08-22 复发根因。手动复跑：`python3 scripts/validate_report_format.py --file data/output/金价分析_YYYY-MM-DD.md`。
 
 ## 铁律
 
@@ -47,7 +48,7 @@ description: 黄金价格走势分析完整 pipeline - 启动批协议+输出铁
 4. **scheduled_at 必须传 `datetime` 带时区** - `datetime(2026, 7, 21, 8, 0, 0, tzinfo=timezone(timedelta(hours=-4)))`
 5. **手动事件同步必读 `references/event-sync.md`** - 含日历写入铁律(1.5-1.10)、gold_bias 判定规则、8 步同步流程、`calendar_events.jsonl` 排除规则
 6. **深度新闻搜索 P0 主题必须全覆盖** - P0 列表与执行铁律见 `references/event-sync.md` §1.9
-7. **单轮取数协议（2026-08-22 P5，⏱ 核心）** - `bash scripts/quick_scan.sh` **前台**一条 Bash 调用拿齐全部数据：复用判断->补最新价->重 scan->组装骨架+摘要->**末尾 bundle 输出**（`=====BUNDLE_START=====` 内：骨架/摘要/portfolio/active 条件单；**P6：ASSEMBLE_SKIP 时轻量 bundle 仅骨架**，已填充报告已含其余结论，省 ~170 行 ≈4-5k token）。**全程 2 轮模型调用**：①前台跑 quick_scan.sh（P6 后 REUSE+SKIP ~1s / RERUN ~15-30s，纯工具时间）-> ②推理填充 3 板块 + Write 落盘（hook 校验通过）+ 终端完整输出。仅 Write 校验失败才有轮③修复。
+7. **单轮取数协议（2026-08-22 P5，⏱ 核心）** - `bash scripts/quick_scan.sh` **前台**一条 Bash 调用拿齐全部数据：复用判断->补最新价->重 scan->组装骨架+摘要->**末尾 bundle 输出**（`=====BUNDLE_START=====` 内：骨架/摘要/portfolio/active 条件单；**P6：ASSEMBLE_SKIP 时轻量 bundle 仅骨架**，已填充报告已含其余结论，省 ~170 行 ≈4-5k token）。**全程 2 轮模型调用**：①前台跑 quick_scan.sh（P6 后 REUSE+SKIP ~1s / RERUN ~15-30s，纯工具时间）-> ②推理填充 3 板块 + Write 落盘（hook 校验通过）+ cat 直出展示（P7 禁复述，见输出铁律 10）。仅 Write 校验失败才有轮③修复。
    - ✅ **quick_scan.sh 自动分流**：当日报告 <3h -> 秒级返回 `REUSE_MODE|路径|AGE|LATEST_PRICE`；缺失/≥3h -> 前台重 scan。两种模式末尾都输出 bundle，骨架/摘要组装自动完成（`ASSEMBLE_OK`/`ASSEMBLE_SKIP`）。
    - 🕐 **强制重 scan**：价格剧变（bundle 价格 vs LATEST_PRICE 跳变 >1%）或用户明确要最新 -> `FORCE_SCAN=1 bash scripts/quick_scan.sh`（仍单轮拿数）。
    - 🚫 **禁止后台跑 + 通知驱动**（P3/P4 旧模式，3 轮推理各 20-25s；前台单轮省 1 轮推理 ~25s > RERUN 前台工具时间，REUSE 场景更优）。
@@ -82,7 +83,7 @@ description: 黄金价格走势分析完整 pipeline - 启动批协议+输出铁
 
 **启动批 = 一条前台 Bash**：`bash scripts/quick_scan.sh`（五合一：复用判断->补最新价->重 scan->组装骨架+摘要->bundle 输出全部数据）。stdout 即全部输入：模式行（`REUSE_MODE|RERUN_MODE` + `LATEST_PRICE` + `ASSEMBLE_*`）+ bundle（`=====BUNDLE_START=====` 内：骨架/摘要/portfolio/active 条件单；SKIP 时仅骨架）。**不要后台运行**（后台 = 通知驱动 = 多一轮推理，见铁律 7）。
 
-**轮②（唯一推理轮）**：bundle 数据已在上下文 -> 推理填充 3 个板块（主驱动 §1.1 / 目标区间 §1.2 / 条件单审查 §7）-> `Write` 落盘（hook 校验通过）-> 终端完整输出报告。REUSE 场景用 LATEST_PRICE 覆盖骨架内 scan 价格。
+**轮②（唯一推理轮）**：bundle 数据已在上下文 -> 推理填充 3 个板块（主驱动 §1.1 / 目标区间 §1.2 / 条件单审查 §7）-> `Write` 落盘（hook 校验通过）-> `cat` 直出展示报告（P7：模型不复述全文，仅补决策一句话+价格校验结论）。**REUSE+SKIP 场景免填充免 Write**：直接 `cat` 盘上报告 + 价格校验一句（LATEST_PRICE 与报告价一致=「价格无变化」；跳变 >1% 走 FORCE_SCAN）。REUSE 填充场景用 LATEST_PRICE 覆盖骨架内 scan 价格。
 
 - 🚫 禁止 Read `scan_report_YYYYMMDD.md` 全文（420 行 ≈12k token；bundle 内骨架+摘要已覆盖全部所需）。
 - 画像 / personal_rules / V9 / doctrine / report_template **不读**（骨架已含结论，定性内容在 memory 缓存）。
