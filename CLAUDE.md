@@ -111,7 +111,7 @@
 
 ### 🔴 固定报告格式 + 本地 HTML（2026-08-11 起）
 
-1. **格式固定** — 每次金价分析报告必须遵循 [`docs/report_template.md`](docs/report_template.md) 的板块顺序与空态规则：每个板块必须输出标题，无数据写「（本期无触发）」，不得自行增删板块。参考 [SKILL.md](.claude/skills/gold-analysis-pipeline/SKILL.md) 输出铁律 6。
+1. **格式固定** — 每次金价分析报告必须遵循 [`docs/report_template.md`](docs/report_template.md) 的板块顺序与空态规则：每个板块必须输出标题，无数据写「（本期无触发）」，不得自行增删板块。参考 [SKILL.md](skills/gold-analysis-pipeline/SKILL.md) 输出铁律 6。
 2. **本地 HTML** — 分析输出完后运行 `python3 scripts/render_report_html.py`，生成 `data/output/金价分析_YYYY-MM-DD.html`，并在终端末尾附 `file://{绝对路径}`，复制即可浏览器打开。
 3. **目标区间预测** — 综合分析结论（决策摘要后）必须输出「金价目标区间预测」：分情景（看多/震荡/回调）给出积存金目标区间（元/g，如 1000-1200）+ 概率 + 触发条件，基于当前价推导（心理整数关口/支撑位/ATR）。格式见 [`docs/report_template.md`](docs/report_template.md) §1b、SKILL.md 输出铁律 8。
 
@@ -127,7 +127,7 @@
 
 每次涉及金价分析、交易建议、持仓决策时，必须走完项目内置的完整 pipeline，禁止基于单一维度或未经交叉验证的信息直接下结论。
 
-> 🔴 **操作模板全部见 `gold-analysis-pipeline` SKILL.md**（命令模板、API签名、枚举值、日历写入铁律、事件同步流程、时效性权重、深度新闻执行铁律、资金流分析要点、表格模板）。下为步骤总览，每步具体要求以 SKILL.md 为准。
+> 🔴 **操作模板全部见 [`skills/gold-analysis-pipeline/SKILL.md`](skills/gold-analysis-pipeline/SKILL.md)**（命令模板、API签名、枚举值、日历写入铁律、事件同步流程、时效性权重、深度新闻执行铁律、资金流分析要点、表格模板）。注意：真实路径在仓库根 `skills/`（`.claude/skills/` 被 gitignore，勿在那里找）。下为步骤总览，每步具体要求以 SKILL.md 为准。
 
 ### Pipeline 八步总览
 
