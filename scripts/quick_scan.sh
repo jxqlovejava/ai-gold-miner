@@ -33,4 +33,5 @@ if [ -f "$REPORT" ]; then
   fi
 fi
 echo "RERUN_MODE|$REPORT|无新鲜报告(<3h)，执行scan（约15-25s，完成后任务通知）"
-exec gold-miner scan --days 30 --news --sentiment
+# --report-file: scan 输出 tee 到 scan_report 文件 (P2 assemble_report.py 依赖最新 scan_report)
+exec gold-miner scan --days 30 --news --sentiment --report-file "$REPORT"
