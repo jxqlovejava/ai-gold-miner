@@ -324,8 +324,35 @@ def format_card(baseline: dict, judgement: dict, inputs: list[dict]) -> str:
 # 主流程
 # ──────────────────────────────────────────────────────────────
 
+def _auto_settle_predictions() -> dict:
+    """自动结算超龄预测 (预测-反馈闭环, 问题#4).
+
+    增量引擎 30min cron 每次运行静默结算 ≥24h 未结算的预测 (不再依赖用户
+    主动全量 scan), 准确率自动累积 → 系统可衡量自身判断对错.
+    """
+    try:
+        from gold_miner.improvement.tracker import PredictionTracker
+        from gold_miner.data.jd_accumulation_gold import JdAccumulationGoldFetcher
+
+        tracker = PredictionTracker()
+        price_info = JdAccumulationGoldFetcher(bank="MS").fetch_price()
+        if not price_info:
+            return {}
+        resolved = tracker.auto_resolve_stale(price_info.price, min_age_hours=24)
+        if resolved:
+            correct = sum(1 for r in resolved if r.was_correct)
+            logger.info(f"[incremental] 自动结算 {len(resolved)} 条预测, "
+                        f"正确 {correct} ({correct / len(resolved):.0%})")
+            return {"settled": len(resolved), "correct": correct}
+    except Exception as e:
+        logger.warning(f"[incremental] 预测自动结算失败: {e}")
+    return {}
+
+
 def run_incremental() -> str:
     """执行一次增量判断, 返回微信卡片 (空=静默不推送)."""
+    # 预测-反馈闭环: 先静默结算超龄预测 (准确率累积), 再走增量判断
+    _auto_settle_predictions()
     state = load_state()
     absorbed = _absorbed_keys(state)
 
