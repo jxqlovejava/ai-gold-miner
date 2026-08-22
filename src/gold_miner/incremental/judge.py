@@ -79,10 +79,14 @@ def _latest_scan_report() -> Path | None:
     return cands[0] if cands else None
 
 
-def seed_baseline_from_scan() -> dict | None:
-    """从最新 scan_report 提取基准判断 (决策/评分/置信度/建议区间/仓位)."""
-    rep = _latest_scan_report()
-    if not rep:
+def seed_baseline_from_scan(path: Path | None = None) -> dict | None:
+    """从 scan_report 提取基准判断 (决策/评分/置信度/建议区间/仓位).
+
+    Args:
+        path: 指定 scan_report 路径; None 时取最新一份.
+    """
+    rep = path if path is not None else _latest_scan_report()
+    if not rep or not rep.exists():
         return None
     text = rep.read_text(encoding="utf-8")
     baseline: dict = {

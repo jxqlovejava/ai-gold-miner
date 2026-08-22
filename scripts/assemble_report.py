@@ -403,6 +403,22 @@ def main(argv: list[str] | None = None) -> int:
         out_path = OUTPUT_DIR / f"金价分析_{datetime.now().strftime('%Y-%m-%d')}.md"
 
     assemble(scan_path.read_text(encoding="utf-8"), out_path)
+    # 每次全量分析后刷新增量判断基准 (问题#2/4: 增量引擎永远基于最新全量分析)
+    try:
+        from gold_miner.incremental.judge import seed_baseline_from_scan, load_state, save_state
+
+        new_baseline = seed_baseline_from_scan(scan_path)
+        if new_baseline:
+            state = load_state()
+            state["baseline"] = new_baseline
+            # 新分析不继承旧 delta 痕迹, 但保留已吸收事件与历史
+            state["baseline"].pop("last_delta", None)
+            save_state(state)
+            print(f"✅ 增量判断基准已刷新: 方向={new_baseline.get('direction')} "
+                  f"评分={new_baseline.get('score')} 区间={new_baseline.get('target_range')}",
+                  file=sys.stderr)
+    except Exception as e:
+        print(f"⚠️ 增量判断基准刷新失败(不影响报告): {e}", file=sys.stderr)
     return 0
 
 
