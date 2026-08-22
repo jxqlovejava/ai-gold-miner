@@ -26,6 +26,15 @@ Trigger: 用户反馈"Hermes 微信推送的金价提醒逻辑有问题"持续�
    - 每次全量 scan 后 `assemble_report.py` 自动刷新基准 → 增量引擎永远基于最新分析
    - 服务器端：Hermes cron「黄金·增量判断」`*/30 9-23 * * 1-5`（gold_incremental.py wrapper）
 
+4. **突发新闻"LLM不可用"根因 = 扩展思考吃满 max_tokens（问题#1核心，2026-08-22）**
+   - 现象：`⚠️规则判定·LLM不可用` + 缓和事件（协议达成/美军护航）被规则误判"霍尔木兹封锁→利多"
+   - 根因：deepseek pro/flash 扩展思考把 max_tokens(3000) 全吃在 thinking 块 → `chat()` 找不到 text 块返回空 → 语义层静默禁用 → 回退规则正则 → 规则缓和词漏配"通话/恢复谈判/协助/护航/通过" → 落默认"封锁→利多" canned 文本
+   - 修复（系统性，`29530e4`）：
+     - LLMClient payload 加 `thinking: {type: "disabled"}`（3条批量 37s thinking-only → 3.2s 出 text）；兼容端点 400/422 降级重试一次；无 text 块显式记日志
+     - 语义分析器改 `news_llm_model=deepseek-v4-flash` + max_tokens 4000 + timeout 60
+     - 规则回退缓和词扩容（通话/恢复谈判/协助/护航/通过通航）+ 升级 override 优先（"协议...不得通过"=通行限制非缓和，first-match-wins 顺序）
+   - 教训：扩展思考模型的响应可能只有 thinking 块；调用方必须检查 text 块存在性而非默认"第一个块"，并给足 max_tokens 或用分类专用模型
+
 ## 对当日结论的影响
 
 iLink 修复后 14:21 起 0 次限流（weixin 重连正常）；真实验证待周一（突发新闻/日历/晚间预告恢复推送时观察）。持仓已更新（用户新买入 5.0214g @995.72，net 保本 999.72）。
