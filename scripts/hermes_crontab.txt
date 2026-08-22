@@ -82,6 +82,16 @@
 # ═══════════════════════════════════════════════════════════════
 
 # ═══════════════════════════════════════════════════════════════
+# ⚡ 金价增量判断 (2026-08-22 新增, Hermes cron job)
+# 脚本: gold_incremental.py — 突发新闻/新事件→增量判断(强化/反向)→更新基准,
+#   实质变化才推"⚡金价增量判断"卡片, 空stdout静默 (无新信号/无实质变化不推送)
+# 依赖: src/gold_miner/incremental/ + data/private/decision_state.json (基准判断)
+# 注册命令 (Hermes cron, 投递微信, 必须带 --workdir):
+#   hermes cron create '*/30 9-23 * * 1-5' --name '黄金·增量判断' --deliver weixin --no-agent --script gold_incremental.py --workdir /home/ubuntu/ai-gold-miner
+# 说明: 30min 盘中节奏, 与突发新闻(10min)错开; 增量判断仅在有新信号且实质变化时推送
+# ═══════════════════════════════════════════════════════════════
+
+# ═══════════════════════════════════════════════════════════════
 # 🔴 Hermes cron job 必须设 --workdir /home/ubuntu/ai-gold-miner (2026-08-11)
 # 事故: 突发新闻预警持续"⚠️规则判定·LLM不可用" — 根因是 job 未设 workdir,
 #   脚本从 Hermes 守护进程 CWD (~/.hermes) 启动, config.py 相对 ".env" 找不到

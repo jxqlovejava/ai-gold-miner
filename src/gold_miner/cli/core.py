@@ -72,7 +72,7 @@ def main() -> None:
             "scan", "prepare", "quote", "backtest", "journal", "proxy-install",
             "track", "review", "findings", "analyze", "scenario", "doctrine", "daemon",
             "verify", "report", "advisor", "doctor", "setup", "web",
-            "longterm", "record",
+            "longterm", "record", "incremental",
         ],
         help="命令",
     )
@@ -162,6 +162,12 @@ def main() -> None:
             deep=args.deep,
             report_file=args.report_file,
         )
+    elif args.command == "incremental":
+        from gold_miner.incremental.judge import run_incremental
+
+        card = run_incremental()
+        if card:
+            print(card, flush=True)
     elif args.command == "backtest":
         _resolve("run_backtest")(args)
     elif args.command == "journal":
