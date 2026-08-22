@@ -93,7 +93,7 @@ def build_scenario_triggers(
             time_window=time_window,
             trigger_condition=(
                 f"现价 {current_spot:,.0f} 上方强势整理，站稳 {up_price:,.0f} "
-                f"并持续 {time_window} 不跌破起涨点 {start:,.0f}"
+                f"并持续 {time_window} 不破起涨点 {start:,.0f}"
             ),
             falsification=f"跌破起涨点 {start:,.0f}，上行剧本证伪，转入大级别调整",
             implied_action=_action_for(direction, position_pct, up=True),
