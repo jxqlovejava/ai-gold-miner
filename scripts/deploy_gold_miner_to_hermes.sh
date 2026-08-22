@@ -105,6 +105,11 @@ if [[ -f "$ROOT/data/calendar_events.jsonl" ]]; then
 else
   echo "  本地无 data/calendar_events.jsonl，跳过"
 fi
+# 增量判断基准状态 (data/private/decision_state.json — 增量判断引擎基准, 本地 scan 后更新)
+if [[ -f "$ROOT/data/private/decision_state.json" ]]; then
+  "${SCP[@]}" "$ROOT/data/private/decision_state.json" "$HOST:$REMOTE_ROOT/data/private/decision_state.json"
+  echo "  ✅ decision_state.json (增量判断基准)"
+fi
 # 信号快照 (本地 pipeline 产出 → 服务器监控理由引擎读取)
 if [[ -f "$ROOT/data/signal_snapshot.json" ]]; then
   "${SCP[@]}" "$ROOT/data/signal_snapshot.json" "$HOST:$REMOTE_ROOT/data/signal_snapshot.json"
