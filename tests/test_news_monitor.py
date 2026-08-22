@@ -414,7 +414,9 @@ def test_semantic_low_confidence_falls_back_to_regex():
     })
     a = _analyze(title, semantic=fake)
     assert a is not None
-    assert "供应危机缓解" in a["impact"]  # 回退 regex 的覆盖链
+    # 2026-08-22: '协议...不得通过' = 通行限制/升级 (framework 铁律: 判别动作动词),
+    #   回退 regex 升级 override 优先级 > 缓和 override → 应命中"通行限制"链而非"缓解".
+    assert "通行限制" in a["impact"] or "封锁" in a["impact"]
 
 
 def test_semantic_corrects_weakened_hike_via_escalation():

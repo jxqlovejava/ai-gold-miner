@@ -68,6 +68,11 @@ class Settings(BaseSettings):
     news_llm_enabled: bool = True
     news_llm_categories: list[str] = ["geopolitical", "energy", "trade", "policy", "election"]
     news_llm_max_headlines: int = 12  # 每轮最多送 AI 的候选条数 (控成本)
+    # 分类任务专用模型: 用 flash (快/便宜, 无扩展思考吃tokens).
+    # 事故 (2026-08-22): 用全局 pro + max_tokens=3000 + timeout=30, 扩展思考块
+    #   吃光 tokens/超时 → chat 返回空 → 语义层静默禁用 → 突发新闻退化为规则判定
+    #   ("⚠️规则判定·LLM不可用"), 规则把缓和事件(协议/护航)误判成"封锁→利多".
+    news_llm_model: str = "deepseek-v4-flash"
 
     # Price Alerts
     alert_big_move_pct: float = 2.0         # 大波动阈值 (%)

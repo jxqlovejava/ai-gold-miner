@@ -132,6 +132,10 @@ class SemanticNewsAnalyzer:
         max_headlines: int | None = None,
     ) -> None:
         self.client = client or LLMClient()
+        # 分类任务用 flash (news_llm_model): 全局 pro 扩展思考吃 tokens, max_tokens=3000
+        # 下 chat 常返回空 → 语义层静默禁用 → 规则误判 (事故 2026-08-22).
+        if client is None:
+            self.client.model = getattr(settings, "news_llm_model", "deepseek-v4-flash")
         # getattr 兜底: 部署非原子期间旧 config 可能缺 news_llm_* 字段, 避免夜间哨兵崩溃
         self.categories = set(
             categories
@@ -163,7 +167,9 @@ class SemanticNewsAnalyzer:
         routed = routed[: self.max_headlines]
 
         prompt = _build_prompt(routed)
-        data = self.client.chat_json(prompt, timeout=30.0, max_tokens=3000)
+        # max_tokens/timeout 放大: flash 无扩展思考, 但完整 framework prompt + 批量
+        # JSON 输出仍需余量; 30s/3000 曾因 thinking 块吃满导致空返回 (2026-08-22).
+        data = self.client.chat_json(prompt, timeout=60.0, max_tokens=4000)
         if not data:
             logger.warning("语义推理无返回, 回退关键词规则")
             return {}

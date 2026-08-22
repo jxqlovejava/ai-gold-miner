@@ -71,12 +71,18 @@ class LLMClient:
             "max_tokens": max_tokens,
             "temperature": temperature,
             "messages": messages,
+            # 2026-08-22 系统性修复: 禁用扩展思考. 事故: pro/flash 扩展思考把 max_tokens
+            #   (3000-4000) 全吃在 thinking 块 → chat 返回空 → 语义层静默禁用 → 突发新闻
+            #   退化为规则判定, 缓和事件(协议/护航)被误判"封锁→利多". 禁 thinking 后
+            #   3条批量 3.2s 出 text (vs 37s thinking-only).
+            "thinking": {"type": "disabled"},
         }
 
         # 瞬态错误重试 (2026-08-11): DeepSeek 偶发超时/限流, 一次失败即回退关键词会让
         # 突发新闻推送退化为纯规则判定 (事故: 8/10晚 5 条推送均因 AI 层失败回退规则).
         # 401/403 (认证) 属非瞬态, 重试无意义, 直接失败.
         last_error: Exception | None = None
+        retried_without_thinking = False  # 部分兼容端点不支持 thinking 参数 → 降级重试一次
         for attempt in range(3):
             try:
                 resp = httpx.post(url, json=payload, headers=headers, timeout=timeout)
@@ -98,9 +104,14 @@ class LLMClient:
                     for block in content:
                         if block.get("type") == "text":
                             return block.get("text", "")
-                    # fallback: try first block
-                    if len(content) > 0:
-                        return content[0].get("text", "")
+                    # 无 text 块 (扩展思考模型 max_tokens 被 thinking 吃满 → stop=max_tokens):
+                    # 显式记日志并返回 None, 不静默返回空串 (事故 2026-08-22 语义层误判).
+                    types = [b.get("type") for b in content]
+                    logger.warning(
+                        f"LLM 响应无 text 块 (types={types}, stop={data.get('stop_reason')}) — "
+                        f"thinking 可能吃满 max_tokens, 调用方应回退或改用 flash"
+                    )
+                    return None
                 elif isinstance(content, str):
                     return content
                 return None
@@ -113,6 +124,17 @@ class LLMClient:
                 if attempt < 2:
                     _sleep_backoff(attempt)
                     continue
+            # 兼容端点不支持 thinking 参数 (400/422, 错误含 thinking) → 去掉该字段重试一次
+            if (
+                resp.status_code in (400, 422)
+                and "thinking" in (resp.text or "").lower()
+                and not retried_without_thinking
+                and "thinking" in payload
+            ):
+                retried_without_thinking = True
+                payload.pop("thinking", None)
+                logger.warning("LLM 端点不支持 thinking 参数, 已降级重试")
+                continue
             logger.warning(f"LLM API 错误 ({resp.status_code}): {resp.text[:200]}")
             return None
 
