@@ -110,6 +110,11 @@ if [[ -f "$ROOT/data/private/decision_state.json" ]]; then
   "${SCP[@]}" "$ROOT/data/private/decision_state.json" "$HOST:$REMOTE_ROOT/data/private/decision_state.json"
   echo "  ✅ decision_state.json (增量判断基准)"
 fi
+# 预测追踪 (prediction_journal.jsonl — 本地 scan 记录, 服务器增量 cron 结算, 必须同源)
+if [[ -f "$ROOT/data/private/prediction_journal.jsonl" ]]; then
+  "${SCP[@]}" "$ROOT/data/private/prediction_journal.jsonl" "$HOST:$REMOTE_ROOT/data/private/prediction_journal.jsonl"
+  echo "  ✅ prediction_journal.jsonl (预测追踪, 服务器结算用)"
+fi
 # 信号快照 (本地 pipeline 产出 → 服务器监控理由引擎读取)
 if [[ -f "$ROOT/data/signal_snapshot.json" ]]; then
   "${SCP[@]}" "$ROOT/data/signal_snapshot.json" "$HOST:$REMOTE_ROOT/data/signal_snapshot.json"
