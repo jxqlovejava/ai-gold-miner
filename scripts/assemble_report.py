@@ -415,7 +415,25 @@ def assemble(scan_text: str, out_path: Path) -> None:
     else:
         lines.append("（本期无触发）")
     lines.append("")
-    lines.append("## 3. Agent 博弈")
+    # 板块顺序 = 推理顺序: 军规(3) -> Munger(4) -> 画像(5) -> 博弈(6) -> 条件单(7)
+    # (2026-08-22 调整: 博弈综合军规/Munger/画像为输入, 展示顺序与推理顺序统一)
+    lines.append("## 3. 军规自查")
+    lines.append(f"通过 {doctrine or '-'}")
+    if warns:
+        lines.extend(f"⚠️ {w}" for w in warns)
+    else:
+        lines.append("（本期无违规）")
+    lines.append("")
+    lines.append("## 4. Munger 模型")
+    lines.append(munger if munger else "- （本期无触发）")
+    lines.append("")
+    lines.append("## 5. 画像匹配")
+    if profile:
+        lines.extend(f"- {ln.strip()}" for ln in profile.splitlines() if ln.strip())
+    else:
+        lines.append("✅ 兼容（LLM 补充约束检查）")
+    lines.append("")
+    lines.append("## 6. Agent 博弈")
     if debate.get("bull"):
         lines.append("🐮 **BullAgent**")
         lines.extend(f"  {ln}" for ln in debate["bull"].splitlines() if ln.strip())
@@ -431,22 +449,6 @@ def assemble(scan_text: str, out_path: Path) -> None:
         lines.extend(f"  {ln}" for ln in debate["pm"].splitlines() if ln.strip())
     else:
         lines.append("💼 **PortfolioManager**（观望）")
-    lines.append("")
-    lines.append("## 4. 军规自查")
-    lines.append(f"通过 {doctrine or '-'}")
-    if warns:
-        lines.extend(f"⚠️ {w}" for w in warns)
-    else:
-        lines.append("（本期无违规）")
-    lines.append("")
-    lines.append("## 5. Munger 模型")
-    lines.append(munger if munger else "- （本期无触发）")
-    lines.append("")
-    lines.append("## 6. 画像匹配")
-    if profile:
-        lines.extend(f"- {ln.strip()}" for ln in profile.splitlines() if ln.strip())
-    else:
-        lines.append("✅ 兼容（LLM 补充约束检查）")
     lines.append("")
     lines.append("## 7. 条件单审查")
     if orders:

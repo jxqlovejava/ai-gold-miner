@@ -435,25 +435,7 @@ def _build_scan_markdown(result) -> str:
     lines.append(b.format_dimension_table())
     lines.append("")
 
-    # 3. Agent 博弈
-    lines.append("## Agent 博弈")
-    if result.bull_opinion:
-        bull = result.bull_opinion
-        lines.append(f"🐮 **{bull.agent_name}** (信心 {bull.confidence:.0%})")
-        for a in bull.arguments[:3]:
-            lines.append(f"  ✓ {a}")
-    else:
-        lines.append("（本期无多头发言）")
-    if result.bear_opinion:
-        bear = result.bear_opinion
-        lines.append(f"🐻 **{bear.agent_name}** (信心 {bear.confidence:.0%})")
-        for a in bear.arguments[:3]:
-            lines.append(f"  ✗ {a}")
-    else:
-        lines.append("（本期无空头发言）")
-    lines.append("")
-
-    # 4. 军规
+    # 3. 军规
     lines.append("## 军规自查")
     if result.doctrine_result:
         dr = result.doctrine_result
@@ -471,7 +453,7 @@ def _build_scan_markdown(result) -> str:
         lines.append("（军规数据缺失）")
     lines.append("")
 
-    # 5. Munger
+    # 4. Munger
     lines.append("## Munger 模型")
     if result.munger_models:
         for m in result.munger_models[:3]:
@@ -482,7 +464,7 @@ def _build_scan_markdown(result) -> str:
         lines.append("（本期无触发）")
     lines.append("")
 
-    # 6. 画像匹配
+    # 5. 画像匹配
     lines.append("## 画像匹配")
     if result.profile_match:
         pm = result.profile_match
@@ -495,6 +477,24 @@ def _build_scan_markdown(result) -> str:
             lines.append(str(pm))
     else:
         lines.append("（画像数据缺失）")
+    lines.append("")
+
+    # 6. Agent 博弈 (展示顺序=推理顺序: 博弈在军规/Munger/画像之后, 综合前三者为输入)
+    lines.append("## Agent 博弈")
+    if result.bull_opinion:
+        bull = result.bull_opinion
+        lines.append(f"🐮 **{bull.agent_name}** (信心 {bull.confidence:.0%})")
+        for a in bull.arguments[:3]:
+            lines.append(f"  ✓ {a}")
+    else:
+        lines.append("（本期无多头发言）")
+    if result.bear_opinion:
+        bear = result.bear_opinion
+        lines.append(f"🐻 **{bear.agent_name}** (信心 {bear.confidence:.0%})")
+        for a in bear.arguments[:3]:
+            lines.append(f"  ✗ {a}")
+    else:
+        lines.append("（本期无空头发言）")
     lines.append("")
 
     # 7. 条件单审查
