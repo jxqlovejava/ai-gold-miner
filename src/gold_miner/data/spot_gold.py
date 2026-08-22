@@ -20,6 +20,7 @@ from gold_miner.config import settings
 from gold_miner.data.base import DataFetcher, DataSourceMeta
 from gold_miner.data.jd_accumulation_gold import JdAccumulationGoldFetcher
 from gold_miner.proxy import get_proxied_client
+from gold_miner.utils.http_fallback import _is_definitive_connect_error
 
 JINJIA_URL = "https://www.jinjia.com.cn/"
 JINJIA_INTL_URL = "https://www.jinjia.com.cn/gjgold/"
@@ -293,13 +294,17 @@ class SpotGoldFetcher(DataFetcher):
 
         for attempt in range(3):
             try:
-                with get_proxied_client(timeout=30) as client:
+                with get_proxied_client(timeout=8) as client:
                     resp = client.get(url, headers=_YAHOO_HEADERS)
                     resp.raise_for_status()
                     data = resp.json()
                 break
             except Exception as e:
                 logger.warning(f"Yahoo Finance请求失败 (尝试 {attempt + 1}/3): {e}")
+                if _is_definitive_connect_error(e):
+                    # 确定性错误 (Connection refused / 代理不可达): 重试无意义, 快速换源
+                    logger.error(f"Yahoo Finance确定性连接错误, 放弃重试: {e}")
+                    return pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume"])
                 if attempt < 2:
                     sleep(2 ** attempt)
                 else:

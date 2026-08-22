@@ -74,3 +74,47 @@ def test_proxy_required_fast_fail_time_bounded():
         fallback_get("https://newsapi.org/v2/everything", timeout=8, proxy_required=True)
     elapsed = time.monotonic() - start
     assert elapsed < 0.5, f"proxy_required 快速失败耗时 {elapsed:.2f}s, 应 ≤0.5s"
+
+
+def test_definitive_connect_error_short_circuits():
+    """Phase 2 direct 连接遇确定性错误 (Connection refused) → 立即 raise, 不重试、不走 fallback 链.
+
+    背景 (2026-08-22): 代理故障时 8 路采集在 Connection refused 上各白等
+    30s×3 重试 + curl/node 回退, scan 总耗时 278.9s. 确定性错误重试无意义.
+    """
+    def refused(*args, **kwargs):
+        raise httpx.ConnectError("[Errno 61] Connection refused", request=None)
+
+    with mock.patch(
+        "gold_miner.utils.http_fallback._try_mihomo", return_value=None
+    ), mock.patch(
+        "gold_miner.utils.http_fallback._try_curl",
+        side_effect=AssertionError("确定性错误不应走到 curl"),
+    ) as m_curl, mock.patch(
+        "gold_miner.utils.http_fallback._try_system_python",
+        side_effect=AssertionError("确定性错误不应走到 system_python"),
+    ) as m_sys, mock.patch(
+        "gold_miner.utils.http_fallback._try_node",
+        side_effect=AssertionError("确定性错误不应走到 node"),
+    ) as m_node, mock.patch("httpx.Client.get", side_effect=refused):
+        with pytest.raises(httpx.ConnectError, match="fail-fast"):
+            fallback_get("https://example.com/data", timeout=8)
+        m_curl.assert_not_called()
+        m_sys.assert_not_called()
+        m_node.assert_not_called()
+
+
+def test_transient_error_still_falls_back():
+    """瞬时错误 (SSL EOF) → 仍走 fallback 链, 不误伤原重试/回退逻辑."""
+    def ssl_eof(*args, **kwargs):
+        raise httpx.ConnectError("SSL: UNEXPECTED_EOF_WHILE_READING")
+
+    with mock.patch(
+        "gold_miner.utils.http_fallback._try_mihomo", return_value=None
+    ), mock.patch("httpx.Client.get", side_effect=ssl_eof), mock.patch(
+        "gold_miner.utils.http_fallback._try_curl",
+        return_value={"ok": True, "status_code": 200, "text": "ok", "headers": {}},
+    ) as m_curl:
+        resp = fallback_get("https://example.com/data", timeout=8)
+        assert resp.status_code == 200
+        m_curl.assert_called_once()

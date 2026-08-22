@@ -300,6 +300,29 @@ def _is_ssl_or_transport_error(e: Exception) -> bool:
     )
 
 
+def _is_definitive_connect_error(e: Exception) -> bool:
+    """确定性连接错误 — 重试无意义，应 fail-fast.
+
+    Connection refused / DNS 解析失败 / 网络不可达 / 代理不可达 说明目标
+    或路径本身不可达，重试 N 次结果一样。只有 SSL EOF / 超时 / reset 等
+    瞬时错误才值得走 fallback 链与重试（本次代理故障时 8 路采集在
+    Connection refused 上各白等 30s×3 = 255s，正是缺这一判定）。
+    """
+    msg = str(e).lower()
+    return (
+        isinstance(e, ConnectionRefusedError)
+        or "connection refused" in msg
+        or "errno 61" in msg           # macOS: 连接被拒
+        or "errno 111" in msg          # Linux: 连接被拒
+        or "network is unreachable" in msg
+        or "no route to host" in msg
+        or "name or service not known" in msg
+        or "failed to resolve" in msg
+        or "couldn't resolve host" in msg
+        or "proxyerror" in msg         # 代理本身不可达 (含外层 wrapped)
+    )
+
+
 def _build_url(base: str, params: dict[str, Any] | None) -> str:
     """Build full URL with query string."""
     if not params:
@@ -407,6 +430,11 @@ def fallback_get(
             last_error = e
             if not _is_ssl_or_transport_error(e):
                 raise
+            if _is_definitive_connect_error(e):
+                # 确定性错误: 目标/路径不可达, 重试 + curl/node fallback 全是白等
+                raise httpx.ConnectError(
+                    f"definitive connect error (fail-fast) for {url}: {e}"
+                ) from e
 
             logger.debug(f"HTTP transport error (attempt {attempt + 1}/{retries + 1}): {e}")
 

@@ -68,6 +68,11 @@ class ProxyManager:
         self.process: subprocess.Popen | None = None
         self.port = self.DEFAULT_PORT
         self._shared_client: httpx.Client | None = None
+        # fail-fast: 会话级标记 — 代理启动失败后整个 pipeline 不再反复尝试
+        self._start_tried = False
+        # 端口探测 TTL 缓存 (避免每个数据源各探测 5×0.3s)
+        self._port_cache: int | None = None
+        self._port_cache_ts: float | None = None
         self._find_binary()
 
     def _find_binary(self) -> None:
@@ -327,10 +332,19 @@ rules:
             return False
 
     def _detect_available_port(self) -> int | None:
-        """探测可用的代理端口: 优先项目端口, 其次外部 ClashX/Clash Verge 等端口."""
+        """探测可用的代理端口: 优先项目端口, 其次外部 ClashX/Clash Verge 等端口.
+
+        Fail-fast: 结果带 3s TTL 缓存 — 无代理时 5×0.3s 探测只付一次,
+        避免 10+ 个数据源各探测一遍 (10×1.5s = 15s 空耗).
+        """
+        now = time.monotonic()
+        if self._port_cache_ts is not None and now - self._port_cache_ts < 3.0:
+            return self._port_cache
         for port in [self.port, *self.EXTERNAL_PORTS]:
             if self._probe_port(port):
+                self._port_cache, self._port_cache_ts = port, now
                 return port
+        self._port_cache, self._port_cache_ts = None, now
         return None
 
     @property
@@ -344,8 +358,12 @@ rules:
             return True
         return self._detect_available_port() is not None
 
-    def _wait_for_proxy(self, timeout: float = 30.0) -> bool:
-        """等待代理端口可用."""
+    def _wait_for_proxy(self, timeout: float = 2.0) -> bool:
+        """等待代理端口可用.
+
+        Fail-fast: 代理是本地进程, 2s 内就该就绪; 30s 等待只会让
+        每个数据源在代理故障时各白等 30s (8 路采集 = 240s 空耗).
+        """
         import socket
 
         deadline = time.time() + timeout
@@ -402,10 +420,15 @@ def get_proxied_client(**kwargs: Any) -> httpx.Client:
     """获取 httpx Client（如有可用代理则自动使用）.
 
     若用户已配置 MIHOMO_SUB_URL 且代理二进制存在，会自动启动代理进程。
+    Fail-fast: 代理启动仅在会话内尝试一次 (2s 等待), 失败后后续调用
+    直接直连 — 避免代理故障时每个数据源各 Popen 一次 mihomo + 各等
+    _wait_for_proxy(30s), 8 路采集在纯白等中耗掉数分钟.
     """
     mgr = get_proxy_manager()
-    if not mgr.is_running and mgr.binary and settings.mihomo_sub_url:
-        mgr.start(settings.mihomo_sub_url)
-        if not mgr._wait_for_proxy():
-            logger.warning("代理端口未就绪，请求将尝试直连")
+    if not mgr._start_tried and mgr.binary and settings.mihomo_sub_url:
+        mgr._start_tried = True
+        if not mgr.is_running:
+            mgr.start(settings.mihomo_sub_url)
+            if not mgr._wait_for_proxy():
+                logger.warning("代理未就绪，本会话不再尝试，请求将直连")
     return mgr.get_client(**kwargs)

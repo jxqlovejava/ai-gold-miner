@@ -313,7 +313,7 @@ class JdAccumulationGoldFetcher(DataFetcher):
         url = f"{_JD_API_URL}?reqData={urllib.parse.quote(json.dumps(req_data))}"
 
         try:
-            with get_proxied_client(timeout=30) as client:
+            with get_proxied_client(timeout=10) as client:
                 resp = client.get(url)
                 resp.raise_for_status()
                 data = resp.json()
