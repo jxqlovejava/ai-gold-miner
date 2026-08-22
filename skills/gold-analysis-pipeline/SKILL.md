@@ -47,15 +47,16 @@ description: 黄金价格走势分析完整 pipeline - 启动批协议+输出铁
 4. **scheduled_at 必须传 `datetime` 带时区** - `datetime(2026, 7, 21, 8, 0, 0, tzinfo=timezone(timedelta(hours=-4)))`
 5. **手动事件同步必读 `references/event-sync.md`** - 含日历写入铁律(1.5-1.10)、gold_bias 判定规则、8 步同步流程、`calendar_events.jsonl` 排除规则
 6. **深度新闻搜索 P0 主题必须全覆盖** - P0 列表与执行铁律见 `references/event-sync.md` §1.9
-7. **scan 启动批 + 零轮询 + 自动组装（2026-08-22 P3，⏱ 核心）** - `scripts/quick_scan.sh` 是唯一网络长任务（复用判断->补最新价->重 scan->组装报告骨架，四合一）。启动批的**同一条消息**里，后台跑 `scripts/quick_scan.sh` + 把全部静态读取并行发出，脚本完成前必须读完。**全程只允许 3 轮工具调用**：①启动批（quick_scan.sh + 全部静态读取）-> ②Read 骨架（REUSE 场景 0 网络调用）-> ③Write 填充 3 板块 + 终端完整输出。
+7. **scan 启动批 + 零轮询 + 自动组装（2026-08-22 P3/P4，⏱ 核心）** - `scripts/quick_scan.sh` 是唯一网络长任务（复用判断->补最新价->重 scan->组装报告骨架+摘要，四合一）。启动批的**同一条消息**里，后台跑 `scripts/quick_scan.sh` + 把全部静态读取并行发出，脚本完成前必须读完。**全程只允许 3 轮工具调用**：①启动批（quick_scan.sh + 全部静态读取）-> ②Read 骨架+摘要（REUSE 场景 0 网络调用）-> ③Write 填充 3 板块 + 终端完整输出。
    - ✅ **quick_scan.sh 自动分流**：当日报告 <3h -> 秒级返回 `REUSE_MODE|路径|AGE|LATEST_PRICE` + 自动组装骨架（`ASSEMBLE_OK|骨架路径`；当日已填充报告则 `ASSEMBLE_SKIP` 不覆盖）；报告缺失/≥3h -> 前台跑 scan（约15-25s），完成后同样自动组装骨架。**启动批无需手动 stat，禁止读旧报告**。
-   - ⚡ **REUSE 场景启动批直接 Read scan_report_YYYYMMDD.md**：当日报告 <3h 时路径确定已知（`data/output/scan_report_YYYYMMDD.md`），启动批第①轮就**直接 Read 它**（与 quick_scan.sh 并行发出），重跑场景该 Read 会报文件不存在，由通知后重读一次--不影响流程。**启动批静态读取可裁剪**：画像 / personal_rules / V9 / doctrine / report_template 的 grep 在 REUSE_MODE 下**全部可删**（scan 报告已含军规自查 r001-r035、Munger、画像匹配、决策结论），只留 portfolio.yaml（必读全文）+ conditional_orders（active grep）。
-   - 🛡️ **scan 报告原子写入**：`scan --report-file` 先写 `.tmp` 成功后才 rename 落盘；quick_scan.sh 重跑前会把陈旧报告移到 `.stale`。因此启动批并行 Read 只有两种结果：**完整报告（REUSE）或文件不存在（RERUN）**。若读到「文件不存在」：**直接等任务通知即可，禁止 ls/wc/cat/date 探测文件进度**（事故：2026-08-22 连环 4 轮排障浪费 ~2min）。
+   - ⚡ **骨架+摘要双文件模式（P4，2026-08-22）**：LLM 数据源 = `data/output/金价分析_YYYY-MM-DD.md`（骨架：决策/维度表/军规/Munger/画像/博弈/条件单/后续关注）+ `data/output/scan_digest_YYYY-MM-DD.md`（摘要：技术面/聪明钱明细/缠论/分时/ATR，assemble_report.py --digest-only 自动生成，quick_scan.sh 无条件刷新含 ASSEMBLE_SKIP 场景）。启动批第①轮**直接并行 Read 这两个文件**（路径确定已知），文件不存在（RERUN 场景或骨架未组装完）则等通知后第②轮重读。**🚫 禁止 Read scan_report_YYYYMMDD.md 全文**（420 行 ≈12k token/轮，骨架+摘要 ≈5k token 已覆盖全部所需，这是 2026-08-22 P4 提速核心）。启动批静态读取只留 portfolio.yaml（必读全文）+ conditional_orders（active grep），画像/personal_rules/V9/doctrine/report_template 全部不读（骨架已含其结论）。
+   - 🛡️ **scan 报告原子写入**：`scan --report-file` 先写 `.tmp` 成功后才 rename 落盘；quick_scan.sh 重跑前会把陈旧报告移到 `.stale`。因此启动批并行 Read 只有两种结果：**文件存在（完整内容）或文件不存在（RERUN）**。若读到「文件不存在」：**直接等任务通知即可，禁止 ls/wc/cat/date 探测文件进度**（事故：2026-08-22 连环 4 轮排障浪费 ~2min）。
+   - 🧠 **思考深度分配（P4，2026-08-22）**：轮①（启动批发出+状态汇报）与轮②（读取骨架/摘要）用**最短思考**--直接输出，不展开推理链；仅轮③填充主驱动/目标区间/条件单审查 3 个推理板块时正常推理。每轮推理时间 ∝ 上下文 token 量，状态轮深思考 = 纯浪费（实测：3 轮各 20-25s 推理占全程 ~92%）。
    - ❌ 禁止把预读拆成多轮串行 -- 每轮模型思考+往返 = 时间黑洞（事故：2026-08-22 多耗 ~2min）
    - ❌ 禁止 `tail` 读后台输出文件（管道缓冲读到空 = 纯浪费一轮）
    - ❌ 禁止显式 `TaskOutput` 阻塞等待 - 后台任务完成自动推送通知，靠通知驱动下一步
 8. **重大事件先查日历复用（2026-08-21 起）** - 消息面捕获重大事件标 `[unverified]` 时，**先本地查 `data/calendar_events.jsonl`**（grep 事件名/主题词），若已有带多源验证的 actual 记录（如 `[verified: T2 多源]`），直接复用、跳过外部搜索；仅当日历缺失/过时才走定向搜索（模板见 `references/event-sync.md` §1.10）。
-9. **scan 完成后零深挖（2026-08-22 起，⏱ 提速核心）** - `gold-miner scan` 报告（`data/output/scan_report_YYYYMMDD.md`）是**唯一数据源**，已包含：全部 9 步结果、8 维信号表、军规自查（r001-r035）、Agent 博弈、Munger、画像匹配、三情景骨架（含 r035 传导链校验 ✅）。**scan 完成后禁止任何深挖**：
+9. **scan 完成后零深挖（2026-08-22 起，⏱ 提速核心）** - `gold-miner scan` 报告（`data/output/scan_report_YYYYMMDD.md`）是**唯一数据源**（LLM 通过骨架+摘要双文件消费其内容，见铁律 7，不读原文），已包含：全部 9 步结果、8 维信号表、军规自查（r001-r035）、Agent 博弈、Munger、画像匹配、三情景骨架（含 r035 传导链校验 ✅）。**scan 完成后禁止任何深挖**：
    - ❌ 不单独跑 `EarlyWarningEngine().check_recent_results()` / `get_active_monitors()` / `check_stale_events()` - scan 日志已输出「未记录:N | 活跃Monitor:N | Stale:N」，细节直接用 scan 报告或本地 grep `data/calendar_events.jsonl` 即可
    - ❌ 不追源码找 `scenario_plan` / `transmission_warnings` / `build_price_target_matrix` 等内部实现 - scan 报告的三情景骨架已足够填充报告 §1b 与 r035 披露，深挖 = 自我驱动的完美主义
    - ❌ 不猜 CLI 参数重跑子命令（`scenario --text` 等）- 报告缺什么就用手头数据补，不重启网络任务
@@ -80,23 +81,26 @@ description: 黄金价格走势分析完整 pipeline - 启动批协议+输出铁
 
 ## 1.0 启动批协议（唯一执行路径）
 
-**启动批 = 一条消息，禁止拆轮**：后台跑 `scripts/quick_scan.sh`（四合一：复用判断->补最新价->重 scan->组装骨架）的同时，把**全部**静态读取并行发出，脚本完成前读完。
+**启动批 = 一条消息，禁止拆轮**：后台跑 `scripts/quick_scan.sh`（四合一：复用判断->补最新价->重 scan->组装骨架+摘要）的同时，把**全部**静态读取并行发出，脚本完成前读完。
 
 | 文件 | 用途 | 读取方式 |
 |------|------|---------|
 | `data/private/portfolio.yaml` | 持仓/成本/止损/卖出手续费 | Read（**唯一必读全文**） |
 | `data/private/conditional_orders.jsonl` | active 条件单 | grep `"status": "active"`（**独立成行**） |
-| `data/output/scan_report_YYYYMMDD.md` | 当日已有 scan 报告（唯一数据源） | **启动批直接 Read（赌 REUSE_MODE）** |
-| `data/private/investor_profile.md` | 定性画像（长期不变） | REUSE 场景可删（scan 已含结论）；仅重大持仓决策时 grep |
-| `data/private/personal_rules.md` | p001-p014 纪律（长期不变） | 同上 |
-| `data/private/active_plan_v9.md` | V9 三池/分批/S协议 | 同上 |
+| `data/output/金价分析_YYYY-MM-DD.md` | 报告骨架（决策/维度表/军规/Munger/画像/博弈/条件单/后续关注） | **启动批直接 Read（赌已存在）** |
+| `data/output/scan_digest_YYYY-MM-DD.md` | scan 摘要（技术面/聪明钱明细/缠论/分时/ATR，推理用） | **启动批直接 Read（赌已存在）** |
+| `data/private/investor_profile.md` | 定性画像（长期不变） | 不读（骨架已含结论）；仅重大持仓决策时 grep |
+| `data/private/personal_rules.md` | p001-p014 纪律（长期不变） | 不读（同上） |
+| `data/private/active_plan_v9.md` | V9 三池/分批/S协议 | 不读（同上） |
 | `data/calendar_events.jsonl` | 近3天事件 + active monitor | 可选 grep（加 `| tail -8` 限行） |
+
+> 🚫 **禁止 Read `scan_report_YYYYMMDD.md` 全文**（420 行 ≈12k token/轮）：骨架+摘要双文件 ≈5k token 已覆盖全部所需（P4 提速核心，2026-08-22）。
 
 > ⚠️ **grep 拆开 + 限行纪律**：`conditional_orders.jsonl` 的 grep 必须**独立成行**（~1KB，绝不与 `calendar_events.jsonl` 合并--calendar 有 20+ 个 active monitor，合并输出 32KB 被截断 -> 条件单没拿到 -> 被迫补读多花一轮）。calendar 类大文件 grep 一律加 `| tail -8` 限行。
 > ⚠️ **路径纪律**：静态文件统一在 `data/private/`（portfolio/画像/personal_rules/条件单）与 `docs/`（doctrine/report_template）。禁止凭记忆猜路径。
-> ⚠️ **收到 quick_scan 通知后不单独读 `.output` 文件**（只有 1-2 行 REUSE_MODE/ASSEMBLE_* 状态），直接 Read scan_report 与骨架。
+> ⚠️ **收到 quick_scan 通知后不单独读 `.output` 文件**（只有 1-2 行 REUSE_MODE/ASSEMBLE_* 状态 + LATEST_PRICE），骨架/摘要已在①轮读入或此时补读。
 > 🕐 **强制重 scan 的触发**（即使报告 <3h）：启动批 grep 到金价刚剧烈波动（news monitor 刚触发/快讯跳变 >1%）、或用户明确要求最新--此时直接后台跑 `gold-miner scan --days 30 --news --sentiment`，不走 quick_scan.sh 的 REUSE 分支。
-> 🚀 **通知到达后唯一动作**：校验返回模式。REUSE -> 第②轮 Read 骨架（scan_report 已在①轮读入，用 LATEST_PRICE 补价）；RERUN -> Read scan_report 一次 + Read 骨架。**目标全程 ≤60s**。
+> 🚀 **通知到达后唯一动作**：校验返回模式。REUSE -> 骨架+摘要已在①轮读入，直接进轮③（用 LATEST_PRICE 补价）；RERUN -> 第②轮 Read 骨架 + 摘要。**目标全程 ≤60s**。
 
 ## Pipeline 步骤总览
 

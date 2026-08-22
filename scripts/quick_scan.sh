@@ -17,6 +17,8 @@
 #   ASSEMBLE_OK|data/output/金价分析_YYYY-MM-DD.md（骨架已生成，LLM 只填 3 个推理板块）
 #   ASSEMBLE_SKIP|data/output/金价分析_YYYY-MM-DD.md（当日报告已填充，不覆盖；
 #       强制重建: ASSEMBLE_FORCE=1 bash scripts/quick_scan.sh 或手动跑 assemble_report.py）
+#   副产物: data/output/scan_digest_YYYY-MM-DD.md（技术面/聪明钱明细摘要，供 LLM 推理，
+#       配合骨架双文件模式替代 scan_report 全文读取）
 #
 # 配合铁律 7（2 轮工具调用）：第①轮发此脚本 + 全部静态读取；第②轮 Read 骨架直接填充输出。
 set -euo pipefail
@@ -27,6 +29,9 @@ THRESHOLD=10800  # 3h 复用窗口
 ANALYSIS="data/output/金价分析_$(date +%F).md"
 
 run_assemble() {
+  # scan 摘要(技术面/聪明钱明细)无条件刷新: ASSEMBLE_SKIP(当日报告已填充)时骨架不重建, 但摘要须更新。
+  # REUSE 场景 LLM 只读 骨架+摘要 双文件, 不再读 420 行 scan_report 全文(2026-08-22 提速P4)
+  python3 scripts/assemble_report.py --digest-only 2>/dev/null || true
   # 已填充的当日报告不覆盖（无占位符 = LLM 已完成增量填充）；
   # 强制重建用 ASSEMBLE_FORCE=1
   if [ -f "$ANALYSIS" ] && [ -z "${ASSEMBLE_FORCE:-}" ]; then

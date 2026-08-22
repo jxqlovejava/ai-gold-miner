@@ -226,6 +226,93 @@ def _extract_reminders(text: str) -> list[str]:
 
 
 # ═══════════════════════════════════════════════════════════════
+# scan 数据摘要 (digest, 2026-08-22 提速P4)
+# ═══════════════════════════════════════════════════════════════
+
+def _extract_framed_section(text: str, title: str) -> list[str]:
+    """提取 scan_report 中 `==== / 标题 / ====` 框线板块正文, 到下一框线结束.
+
+    标题后紧跟的框线跳过; 收到正文后再遇框线即收尾. 排除 INFO 日志行.
+    """
+    out: list[str] = []
+    in_sec = False
+    for ln in text.splitlines():
+        s = ln.strip()
+        if not in_sec:
+            if title in s and "| INFO" not in ln and "| DEBUG" not in ln:
+                in_sec = True
+            continue
+        if s.startswith("="):
+            if out:
+                break
+            continue  # 标题后的闭合框线
+        out.append(s)
+    while out and not out[-1]:
+        out.pop()
+    return out
+
+
+def _extract_infoblock(text: str, marker: str, max_lines: int = 8) -> list[str]:
+    """提取标记行及其后续连续非空行 (缠论/日内分时/ATR 等短块)."""
+    lines = text.splitlines()
+    for i, ln in enumerate(lines):
+        if marker in ln and "| INFO" not in ln and "| DEBUG" not in ln:
+            block = [ln.strip()]
+            for ln2 in lines[i + 1:]:
+                if not ln2.strip() or "| INFO" in ln2 or "| DEBUG" in ln2:
+                    break
+                block.append(ln2.strip())
+                if len(block) > max_lines:
+                    break
+            return block
+    return []
+
+
+def write_digest(scan_text: str, out_path: Path) -> int:
+    """生成 scan 数据摘要: 技术面/聪明钱明细 + 缠论/分时/ATR.
+
+    目的: REUSE 场景 LLM 只读 骨架(报告结构) + 摘要(推理所需明细),
+    不再读 420 行 scan_report 全文 (~12k token/轮 -> 推理提速).
+    摘要是 LLM 工作文件, 不进最终报告, 无格式校验约束.
+    """
+    lines: list[str] = []
+    lines.append(f"# 📎 scan 数据摘要 · {datetime.now().strftime('%Y-%m-%d')}")
+    lines.append("")
+    lines.append("> LLM 推理用工作文件（技术面/聪明钱明细），报告骨架不含这些数据。")
+    lines.append("")
+    tech = _extract_framed_section(scan_text, "📊 技术面")
+    if tech:
+        lines.append("## 技术面明细")
+        lines.extend(tech)
+        lines.append("")
+    smart = _extract_framed_section(scan_text, "聪明钱资金流")
+    if smart:
+        lines.append("## 聪明钱明细")
+        lines.extend(smart)
+        lines.append("")
+    chan = _extract_infoblock(scan_text, "📊 缠论结构", max_lines=3)
+    if chan:
+        lines.append("## 缠论结构")
+        lines.extend(chan)
+        lines.append("")
+    intraday = _extract_infoblock(scan_text, "⏱️ 日内分时", max_lines=7)
+    if intraday:
+        lines.append("## 日内分时")
+        lines.extend(intraday)
+        lines.append("")
+    for ln in scan_text.splitlines():
+        if "📐 ATR 移动止盈" in ln and "| INFO" not in ln:
+            lines.append("## ATR")
+            lines.append(ln.strip())
+            lines.append("")
+            break
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text("\n".join(lines), encoding="utf-8")
+    print(f"✅ scan 摘要已生成: {out_path}（{len(lines)} 行）", file=sys.stderr)
+    return 0
+
+
+# ═══════════════════════════════════════════════════════════════
 # 持仓 / 条件单
 # ═══════════════════════════════════════════════════════════════
 
@@ -392,12 +479,18 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="scan_report → 金价分析报告骨架")
     parser.add_argument("--scan", help="scan_report 路径 (默认最新 data/output/scan_report_*.md)")
     parser.add_argument("--out", help="输出路径 (默认 data/output/金价分析_YYYY-MM-DD.md)")
+    parser.add_argument("--digest-only", action="store_true",
+                        help="仅生成 scan 摘要(骨架+摘要双文件模式, 不组装报告骨架)")
     args = parser.parse_args(argv)
 
     scan_path = Path(args.scan) if args.scan else _latest_scan_report()
     if scan_path is None or not scan_path.exists():
         print("未找到 scan_report, 请用 --scan 指定", file=sys.stderr)
         return 1
+
+    if args.digest_only:
+        digest_path = OUTPUT_DIR / f"scan_digest_{datetime.now().strftime('%Y-%m-%d')}.md"
+        return write_digest(scan_path.read_text(encoding="utf-8"), digest_path)
 
     if args.out:
         out_path = Path(args.out)
