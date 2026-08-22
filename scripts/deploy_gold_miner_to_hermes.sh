@@ -191,6 +191,17 @@ fi
 echo "==> 部署 crontab 配置文件"
 "${SCP[@]}" "$ROOT/scripts/hermes_crontab.txt" "$HOST:$REMOTE_ROOT/scripts/"
 
+echo "==> 同步黄金 crontab 条目到实际 crontab (追加方式, 保留白泽等其他任务)"
+# 根因: 本地 hermes_crontab.txt 是真相源, 此前仅 scp 到 scripts/ 不安装,
+#   本地新增条目后服务器 crontab 漂移 (事故: 11:35 watchdog 服务器缺条目).
+# sync_gold_crontab.py 在服务器端对比 crontab -l, 缺失则追加 (只增不删).
+if [[ -f "$ROOT/scripts/sync_gold_crontab.py" ]]; then
+    "${SCP[@]}" "$ROOT/scripts/sync_gold_crontab.py" "$HOST:$REMOTE_ROOT/scripts/"
+    "${SSH[@]}" "$HOST" "python3 $REMOTE_ROOT/scripts/sync_gold_crontab.py" || echo "  ⚠️ crontab 同步失败, 请手动核对"
+else
+    echo "  ⚠️ 无 scripts/sync_gold_crontab.py, 跳过 crontab 自动同步 (本地源文件变更需手动追加)"
+fi
+
 echo "==> 创建日志目录"
 "${SSH[@]}" "$HOST" "mkdir -p '$REMOTE_ROOT/logs'"
 
