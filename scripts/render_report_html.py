@@ -810,6 +810,17 @@ def main(argv: list[str] | None = None) -> int:
 
     md = md_path.read_text(encoding="utf-8")
 
+    # 程序化格式自检（2026-08-22 用户要求「内化到程序，不靠记忆」）：
+    # 板块间禁止独立 --- 分隔线，仅用空行。发现违规 → 警告（提示修正源文件，不阻断渲染）。
+    try:
+        from validate_report_format import find_violations
+        viols = find_violations(md)
+        if viols:
+            print(f"⚠️ 报告源含 {len(viols)} 处独立 '---' 分隔线（板块间应仅空行分隔）: "
+                  + ", ".join(f"L{ln}" for ln, _ in viols), file=sys.stderr)
+    except ImportError:
+        pass
+
     if args.out:
         out_path = Path(args.out)
     else:
