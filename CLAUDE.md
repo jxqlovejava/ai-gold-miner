@@ -3,7 +3,7 @@
 > **中文代号：青蚨** 🐛 — 典出《淮南子》「青蚨还钱」：母子青蚨分离必自动飞回，古人以母血涂钱、钱花出后复还。寓意这个系统长期持有的每一分投入，终会带着收益回流。
 >
 > **Skill 触发**：金价分析 / 黄金走势 / "分析"/"gold" → 自动 invoke `gold-analysis-pipeline` skill。
-> 该 skill 包含所有 API 签名、枚举值、命令模板、常见错误速查。**调 API 前先参考 skill，禁止凭记忆猜参数。**
+> skill 主文件只含流程协议（启动批/输出铁律，轻量）；API 签名、枚举值、命令模板、常见错误速查在 skill 的 `references/api-reference.md`，事件同步铁律在 `references/event-sync.md`，**按需读取**。调 API 前先读对应参考文件，禁止凭记忆猜参数。
 
 ## 投资者画像
 
@@ -127,20 +127,20 @@
 
 每次涉及金价分析、交易建议、持仓决策时，必须走完项目内置的完整 pipeline，禁止基于单一维度或未经交叉验证的信息直接下结论。
 
-> 🔴 **操作模板全部见 [`skills/gold-analysis-pipeline/SKILL.md`](skills/gold-analysis-pipeline/SKILL.md)**（命令模板、API签名、枚举值、日历写入铁律、事件同步流程、时效性权重、深度新闻执行铁律、资金流分析要点、表格模板）。注意：真实路径在仓库根 `skills/`（`.claude/skills/` 被 gitignore，勿在那里找）。下为步骤总览，每步具体要求以 SKILL.md 为准。
+> 🔴 **操作模板全部见 [`skills/gold-analysis-pipeline/SKILL.md`](skills/gold-analysis-pipeline/SKILL.md)**（启动批协议、输出铁律、资金流分析要点）；API签名/枚举值/命令模板/常见错误速查在 skill 的 `references/api-reference.md`，日历写入铁律/事件同步流程/时效性权重/深度新闻执行铁律在 `references/event-sync.md`，按需读取。注意：真实路径在仓库根 `skills/`（`.claude/skills/` 为指向仓库的 symlink，两边同一份文件）。下为步骤总览，每步具体要求以 SKILL.md 为准。
 
 ### Pipeline 八步总览
 
 | 步骤 | 内容 | 核心输出 | 操作模板 |
 |------|------|---------|---------|
-| 一 | 信息准备（日历同步+深度新闻） | 时效性加权表 + Monitor检查 + Staleness验证 + P0扫描 | SKILL.md §第一步~§1.9 |
-| 二 | 多维度信号采集（8维） | 技术面/基本面/消息面/资金流/情绪面信号 | SKILL.md §第二步~§2.7 |
-| 三 | Source Truth + 事实vs解释 | 来源验证表 + 置信度标注 | SKILL.md §第三步 |
-| 四 | 军规自查 | r001-r033 逐条判定 (✅/⚠️/❌) | SKILL.md §第四步 |
-| 五 | Munger 模型 | 2-3个思维模型 | SKILL.md §第五步 |
-| 六 | 画像匹配 | 约束检查表 | SKILL.md §第六步 |
-| **七** | **🐮Bull/🐻Bear/💼PM Agent博弈 + 交易建议 + 条件单** | Bull辩论→Bear辩论→PM决策→条件单审查 | SKILL.md §第七步 |
-| 八 | 后续事件 + 情景预案 + Monitor | 未来14天事件 + 情景推演 + Monitor创建 | SKILL.md §第八步 |
+| 一 | 信息准备（日历同步+深度新闻） | 时效性加权表 + Monitor检查 + Staleness验证 + P0扫描 | SKILL.md 启动批协议 + references/event-sync.md |
+| 二 | 多维度信号采集（8维） | 技术面/基本面/消息面/资金流/情绪面信号 | SKILL.md 各步骤要求 + references/api-reference.md |
+| 三 | Source Truth + 事实vs解释 | 来源验证表 + 置信度标注 | SKILL.md 各步骤要求 |
+| 四 | 军规自查 | r001-r035 逐条判定 (✅/⚠️/❌) | SKILL.md 各步骤要求 |
+| 五 | Munger 模型 | 2-3个思维模型 | SKILL.md 各步骤要求 |
+| 六 | 画像匹配 | 约束检查表 | SKILL.md 各步骤要求 |
+| **七** | **🐮Bull/🐻Bear/💼PM Agent博弈 + 交易建议 + 条件单** | Bull辩论→Bear辩论→PM决策→条件单审查 | SKILL.md 各步骤要求 |
+| 八 | 后续事件 + 情景预案 + Monitor | 未来14天事件 + 情景推演 + Monitor创建 | SKILL.md 各步骤要求 + references/event-sync.md |
 
 ### 关键不变规则
 

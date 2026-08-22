@@ -1,628 +1,151 @@
 ---
 name: gold-analysis-pipeline
-description: 黄金价格走势分析完整 pipeline — 第一步到第九步，含 API 签名、枚举值、命令模板、常见错误
+description: 黄金价格走势分析完整 pipeline - 启动批协议+输出铁律；API 签名/枚举/降级模板在 references/ 按需读取
 ---
 
-# Gold Analysis Pipeline — 完整分析流程与 API 参考
+# Gold Analysis Pipeline - 主流程协议
 
 ## 触发
 
-用户说「分析金价」「黄金走势」「gold」时触发。先执行第一步，再走第一步到第九步，最后输出完整报告。
+用户说「分析金价」「黄金走势」「gold」时触发。按「1.0 启动批协议」执行，走完第一步到第九步，最后输出完整报告。
+
+## 📚 按需参考文件（不预载，节省上下文）
+
+| 文件 | 内容 | 何时必读 |
+|---|---|---|
+| `references/api-reference.md` | API 签名/EventType/EventImpact 枚举/EventCalendar/EarlyWarningEngine 方法/金价获取/持仓计算/CLI 降级手动模板/条件单字段/突发新闻卡片格式/常见错误速查 | 调任何 `gold_miner` API 前、CLI 降级时、手动读写条件单前 |
+| `references/event-sync.md` | 事件同步 8 步流程、日历写入铁律(1.5-1.10)、gold_bias 写入铁律、深度新闻搜索铁律、时效性权重表、Monitor 添加模板 | 手动同步事件结果/更新日历/添加 Monitor、日历复用失败需定向搜索时 |
+
+🔴 **调 API 前必读对应参考文件，禁止凭记忆猜参数、签名、枚举值、文件路径。**
 
 ## 输出铁律（优先级最高）
 
-1. **逐步骤输出** — 每一步完成后立即在控制台输出完整结果，报告是逐步构建的，不是事后打开文件。
-2. **禁止"写文件再概述"** — `Write` 文件只是持久化，不能替代控制台逐步骤展示。控制台必须展示完整内容。
-3. **命令代码行不入报告** — `PYTHONPATH=src python3 ...` 这类命令只执行、不展示。报告中只出现命令的**结果**（表格、数据、校验结论）。
-4. **错误模式**：静默执行 → Write 到文件 → 控制台给摘要 ❌
-5. **正确模式**：执行命令 → 控制台输出该步结果 → 下一步 → ... → 最后 Write 归档 ✅
-
-6. **主驱动因素板块（2026-08-21 起）**：每次分析必须在决策摘要前输出「🔍 主驱动因素」--一句话第一性主驱动+驱动排序表（性质/传导链/可预见性）。一阶/二阶传导反向时短期以一阶为准（2026-08-20 清仓教训）。详见 docs/report_template.md §1a/§1a-2。
+1. **逐步骤输出** - 每一步完成后立即在控制台输出完整结果，报告是逐步构建的，不是事后打开文件。
+2. **禁止"写文件再概述"** - `Write` 文件只是持久化，不能替代控制台逐步骤展示。控制台必须展示完整内容。
+3. **命令代码行不入报告** - `PYTHONPATH=src python3 ...` 这类命令只执行、不展示。报告中只出现命令的**结果**（表格、数据、校验结论）。
+4. **错误模式**：静默执行 -> Write 到文件 -> 控制台给摘要 ❌
+5. **正确模式**：执行命令 -> 控制台输出该步结果 -> 下一步 -> ... -> 最后 Write 归档 ✅
+6. **固定格式** - 每次报告必须遵循 `docs/report_template.md` 的板块顺序与空态规则（每块必须出标题，无数据写「（本期无触发）」），不自行增删板块。
+7. **本地 HTML** - 分析输出完后运行 `python3 scripts/render_report_html.py`，在终端末尾附本地 HTML 地址 `file://{绝对路径}`，复制即可浏览器打开。
+8. **目标区间预测** - 综合分析结论（决策摘要后）必须输出「金价目标区间预测」--分情景（看多/震荡/回调）给出积存金目标区间（元/g）+ 概率 + 触发条件，基于当前价推导（心理关口/支撑位/ATR）。格式见 `docs/report_template.md` §1b。
+   - **传导链强制检查（r035，2026-08-14 起）**：地缘/油价驱动情景（触发条件含停火/战争/封锁/霍尔木兹/油价/美伊等）必须**同时评估直接传导与二阶传导**--单写「避险冲高」不写「油价->通胀->联储鹰派->实际利率↑->压制金价（或美元走强）」= 单层传导 = 决策失真。
+   - **时间尺度分化**：标注短期/中期方向（如「先冲后落」= 短期脉冲 + 中期回落），防止把短期脉冲当可持续目标。
+9. **主驱动因素板块（2026-08-21 起）**：每次分析必须在决策摘要前输出「🔍 主驱动因素」--一句话第一性主驱动 + 驱动排序表（性质/传导链/可预见性）。判定方法：与价格拐点同日发生+传导链最短+有量价佐证的事件。当一阶与二阶传导方向相反时，**短期(1-2周)方向判定以一阶为准**，二阶只作催化剂日期前的风险标注（2026-08-20 清仓教训：用二阶加息风险否决一阶利率下行）。详见 docs/report_template.md §1a/§1a-2。
+   - **披露 transmission_warnings**：若 pipeline `scenario_plan["transmission_warnings"]` 非空，报告必须逐条披露，不得省略。
+10. **报告骨架程序化组装 + 落盘校验再输出（2026-08-22 P2/P3，内化到程序，不靠记忆）**：
+    - **组装已内嵌 `quick_scan.sh`**（P3，2026-08-22）：scan/复用完成后自动跑 `assemble_report.py` 生成骨架到 `data/output/金价分析_YYYY-MM-DD.md`（提取 scan 的决策/维度表/军规/Munger/画像/博弈/后续关注/经验提醒 + portfolio 持仓 + active 条件单），LLM **只增量填充 3 个推理板块**：主驱动因素(§1.1)、目标区间(§1.2)、条件单审查(§7)。**通知到达时骨架已就绪，禁止再手动跑 assemble_report.py**（当日已填充报告会输出 `ASSEMBLE_SKIP` 不覆盖；强制重建用 `ASSEMBLE_FORCE=1 bash scripts/quick_scan.sh`）。
+    - 🛡️ **Edit 回填防 dash 陷阱**：骨架占位符已全 ASCII/「无」（`止盈: 无`，无 em-dash「-」）。Edit old_string 必须**从 Read 输出逐字复制**，禁止手打 dash 类近形字（-/–/-/- 视觉相同但编码不同，匹配必失败）；连续 2 次 Edit 失败即改用 python 行号定位替换，不要反复试错（2026-08-22 事故：`Error editing file` 排障 1 轮）。
+    - **补最新价**：REUSE 场景 quick_scan 返回 LATEST_PRICE，骨架行情引文用其覆盖 scan 价格（assemble_report.py 用 scan 报告内价格）。
+    - **落盘**：骨架填充后用 `Write` 写入 `data/output/金价分析_YYYY-MM-DD.md`--PostToolUse hook（`.claude/settings.json`，matcher=Write）自动运行 `scripts/validate_report_format.py` 校验「板块间禁止独立 `---` 分隔线」（表格 `|---|` / frontmatter 除外）。校验失败（exit 2）hook 拦截并给出违规行号，删除 `---` 后重新 Write 直到通过，再输出终端。
+    - **禁止绕过**：不手写整份报告（assemble_report.py 已生成 90% 程序化板块）；不绕过落盘校验直接手写终端文本--绕过=失去程序校验=靠记忆约束，即 2026-08-22 复发根因。手动复跑：`python3 scripts/validate_report_format.py --file data/output/金价分析_YYYY-MM-DD.md`。
 
 ## 铁律
 
-1. **调 API 前不猜参数** — 本 Skill 已提供所有签名，直接照抄
-2. **用 `python3` 不是 `python`** — macOS 默认只有 python3
-3. **日历对象必须用枚举** — `EventType.GEO_POLITICAL` 不是 `"geo"`，`EventImpact.HIGH` 不是 `"high"`
-4. **scheduled_at 必须传 `datetime` 带时区** — `datetime(2026, 7, 21, 8, 0, 0, tzinfo=timezone(timedelta(hours=-4)))`
-5. **`calendar_events.jsonl` 已从 `check_recent_results()` 排除的事件** — 若 `actual` 字段非空则不会出现在 check_recent_results 结果中；若需更新已设 actual 的事件，直接用 `update_event_result()`
-6. **深度新闻搜索 P0 主题必须全覆盖** — 见「1.3 深度新闻搜索」的命令模板
+1. **调 API 前不猜参数** - 先读 `references/api-reference.md`，照抄签名
+2. **用 `python3` 不是 `python`** - macOS 默认只有 python3
+3. **日历对象必须用枚举** - `EventType.GEO_POLITICAL` 不是 `"geo"`，`EventImpact.HIGH` 不是 `"high"`
+4. **scheduled_at 必须传 `datetime` 带时区** - `datetime(2026, 7, 21, 8, 0, 0, tzinfo=timezone(timedelta(hours=-4)))`
+5. **手动事件同步必读 `references/event-sync.md`** - 含日历写入铁律(1.5-1.10)、gold_bias 判定规则、8 步同步流程、`calendar_events.jsonl` 排除规则
+6. **深度新闻搜索 P0 主题必须全覆盖** - P0 列表与执行铁律见 `references/event-sync.md` §1.9
+7. **scan 启动批 + 零轮询 + 自动组装（2026-08-22 P3，⏱ 核心）** - `scripts/quick_scan.sh` 是唯一网络长任务（复用判断->补最新价->重 scan->组装报告骨架，四合一）。启动批的**同一条消息**里，后台跑 `scripts/quick_scan.sh` + 把全部静态读取并行发出，脚本完成前必须读完。**全程只允许 3 轮工具调用**：①启动批（quick_scan.sh + 全部静态读取）-> ②Read 骨架（REUSE 场景 0 网络调用）-> ③Write 填充 3 板块 + 终端完整输出。
+   - ✅ **quick_scan.sh 自动分流**：当日报告 <3h -> 秒级返回 `REUSE_MODE|路径|AGE|LATEST_PRICE` + 自动组装骨架（`ASSEMBLE_OK|骨架路径`；当日已填充报告则 `ASSEMBLE_SKIP` 不覆盖）；报告缺失/≥3h -> 前台跑 scan（约15-25s），完成后同样自动组装骨架。**启动批无需手动 stat，禁止读旧报告**。
+   - ⚡ **REUSE 场景启动批直接 Read scan_report_YYYYMMDD.md**：当日报告 <3h 时路径确定已知（`data/output/scan_report_YYYYMMDD.md`），启动批第①轮就**直接 Read 它**（与 quick_scan.sh 并行发出），重跑场景该 Read 会报文件不存在，由通知后重读一次--不影响流程。**启动批静态读取可裁剪**：画像 / personal_rules / V9 / doctrine / report_template 的 grep 在 REUSE_MODE 下**全部可删**（scan 报告已含军规自查 r001-r035、Munger、画像匹配、决策结论），只留 portfolio.yaml（必读全文）+ conditional_orders（active grep）。
+   - 🛡️ **scan 报告原子写入**：`scan --report-file` 先写 `.tmp` 成功后才 rename 落盘；quick_scan.sh 重跑前会把陈旧报告移到 `.stale`。因此启动批并行 Read 只有两种结果：**完整报告（REUSE）或文件不存在（RERUN）**。若读到「文件不存在」：**直接等任务通知即可，禁止 ls/wc/cat/date 探测文件进度**（事故：2026-08-22 连环 4 轮排障浪费 ~2min）。
+   - ❌ 禁止把预读拆成多轮串行 -- 每轮模型思考+往返 = 时间黑洞（事故：2026-08-22 多耗 ~2min）
+   - ❌ 禁止 `tail` 读后台输出文件（管道缓冲读到空 = 纯浪费一轮）
+   - ❌ 禁止显式 `TaskOutput` 阻塞等待 - 后台任务完成自动推送通知，靠通知驱动下一步
+8. **重大事件先查日历复用（2026-08-21 起）** - 消息面捕获重大事件标 `[unverified]` 时，**先本地查 `data/calendar_events.jsonl`**（grep 事件名/主题词），若已有带多源验证的 actual 记录（如 `[verified: T2 多源]`），直接复用、跳过外部搜索；仅当日历缺失/过时才走定向搜索（模板见 `references/event-sync.md` §1.10）。
+9. **scan 完成后零深挖（2026-08-22 起，⏱ 提速核心）** - `gold-miner scan` 报告（`data/output/scan_report_YYYYMMDD.md`）是**唯一数据源**，已包含：全部 9 步结果、8 维信号表、军规自查（r001-r035）、Agent 博弈、Munger、画像匹配、三情景骨架（含 r035 传导链校验 ✅）。**scan 完成后禁止任何深挖**：
+   - ❌ 不单独跑 `EarlyWarningEngine().check_recent_results()` / `get_active_monitors()` / `check_stale_events()` - scan 日志已输出「未记录:N | 活跃Monitor:N | Stale:N」，细节直接用 scan 报告或本地 grep `data/calendar_events.jsonl` 即可
+   - ❌ 不追源码找 `scenario_plan` / `transmission_warnings` / `build_price_target_matrix` 等内部实现 - scan 报告的三情景骨架已足够填充报告 §1b 与 r035 披露，深挖 = 自我驱动的完美主义
+   - ❌ 不猜 CLI 参数重跑子命令（`scenario --text` 等）- 报告缺什么就用手头数据补，不重启网络任务
+   - 事故A（深挖）：2026-08-22 ~2.5min 浪费在深挖；事故B（编排）：~2min 浪费在 6 轮串行调用 + 废 tail + 显式阻塞（见铁律 7）
+10. **信任 scan 内置事件同步（2026-08-22 起）** - scan 已执行事件同步 + 深度新闻 + 日历校验。除铁律 8 的日历复用（本地 grep）外，**不再单独实例化数据采集类**（`EarlyWarningEngine`、`JdAccumulationGoldFetcher`、`NewsSignalGenerator` 等）去重跑 scan 已做过的网络工作。需要补充的信号细节，从 scan 报告与本地 JSONL/CSV 读取。
 
 ## 摩擦成本铁律（r032，卖出决策必查）
 
 民生银行积存金**卖出收 0.4% 手续费**（唯一数字真相源：`data/private/portfolio.yaml` 的 `sell_fee_pct`）。卖到成本价 ≠ 保本，是实亏一笔手续费。所有卖出/止盈/条件单建议必须按**净口径**计算：
 
-| 口径 | 公式 | 当前值（成本 894.25） |
+| 口径 | 公式 | 示例（成本 894.25） |
 |------|------|----------------------|
 | 净保本价 | `avg_cost ÷ (1 − sell_fee_pct)` | 894.25 ÷ 0.996 ≈ **897.84** |
-| 净盈亏（元） | `(price × (1 − fee) − avg_cost) × grams` | 价格 900 时净盈亏 ≈ +102 元（毛 +274 元） |
+| 净盈亏（元） | `(price × (1 − fee) − avg_cost) × grams` | 价格 900 时 ≈ +102 元（毛 +274 元） |
 | 净收益率 | `price × (1 − fee) ÷ avg_cost − 1` | 价格 900 时 +0.24%（毛 +0.64%） |
 
 **输出要求**：
 1. 第八步交易建议与条件单审查表中，所有 TP/SL/目标价必须同时给出**扣费后净收益**，不得只给毛收益；
-2. 「浮盈转正」「回本」的判定线是**净保本价**（当前 ≈897.84），不是成本价 894.25；
+2. 「浮盈转正」「回本」的判定线是**净保本价**，不是成本价；
 3. 情景推演/收益矩阵的浮盈列需注明毛口径，并给出扣费后净值；
-4. 代码侧已费率感知：`Position.breakeven_price` / `Position.net_pnl()`（`src/gold_miner/agent/portfolio.py`）、`ATRTrailingStop(sell_fee_pct=0.004)` 的浮盈轨保本地板、监控卡片净盈亏行——分析引用这些值即可，不要手算另搞一套。
-
----
-
-## API 签名速查
-
-### CalendarEvent 构造
-
-```python
-from gold_miner.data.calendar import CalendarEvent, EventType, EventImpact
-from datetime import datetime, timezone, timedelta
-
-tz = timezone(timedelta(hours=-4))  # EDT
-
-CalendarEvent(
-    name="事件名称",                          # str — 必填
-    event_type=EventType.GEO_POLITICAL,       # EventType 枚举 — 必填, 不是字符串
-    scheduled_at=datetime(2026,7,21,8,0,0, tzinfo=tz),  # datetime 带时区 — 必填
-    impact=EventImpact.HIGH,                  # EventImpact 枚举 — 必填, 不是字符串
-    actual="实际结果",                         # str | None
-    forecast="预期值",                         # str | None
-    previous="前值",                           # str | None
-    source="Reuters/Al Jazeera",              # str
-    description="描述",                        # str
-    # monitor 专用
-    status="active",                          # "active" | "triggered" | "expired"
-    trigger_condition="XAUUSD<4000 且 ...",   # 自然语言触发条件
-    check_frequency="on_analysis",            # "on_analysis" | "daily" | "weekly"
-    action_on_trigger="加仓5-10g",            # 触发后的建议动作
-    expires_at="2026-08-04T00:00:00-04:00",  # ISO 格式字符串
-)
-```
-
-### EventType 枚举 (`from gold_miner.data.calendar import EventType`)
-
-| 值 | 用途 |
-|----|------|
-| `EventType.FED_RATE` | FOMC 利率决议 |
-| `EventType.CPI` | 美国 CPI |
-| `EventType.PPI` | 美国 PPI |
-| `EventType.PCE` | 核心 PCE 物价指数 |
-| `EventType.NFP` | 非农就业 |
-| `EventType.PMI` | PMI / 消费者信心 / ZEW 等 |
-| `EventType.FOMC_MINUTES` | FOMC 会议纪要 |
-| `EventType.PMI_MARKIT` | Flash PMI (Markit) |
-| `EventType.ECB` | ECB 利率决议 |
-| `EventType.BOE` | BOE 利率决议 |
-| `EventType.GEO_POLITICAL` | 地缘冲突 / 政策突变 / 贸易战 |
-| `EventType.GOLD_RESERVE` | 央行黄金储备 |
-| `EventType.FED_SPEECH` | 美联储官员讲话 |
-| `EventType.MONITOR` | 持续性观测事件 |
-
-### EventImpact 枚举 (`from gold_miner.data.calendar import EventImpact`)
-
-| 值 | 用途 |
-|----|------|
-| `EventImpact.LOW` | 低影响 |
-| `EventImpact.MEDIUM` | 中等影响 |
-| `EventImpact.HIGH` | 高影响 |
-| `EventImpact.EXTREME` | 极端影响 (战争/停火/重大政策) |
-
-### EventCalendar 方法
-
-```python
-from gold_miner.data.calendar import EventCalendar
-
-cal = EventCalendar()
-
-# 添事件 — 参数是 CalendarEvent 对象, 不是 dict
-cal.add_event(CalendarEvent(name="...", event_type=EventType.GEO_POLITICAL, ...))
-
-# 更新事件结果 — scheduled_at 必须是 datetime, 不是 str
-cal.update_event_result(
-    name="事件名称",                              # str
-    scheduled_at=datetime(2026,7,20,20,0,0, tzinfo=tz),  # datetime — NOT str
-    actual="最新结果",                             # str
-    forecast=None,                                # str | None
-    previous=None,                                # str | None
-    source_verified=None,                         # str | None
-)
-
-# 获取未来事件
-cal.get_upcoming(days=14, min_impact=EventImpact.MEDIUM)
-# 返回 list[CalendarEvent]
-
-# 获取近期有结果的事件
-cal.get_recent_events_with_results(lookback_days=7)
-# 返回 list[CalendarEvent]
-
-# 获取已发布但未记录结果的事件
-cal.get_recently_published_without_result(lookback_days=7)
-# 返回 list[CalendarEvent]
-
-# 获取活跃 monitor
-cal.get_active_monitors()
-# 返回 list[CalendarEvent]
-
-# 获取需要重新验证的 fast-evolving 事件
-cal.get_events_needing_reverify(lookback_days=7)
-# 返回 list[CalendarEvent]
-```
-
-### EarlyWarningEngine 方法
-
-```python
-from gold_miner.advisor.early_warning import EarlyWarningEngine
-
-ewe = EarlyWarningEngine()
-
-# 检查近期未记录结果的事件
-ewe.check_recent_results(lookback_days=7)
-# → list[CalendarEvent]
-
-# 检查活跃 monitor
-ewe.get_active_monitors()
-# → list[CalendarEvent]
-
-# 检查过时的 fast-evolving 事件
-ewe.check_stale_events(lookback_days=7)
-# → list[CalendarEvent]
-
-# 未来事件扫描
-ewe.scan(days_ahead=14)
-# → AdvisorReport
-```
-
-### 金价获取 (不用 akshare — 缺依赖)
-
-```python
-# 积存金 — 已验证可用
-from gold_miner.data.jd_accumulation_gold import JdAccumulationGoldFetcher
-f = JdAccumulationGoldFetcher(bank="MS")  # MS=民生, 默认
-df = f.fetch(days=90)
-price_info = f.fetch_price()  # → JdGoldPrice | None — 单次最新价
-# price_info.price, price_info.change_pct, price_info.timestamp
-
-# XAUUSD 参考 — 用 anysearch 搜索实时价格
-# $4,056 as of 2026-07-21 (TradingView/LiteFinance)
-```
-
-### 持仓计算
-
-```python
-import yaml
-with open("data/private/portfolio.yaml") as f:
-    portfolio = yaml.safe_load(f)
-pos = portfolio["positions"]["gold_jd"]
-grams = pos["grams"]
-avg_cost = pos["avg_cost"]
-# 当前市价 = grams × current_price
-# 浮亏 = (current_price - avg_cost) / avg_cost × 100
-```
-
----
-
-## 完整 Pipeline — CLI 调用
-
-> 🆕 2026-07-22：主路径改为 `gold-miner` CLI。Skill 负责编排（步骤顺序、判断逻辑、图标规则），CLI 负责执行。
-
-### 步骤 1：信息准备
-
-```bash
-# 完整准备（日历校验 + 事件同步 + 深度新闻 + 数据采集）
-gold-miner prepare
-
-# 等价的手动逐步骤（CLI 不可用时降级）
-PYTHONPATH=src python3 scripts/validate_calendar_dates.py --ref-table 30
-PYTHONPATH=src python3 -m src.gold_miner.sentinel --mode deep-news-queries
-# 然后对每个 P0 主题用 anysearch + last30days-cn
-```
-
-### 步骤 2-9：完整扫描
-
-```bash
-# 一键运行全部 9 步
-gold-miner scan --days 30 --news --sentiment
-```
-
-### 更新日历 / 添加 Monitor（手动）
-
-> CLI 不可用时的降级路径：
-
-```bash
-PYTHONPATH=src python3 -c "
-from gold_miner.data.calendar import EventCalendar, CalendarEvent, EventType, EventImpact
-from datetime import datetime, timezone, timedelta
-
-cal = EventCalendar()
-tz = timezone(timedelta(hours=-4))
-
-# 更新已有事件
-cal.update_event_result(
-    name='事件名称',
-    scheduled_at=datetime(2026, 7, 20, 20, 0, 0, tzinfo=tz),
-    actual='最新实际结果 [verified:T2 Reuters/source]'
-)
-
-# 添加新 monitor
-cal.add_event(CalendarEvent(
-    name='观测: 触发条件描述→预期结果',
-    event_type=EventType.MONITOR, status='active',
-    scheduled_at=datetime(2026, 7, 21, 10, 30, 0, tzinfo=tz),
-    impact=EventImpact.HIGH,
-    source='2026-07-22-analysis',
-    trigger_condition='触发条件自然语言描述',
-    check_frequency='on_analysis',
-    action_on_trigger='触发后的建议动作',
-    expires_at='2026-08-04T00:00:00-04:00'
-))
-"
-```
-
-### CLI 总览
-
-| 命令 | 功能 |
-|------|------|
-| `gold-miner prepare` | 仅步骤1：日历校验+事件同步+深度新闻+数据采集 |
-| `gold-miner scan` | 完整9步管线（prepare→signals→truth→doctrine→munger→profile→debate→decide→plan）|
-| `gold-miner advisor` | 投资顾问问答 |
-| `gold-miner report` | 生成分析报告 |
-| `gold-miner doctrine --check` | 独立军规审查 |
-| `gold-miner scenario` | 情景推演 |
-
----
-
-## 条件单字段
-
-读取 `data/private/conditional_orders.jsonl`，每行一个 JSON 对象：
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `id` | str | 唯一 ID，如 `co_20260716_002` |
-| `status` | str | `"active"` / `"triggered"` / `"cancelled"` |
-| `type` | str | `"limit_buy"` / `"oco"` |
-| `trigger_price` | float | 限价单触发价 |
-| `oco.take_profit.price` | float | OCO 止盈价 |
-| `oco.stop_loss.price` | float | OCO 止损价 |
-| `quantity_g` | float | 触发后交易克数 |
-| `expires_at` | str | ISO 格式过期时间 |
-| `note` | str | 备注 |
-
-审查规则：只审查 `status="active"` 的条件单。逐条判断保留/撤销/修改。
-
----
-
-## 突发新闻预警卡片格式（`news_monitor`）
-
-`format_news_alerts()` 生成的微信推送卡片。**时间戳必带**：单条新闻显示发布时间、页脚显示生成时间（均北京时间）。
-
-```
-📰 突发新闻预警
-
-当前 XAUUSD: $4267 (🟢 +0.5%)
-
-🚨 重大突发:
-  • [能源危机 14:32] 就业数据疲软 + 霍尔木兹协议预期升温，金价创6月末以来新高
-    💡 🟢[利多·重大] 霍尔木兹协议/缓和→油价↓→通胀↓→降息预期↑→利多金价
-
-⚠️ 关注:
-  • [地缘冲突 14:30] 开盘：美股周四开盘涨跌不一 ...
-    💡 🟢[利多·重大] 美伊缓和→战争溢价回吐→油价↓→利多金价
-
-📡 来源: 新浪黄金, 7×24快讯 | 🕐 08-06 22:06
-```
-
-格式规则（2026-08-06 起生效）：
-
-1. **单条时间**：`[{类别} {HH:MM}]` — 优先用头条 `ts` 转北京时间；无 `ts` 时从原始 `time` 字段正则提取 `HH:MM`；两者皆无（东财等）则保持 `[类别]` 原样，不硬凑。
-2. **页脚**：`📡 来源: {', '.join(sorted(sources))} | 🕐 {生成时间 %m-%d %H:%M}` — 来源是数据源标注（新浪黄金 / 7×24快讯 / 东方财富 / 金十数据），多源排序稳定。**禁止**输出旧的 `🕐 自动监控`（无时间）。
-3. 来源可能为空时仍保留 `来源:` 前缀，属正常。
-
----
-
-## 分析输出模板
-
-### Pipeline 步骤总览（新顺序）
+4. 代码侧已费率感知：`Position.breakeven_price` / `Position.net_pnl()`（`src/gold_miner/agent/portfolio.py`）、`ATRTrailingStop(sell_fee_pct=0.004)` 的浮盈轨保本地板、监控卡片净盈亏行--分析引用这些值即可，不要手算另搞一套。**当前成本以 portfolio.yaml 实时计算为准。**
+
+## 1.0 启动批协议（唯一执行路径）
+
+**启动批 = 一条消息，禁止拆轮**：后台跑 `scripts/quick_scan.sh`（四合一：复用判断->补最新价->重 scan->组装骨架）的同时，把**全部**静态读取并行发出，脚本完成前读完。
+
+| 文件 | 用途 | 读取方式 |
+|------|------|---------|
+| `data/private/portfolio.yaml` | 持仓/成本/止损/卖出手续费 | Read（**唯一必读全文**） |
+| `data/private/conditional_orders.jsonl` | active 条件单 | grep `"status": "active"`（**独立成行**） |
+| `data/output/scan_report_YYYYMMDD.md` | 当日已有 scan 报告（唯一数据源） | **启动批直接 Read（赌 REUSE_MODE）** |
+| `data/private/investor_profile.md` | 定性画像（长期不变） | REUSE 场景可删（scan 已含结论）；仅重大持仓决策时 grep |
+| `data/private/personal_rules.md` | p001-p014 纪律（长期不变） | 同上 |
+| `data/private/active_plan_v9.md` | V9 三池/分批/S协议 | 同上 |
+| `data/calendar_events.jsonl` | 近3天事件 + active monitor | 可选 grep（加 `| tail -8` 限行） |
+
+> ⚠️ **grep 拆开 + 限行纪律**：`conditional_orders.jsonl` 的 grep 必须**独立成行**（~1KB，绝不与 `calendar_events.jsonl` 合并--calendar 有 20+ 个 active monitor，合并输出 32KB 被截断 -> 条件单没拿到 -> 被迫补读多花一轮）。calendar 类大文件 grep 一律加 `| tail -8` 限行。
+> ⚠️ **路径纪律**：静态文件统一在 `data/private/`（portfolio/画像/personal_rules/条件单）与 `docs/`（doctrine/report_template）。禁止凭记忆猜路径。
+> ⚠️ **收到 quick_scan 通知后不单独读 `.output` 文件**（只有 1-2 行 REUSE_MODE/ASSEMBLE_* 状态），直接 Read scan_report 与骨架。
+> 🕐 **强制重 scan 的触发**（即使报告 <3h）：启动批 grep 到金价刚剧烈波动（news monitor 刚触发/快讯跳变 >1%）、或用户明确要求最新--此时直接后台跑 `gold-miner scan --days 30 --news --sentiment`，不走 quick_scan.sh 的 REUSE 分支。
+> 🚀 **通知到达后唯一动作**：校验返回模式。REUSE -> 第②轮 Read 骨架（scan_report 已在①轮读入，用 LATEST_PRICE 补价）；RERUN -> Read scan_report 一次 + Read 骨架。**目标全程 ≤60s**。
+
+## Pipeline 步骤总览
 
 | 步骤 | 内容 | 核心输出 |
 |------|------|---------|
-| 一 | 信息准备（日历同步+深度新闻） | 时效性加权表 + Monitor检查 + Staleness验证 + P0主题扫描 |
-| 二 | 多维度信号采集 | 8维信号（技术面/基本面/消息面/资金流/情绪面等）|
+| 一 | 信息准备（日历同步+深度新闻） | 时效性加权表 + Monitor检查 + Staleness验证 + P0扫描 |
+| 二 | 多维度信号采集（8维） | 技术面/基本面/消息面/资金流/情绪面信号 |
 | **三** | **Source Truth + 事实vs解释** | 来源验证表 + 事实/解释区分（置信度标注）|
-| 四 | 军规自查 | r001-r034 逐条判定 |
+| 四 | 军规自查 | r001-r035 逐条判定 |
 | 五 | Munger 模型 | 2-3个思维模型 |
 | 六 | 画像匹配 | 约束检查表 |
-| **七** | **🐮Bull/🐻Bear/💼PM Agent 博弈** (综合前六步) | 三方辩论 + 资金流论据 + 军规阻断说明 |
+| **七** | **🐮Bull/🐻Bear/💼PM Agent博弈**（综合前六步） | 三方辩论 + 资金流论据 + 军规阻断说明 |
 | **八** | **交易建议 + 条件单调整** | 买/卖/观望结论 + 条件单审查（结论先行）|
-| 九 | 后续事件关注 + 情景预案 + Monitor 创建 | 未来14天事件 + CPI/FOMC 情景推演 + 新增 Monitor 表 |
+| 九 | 后续事件 + 情景预案 + Monitor | 未来14天事件 + 情景推演 + Monitor创建 |
 
-> **关键变更（2026-07-22）**：
-> - Agent 博弈从第四步移至第七步 — 综合军规约束、Munger 思维模型、画像匹配作为输入，形成信息充分的对立辩论。
-> - Agent 图标固定：🐮 BullAgent / 🐻 BearAgent / 💼 PortfolioManager，不可混用。
-> - 第八步结论先行（买/卖/观望+条件单），第九步前瞻附录（什么会改变结论）。
+## 各步骤要求（输出塑形）
 
-### 第一步：信息准备 — 事件日历同步 + 深度新闻扫描
+**第一/二步（信息准备+信号采集）**：`gold-miner scan` 自动完成（含日历校验、事件同步、深度新闻、8 维信号、ScoringEngine 评分）。手动降级路径见 `references/api-reference.md`。第二步必含：技术面 = TechnicalAnalyzer + K线形态 + 缠论结构 三项；🀄 缠论结构子板块（无结构写「（本期无触发）」）；oil 维度必须用 `OilSignalGenerator`（禁止手工臆造方向，油价上行->bearish 加息渠道）。
 
-三张表：(1) 近期事件时效性加权 (2) Monitor 检查 (3) Staleness 重新验证
-
-加权公式：Σ(方向得分 × 权重) / Σ权重。方向得分：看多=+1，看空=-1，中性=0。
-
-| 事件距今 | 权重 |
-|----------|------|
-| <24h | 1.0 |
-| 24-48h | 0.7 |
-| 48-72h | 0.5 |
-| 3-7d | 0.3 |
-| >7d | 0 (不纳入) |
-
-深度新闻扫描表：
-
-| 主题 ID | 优先级 | anysearch | last30days-cn | 发现数 |
-|---------|--------|-----------|---------------|--------|
-
-P0 主题列表（必须全覆盖）：
-- `geopolitical` — 美伊+中东全域
-- `israel_houthi` — 以色列-胡塞-也门
-- `ceasefire_diplomacy` — 停火谈判与外交
-- `fed_policy` — 美联储政策
-
-#### 1.5 日历写入铁律（日期 + 钟点，缺一不可）
-
-1. **存储只认美东墙上钟点** `scheduled_at`（如 `2026-07-14T10:00:00-04:00`），禁止把北京小时数直接写入。
-2. **写入前必须打印双列** `ET | 北京`（`dual_clock_str` / 事件 `.dual_clock_str`），两列都合理才落盘。
-3. **三步校验**：DOW（美东星期）→ 官网/notice 原文钟点与时区 → 交叉确认（禁止只信搜索摘要）。
-4. **国会/听证**：美东几乎总是上午（常见 10:00 ET）；若写成 ET 18:00+ 校验脚本会**直接报错**（典型双重换算形态）。
-5. **BLS 数据（CPI/PPI/非农等）**：惯例 08:30 ET；写成晚间 ET 报错。
-6. **代码写入**：优先 `make_et_iso(y,m,d,h,mi)`；`EventCalendar.add_event` 默认拒绝硬错误（`force=True` 仅历史回填）。
-
-| 错误写法 | 正确写法 |
-|----------|----------|
-| 听说「北京晚上10点开」→ 存 `22:00-04:00` | 官网 10:00 ET → 存 `10:00-04:00` → 北京自动成 22:00 |
-| 只展示北京时间做决策 | 决策引用必须 **ET + 北京** 同时出现 |
-
-#### 1.6 重大事件判定 + 回写 + 演变追踪
-
-**重大事件判定标准**（满足任一即为重大）：
-- 对金价日内波动 > 2%
-- 涉及主要产油国/霍尔木兹海峡/大国军事冲突
-- 央行紧急政策声明/关税突变/资本管制
-- 消息面 `SignalStrength == STRONG` 且 `_is_geopolitical() == True`
-
-**重大事件回写 + 演变追踪**：
-1. 追加到 `calendar_events.jsonl`（`event_type: "geo"`，`actual` 记录事件经过）
-2. 检查是否需要无效化相关日历事件
-3. **创建对应的 monitor 事件**跟踪后续演变：
-   - `name`: `"观测: [事件名]后续演变"`
-   - `trigger_condition`: 描述需要跟踪的演变方向（升级/缓和/外溢）
-   - `check_frequency`: `"on_analysis"`
-   - `action_on_trigger`: 演变对金价的影响评估框架
-   - `expires_at`: 建议 30 天后，届时重新评估
-
-#### 1.7 事件同步操作流程（8 步）
-
-1. 调用 `EarlyWarningEngine().check_recent_results(lookback_days=7)` 查已发布但 `actual` 为空的事件
-2. 对每个待查事件，按优先级搜索权威来源：
-   - **T0 优先**：BLS.gov、FRED、CME FedWatch、FederalReserve.gov、BEA.gov
-   - **T2 备用**：Reuters、Bloomberg、Kitco — 禁止仅依赖搜索摘要
-3. 将实际结果写入 `calendar_events.jsonl`（`calendar.update_event_result()`）
-4. 调用 `EarlyWarningEngine().get_active_monitors()` 查活跃 monitor
-5. 逐一评估每个 active monitor 的 `trigger_condition` 是否满足
-6. 对已触发 monitor：`calendar.close_monitor()` → 记录结果到日历
-7. **检查 staleness**：`EarlyWarningEngine().check_stale_events(lookback_days=7)`
-   对每个返回事件：
-   a. 确认类型为持续演变型（geo/policy_shift/trade_war/fed_emergency）
-   b. 时间约束搜索获取最新状态
-   c. 主动搜索逆转/修正报道（reversal/backtrack/withdraw/cancel）
-   d. ≥2 独立来源交叉确认
-   e. 若最新状态与 `actual` 不同 → `update_event_result()` 更新（标注 `📝已更新`）
-8. 输出三张表：事件日历同步表 + Staleness 重新验证表 + Monitor 检查表
-
-#### 1.8 时效性衰减权重铁律
-
-> 权重表见上方「事件距今 | 权重」。加权综合信号 = Σ(方向得分 × 权重) / Σ权重。方向得分：看多=+1，看空=-1，中性=0。
-
-⚠️ **铁律**：
-- 不执行事件日历同步 = 基于过时信息做决策
-- 不执行 monitor 检查 = 丢失上次分析设定的跟进条件
-- 消息面捕获的**重大**地缘/政策事件 → 回写日历 + 无效化相关事件 + 创建 monitor
-- **最新事件（<24h）权重是 7 天前事件的 3.3 倍**
-
-#### 1.9 深度新闻搜索执行铁律
-
-**搜索主题覆盖原则**：
-- 地缘冲突多极点 — 不能只搜美伊，必须覆盖以色列/胡塞/沙特/红海/曼德海峡
-- 外交与军事对称 — 有冲突升级查询就必须有停火/调停查询
-- 新参与方出现时同步更新搜索主题配置
-
-**执行铁律**：
-1. **禁止压缩查询** — 不允许将多条 anysearch query 合并，每条 P0 query 单独搜索
-2. **P0 主题全覆盖** — `israel_houthi`、`ceasefire_diplomacy` 等不得跳过
-3. **执行后输出完成清单**：
-
-| 主题 ID | 优先级 | anysearch | last30days-cn | 发现数 |
-|---------|--------|-----------|---------------|--------|
-| geopolitical | P0 | ✅/❌ | ✅/❌ | N |
-
-4. 清单中任何 ❌ 必须在进入第二步前补齐
-
-### 第二步：8 维信号采集
-
-> **主路径**：`gold-miner scan` 自动运行全部 8 维信号 + ScoringEngine 评分。
-> 🔴 `Signal` 是 dataclass，字段：`s.name`、`s.direction` (枚举 `.value` 取 `"bullish"/"bearish"/"neutral"`)、`s.strength` (枚举 `.value` 取 `"strong"/"moderate"/"weak"`)、`s.score` (float)、`s.description` (str)。
-> 🔴 打印模板：`f'[{s.direction.value}] {s.name} | strength={s.strength.value} | score={s.score:.2f}'`
-
-```bash
-# 一键信号采集（包含全部维度）
-gold-miner scan --days 30 --news --sentiment
-```
-
-> 💡 以下是 CLI 降级路径（仅当 `gold-miner scan` 不可用时手动执行各维度）。API 签名速查见上方「API 签名速查」。
-
-<details>
-<summary>📋 CLI 降级：手动各维度命令模板</summary>
-
-#### 2.1 近期事件（时效性加权）
-
-```bash
-PYTHONPATH=src python3 -c "
-from gold_miner.signals.recent_events import RecentEventSignalGenerator
-for s in RecentEventSignalGenerator().generate_signals():
-    print(f'[{s.direction.value}] {s.name} | strength={s.strength.value} | score={s.score:.2f}')
-"
-```
-
-#### 2.2 技术面
-
-```bash
-PYTHONPATH=src python3 -c "
-from gold_miner.data.jd_accumulation_gold import JdAccumulationGoldFetcher
-from gold_miner.signals.technical import TechnicalAnalyzer
-f = JdAccumulationGoldFetcher(bank='MS')
-for s in TechnicalAnalyzer(f.fetch(days=90)).generate_signals():
-    print(f'[{s.direction.value}] {s.name} | strength={s.strength.value} | score={s.score:.2f}')
-"
-```
-
-**日内分时（2026-08-21 接入，pipeline 第 8 路数据自动采集）**：SGE 1 分钟分时（免登录 T1），覆盖当前交易日（夜盘 20:00 起 + 当日盘中）。`scan` 自动输出「⏱️ 日内分时」板块（夜盘/日内区间 + 现价位置 + 30 分钟动能 + 涨跌节奏），技术面维度新增日内快照/动能/位置信号。单独调用：
-
-```bash
-PYTHONPATH=src python3 -c "
-from gold_miner.data.jdgold_client import fetch_sge_intraday
-from gold_miner.signals.technical import IntradayAnalyzer
-gen = IntradayAnalyzer(fetch_sge_intraday())
-for s in gen.generate_signals():
-    print(f'[{s.direction.value}] {s.name} | {s.description}')
-"
-```
-
-注意：日内信号仅描述盘中状态，**不构成加仓依据**（r033 温和动能≠趋势确认）；休市时段数据冻结，快照会标注「数据截至」。
-
-#### 2.3 基本面
-
-```bash
-PYTHONPATH=src python3 -c "
-from gold_miner.signals.fundamental import FundamentalAnalyzer
-for s in FundamentalAnalyzer().generate_signals():
-    print(f'[{s.direction.value}] {s.name} | strength={s.strength.value} | score={s.score:.2f}')
-"
-```
-
-#### 2.4 消息面 + 资金流 + 情绪面
-
-```bash
-# 消息面
-PYTHONPATH=src python3 -c "
-from gold_miner.signals.news_signal import NewsSignalGenerator
-for s in NewsSignalGenerator().fetch_and_analyze(hours=48):
-    print(f'[{s.direction.value}] {s.name} | strength={s.strength.value} | score={s.score:.2f}')
-"
-
-# 资金流 (COT+ETF+机构)
-PYTHONPATH=src python3 -c "
-from gold_miner.signals.cot_signal import CotSignalGenerator
-from gold_miner.signals.etf_flow_signal import EtfFlowSignalGenerator
-from gold_miner.signals.institutional_signal import InstitutionalSignalGenerator
-for g in [CotSignalGenerator(), EtfFlowSignalGenerator(), InstitutionalSignalGenerator(current_spot=4065)]:
-    try:
-        for s in g.generate_signals():
-            print(f'[{s.direction.value}] {s.name} | strength={s.strength.value} | score={s.score:.2f}')
-    except Exception as e:
-        print(f'  {type(g).__name__} 失败: {e}')
-"
-
-# 情绪面 (AU期货优先, 与 pipeline 对齐; 若 <5 条则降级现货OHLCV)
-PYTHONPATH=src python3 -c "
-from gold_miner.data.sentiment import SentimentDataFetcher
-from gold_miner.signals.sentiment_signal import SentimentAnalyzer
-df = SentimentDataFetcher().fetch_au_futures(lookback=60)
-for s in SentimentAnalyzer(au_df=df).generate_signals():
-    print(f'[{s.direction.value}] {s.name} | strength={s.strength.value} | score={s.score:.2f}')
-"
-```
-
-</details>
-
-#### 2.7 资金流维度分析要点
-
+**2.7 资金流维度分析要点**（解读 scan 聪明钱信号时应用）：
 - **CFTC COT**：管理基金净多仓趋势 + 商业套保净空变化 = 两股力量同向时信号最强。背离时（管理基金加仓但矿商加速套保）需警惕。
 - **ETF 资金流**：GLD 日度持仓变化 > WGC 月度汇总。CPI/FOMC 等数据日脉冲流入但次日即刻逆转 = 假突破。
 - **COMEX 大户集中度**：前4大多头/空头集中度 > 40% = 拥挤警告。逼空风险 = 强烈看多信号。
 - **矿商套保 (Commercial Hedgers)**：矿商在上涨中加速做空 = 认为当前价格值得锁定。最重要反向指标之一。
 - **三流一致警告**：当 ETF流出 + 管理基金减仓 + 矿商加速套保同时出现，即使消息面利多也应警惕顶部。
 
-### 第三步：Source Truth Verification + 事实vs解释
+**第三步**：来源验证表（数据点/来源层级/验证状态），事实（价格/成交量/官方数据）与解释（因果链/情绪，标置信度%）区分。
 
-输出「来源验证表」：
+**第七步 Agent 博弈**：必须在军规/Munger/画像之后，综合前三者作为输入。图标固定：🐮 BullAgent / 🐻 BearAgent / 💼 PortfolioManager，不可混用。
 
-| 数据点 | 来源层级 | 验证状态 |
-|--------|---------|---------|
-| XAUUSD $4,065 | [T2] TradingView | verified 多源交叉 |
+**第八步（结论先行，可执行指令）**：
+- 8A. 最终交易建议：买入/卖出/观望（含触发价位、数量、置信度）
+- 8B. 条件单调整：读 `data/private/conditional_orders.jsonl` 筛 active，逐条输出「条件单状态表」（ID/类型/方向/触发价/数量/状态/建议动作/原因）。撤销或修改必须在 JSONL 中更新，新建条件单必须追加。字段定义见 `references/api-reference.md`。
+- 🆕 **r034 主动止盈评估（2026-08-14）**：PM 决策不得只在「加仓/持有」间选择。当**同时满足** 近48h重大数据温和落地 + 高位震荡(距20日高<3%) + 聪明钱流出 + 已有浮盈 -> **必须显式评估「机动池主动部分止盈 ≥1/3 / 核心池最多减 1/4」**；动作=持有须在理由中说明为何不做部分止盈。
+- 🔴 **ATR 减半线必须预挂卖出条件单（r017 强执）**：凡报告给出 ATR 移动止盈位，必须在 8B 表中预挂对应卖出条件单（含触发价、数量），禁止「监测 + 手动执行」。若平台无法挂 trailing 则挂固定价 limit_sell，并在 9.3 Monitor 标注复查。**例外**：小克数机动仓（<10g）按经验提醒走 monitor 微信提醒 + 人工决定，不挂自动卖出单。
 
-区分事实与解释：
-- **事实**：价格、成交量、官方数据 — 不可争议
-- **解释**：因果链、市场情绪 — 标注置信度 `"金价因X而涨" — 置信度：高/中/低 (XX%)`
-### 第四步：军规自查 (r001-r034)
-### 第五步：Munger 模型 (2-3个)
-### 第六步：画像匹配
-### 第七步：🐮Bull / 🐻Bear / 💼PM Agent 博弈 (综合前六步输入)
-### 第八步：交易建议（买/卖/观望 + 操作建议 + 条件单调整）
+**第九步（前瞻附录）**：
+- 9.1 后续事件关注表（时间/事件/预期波动/对持仓影响）
+- 9.2 情景预案表（情景/金价预期走向/建议动作）
+- 9.3 Monitor 创建：情景表中条件性场景立即创建 monitor 事件（`event_type: "monitor"`, `status: "active"`，添加模板见 `references/event-sync.md`），输出「新增 Monitor 事件表」（名称/触发条件/检查频率/触发后动作/过期时间）。已转 monitor 的动作标注 `✅ 已加入 Monitor:<名称>`。
 
-> ⚠️ 步骤八是最终结论，内容必须是可执行指令。分析推演已在步骤一至七完成。
+## 一键命令
 
-> 🆕 **r034 主动止盈评估（2026-08-14）**：PM 决策不得只在「加仓/持有」间选择。当**同时满足** 近48h重大数据温和落地 + 高位震荡(距20日高<3%) + 聪明钱流出(COT减仓/投行共识看空/大单空占优) + 已有浮盈 → **必须显式评估「机动池主动部分止盈 ≥1/3 / 核心池最多减1/4」**，不等 ATR 破位才动作；动作=持有须在理由中说明为何不做部分止盈。与 r033（温和数据3天内禁加仓）互补。
+```bash
+# 完整 9 步管线（scan 报告即最终数据源，配合铁律 9/10 零深挖）
+gold-miner scan --days 30 --news --sentiment
 
-#### 8A. 最终交易建议：买入 / 卖出 / 观望（含触发价位、数量、置信度）
+# 仅步骤1：日历校验+事件同步+深度新闻+数据采集
+gold-miner prepare
+```
 
-#### 8B. 条件单调整
-
-读取 `data/private/conditional_orders.jsonl`，筛选 `status = "active"`，逐条判断保留/撤销/修改。
-
-输出「条件单状态表」：
-
-| 条件单 ID | 类型 | 方向 | 触发价 | 数量 | 状态 | 建议动作 | 原因 |
-|-----------|------|------|--------|------|------|----------|------|
-| co_xxx | oco | 卖出 | TP932/SL852 | 9g | active | **保留/撤销/修改** | 原因 |
-
-撤销或修改必须在 JSONL 文件中更新对应记录。新建条件单必须追加。
-
-> 🔴 **ATR 减半线必须预挂卖出条件单（r017，2026-08-14 强执）**：凡报告给出 ATR 移动止盈位（p010/r025 减半线），**必须在 8B 条件单表中预挂对应卖出条件单**（含触发价、数量），禁止「监测 + 手动执行」——手动执行=情绪执行，跌破时易死扛错过（2026-08-14 事故：ATR 939.27 跌破后未预挂卖出单，拖到 936.36 机械触发才卖半仓，浮盈回吐殆尽）。若平台无法挂 trailing，则挂固定价 limit_sell，并在 9.3 Monitor 标注复查。
-
-### 第九步：后续事件关注 + CPI/FOMC 情景预案 + Monitor 创建（前瞻附录）
-
-#### 9.1 后续事件关注
-
-| 时间 | 事件 | 预期波动 | 对持仓影响 |
-|------|------|---------|-----------|
-
-#### 9.2 情景预案
-
-| 情景 | 金价预期走向 | 建议动作 |
-|------|-------------|---------|
-
-#### 9.3 Monitor 创建
-
-情景预案中的条件性场景立即创建 monitor 事件（`event_type: "monitor"`, `status: "active"`）。
-
-输出「新增 Monitor 事件表」：
-
-| Monitor 名称 | 触发条件 | 检查频率 | 触发后动作 | 过期时间 |
-|-------------|----------|----------|-----------|----------|
-
-情景表中已转为 monitor 的动作标注 `✅ 已加入 Monitor:<名称>`。
-
----
-
-## 常见错误速查
-
-| 错误 | 原因 | 修复 |
-|------|------|------|
-| `command not found: python` | macOS 只有 python3 | 用 `python3` |
-| `ModuleNotFoundError: No module named 'akshare'` | akshare 未安装 | 用 `JdAccumulationGoldFetcher` 代替 `spot_gold` |
-| `'str' object has no attribute 'value'` | 传了字符串而非枚举 | `EventType.GEO_POLITICAL` 不是 `"geo"` |
-| `'dict' object has no attribute 'scheduled_at'` | 传了 dict 而非 CalendarEvent | 必须用 `CalendarEvent(...)` 构造 |
-| `missing 1 required positional argument: 'actual'` | `update_event_result` 参数名不对 | 签名: `(name, scheduled_at, actual, forecast, previous, source_verified)` |
-| `got an unexpected keyword argument 'days_ahead'` | 参数名猜错 | `get_upcoming(days=14)` 不是 `days_ahead=` |
-| `'str' object has no attribute 'tzinfo'` | scheduled_at 传了字符串 | 必须传 `datetime(2026,7,21,8,0,0, tzinfo=tz)` |
-| `'RecentEventSignalGenerator' has no attribute 'generate'` | 方法名猜错 | `generate_signals()` 不是 `generate()` |
-| `TechnicalAnalyzer.__init__() missing 1 required positional argument: 'df'` | 无参构造 | `TechnicalAnalyzer(df)` 必须传 DataFrame |
-| `'FundamentalAnalyzer' has no attribute 'analyze'` | 方法名猜错 | `generate_signals()` 不是 `analyze()` |
-| `'NewsSignalGenerator' has no attribute 'generate'` | 方法名猜错 | `fetch_and_analyze(hours=48)` 不是 `generate()` |
-| `'SentimentAnalyzer' has no attribute 'analyze'` | 方法名猜错 | `generate_signals()` 不是 `analyze()` |
-| `'Signal' object has no attribute 'label'` | 字段名猜错 | `s.name` 不是 `s.label`；`s.direction.value` 不是 `s.direction` |
-| search 结果被 SEO 大新闻压制 | 搜索引擎偏差 | 对 fast-evolving 类型做逆转/修正专项搜索 |
-| 分析报告中"周三初请失业金" | DOW 未校验 | 先跑 `validate_calendar_dates.py --ref-table 30` |
+> 其余 CLI（advisor/report/doctrine --check/scenario）与手动降级模板见 `references/api-reference.md`。
