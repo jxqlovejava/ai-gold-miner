@@ -172,7 +172,7 @@ echo "==> 试跑 gold_price.py (price 模式)"
 
 echo ""
 echo "==> 部署监控脚本"
-for script in adaptive_gold_monitor.py gold_plan_alert.py overnight_news_scanner.py evening_event_preview.py price_surge_monitor.py profit_protection_monitor.py gold_stop_level_alert.py hermes_delivery_watchdog.py; do
+for script in adaptive_gold_monitor.py gold_plan_alert.py overnight_news_scanner.py evening_event_preview.py price_surge_monitor.py profit_protection_monitor.py gold_stop_level_alert.py hermes_delivery_watchdog.py gold_self_review.py; do
     if [[ -f "$ROOT/scripts/$script" ]]; then
         "${SCP[@]}" "$ROOT/scripts/$script" "$HOST:$REMOTE_ROOT/scripts/"
         echo "  ✅ scripts/$script"
