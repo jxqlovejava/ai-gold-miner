@@ -77,7 +77,7 @@ class EtfFlowSignalGenerator:
                 score = min(nav_change / 10, 0.3)
                 signals.append(Signal(
                     name="国内黄金ETF价格变动(proxy)",
-                    dimension="sentiment",
+                    dimension="smart_money",
                     direction=SignalDirection.BULLISH,
                     strength=SignalStrength.WEAK,
                     score=round(score, 2),
@@ -96,7 +96,7 @@ class EtfFlowSignalGenerator:
                 score = max(nav_change / 10, -0.3)
                 signals.append(Signal(
                     name="国内黄金ETF价格变动(proxy)",
-                    dimension="sentiment",
+                    dimension="smart_money",
                     direction=SignalDirection.BEARISH,
                     strength=SignalStrength.WEAK,
                     score=round(score, 2),
@@ -115,7 +115,7 @@ class EtfFlowSignalGenerator:
             if total_vol > 5_000_000:
                 signals.append(Signal(
                     name="国内黄金ETF成交放量(proxy)",
-                    dimension="sentiment",
+                    dimension="smart_money",
                     direction=SignalDirection.BULLISH if nav_change > 0 else SignalDirection.BEARISH,
                     strength=SignalStrength.WEAK,
                     score=0.1 if nav_change > 0 else -0.1,
@@ -169,7 +169,7 @@ class EtfFlowSignalGenerator:
             if direction == "strong_inflow":
                 signals.append(Signal(
                     name="国际黄金ETF大幅流入",
-                    dimension="sentiment",
+                    dimension="smart_money",
                     direction=SignalDirection.BULLISH,
                     strength=SignalStrength.STRONG,
                     score=round(score, 2),
@@ -182,7 +182,7 @@ class EtfFlowSignalGenerator:
             elif direction == "inflow":
                 signals.append(Signal(
                     name="国际黄金ETF资金流入",
-                    dimension="sentiment",
+                    dimension="smart_money",
                     direction=SignalDirection.BULLISH,
                     strength=SignalStrength.MODERATE,
                     score=round(score, 2),
@@ -195,7 +195,7 @@ class EtfFlowSignalGenerator:
             elif direction == "strong_outflow":
                 signals.append(Signal(
                     name="国际黄金ETF大幅流出",
-                    dimension="sentiment",
+                    dimension="smart_money",
                     direction=SignalDirection.BEARISH,
                     strength=SignalStrength.STRONG,
                     score=round(score, 2),
@@ -208,7 +208,7 @@ class EtfFlowSignalGenerator:
             elif direction == "outflow":
                 signals.append(Signal(
                     name="国际黄金ETF资金流出",
-                    dimension="sentiment",
+                    dimension="smart_money",
                     direction=SignalDirection.BEARISH,
                     strength=SignalStrength.MODERATE,
                     score=round(score, 2),
@@ -225,7 +225,7 @@ class EtfFlowSignalGenerator:
                 vol_score = max(-0.2, min(0.2, vol_score))
                 signals.append(Signal(
                     name="GLD成交量异常放大(proxy)",
-                    dimension="sentiment",
+                    dimension="smart_money",
                     direction=SignalDirection.BULLISH if gld_change > 0 else SignalDirection.BEARISH,
                     strength=SignalStrength.WEAK,
                     score=vol_score,
@@ -248,7 +248,7 @@ class EtfFlowSignalGenerator:
                 if dom_dir == "inflow" and "outflow" in intl_dir:
                     signals.append(Signal(
                         name="内外盘背离: 国内↑国际↓",
-                        dimension="sentiment",
+                        dimension="smart_money",
                         direction=SignalDirection.BULLISH,
                         strength=SignalStrength.WEAK,
                         score=0.1,
@@ -260,7 +260,7 @@ class EtfFlowSignalGenerator:
                 elif dom_dir == "outflow" and "inflow" in intl_dir:
                     signals.append(Signal(
                         name="内外盘背离: 国内↓国际↑",
-                        dimension="sentiment",
+                        dimension="smart_money",
                         direction=SignalDirection.BEARISH,
                         strength=SignalStrength.WEAK,
                         score=-0.1,
@@ -302,7 +302,7 @@ class EtfFlowSignalGenerator:
                 # BTC ETF严重流入 → 风险偏好极高, 黄金短期可能承压
                 signals.append(Signal(
                     name="BTC ETF大幅流入(风险偏好↑)",
-                    dimension="sentiment",
+                    dimension="smart_money",
                     direction=SignalDirection.BEARISH,  # 对黄金轻微利空
                     strength=SignalStrength.WEAK,
                     score=-0.15,
@@ -316,7 +316,7 @@ class EtfFlowSignalGenerator:
                 # BTC ETF严重流出 → 避险升温, 黄金受益
                 signals.append(Signal(
                     name="BTC ETF大幅流出(避险↑)",
-                    dimension="sentiment",
+                    dimension="smart_money",
                     direction=SignalDirection.BULLISH,  # 对黄金利多
                     strength=SignalStrength.WEAK,
                     score=0.15,
@@ -353,7 +353,7 @@ class EtfFlowSignalGenerator:
             if gold_dir == "inflow" and "outflow" in btc_dir:
                 signals.append(Signal(
                     name="金银背离: 黄金↑BTC↓ (强烈避险)",
-                    dimension="sentiment",
+                    dimension="smart_money",
                     direction=SignalDirection.BULLISH,
                     strength=SignalStrength.MODERATE,
                     score=0.25,
@@ -365,7 +365,7 @@ class EtfFlowSignalGenerator:
             if gold_dir == "outflow" and "inflow" in btc_dir:
                 signals.append(Signal(
                     name="金银背离: 黄金↓BTC↑ (风险偏好↑)",
-                    dimension="sentiment",
+                    dimension="smart_money",
                     direction=SignalDirection.BEARISH,
                     strength=SignalStrength.WEAK,
                     score=-0.15,

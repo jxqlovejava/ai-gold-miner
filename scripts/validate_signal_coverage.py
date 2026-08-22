@@ -5,13 +5,17 @@
 导致遗漏 oil / jd_blogger / jd_fund_bomb / hype_bias 等维度信号,
 得出「油价上涨利多」的错误 oil 结论 (真实 OilSignalGenerator 输出 rate_relief 利多)。
 
+2026-08-22 MECE 维度重构: oil 并入 fundamental, hype_bias 并入 sentiment (情绪面质量门),
+不再作为独立必检维度; oil 信号在 fundamental 维度内以 channel metadata 识别。
+
 用法:
     PYTHONPATH=src python3 scripts/validate_signal_coverage.py            # 校验默认维度清单
     PYTHONPATH=src python3 scripts/validate_signal_coverage.py --bundle  # 校验 stdin 传入的 bundle JSON
 
 校验规则:
-    1. 核心维度 (technical/fundamental/news/sentiment/event/oil/smart_money) 必须都有信号
-    2. oil 维度信号必须来自 OilSignalGenerator (source metadata 带 wti/channel), 禁止手工臆造
+    1. 核心维度 (technical/fundamental/news/sentiment/event/smart_money/jd_*) 必须都有信号
+    2. 油价派生信号 (fundamental 维度, name 含「油价」或 metadata 含 channel) 必须来自
+       OilSignalGenerator 标准 metadata (wti/channel), 禁止手工臆造
     3. 预测市场/概率类信号 fact_type 必须为 projection (非事实)
 退出码: 0=通过, 1=缺失维度, 2=oil 信号非标准, 3=预测数据标为事实
 """
@@ -25,18 +29,16 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-# 核心维度清单 (对应 DimensionWeights + 信号生成器)
+# 核心维度清单 (对应 DimensionWeights + 信号生成器; 2026-08-22 MECE 重构后)
 CORE_DIMENSIONS = [
     "technical",      # TechnicalAnalyzer + CandlestickPatternDetector + ChanlunSignalGenerator
-    "fundamental",    # FundamentalAnalyzer
+    "fundamental",    # FundamentalAnalyzer + OilSignalGenerator (油价并入基本面)
     "news",           # NewsSignalGenerator
-    "sentiment",      # SentimentAnalyzer
-    "event",          # RecentEventSignalGenerator / EconomicCalendarSignalGenerator
-    "oil",            # OilSignalGenerator
-    "smart_money",    # CotSignalGenerator / EtfFlowSignalGenerator / InstitutionalSignalGenerator
-    "hype_bias",      # HypeBiasSignalGenerator
-    "jd_blogger",     # JdBloggerSentimentSignalGenerator (大V加仓榜情绪)
-    "jd_fund_bomb",   # JdFundBombSignalGenerator (资金炸弹多空占比)
+    "sentiment",      # SentimentAnalyzer + HypeBiasSignalGenerator (反带节奏质量门并入)
+    "event",          # EventDriven + RecentEvents + EconomicCalendar + MacroPivot (事件类合一)
+    "smart_money",    # CotSignalGenerator / EtfFlowSignalGenerator / InstitutionalSignalGenerator / JdFundBombSignalGenerator
+    "jd_blogger",     # JdBloggerSentimentSignalGenerator (大V加仓榜情绪, 归属 sentiment 维度)
+    "jd_fund_bomb",   # JdFundBombSignalGenerator (资金炸弹多空占比, 归属 smart_money 维度)
 ]
 
 # 含 source/channel metadata 的 oil 信号才视为标准 (来自 OilSignalGenerator)
@@ -62,8 +64,12 @@ def check_bundle(bundle: dict) -> list[str]:
         if dim not in dims:
             warnings.append(f"[coverage] 缺失维度信号: {dim}")
 
-    # oil 信号来源检查
-    oil_sigs = [s for s in signals if s.get("dimension") == "oil"]
+    # oil 信号来源检查 (2026-08-22 起 oil 并入 fundamental 维度, 以 name「油价」或 metadata channel 识别)
+    oil_sigs = [
+        s for s in signals
+        if s.get("dimension") == "fundamental"
+        and ("channel" in (s.get("metadata") or {}) or "油价" in s.get("name", ""))
+    ]
     for s in oil_sigs:
         meta = s.get("metadata") or {}
         has_std_meta = any(k in meta for k in OIL_METADATA_KEYS)

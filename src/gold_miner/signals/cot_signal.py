@@ -158,7 +158,7 @@ class CotSignalGenerator:
 
             signals.append(Signal(
                 name=name,
-                dimension="sentiment",
+                dimension="smart_money",
                 direction=SignalDirection.BULLISH,
                 strength=strength,
                 score=score,
@@ -204,7 +204,7 @@ class CotSignalGenerator:
                 score = min(pct_change / 10, 0.8)
                 signals.append(Signal(
                     name="COT聪明钱加仓",
-                    dimension="sentiment",
+                    dimension="smart_money",
                     direction=SignalDirection.BULLISH,
                     strength=strength,
                     score=round(score, 2),
@@ -224,7 +224,7 @@ class CotSignalGenerator:
                 score = max(pct_change / 10, -0.8)
                 signals.append(Signal(
                     name="COT聪明钱减仓",
-                    dimension="sentiment",
+                    dimension="smart_money",
                     direction=SignalDirection.BEARISH,
                     strength=strength,
                     score=round(score, 2),
@@ -259,7 +259,7 @@ class CotSignalGenerator:
             if position > 0.90:
                 signals.append(Signal(
                     name="COT聪明钱极度拥挤(警告)",
-                    dimension="sentiment",
+                    dimension="smart_money",
                     direction=SignalDirection.BEARISH,  # 极度拥挤后通常反转
                     strength=SignalStrength.MODERATE,
                     score=-0.35,
@@ -277,7 +277,7 @@ class CotSignalGenerator:
             elif position > 0.80:
                 signals.append(Signal(
                     name="COT聪明钱持仓偏高",
-                    dimension="sentiment",
+                    dimension="smart_money",
                     direction=SignalDirection.BULLISH,  # 仍偏多但需警惕
                     strength=SignalStrength.WEAK,
                     score=0.15,
@@ -293,7 +293,7 @@ class CotSignalGenerator:
             elif position < 0.10:
                 signals.append(Signal(
                     name="COT聪明钱极度悲观(机会)",
-                    dimension="sentiment",
+                    dimension="smart_money",
                     direction=SignalDirection.BULLISH,  # 极度悲观 = 反向机会
                     strength=SignalStrength.MODERATE,
                     score=0.4,
@@ -311,7 +311,7 @@ class CotSignalGenerator:
             elif position < 0.20:
                 signals.append(Signal(
                     name="COT聪明钱持仓偏低",
-                    dimension="sentiment",
+                    dimension="smart_money",
                     direction=SignalDirection.BEARISH,
                     strength=SignalStrength.WEAK,
                     score=-0.15,
@@ -353,7 +353,7 @@ class CotSignalGenerator:
             if noncomm_net_latest > noncomm_net_prev and comm_net_latest > comm_net_prev:
                 signals.append(Signal(
                     name="COT一致看多信号",
-                    dimension="sentiment",
+                    dimension="smart_money",
                     direction=SignalDirection.BULLISH,
                     strength=SignalStrength.MODERATE,
                     score=0.3,
@@ -364,7 +364,7 @@ class CotSignalGenerator:
             elif noncomm_net_latest < noncomm_net_prev and comm_net_latest < comm_net_prev:
                 signals.append(Signal(
                     name="COT一致看空信号",
-                    dimension="sentiment",
+                    dimension="smart_money",
                     direction=SignalDirection.BEARISH,
                     strength=SignalStrength.MODERATE,
                     score=-0.3,
@@ -375,7 +375,7 @@ class CotSignalGenerator:
             elif noncomm_net_latest < noncomm_net_prev and comm_net_latest > comm_net_prev:
                 signals.append(Signal(
                     name="COT持仓背离: 商业减套保",
-                    dimension="sentiment",
+                    dimension="smart_money",
                     direction=SignalDirection.BULLISH,
                     strength=SignalStrength.WEAK,
                     score=0.15,
@@ -386,7 +386,7 @@ class CotSignalGenerator:
             elif noncomm_net_latest > noncomm_net_prev and comm_net_latest < comm_net_prev:
                 signals.append(Signal(
                     name="COT持仓背离: 商业加套保",
-                    dimension="sentiment",
+                    dimension="smart_money",
                     direction=SignalDirection.BEARISH,
                     strength=SignalStrength.WEAK,
                     score=-0.15,

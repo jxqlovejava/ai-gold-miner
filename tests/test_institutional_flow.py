@@ -33,7 +33,7 @@ def _sig(
         meta["is_real_flow"] = is_real_flow
     return Signal(
         name=name,
-        dimension="sentiment",
+        dimension="smart_money",  # 资金流信号归属聪明钱维度（2026-08-22 MECE 重构）
         direction=direction,
         strength=SignalStrength.MODERATE,
         score=score,

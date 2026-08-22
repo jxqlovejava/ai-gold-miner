@@ -99,11 +99,13 @@ class FindingGenerator:
             "fundamental": self.weights.fundamental,
             "news": self.weights.news,
             "sentiment": self.weights.sentiment,
+            "smart_money": self.weights.smart_money,
         }
 
         for dim_acc in analysis.per_dimension:
             weight = weight_map.get(dim_acc.dimension, 0.0)
-            if weight <= 0.10:
+            # 2026-08-22 维度重构后 sentiment/smart_money 权重 0.06（原阈值 0.10 会漏掉核心维），下调至 0.05 覆盖
+            if weight <= 0.05:
                 continue
             if dim_acc.accuracy >= 0.50:
                 continue

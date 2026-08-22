@@ -133,7 +133,7 @@ class HypeBiasSignalGenerator:
         score = self._contrarian_score(ratio, 0.3, 0.8, contrarian)
         return [Signal(
             name=f"标题党炒作过热({contrarian.value})",
-            dimension="hype_bias",
+            dimension="sentiment",
             direction=contrarian,
             strength=self._strength_by_ratio(ratio),
             score=score,
@@ -160,7 +160,7 @@ class HypeBiasSignalGenerator:
         score = self._contrarian_score(ratio, 0.6, 0.9, contrarian)
         return [Signal(
             name=f"同源报道集中({contrarian.value})",
-            dimension="hype_bias",
+            dimension="sentiment",
             direction=contrarian,
             strength=self._strength_by_ratio(ratio),
             score=score,
@@ -187,7 +187,7 @@ class HypeBiasSignalGenerator:
         score = self._contrarian_score(ratio, 0.7, 1.0, contrarian)
         return [Signal(
             name=f"情绪极端化({contrarian.value})",
-            dimension="hype_bias",
+            dimension="sentiment",
             direction=contrarian,
             strength=self._strength_by_ratio(ratio),
             score=score,
@@ -214,7 +214,7 @@ class HypeBiasSignalGenerator:
         score = self._contrarian_score(len(low_tier_items), 3, 8, contrarian)
         return [Signal(
             name=f"低可信源带节奏({contrarian.value})",
-            dimension="hype_bias",
+            dimension="sentiment",
             direction=contrarian,
             strength=self._strength_by_count(len(low_tier_items), 3, 8),
             score=score,
@@ -299,7 +299,7 @@ class HypeBiasSignalGenerator:
         if bullish / total >= 0.6 and upside > 0:
             return [Signal(
                 name="投行目标价分歧大(炒作过热)",
-                dimension="hype_bias",
+                dimension="sentiment",
                 direction=SignalDirection.BEARISH,
                 strength=self._strength_by_ratio(dispersion, threshold=0.3, cap=0.6),
                 score=-round(min(dispersion, 0.6), 2),
@@ -339,7 +339,7 @@ class HypeBiasSignalGenerator:
                 if self._name_overlap(bank, seller_name):
                     signals.append(Signal(
                         name="机构唱多做空信号",
-                        dimension="hype_bias",
+                        dimension="sentiment",
                         direction=SignalDirection.BEARISH,
                         strength=SignalStrength.MODERATE,
                         score=-0.4,
@@ -441,7 +441,7 @@ class HypeBiasSignalGenerator:
 
             signals.append(Signal(
                 name=f"{ff.bank}目标价方向反转({direction.value})",
-                dimension="hype_bias",
+                dimension="sentiment",
                 direction=direction,
                 strength=SignalStrength.MODERATE if change_pct < 0.15 else SignalStrength.STRONG,
                 score=round(score, 2),
@@ -498,7 +498,7 @@ class HypeBiasSignalGenerator:
 
             signals.append(Signal(
                 name="言行不一：口头看涨但减持",
-                dimension="hype_bias",
+                dimension="sentiment",
                 direction=SignalDirection.BEARISH,
                 strength=SignalStrength.MODERATE,
                 score=-0.35,

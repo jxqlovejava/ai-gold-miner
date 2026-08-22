@@ -83,7 +83,7 @@ class InstitutionalSignalGenerator:
                 strength = SignalStrength.STRONG if bullish_ratio >= 0.7 else SignalStrength.MODERATE
                 signals.append(Signal(
                     name="投行共识强烈看涨",
-                    dimension="sentiment",
+                    dimension="smart_money",
                     direction=SignalDirection.BULLISH,
                     strength=strength,
                     score=min(upside / 20, 0.8),
@@ -102,7 +102,7 @@ class InstitutionalSignalGenerator:
             elif bullish_ratio >= 0.5 and upside > 0:
                 signals.append(Signal(
                     name="投行共识偏多",
-                    dimension="sentiment",
+                    dimension="smart_money",
                     direction=SignalDirection.BULLISH,
                     strength=SignalStrength.WEAK,
                     score=upside / 30,
@@ -112,7 +112,7 @@ class InstitutionalSignalGenerator:
             elif bearish >= 3 and upside < -3:
                 signals.append(Signal(
                     name="投行共识看空",
-                    dimension="sentiment",
+                    dimension="smart_money",
                     direction=SignalDirection.BEARISH,
                     strength=SignalStrength.MODERATE,
                     score=max(upside / 20, -0.6),
@@ -129,7 +129,7 @@ class InstitutionalSignalGenerator:
                     if dispersion > 0.3:
                         signals.append(Signal(
                             name="投行目标价分歧大",
-                            dimension="sentiment",
+                            dimension="smart_money",
                             direction=SignalDirection.NEUTRAL,
                             strength=SignalStrength.WEAK,
                             score=0.0,
@@ -168,7 +168,7 @@ class InstitutionalSignalGenerator:
             if squeeze_risk:
                 signals.append(Signal(
                     name="COMEX大户逼空风险",
-                    dimension="sentiment",
+                    dimension="smart_money",
                     direction=SignalDirection.BULLISH,
                     strength=SignalStrength.STRONG,
                     score=0.6,
@@ -185,7 +185,7 @@ class InstitutionalSignalGenerator:
             elif crowded_short and not squeeze_risk:
                 signals.append(Signal(
                     name="COMEX大户空头拥挤",
-                    dimension="sentiment",
+                    dimension="smart_money",
                     direction=SignalDirection.BULLISH,
                     strength=SignalStrength.MODERATE,
                     score=0.3,
@@ -197,7 +197,7 @@ class InstitutionalSignalGenerator:
             if crowded_long:
                 signals.append(Signal(
                     name="COMEX大户多头拥挤(警告)",
-                    dimension="sentiment",
+                    dimension="smart_money",
                     direction=SignalDirection.BEARISH,
                     strength=SignalStrength.MODERATE,
                     score=-0.25,
@@ -209,7 +209,7 @@ class InstitutionalSignalGenerator:
             if dominance > 5:
                 signals.append(Signal(
                     name="COMEX大户多头占优",
-                    dimension="sentiment",
+                    dimension="smart_money",
                     direction=SignalDirection.BULLISH,
                     strength=SignalStrength.WEAK,
                     score=0.15,
@@ -219,7 +219,7 @@ class InstitutionalSignalGenerator:
             elif dominance < -5:
                 signals.append(Signal(
                     name="COMEX大户空头占优",
-                    dimension="sentiment",
+                    dimension="smart_money",
                     direction=SignalDirection.BEARISH,
                     strength=SignalStrength.WEAK,
                     score=-0.15,
@@ -256,7 +256,7 @@ class InstitutionalSignalGenerator:
             if bullish >= 4 and ratio >= 0.6:
                 signals.append(Signal(
                     name="13F机构大举增持黄金",
-                    dimension="fundamental",
+                    dimension="smart_money",
                     direction=SignalDirection.BULLISH,
                     strength=SignalStrength.STRONG,
                     score=0.5,
@@ -273,7 +273,7 @@ class InstitutionalSignalGenerator:
             elif bullish > bearish:
                 signals.append(Signal(
                     name="13F机构净增持黄金",
-                    dimension="fundamental",
+                    dimension="smart_money",
                     direction=SignalDirection.BULLISH,
                     strength=SignalStrength.WEAK,
                     score=0.15,
@@ -283,7 +283,7 @@ class InstitutionalSignalGenerator:
             elif bearish > bullish:
                 signals.append(Signal(
                     name="13F机构净减持黄金",
-                    dimension="fundamental",
+                    dimension="smart_money",
                     direction=SignalDirection.BEARISH,
                     strength=SignalStrength.WEAK,
                     score=-0.1,
@@ -296,7 +296,7 @@ class InstitutionalSignalGenerator:
                 if buyer.institution in {"Bridgewater Associates", "Berkshire Hathaway"}:
                     signals.append(Signal(
                         name=f"{buyer.institution[:15]}增持{buyer.ticker}",
-                        dimension="fundamental",
+                        dimension="smart_money",
                         direction=SignalDirection.BULLISH,
                         strength=SignalStrength.MODERATE,
                         score=0.2,
@@ -405,7 +405,7 @@ class InstitutionalSignalGenerator:
                 )
                 signals.append(Signal(
                     name="聪明钱综合信号",
-                    dimension="sentiment",
+                    dimension="smart_money",
                     direction=direction,
                     strength=strength,
                     score=round(composite, 2),

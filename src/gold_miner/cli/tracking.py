@@ -81,7 +81,7 @@ def run_track(args: argparse.Namespace) -> None:
     engine.score(bundle)
 
     dim_scores: dict[str, float] = {}
-    for dim in ["technical", "fundamental", "news", "sentiment"]:
+    for dim in ["technical", "fundamental", "news", "sentiment", "smart_money"]:
         signals = bundle.by_dimension(dim)
         dim_scores[dim] = round(sum(s.score for s in signals) / len(signals), 2) if signals else 0.0
 

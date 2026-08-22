@@ -15,7 +15,7 @@ from gold_miner.signals.cot_signal import CotSignalGenerator
 def _trend(direction: str, score: float) -> Signal:
     return Signal(
         name="COT聪明钱减仓" if direction == "bearish" else "COT聪明钱加仓",
-        dimension="sentiment",
+        dimension="smart_money",
         direction=SignalDirection(direction),
         strength=SignalStrength.STRONG,
         score=score,
@@ -27,7 +27,7 @@ def _trend(direction: str, score: float) -> Signal:
 def _aligned(direction: str) -> Signal:
     return Signal(
         name="COT一致看空信号" if direction == "bearish" else "COT一致看多信号",
-        dimension="sentiment",
+        dimension="smart_money",
         direction=SignalDirection(direction),
         strength=SignalStrength.MODERATE,
         score=-0.3 if direction == "bearish" else 0.3,
@@ -42,7 +42,7 @@ def _divergence(direction: str) -> Signal:
     """divergence_* 背离: 方向与聪明钱趋势相反."""
     return Signal(
         name="COT持仓背离: 商业减套保" if direction == "bullish" else "COT持仓背离: 商业加套保",
-        dimension="sentiment",
+        dimension="smart_money",
         direction=SignalDirection(direction),
         strength=SignalStrength.WEAK,
         score=0.15 if direction == "bullish" else -0.15,

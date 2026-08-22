@@ -6,7 +6,7 @@ from typing import Any
 
 from loguru import logger
 
-from gold_miner.signals.base import SignalBundle, SignalStrength
+from gold_miner.signals.base import SignalBundle, SignalStrength, hype_suppression_factor
 
 
 @dataclass
@@ -16,23 +16,28 @@ class DimensionWeights:
     维度内信号级别加权由 ScoringEngine._strength_weight() 处理：
     STRONG=3x, MODERATE=2x, WEAK=1x — 确保央行购金、COT大减仓等
     决定性信号不会被同维度弱信号（如印度关税调整）稀释。
+
+    2026-08-22 维度重构（MECE 单一轴「观测对象」）：
+    - oil 权重并入 fundamental（油价是纯宏观传导，非独立观测对象）
+    - 原 sentiment 0.12 承载「资金流+散户」拆为 sentiment 0.06 + smart_money 0.06
+    - 资金流类（COT/ETF/机构/资金炸弹）从 sentiment 拆出到 smart_money 维度
     """
 
     technical: float = 0.14
-    fundamental: float = 0.22
+    fundamental: float = 0.30   # 原 0.22 + oil 0.08
     news: float = 0.14
-    sentiment: float = 0.12
+    sentiment: float = 0.06     # 原 0.12（含资金流），资金流拆出后仅剩纯散户心理
     event: float = 0.10
     polymarket: float = 0.05
     anomaly: float = 0.05
     scenario: float = 0.10
-    oil: float = 0.08
+    smart_money: float = 0.06   # 新增：COT/ETF/机构/资金炸弹
 
     def __post_init__(self) -> None:
         total = (
             self.technical + self.fundamental + self.news
             + self.sentiment + self.event + self.polymarket
-            + self.anomaly + self.scenario + self.oil
+            + self.anomaly + self.scenario + self.smart_money
         )
         if abs(total - 1.0) > 0.001:
             raise ValueError(f"权重之和必须等于1，当前={total}")
@@ -78,6 +83,13 @@ class ScoringEngine:
             if dim_weight_total[dim] > 0:
                 dim_avg[dim] = dim_weighted_sum[dim] / dim_weight_total[dim]
 
+        # 反带节奏压制：检出机构带节奏(metadata.heuristic)时压低情绪面方向分(向中性收敛)。
+        # 因子由 base.hype_suppression_factor() 统一计算，与 dimension_direction_summary 展示口径一致。
+        hype_factor = hype_suppression_factor(bundle.signals)
+        if hype_factor > 0 and "sentiment" in dim_avg:
+            dim_avg["sentiment"] *= (1 - hype_factor)
+            bundle.hype_suppression = hype_factor
+
         composite = 0.0
         weight_used = 0.0
         for dim, weight in [
@@ -86,10 +98,10 @@ class ScoringEngine:
             ("news", self.weights.news),
             ("sentiment", self.weights.sentiment),
             ("event", self.weights.event),
+            ("smart_money", self.weights.smart_money),
             ("polymarket", self.weights.polymarket),
             ("anomaly", self.weights.anomaly),
             ("scenario", self.weights.scenario),
-            ("oil", self.weights.oil),
         ]:
             if dim in dim_avg:
                 composite += dim_avg[dim] * weight

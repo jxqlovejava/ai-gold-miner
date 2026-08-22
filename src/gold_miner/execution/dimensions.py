@@ -208,7 +208,7 @@ def print_sentiment(au_df: pd.DataFrame | None, bundle: SignalBundle) -> None:
 
 def print_economic_calendar(bundle: SignalBundle) -> None:
     dim_name = "\U0001f4c5 经济日历"
-    sigs = bundle.by_dimension("event_calendar")
+    sigs = bundle.by_dimension("event")
     if not sigs:
         return
 
@@ -238,13 +238,11 @@ def print_smart_money(bundle: SignalBundle) -> None:
 
     «这个市场谁在买、谁在卖、谁在套保——比新闻头条更诚实。»
     """
-    # 从 bundle 中筛选所有聪明钱相关信号
-    all_smart: list[Signal] = []
-    for dim in ("sentiment", "fundamental"):
-        for sig in bundle.by_dimension(dim):
-            src = sig.metadata.get("source", "")
-            if src in _SMART_MONEY_SOURCES:
-                all_smart.append(sig)
+    # 从 bundle 中筛选所有聪明钱相关信号（2026-08-22 起 smart_money 已是独立维度）
+    all_smart: list[Signal] = [
+        sig for sig in bundle.by_dimension("smart_money")
+        if sig.metadata.get("source", "") in _SMART_MONEY_SOURCES
+    ]
 
     if not all_smart:
         return

@@ -309,9 +309,9 @@ class ReportGenerator:
         au_df = kw.get("au_df")
 
         # 分数卡
-        dims = ["technical", "fundamental", "news", "sentiment"]
-        names = {"technical": "技术面", "fundamental": "基本面", "news": "消息面", "sentiment": "情绪面"}
-        icons = {"technical": "📊", "fundamental": "🏛️", "news": "📰", "sentiment": "💭"}
+        dims = ["technical", "fundamental", "news", "sentiment", "smart_money"]
+        names = {"technical": "技术面", "fundamental": "基本面", "news": "消息面", "sentiment": "情绪面", "smart_money": "聪明钱"}
+        icons = {"technical": "📊", "fundamental": "🏛️", "news": "📰", "sentiment": "💭", "smart_money": "👨‍💼"}
         cards = ""
         for d in dims:
             sigs = bundle.by_dimension(d)

@@ -65,6 +65,21 @@ def dimension_label(dim: str) -> str:
     return DIMENSION_LABELS.get(dim, dim)
 
 
+def hype_suppression_factor(signals: list[Signal]) -> float:
+    """反带节奏对情绪面方向分的压制系数 [0, 0.5].
+
+    检出机构带节奏信号（metadata 含 ``heuristic``，如标题党炒作/同源洗稿/
+    情绪极端化/低可信源带节奏/机构言行不一）时，按最强 hype 信号的 |score|
+    缩放：|score| 越大（带节奏越严重），压制越强。情绪面均分需 ×(1-factor)
+    向中性收敛——机构带节奏制造的狂热情绪不可信，不应作为方向依据。
+
+    0.0 = 无压制。在 ScoringEngine.score() 与 SignalBundle.
+    dimension_direction_summary() 两处调用，保证 composite 与展示口径一致。
+    """
+    hype_scores = [abs(s.score) for s in signals if s.metadata.get("heuristic")]
+    return min(0.5, max(hype_scores)) if hype_scores else 0.0
+
+
 # 维度方向判定噪音带：均分 |avg| 落在此带内视为「无方向优势」，
 # 即使计数一边倒也不确认方向（防弱信号堆数撑起假看多/假看空）。
 DIMENSION_NOISE_BAND = 0.10
@@ -137,6 +152,7 @@ class SignalBundle:
     signals: list[Signal] = field(default_factory=list)
     composite_score: float = 0.0
     confidence: float = 0.0
+    hype_suppression: float = 0.0  # 反带节奏压制系数(本次评分已施加)，供日志/报告披露
 
     def add(self, signal: Signal) -> None:
         self.signals.append(signal)
@@ -240,6 +256,13 @@ class SignalBundle:
             neutral = sum(1 for s in signals_in_dim if s.direction == SignalDirection.NEUTRAL)
             total = len(signals_in_dim)
             avg_score = sum(s.score for s in signals_in_dim) / total if total > 0 else 0.0
+
+            # 反带节奏压制：情绪面均分与 composite 同口径压低(向中性收敛)，
+            # 使维度表方向/均分反映机构带节奏对情绪面的失真。
+            if dim == "sentiment":
+                _hype = hype_suppression_factor(self.signals)
+                if _hype > 0:
+                    avg_score *= (1 - _hype)
 
             # 四态判定: 计数 + 均分双闸门
             non_neutral = bull + bear

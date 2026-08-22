@@ -1764,7 +1764,7 @@ class AnalysisPipeline:
                 "reason": "激励偏见：检测到机构带节奏信号，主动降低仓位防被误导",
             }
             if any(
-                s.dimension == "hype_bias" and s.score < -0.2
+                s.metadata.get("heuristic") and s.score < -0.2
                 for s in r.bundle.signals
             )
             else None,
@@ -2345,7 +2345,7 @@ class AnalysisPipeline:
     def _auto_track(self, result: AnalysisResult) -> None:
         """自动记录预测到预测追踪器，并结算过期未决预测."""
         dim_scores: dict[str, float] = {}
-        for dim in ["technical", "fundamental", "news", "sentiment"]:
+        for dim in ["technical", "fundamental", "news", "sentiment", "smart_money"]:
             signals = result.bundle.by_dimension(dim)
             if signals:
                 dim_scores[dim] = round(sum(s.score for s in signals) / len(signals), 2)
@@ -2429,7 +2429,7 @@ class AnalysisPipeline:
             gsr = round(result.current_price / silver_val, 1)
 
         dim_scores: dict[str, float] = {}
-        for dim in ["technical", "fundamental", "news", "sentiment"]:
+        for dim in ["technical", "fundamental", "news", "sentiment", "smart_money"]:
             signals = result.bundle.by_dimension(dim)
             if signals:
                 dim_scores[dim] = round(sum(s.score for s in signals) / len(signals), 2)

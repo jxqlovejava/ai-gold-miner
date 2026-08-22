@@ -104,7 +104,7 @@ class EconomicCalendarSignalGenerator:
             signals.append(
                 Signal(
                     name=f"未来事件: {event.name}",
-                    dimension="event_calendar",
+                    dimension="event",
                     direction=SignalDirection.NEUTRAL,
                     strength=strength,
                     score=0.0,
@@ -130,7 +130,7 @@ class EconomicCalendarSignalGenerator:
                 signals.append(
                     Signal(
                         name="r004 数据前不重仓提醒",
-                        dimension="event_calendar",
+                        dimension="event",
                         direction=SignalDirection.NEUTRAL,
                         strength=SignalStrength.STRONG,
                         score=0.0,

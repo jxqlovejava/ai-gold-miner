@@ -243,7 +243,7 @@ class MacroPivotSignalGenerator:
             )
             signals.append(Signal(
                 name=str(meta["name"]),
-                dimension="macro_pivot",
+                dimension="event",
                 direction=meta["direction"],  # type: ignore[arg-type]
                 strength=strength,
                 score=score,

@@ -66,7 +66,7 @@ class JdFundBombSignalGenerator:
         return [
             Signal(
                 name="jdgold资金炸弹·大单多空占比",
-                dimension="sentiment",
+                dimension="smart_money",
                 direction=direction,
                 strength=strength,
                 score=score,

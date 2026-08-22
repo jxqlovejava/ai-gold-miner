@@ -372,3 +372,48 @@ class TestSignalBundle:
         table = bundle.format_dimension_table()
         assert "⚠️ 分歧" in table
         assert "（1维分歧）" in table
+
+
+class TestMECEDimensionRestructure:
+    """2026-08-22 维度分类 MECE 重构后的维度聚合语义."""
+
+    def test_smart_money_is_separate_dimension(self) -> None:
+        """资金流信号独立为 smart_money 维度，不再折叠进情绪面."""
+        bundle = SignalBundle()
+        bundle.add(Signal(name="COT看空", dimension="smart_money", direction=SignalDirection.BEARISH, strength=SignalStrength.MODERATE, score=-0.3))
+        bundle.add(Signal(name="GLD流入", dimension="smart_money", direction=SignalDirection.BULLISH, strength=SignalStrength.MODERATE, score=0.5))
+        bundle.add(Signal(name="散户乐观", dimension="sentiment", direction=SignalDirection.BULLISH, strength=SignalStrength.WEAK, score=0.15))
+
+        summary = bundle.dimension_direction_summary()
+        assert "smart_money" in summary
+        assert "sentiment" in summary
+        assert summary["smart_money"]["total"] == 2
+        assert summary["sentiment"]["total"] == 1
+        table = bundle.format_dimension_table()
+        assert "聪明钱" in table  # DIMENSION_LABELS 中文标签渲染
+
+    def test_event_dims_merged_into_event(self) -> None:
+        """事件类四合一：经济日历/近期事件/宏观政策转向/事件驱动同落 event 维度."""
+        bundle = SignalBundle()
+        bundle.add(Signal(name="未来事件: PCE", dimension="event", direction=SignalDirection.NEUTRAL, strength=SignalStrength.WEAK, score=0.0))
+        bundle.add(Signal(name="事件结果: 初请", dimension="event", direction=SignalDirection.BEARISH, strength=SignalStrength.MODERATE, score=-0.3))
+        bundle.add(Signal(name="宏观政策转向", dimension="event", direction=SignalDirection.BULLISH, strength=SignalStrength.WEAK, score=0.2))
+
+        summary = bundle.dimension_direction_summary()
+        assert "event" in summary
+        # 旧维度 key 不再出现（已合并为 event）
+        assert "event_calendar" not in summary
+        assert "recent_events" not in summary
+        assert "macro_pivot" not in summary
+        assert summary["event"]["total"] == 3
+
+    def test_oil_signals_group_into_fundamental(self) -> None:
+        """油价信号并入基本面维度（不再有独立油价行）."""
+        bundle = SignalBundle()
+        bundle.add(Signal(name="油价单日暴涨", dimension="fundamental", direction=SignalDirection.BEARISH, strength=SignalStrength.STRONG, score=-0.8))
+        bundle.add(Signal(name="央行购金", dimension="fundamental", direction=SignalDirection.BULLISH, strength=SignalStrength.STRONG, score=0.6))
+
+        summary = bundle.dimension_direction_summary()
+        assert "fundamental" in summary
+        assert "oil" not in summary
+        assert summary["fundamental"]["total"] == 2

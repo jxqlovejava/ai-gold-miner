@@ -35,7 +35,7 @@ _STAGFLATION_20D = 20.0  # 20日涨幅 → 滞胀观察
 
 
 class OilSignalGenerator:
-    """WTI 油价信号生成器 (dimension="oil").
+    """WTI 油价信号生成器 (dimension="fundamental").
 
     数据: FRED DCOILWTICO (日度, T0) + 新浪 hf_CL 实时价覆盖最新点 (缩小 FRED 1日滞后).
     """
@@ -122,7 +122,7 @@ class OilSignalGenerator:
         if chg1 >= _SPIKE_STRONG:
             return [Signal(
                 name="油价单日暴涨",
-                dimension="oil",
+                dimension="fundamental",
                 direction=SignalDirection.BEARISH,
                 strength=SignalStrength.STRONG,
                 score=-0.8,
@@ -136,7 +136,7 @@ class OilSignalGenerator:
         if chg1 >= _SPIKE_MODERATE:
             return [Signal(
                 name="油价单日大涨",
-                dimension="oil",
+                dimension="fundamental",
                 direction=SignalDirection.BEARISH,
                 strength=SignalStrength.MODERATE,
                 score=-0.5,
@@ -148,7 +148,7 @@ class OilSignalGenerator:
         if chg1 <= -_SPIKE_STRONG:
             return [Signal(
                 name="油价单日暴跌",
-                dimension="oil",
+                dimension="fundamental",
                 direction=SignalDirection.BULLISH,
                 strength=SignalStrength.MODERATE,
                 score=0.4,
@@ -161,7 +161,7 @@ class OilSignalGenerator:
         if chg1 <= -_SPIKE_MODERATE:
             return [Signal(
                 name="油价单日大跌",
-                dimension="oil",
+                dimension="fundamental",
                 direction=SignalDirection.BULLISH,
                 strength=SignalStrength.WEAK,
                 score=0.25,
@@ -176,7 +176,7 @@ class OilSignalGenerator:
         if chg5 >= _TREND_STRONG:
             return [Signal(
                 name="油价持续飙升",
-                dimension="oil",
+                dimension="fundamental",
                 direction=SignalDirection.BEARISH,
                 strength=SignalStrength.STRONG,
                 score=-0.7,
@@ -189,7 +189,7 @@ class OilSignalGenerator:
         if chg5 >= _TREND_MODERATE:
             return [Signal(
                 name="油价持续上行",
-                dimension="oil",
+                dimension="fundamental",
                 direction=SignalDirection.BEARISH,
                 strength=SignalStrength.MODERATE,
                 score=-0.5,
@@ -199,7 +199,7 @@ class OilSignalGenerator:
         if chg5 <= -_TREND_STRONG:
             return [Signal(
                 name="油价持续回落",
-                dimension="oil",
+                dimension="fundamental",
                 direction=SignalDirection.BULLISH,
                 strength=SignalStrength.MODERATE,
                 score=0.4,
@@ -209,7 +209,7 @@ class OilSignalGenerator:
         if chg5 <= -_TREND_MODERATE:
             return [Signal(
                 name="油价趋势回落",
-                dimension="oil",
+                dimension="fundamental",
                 direction=SignalDirection.BULLISH,
                 strength=SignalStrength.WEAK,
                 score=0.25,
@@ -224,7 +224,7 @@ class OilSignalGenerator:
         if chg20 >= _STAGFLATION_20D:
             return [Signal(
                 name="滞胀观察",
-                dimension="oil",
+                dimension="fundamental",
                 direction=SignalDirection.BULLISH,
                 strength=SignalStrength.MODERATE,
                 score=0.4,

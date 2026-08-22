@@ -57,7 +57,7 @@ def _record_prediction_events(
         gsr = round(current_price / silver_val, 1)
 
     dim_scores: dict[str, float] = {}
-    for dim in ["technical", "fundamental", "news", "sentiment"]:
+    for dim in ["technical", "fundamental", "news", "sentiment", "smart_money"]:
         signals = bundle.by_dimension(dim)
         if signals:
             dim_scores[dim] = round(sum(s.score for s in signals) / len(signals), 2)
@@ -102,7 +102,7 @@ def _auto_track_prediction(
 ) -> None:
     """自动记录预测到预测追踪器."""
     dim_scores: dict[str, float] = {}
-    for dim in ["technical", "fundamental", "news", "sentiment"]:
+    for dim in ["technical", "fundamental", "news", "sentiment", "smart_money"]:
         signals = bundle.by_dimension(dim)
         if signals:
             dim_scores[dim] = round(sum(s.score for s in signals) / len(signals), 2)

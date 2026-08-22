@@ -308,7 +308,7 @@ class RecentEventSignalGenerator:
             signals.append(
                 Signal(
                     name=f"⚠️ 待查结果: {event_names}",
-                    dimension="recent_events",
+                    dimension="event",
                     direction=SignalDirection.NEUTRAL,
                     strength=SignalStrength.STRONG,
                     score=0.0,
@@ -362,7 +362,7 @@ class RecentEventSignalGenerator:
                 signals.append(
                     Signal(
                         name=f"⚠️ 方向冲突待复核: {event.name}",
-                        dimension="recent_events",
+                        dimension="event",
                         direction=SignalDirection.NEUTRAL,
                         strength=SignalStrength.MODERATE,
                         score=0.0,
@@ -399,7 +399,7 @@ class RecentEventSignalGenerator:
             signals.append(
                 Signal(
                     name=f"近期事件: {event.name}",
-                    dimension="recent_events",
+                    dimension="event",
                     direction=direction,
                     strength=strength,
                     score=score,
