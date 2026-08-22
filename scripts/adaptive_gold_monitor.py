@@ -1156,6 +1156,9 @@ def _evaluate_reason(action: str, candidate: dict, ev: dict, cfg: dict) -> dict:
         if clarity == "mixed":
             reasons.append(f"{snap_line}，方向不明，落袋为安")
             strength = "strong"
+        elif clarity == "conflicted":
+            reasons.append(f"{snap_line}，多空分歧，落袋为安")
+            strength = "strong"
         elif clarity == "bearish":
             reasons.append(f"{snap_line}，信号转空，反弹止盈")
             strength = "strong"

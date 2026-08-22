@@ -176,6 +176,14 @@ def test_reason_tp_mixed_is_strong():
     assert any("方向不明" in r for r in v["reasons"])
 
 
+def test_reason_tp_conflicted_is_strong():
+    # 多空分歧（r013 观望）→ 与 mixed 同档：落袋为安
+    v = m._evaluate_reason("take_profit", {"lookback": 20, "high_n": 900.0, "profit_pct": 0.06},
+                           _ev(snapshot=_snap(2, 2, "conflicted")), _cfg())
+    assert v["strength"] == "strong"
+    assert any("分歧" in r for r in v["reasons"])
+
+
 def test_reason_tp_bearish_is_strong():
     v = m._evaluate_reason("take_profit", {"lookback": 20, "high_n": 900.0, "profit_pct": 0.06},
                            _ev(snapshot=_snap(2, 5, "bearish")), _cfg())

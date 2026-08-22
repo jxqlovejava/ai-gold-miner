@@ -1140,9 +1140,10 @@ class AnalysisPipeline:
         result.messages.append(table)
         logger.info(f"\n{table}")
 
-        bull_dims, bear_dims, insuf_dims = bundle.dimension_direction_counts()
+        bull_dims, bear_dims, disp_dims, insuf_dims = bundle.dimension_direction_counts()
+        disp_note = f" | {disp_dims}维分歧" if disp_dims > 0 else ""
         logger.info(
-            f"  维度方向汇总: {bull_dims}维看多 | {bear_dims}维看空 | {insuf_dims}维数据不足"
+            f"  维度方向汇总: {bull_dims}维看多 | {bear_dims}维看空{disp_note} | {insuf_dims}维数据不足"
         )
 
         # --- 4a. 缠论结构板块 (K线结构增强: 中枢/买卖点/背驰) ---

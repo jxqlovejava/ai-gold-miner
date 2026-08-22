@@ -317,8 +317,8 @@ def _build_decision_rationale(
     position_pct = float(result.get("position_pct", 0))
     confidence = bundle.confidence
 
-    # 维度统计
-    bull_dims, bear_dims, insuf = bundle.dimension_direction_counts()
+    # 维度统计 (看多, 看空, 分歧, 数据不足)
+    bull_dims, bear_dims, disp_dims, insuf = bundle.dimension_direction_counts()
     active = bull_dims + bear_dims
 
     # 方向描述
@@ -352,21 +352,26 @@ def _build_decision_rationale(
         )
 
     # 2. 维度多空对比
+    disp_note = f"({disp_dims}维分歧)" if disp_dims > 0 else ""
     if active > 0:
         if bull_dims > bear_dims:
             parts.append(
                 f"有效维度{bull_dims}维看多 vs {bear_dims}维看空"
+                + disp_note
                 + (f"({insuf}维数据不足)" if insuf > 0 else "")
             )
         elif bear_dims > bull_dims:
             parts.append(
                 f"有效维度{bear_dims}维看空 vs {bull_dims}维看多"
+                + disp_note
                 + (f"({insuf}维数据不足)" if insuf > 0 else "")
             )
         elif bull_dims == bear_dims:
             parts.append(
-                f"维度方向平手({bull_dims}多 vs {bear_dims}空)"
+                f"维度方向平手({bull_dims}多 vs {bear_dims}空)" + disp_note
             )
+    elif disp_dims > 0:
+        parts.append(f"无有效方向维度，{disp_dims}维分歧 → 观望")
     elif insuf > 0:
         parts.append(f"全部{insuf}维数据不足，无法判断方向")
 

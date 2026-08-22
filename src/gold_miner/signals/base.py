@@ -65,6 +65,11 @@ def dimension_label(dim: str) -> str:
     return DIMENSION_LABELS.get(dim, dim)
 
 
+# 维度方向判定噪音带：均分 |avg| 落在此带内视为「无方向优势」，
+# 即使计数一边倒也不确认方向（防弱信号堆数撑起假看多/假看空）。
+DIMENSION_NOISE_BAND = 0.10
+
+
 def _char_width(ch: str) -> int:
     """单字符显示宽度（CJK 全角=2，其余=1）."""
     return 2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1
@@ -208,15 +213,20 @@ class SignalBundle:
     def dimension_direction_summary(self) -> dict[str, dict]:
         """返回每个维度的方向摘要，包含各方向信号计数、主导方向、均分等。
 
-        排除中性信号的维度标记为 insufficient_data。
-        用于程序化生成维度总览表，避免手动计数错误。
+        四态判定（计数 + 均分双闸门）：
+          - 非中性信号为 0           → insufficient_data（全中性，方向未知）
+          - 计数一边倒 且 |均分|≥噪音带 → bullish / bearish（方向确认）
+          - 计数一边倒 但 均分在噪音带内 → insufficient_data（强度不足以确认方向，
+            防弱信号堆数撑起假方向）
+          - 计数平手 (bull==bear)     → dispute（多空激烈分歧——分歧本身是信息，
+            预示方向选择/波动放大，对应 r013 观望，不是数据缺失）
 
         Returns:
             dict: key=维度名, value={
-                "dominant": "bullish"|"bearish"|"insufficient_data",
+                "dominant": "bullish"|"bearish"|"dispute"|"insufficient_data",
                 "bullish": int, "bearish": int, "neutral": int,
                 "total": int, "avg_score": float,
-                "insufficient_data": bool,
+                "insufficient_data": bool, "dispute": bool,
             }
         """
         if not self.signals:
@@ -231,21 +241,22 @@ class SignalBundle:
             total = len(signals_in_dim)
             avg_score = sum(s.score for s in signals_in_dim) / total if total > 0 else 0.0
 
-            # 排除中性信号后判断主导方向
+            # 四态判定: 计数 + 均分双闸门
             non_neutral = bull + bear
             if non_neutral == 0:
-                dominant = "insufficient_data"
-                insufficient = True
+                dominant = "insufficient_data"          # 全中性，方向未知
             elif bull > bear:
-                dominant = "bullish"
-                insufficient = False
+                # 计数偏多但均分须走出噪音带才确认方向（含中性稀释：均分按全信号算）
+                dominant = (
+                    "bullish" if avg_score >= DIMENSION_NOISE_BAND else "insufficient_data"
+                )
             elif bear > bull:
-                dominant = "bearish"
-                insufficient = False
+                dominant = (
+                    "bearish" if avg_score <= -DIMENSION_NOISE_BAND else "insufficient_data"
+                )
             else:
-                # bull == bear (平手)
-                dominant = "insufficient_data"
-                insufficient = True
+                # bull == bear: 平手 = 多空激烈分歧，是信息不是数据缺失
+                dominant = "dispute"
 
             summary[dim] = {
                 "dominant": dominant,
@@ -254,24 +265,28 @@ class SignalBundle:
                 "neutral": neutral,
                 "total": total,
                 "avg_score": round(avg_score, 2),
-                "insufficient_data": insufficient,
+                "insufficient_data": dominant == "insufficient_data",
+                "dispute": dominant == "dispute",
             }
         return summary
 
-    def dimension_direction_counts(self) -> tuple[int, int, int]:
-        """返回 (看多维度数, 看空维度数, 数据不足维度数)。
+    def dimension_direction_counts(self) -> tuple[int, int, int, int]:
+        """返回 (看多维度数, 看空维度数, 分歧维度数, 数据不足维度数)。
 
-        基于 dimension_direction_summary() 的 dominant 字段计算，
-        排除数据不足的维度后在有效维度间比较方向。
+        基于 dimension_direction_summary() 的 dominant 字段计算。
+        看多/看空为有效方向维度；分歧（多空平手）单独计数，作为观望信号
+        不计入有效方向；数据不足为信息缺失维度。
 
         Returns:
-            tuple: (bullish_dimensions, bearish_dimensions, insufficient_data_dimensions)
+            tuple: (bullish_dimensions, bearish_dimensions,
+                    dispute_dimensions, insufficient_data_dimensions)
         """
         summary = self.dimension_direction_summary()
         bullish = sum(1 for v in summary.values() if v["dominant"] == "bullish")
         bearish = sum(1 for v in summary.values() if v["dominant"] == "bearish")
+        dispute = sum(1 for v in summary.values() if v["dispute"])
         insufficient = sum(1 for v in summary.values() if v["insufficient_data"])
-        return (bullish, bearish, insufficient)
+        return (bullish, bearish, dispute, insufficient)
 
     def format_dimension_table(self) -> str:
         """生成程序化维度方向总览表，LLM 可直接嵌入报告。
@@ -298,6 +313,7 @@ class SignalBundle:
         dir_labels = {
             "bullish": "🟢 看多",
             "bearish": "🔴 看空",
+            "dispute": "⚠️ 分歧",
             "insufficient_data": "🟡 数据不足",
         }
 
@@ -313,8 +329,8 @@ class SignalBundle:
 
         lines.append("└──────────────────┴────────────────────┴──────┴──────┴──────┴────────┘")
 
-        # 汇总行 1: 维度数对比（有效维度间的方向对比）
-        bull_dims, bear_dims, insuf_dims = self.dimension_direction_counts()
+        # 汇总行 1: 维度数对比（有效维度间的方向对比，分歧维度单独标注）
+        bull_dims, bear_dims, disp_dims, insuf_dims = self.dimension_direction_counts()
         active = bull_dims + bear_dims
         if active > 0:
             if bull_dims > bear_dims:
@@ -325,6 +341,8 @@ class SignalBundle:
                 consensus_note = f"看多 {bull_dims}维 vs 看空 {bear_dims}维 (平手)"
         else:
             consensus_note = "无有效方向维度"
+        if disp_dims > 0:
+            consensus_note += f"（{disp_dims}维分歧）"
         if insuf_dims > 0:
             consensus_note += f"（{insuf_dims}维数据不足）"
         lines.append(f"  有效维度方向对比: {consensus_note}")

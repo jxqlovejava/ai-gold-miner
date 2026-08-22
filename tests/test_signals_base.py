@@ -177,14 +177,15 @@ class TestSignalBundle:
         assert summary["news"]["dominant"] == "insufficient_data"
 
     def test_dimension_direction_summary_tie(self) -> None:
-        """同维度看多=看空 → insufficient_data（平手不算方向）."""
+        """同维度看多=看空 → dispute（多空分歧是信息，不是数据缺失）."""
         bundle = SignalBundle()
         bundle.add(Signal(name="a", dimension="technical", direction=SignalDirection.BULLISH, strength=SignalStrength.MODERATE, score=0.4))
         bundle.add(Signal(name="b", dimension="technical", direction=SignalDirection.BEARISH, strength=SignalStrength.MODERATE, score=-0.4))
 
         summary = bundle.dimension_direction_summary()
-        assert summary["technical"]["dominant"] == "insufficient_data"
-        assert summary["technical"]["insufficient_data"] is True
+        assert summary["technical"]["dominant"] == "dispute"
+        assert summary["technical"]["dispute"] is True
+        assert summary["technical"]["insufficient_data"] is False
 
     def test_dimension_direction_summary_empty_bundle(self) -> None:
         """空 SignalBundle → 返回空 dict."""
@@ -203,16 +204,17 @@ class TestSignalBundle:
     # ── dimension_direction_counts ──
 
     def test_dimension_direction_counts_mixed(self) -> None:
-        """2看多 + 1看空 + 1数据不足."""
+        """2看多 + 1看空 + 0分歧 + 1数据不足."""
         bundle = SignalBundle()
         bundle.add(Signal(name="a", dimension="technical", direction=SignalDirection.BULLISH, strength=SignalStrength.STRONG, score=0.5))
         bundle.add(Signal(name="b", dimension="fundamental", direction=SignalDirection.BULLISH, strength=SignalStrength.STRONG, score=0.8))
         bundle.add(Signal(name="c", dimension="news", direction=SignalDirection.BEARISH, strength=SignalStrength.MODERATE, score=-0.5))
         bundle.add(Signal(name="d", dimension="sentiment", direction=SignalDirection.NEUTRAL, strength=SignalStrength.WEAK, score=0.0))
 
-        bull, bear, insuf = bundle.dimension_direction_counts()
+        bull, bear, dispute, insuf = bundle.dimension_direction_counts()
         assert bull == 2
         assert bear == 1
+        assert dispute == 0
         assert insuf == 1  # sentiment is neutral-only
 
     def test_dimension_direction_counts_all_insufficient(self) -> None:
@@ -221,18 +223,87 @@ class TestSignalBundle:
         bundle.add(Signal(name="a", dimension="technical", direction=SignalDirection.NEUTRAL, strength=SignalStrength.WEAK, score=0.0))
         bundle.add(Signal(name="b", dimension="news", direction=SignalDirection.NEUTRAL, strength=SignalStrength.WEAK, score=0.0))
 
-        bull, bear, insuf = bundle.dimension_direction_counts()
+        bull, bear, dispute, insuf = bundle.dimension_direction_counts()
         assert bull == 0
         assert bear == 0
+        assert dispute == 0
         assert insuf == 2
 
     def test_dimension_direction_counts_empty(self) -> None:
         """空 bundle."""
         bundle = SignalBundle()
-        bull, bear, insuf = bundle.dimension_direction_counts()
+        bull, bear, dispute, insuf = bundle.dimension_direction_counts()
         assert bull == 0
         assert bear == 0
+        assert dispute == 0
         assert insuf == 0
+
+    def test_dimension_direction_counts_with_dispute(self) -> None:
+        """含平手维度 → 分歧单独计数，不计入有效方向."""
+        bundle = SignalBundle()
+        bundle.add(Signal(name="a", dimension="sentiment", direction=SignalDirection.BULLISH, strength=SignalStrength.STRONG, score=0.5))
+        bundle.add(Signal(name="b", dimension="sentiment", direction=SignalDirection.BEARISH, strength=SignalStrength.STRONG, score=-0.5))
+        bundle.add(Signal(name="c", dimension="fundamental", direction=SignalDirection.BULLISH, strength=SignalStrength.MODERATE, score=0.3))
+
+        bull, bear, dispute, insuf = bundle.dimension_direction_counts()
+        assert bull == 1      # fundamental
+        assert bear == 0
+        assert dispute == 1   # sentiment 平手
+        assert insuf == 0
+
+    def test_dimension_direction_summary_count_edge_weak_avg(self) -> None:
+        """计数一边倒但均分在噪音带内 → 不确认方向（insufficient_data）.
+
+        2多1空, 均分 (0.05+0.05-0.05)/3 ≈ 0.017 < 噪音带 0.10 → 强度不足不确认.
+        """
+        bundle = SignalBundle()
+        bundle.add(Signal(name="a", dimension="technical", direction=SignalDirection.BULLISH, strength=SignalStrength.WEAK, score=0.05))
+        bundle.add(Signal(name="b", dimension="technical", direction=SignalDirection.BULLISH, strength=SignalStrength.WEAK, score=0.05))
+        bundle.add(Signal(name="c", dimension="technical", direction=SignalDirection.BEARISH, strength=SignalStrength.WEAK, score=-0.05))
+
+        summary = bundle.dimension_direction_summary()
+        assert summary["technical"]["dominant"] == "insufficient_data"
+        assert summary["technical"]["insufficient_data"] is True
+        assert summary["technical"]["dispute"] is False
+
+    def test_dimension_direction_summary_count_edge_strong_avg(self) -> None:
+        """计数一边倒且均分走出噪音带 → 确认方向.
+
+        2多1空, 均分 (0.3+0.2-0.1)/3 ≈ 0.133 >= 0.10 → bullish.
+        """
+        bundle = SignalBundle()
+        bundle.add(Signal(name="a", dimension="technical", direction=SignalDirection.BULLISH, strength=SignalStrength.MODERATE, score=0.3))
+        bundle.add(Signal(name="b", dimension="technical", direction=SignalDirection.BULLISH, strength=SignalStrength.MODERATE, score=0.2))
+        bundle.add(Signal(name="c", dimension="technical", direction=SignalDirection.BEARISH, strength=SignalStrength.WEAK, score=-0.1))
+
+        summary = bundle.dimension_direction_summary()
+        assert summary["technical"]["dominant"] == "bullish"
+        assert summary["technical"]["insufficient_data"] is False
+
+    def test_dimension_direction_summary_bearish_strong_avg(self) -> None:
+        """看空一边倒且均分走出噪音带 → bearish."""
+        bundle = SignalBundle()
+        bundle.add(Signal(name="a", dimension="news", direction=SignalDirection.BEARISH, strength=SignalStrength.STRONG, score=-0.6))
+        bundle.add(Signal(name="b", dimension="news", direction=SignalDirection.BEARISH, strength=SignalStrength.MODERATE, score=-0.3))
+        bundle.add(Signal(name="c", dimension="news", direction=SignalDirection.NEUTRAL, strength=SignalStrength.WEAK, score=0.0))
+
+        summary = bundle.dimension_direction_summary()
+        assert summary["news"]["dominant"] == "bearish"
+        assert summary["news"]["insufficient_data"] is False
+
+    def test_dimension_direction_summary_neutral_dilutes_avg(self) -> None:
+        """大量中性信号稀释均分 → 即使有方向信号也不确认方向.
+
+        avg = 0.8/11 ≈ 0.073 < 0.10 → insufficient_data（监控类维度常见）.
+        """
+        bundle = SignalBundle()
+        bundle.add(Signal(name="a", dimension="monitor", direction=SignalDirection.BULLISH, strength=SignalStrength.STRONG, score=0.8))
+        for i in range(10):
+            bundle.add(Signal(name=f"n{i}", dimension="monitor", direction=SignalDirection.NEUTRAL, strength=SignalStrength.WEAK, score=0.0))
+
+        summary = bundle.dimension_direction_summary()
+        assert summary["monitor"]["dominant"] == "insufficient_data"
+        assert summary["monitor"]["avg_score"] == 0.07  # 0.8/11 四舍五入
 
     # ── format_dimension_table ──
 
@@ -290,3 +361,14 @@ class TestSignalBundle:
         """空 bundle → 返回占位字符串."""
         bundle = SignalBundle()
         assert bundle.format_dimension_table() == "(无信号)"
+
+    def test_format_dimension_table_shows_dispute(self) -> None:
+        """平手维度在表格中显示 ⚠️ 分歧，且汇总行标注分歧维度数."""
+        bundle = SignalBundle()
+        bundle.add(Signal(name="a", dimension="sentiment", direction=SignalDirection.BULLISH, strength=SignalStrength.MODERATE, score=0.4))
+        bundle.add(Signal(name="b", dimension="sentiment", direction=SignalDirection.BEARISH, strength=SignalStrength.MODERATE, score=-0.4))
+        bundle.add(Signal(name="c", dimension="fundamental", direction=SignalDirection.BULLISH, strength=SignalStrength.MODERATE, score=0.3))
+
+        table = bundle.format_dimension_table()
+        assert "⚠️ 分歧" in table
+        assert "（1维分歧）" in table
