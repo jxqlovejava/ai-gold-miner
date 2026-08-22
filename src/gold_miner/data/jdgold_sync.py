@@ -295,9 +295,13 @@ def maybe_pre_sync(max_age_hours: float = 6.0) -> str:
     try:
         from gold_miner.data.jdgold_client import check_login
 
-        logged_in, _ = check_login()
+        logged_in, info = check_login()
         if not logged_in:
-            return ""
+            # 2026-08-22: 未登录 → 返回提醒而非静默空串, 让用户知道持仓可能非最新.
+            # 旧行为静默跳过 → 分析用过期持仓而不自知 (问题#3/#4 缺口).
+            reason = (info or {}).get("reason") or "登录已过期"
+            return (f"🔐 jdgold 授权未生效 ({reason}). 持仓可能非最新——"
+                    f"持仓数据将用 portfolio.yaml 现有值. 如需刷新, 请先完成 jdgold 授权.")
 
         spath = _sync_state_path()
         if spath.exists():

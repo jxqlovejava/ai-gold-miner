@@ -236,7 +236,8 @@ class AnalysisPipeline:
 
             sync_report = maybe_pre_sync()
             if sync_report:
-                logger.info(f"jdgold 前置对账完成:\n{sync_report}")
+                # 对账报告 或 授权提醒 (未登录时返回提醒, 2026-08-22)
+                logger.info(f"jdgold 同步:\n{sync_report}")
         except Exception:
             pass
 
