@@ -278,7 +278,7 @@ def _ascii_table_block(lines: list[str]) -> str:
 
 
 _DECISION_H2_RE = re.compile(
-    r"^##\s+📌\s*决策:\s*\*\*(.+?)\*\*\s*(?:\|\s*(.+?))?\s*$"
+    r"^##\s+(?:\d+(?:\.\d+)*\.?\s+)?📌\s*决策:\s*\*\*(.+?)\*\*\s*(?:\|\s*(.+?))?\s*$"
 )
 
 

@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🥇 金价完整分析 · 2026-08-22 13:35</title>
+<style>
+:root {
+  /* 配色 — 克制, 少而统一 */
+  --gold: #b8860b; --gold-dark: #7a5c00;
+  --bg: #f6f5f2; --card: #ffffff; --text: #333333; --muted: #888888;
+  --green: #2e7d32; --red: #c62828; --amber: #9a6a00;
+  --border: #e3e0d8; --radius: 10px; --shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--text); line-height: 1.75; padding: 24px 16px 60px; }
+.page { max-width: 920px; margin: 0 auto; }
+/* 标题层级 — 统一字重, 只靠字号/下划线区分 */
+.hero { background: #2b2413; color: #fff; border-radius: 12px; padding: 26px 28px; margin-bottom: 20px; }
+.hero h1 { font-size: 22px; font-weight: 600; margin-bottom: 6px; letter-spacing: 0.5px; }
+.hero .sub { color: #cfc5a6; font-size: 13px; }
+/* 持仓概览卡片 */
+.position-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 18px; margin-bottom: 16px; }
+.position-title { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 1px; margin-bottom: 10px; }
+.position-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+.pos-item { border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; }
+.pos-label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+.pos-value { font-size: 15px; font-weight: 600; color: var(--text); }
+.pos-value.gold { color: var(--gold-dark); }
+.pos-value.green { color: var(--green); }
+.pos-value.red { color: var(--red); }
+.pos-value.amber { color: var(--amber); }
+/* 行情 status bar */
+.status-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin-bottom: 16px; }
+.status-item { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; }
+.status-item .label { font-size: 12px; color: var(--muted); }
+.status-item .value { font-size: 17px; font-weight: 600; margin-top: 2px; }
+.status-item .value.gold { color: var(--gold-dark); }
+.status-item .value.green { color: var(--green); }
+.status-item .value.red { color: var(--red); }
+.status-item .value.amber { color: var(--amber); }
+/* 内容 section */
+.section { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 22px; margin-bottom: 14px; }
+h2 { font-size: 16px; font-weight: 600; margin-bottom: 14px; padding-bottom: 6px; border-bottom: 1px solid var(--border); color: var(--text); }
+h3 { font-size: 14px; font-weight: 600; margin: 14px 0 6px; color: var(--text); }
+p { font-size: 14px; margin: 8px 0; color: var(--text); }
+p.para-multi { line-height: 1.85; }
+/* 表格 — 统一字号, 浅分隔线 */
+table { border-collapse: collapse; width: 100%; margin: 10px 0 14px; }
+th, td { border: 1px solid var(--border); padding: 7px 9px; text-align: left; font-size: 13px; vertical-align: top; font-weight: 400; }
+th { background: #f5f2e9; font-weight: 600; color: var(--text); }
+tr:nth-child(even) { background: #fbfaf7; }
+/* 引用块 — 克制: 浅灰底 + 细灰边, 不喧宾夺主 */
+blockquote { background: #f5f4f1; border-left: 3px solid #d5d0c5; padding: 10px 14px; margin: 10px 0; border-radius: 0 6px 6px 0; font-size: 13px; color: #555; }
+.highlight { background: #f5f4f1; border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; margin: 10px 0; font-size: 13px; }
+/* 列表 */
+ul, ol { padding-left: 20px; margin: 8px 0 12px; }
+li { margin: 4px 0; font-size: 14px; font-weight: 400; }
+.li-nested { margin: 6px 0 2px; padding-left: 12px; border-left: 2px solid var(--border); }
+.li-nest-item { font-size: 13px; margin: 3px 0; line-height: 1.7; }
+.li-nest-item code { background: #f0eee8; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+/* 方向色 — ok=绿(看多/通过), warn=红(看空/警示), amber=中性 */
+.ok { color: var(--green); }
+.warn { color: var(--red); }
+.amber { color: var(--amber); }
+hr { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
+pre { background: #f5f4f1; border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; overflow-x: auto; font-size: 12px; margin: 8px 0 14px; white-space: pre; }
+/* 决策卡片 — 金色主题, 大字决策值但只用一档字重 */
+.decision-card { background: linear-gradient(135deg, #faf6ea 0%, #f3e9c9 100%); border: 1px solid var(--gold); border-radius: var(--radius); padding: 16px 18px; margin-bottom: 14px; }
+.decision-main { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.decision-label { font-size: 12px; color: var(--gold-dark); font-weight: 600; letter-spacing: 1px; }
+.decision-value { font-size: 24px; font-weight: 700; color: var(--gold-dark); line-height: 1.2; }
+.decision-meta { display: flex; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.decision-meta span { background: rgba(184,134,11,0.12); padding: 2px 10px; border-radius: 20px; }
+.decision-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; margin-top: 12px; }
+.df-item { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; }
+.df-label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+.df-value { font-size: 14px; font-weight: 600; }
+/* 关键结论块 — 统一为白底+浅边, 不再是大金边色块 */
+.key-block { border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; margin: 10px 0; }
+.key-tag { font-size: 13px; font-weight: 600; color: var(--gold-dark); margin-bottom: 4px; }
+.key-body { font-size: 14px; line-height: 1.8; color: var(--text); }
+footer { text-align: center; color: #bbb; font-size: 12px; margin-top: 28px; padding-top: 14px; border-top: 1px solid var(--border); }
+@media (max-width: 600px) { .hero h1 { font-size: 19px; } .section { padding: 14px; } th, td { padding: 5px 7px; } }
+
+</style>
+</head>
+<body>
+<div class="page">
+<div class="hero"><h1>🥇 金价完整分析 · 2026-08-22 13:35</h1><div class="sub">AI Gold Miner · 青蚨</div></div>
+<div class="decision-card"><div class="decision-main"><span class="decision-label">📌 决策</span><span class="decision-value">观望</span><div class="decision-meta"><span>综合评分 +0.12</span><span>置信度 62%</span></div></div><div class="decision-fields"><div class="df-item"><span class="df-label">建议仓位</span><span class="df-value">0%（空仓状态，等待条件单承接或信号≥0.3）</span></div><div class="df-item"><span class="df-label">止损</span><span class="df-value">977.86（ATR 移动止盈位，当前空仓参考）</span></div><div class="df-item"><span class="df-label">止盈</span><span class="df-value">—</span></div></div></div>
+
+<div class="status-bar"><div class="status-item"><div class="label">积存金</div><div class="value gold">¥996.90</div></div><div class="status-item"><div class="label">XAUUSD</div><div class="value green">$4,605</div></div></div>
+<div class="section"><p class='para-multi'>当前为空仓状态（2026-08-20 全部清仓，`portfolio.yaml` grams=0）。<br>决策基准是「空仓寻机买入」，非持有。<br>scan 建议观望：|score|=0.12 &lt; 阈值0.3，弱信号不足以支撑开仓。</p></div>
+<div class="section"><h2>1.1 🔍 主驱动因素</h2>
+<blockquote>一句话: 美财政部扩大长端国债回购（9/9生效）压低长端利率，一阶传导利多金价；8/22 消息面新增伊朗地缘威胁（Bessent 威胁贸易伙伴），避险溢价叠加。</blockquote>
+<table><thead><tr><th>排序</th><th>驱动</th><th>性质</th><th>传导链</th><th>可预见性</th></tr></thead><tbody><tr><td>1(主)</td><td>美财政部长端国债回购（10-30Y，9/9生效，上限≥$40亿/次）</td><td>流动性</td><td>回购→长端收益率↓→实际利率↓→利多金价</td><td>日历可见（9/9生效）</td></tr><tr><td>2</td><td>伊朗地缘威胁（Bessent 威胁贸易伙伴）[unverified]</td><td>地缘</td><td>制裁/军事威胁→避险买盘→利多金价（短期脉冲）｜若升级霍尔木兹→油价→通胀→联储鹰派→实际利率↑→压制（二阶，中期）</td><td>突发政策</td></tr><tr><td>3</td><td>央行购金 Q2 2026 净购 289t（同比+62%）</td><td>结构性</td><td>央行去美元化→金价底部支撑→利多</td><td>慢变量，季度可见</td></tr></tbody></table>
+<div class="key-block"><div class="key-tag">📌 一阶/二阶说明（1a-2）</div><div class="key-body">主驱动为「回购→利率下行→利多」，一阶方向利多。<br>二阶风险为「回购→通胀预期↑→联储鹰派→加息预期→压制金价」，需催化剂（杰克逊霍尔 8/28 沃什演讲 / 9月FOMC）才兑现，在催化剂前不计入主概率权重。<br>短期（1-2周）以一阶为准。</div></div></div>
+<div class="section"><h2>1.2 🎯 金价目标区间预测（未来 1-3 个月）</h2>
+<p>当前价 ¥996.90 | 对应 XAUUSD $4,605/oz</p>
+<table><thead><tr><th>情景</th><th>概率</th><th>触发条件</th><th>积存金目标区间(元/g)</th><th>对应 XAUUSD</th><th>传导链(直接/二阶+时间尺度)</th></tr></thead><tbody><tr><td>看多突破(先冲后落)</td><td>20%</td><td>伊朗威胁升级+回购9/9落地利率↓+央行购金延续</td><td><strong>1000-1015(短期脉冲)/975-985(中期回落)</strong></td><td>$4,650-4,720</td><td>利多:避险溢价+利率下行冲千元(short-term)｜利空:油价→通胀→联储鹰派→实际利率↑回落(medium-term)</td></tr><tr><td>高位震荡</td><td>50%</td><td>伊朗威胁降温+数据温和+技术超买抑制</td><td>975-1000</td><td>$4,520-4,650</td><td>中性:多空博弈,冲高乏力+回落有撑(medium-term)</td></tr><tr><td>回调修正</td><td>30%</td><td>地缘缓和溢价回吐+RSI超买修正+投行看空兑现</td><td>950-975</td><td>$4,420-4,520</td><td>利空:溢价回吐+超买修正(short-term)｜利多:央行购金/960-945承接档(medium-term)</td></tr></tbody></table>
+<p class='para-multi'>档位推导：心理整数关口 1000 元/g、布林上轨 993、20日高 987、ATR 移动止盈位 977.86、浅档 960/深档 945、净保本参考价。<br>当前积存金 996.90 已贴近千元关口，技术面 RSI 83 超买+布林 94% 上轨，回调修正概率不低；消息面伊朗威胁（今日 15:35 北京 monitor 路由）决定短期脉冲方向。</p></div>
+<div class="section"><h2>2. 维度信号</h2>
+<p>引用 2026-08-22 13:29 scan 程序化维度总览表：</p>
+<table><thead><tr><th>维度</th><th>方向</th><th>看多/看空/中性</th><th>均分</th><th>说明</th></tr></thead><tbody><tr><td>事件驱动</td><td><span class="amber">🟡</span> 数据不足</td><td>5/6/15</td><td>+0.02</td><td>多空交织</td></tr><tr><td>基本面</td><td><span class="ok">🟢</span> 看多</td><td>7/4/0</td><td>+0.12</td><td>央行购金289t(强) + 通胀预期↑ + 实际利率↑(-1.00)</td></tr><tr><td>监控触发</td><td><span class="amber">🟡</span> 数据不足</td><td>0/0/27</td><td>+0.00</td><td>27 个 monitor 未触发</td></tr><tr><td>消息面</td><td><span class="ok">🟢</span> 看多</td><td>4/0/1</td><td>+0.20</td><td>伊朗威胁 + 地缘风险溢价 +0.40</td></tr><tr><td>情绪面</td><td><span class="ok">🟢</span> 看多</td><td>2/0/0</td><td>+0.38</td><td>jd大V加仓榜100%买入 + 连续收阳</td></tr><tr><td>聪明钱</td><td><span class="warn">⚠️</span> 分歧</td><td>4/4/0</td><td>+0.02</td><td>GLD流入+4.28t vs COT一致看空 vs 投行共识看空 vs jd资金炸弹转空</td></tr><tr><td>技术面</td><td><span class="warn">🔴</span> 看空</td><td>0/4/1</td><td>-0.17</td><td>RSI83超买 + 布林上轨 + 量价顶背离 + 长期趋势闸门关闭</td></tr></tbody></table>
+<p>有效维度方向对比: 看多 3维 vs 看空 1维（1维分歧、2维数据不足）｜有效信号: 看多 22 vs 看空 18（44中性）。</p>
+<p class='para-multi'><strong>🀄 缠论结构</strong>（日线·结构增强·技术面参考）：中枢未形成（当前 2 笔），最近买卖点无（结构未确认），缠论置信度 75%。<br>（本期无买卖点触发）</p>
+<div class="key-block"><div class="key-tag">📌 技术面子项</div><div class="key-body">RSI(14)=83 超买；MACD +12.60 金叉；布林带 94% 上轨附近（上993/中925/下857）；20日区间 872~987；长期趋势闸门关闭（现价跌破 MA200，乖离 -0.9%）。<br>日内分时 SGE 现价 999.00（02:30 冻结，休市/盘外），现价位置 100% 区间上沿。</div></div>
+<div class="key-block"><div class="key-tag">📌 资金流明细</div><div class="key-body"></div></div>
+<ul><li>CFTC COT：<span class="warn">🔴</span> 非商业减仓 + 商业套保增加，多空一致看空 [moderate] -0.30</li><li>GLD ETF：<span class="ok">🟢</span> +4.28吨（+0.414%）至 1038.9吨 [strong] +0.80</li><li>投行共识：<span class="warn">🔴</span> 7家看空，平均目标价低于现价 [moderate] -0.60</li><li>COMEX 大户：<span class="ok">🟢</span> 多头集中度领先空头 7.0pp [weak] +0.15</li><li>jd资金炸弹：<span class="warn">🔴</span> 多41.7%/空58.3%（净空 -16.6pp，较前次净多+14.4pp 反转）[strong] -0.17</li><li>jd大V加仓榜：<span class="ok">🟢</span> top10 买入10/卖出0（100%买入）[strong] +0.60</li><li>13F：<span class="ok">🟢</span> 4家增持 vs 3家减持；Berkshire 增持 GDX 200万股</li></ul></div>
+<div class="section"><h2>3. Agent 博弈</h2>
+<p>🐮 <strong>BullAgent</strong>（信心 61%，建议仓位 49%）</p>
+<ul><li>✓ GLD 大幅流入 +4.28吨（+0.414%）至 1038.9吨，国际资金持续增配</li><li>✓ 央行 Q2 2026 净购金 289吨（同比+62%），结构性需求强劲</li><li>✓ 德国 ZEW 34.2 超预期，欧元区 risk-on 改善（[verified:T2 Newsquawk/Reuters]，评分+0.77）</li></ul>
+<p>🐻 <strong>BearAgent</strong>（信心 39%，建议仓位 31%）</p>
+<ul><li>✗ 投行共识看空：7家看空，平均目标价低于现价（-0.60）</li><li>✗ 实际利率上升：10Y 实际利率 2.20%，MA5&gt;MA20，利空黄金（-1.00）</li><li>✗ 初请失业金 20.6万低于预期，劳动力走强反向偏鹰，当日被财政部回购对冲金价仍涨 0.9%（[verified:T1]，-0.70）</li></ul>
+<p>💼 <strong>PM</strong>（原始观望→观望，仓位 0%）</p>
+<ul><li>原因：弱信号（score=+0.12, conf=62%, pos=0%），无持仓→观望；3维看多 vs 1维看空（1分歧/2不足），信号不足以支撑方向性操作</li><li>散户温度计：中性（情绪面+0.38 vs 聪明钱+0.02）——散户行为与聪明钱分歧，以驱动链+纪律线为准</li></ul></div>
+<div class="section"><h2>4. 军规自查</h2>
+<p class='para-multi'>通过 34/35 <span class="warn">⚠️</span> r030 永远给自己留安全边际：未明确安全边际，本次为现金储备（100% 现金空仓，安全边际=现金缓冲）+ 承接档止损纪律，已在决策摘要与条件单中体现。<br>（其余 r001-r035 全部通过，含 r032 净口径、r033 温和数据禁加仓、r034 震荡止盈、r035 传导链完整性）</p>
+<p>关键判定：</p>
+<ul><li>r001/r002 <span class="ok">✅</span> 空仓，远在限额内</li><li>r004 <span class="ok">✅</span> 数据前不重仓：伊朗 monitor（今日 15:35 北京）+ L1 评估（8/23）前避免新建 &gt;10% 仓位</li><li>r011 <span class="ok">✅</span> 技术面单边看空但其他维度未同步，未触发一边倒警戒</li><li>r023 <span class="ok">✅</span> 空仓视角：当前价 996.90 处超买区，不会在此价追买</li><li>r028 <span class="ok">✅</span> 新建仓须分批：960/945 两档已分档，符合</li><li>r030 <span class="warn">⚠️</span> 安全边际未显式声明，本次以现金储备作为缓冲</li></ul></div>
+<div class="section"><h2>5. Munger 模型</h2>
+<ul><li><strong>错误衡量易得性倾向</strong>: 伊朗威胁新闻（今日新增，[unverified]）生动、近期、情绪化，易被高估其影响。应以多源交叉验证+概率化看待，而非因单条威胁快讯就追涨。</li><li><strong>避蠢优于求智</strong>: 空仓状态不做蠢事的成本远低于做错。弱信号（+0.12）下强行开仓=违背「减少错误优于增加正确」。当前最优动作是什么都不做，等信号或承接档。</li><li><strong>延迟效应</strong>: 美联储加息的全面影响需 12-18 个月显现。9/9 国债回购的真实利率传导有滞后，短期勿因利率数据剧烈反应；同样二阶鹰派风险也需时间兑现。</li></ul></div>
+<div class="section"><h2>6. 画像匹配</h2>
+<p><span class="ok">✅</span> 兼容</p>
+<ul><li>风险画像 balanced、持仓周期 1-3 年：匹配观望决策</li><li>当前黄金占比 0%（上限 80%）、建议仓位 0%：均在限额内 <span class="ok">✅</span></li><li>单品种上限 20%：若 960×15g + 945×20g = 35g ≈ 3.4 万元 ≈ 17%，两档合计未超单笔上限（各档独立均 &lt;5% 总资金，符合 V9 低吸铁律）</li><li>约束说明：空仓状态无硬止损压力，建仓后须挂止损（r014）</li></ul></div>
+<div class="section"><h2>7. 条件单审查</h2>
+<ul><li>co_20260820_002 保留 — 960×15g 浅回调档（贴近5日线957），r028 第一档，承接区间合理；当前价 996.90 距触发价 3.7%，短期不易触发但保留承接价值</li><li>co_20260820_003 保留 — 945×20g 深度档（10日线952/8/18低点946.66区间），r028 第二档；若触发仓位≈9.5%，PCE(8/26) 前暂停追加（r004 已由 monitor 约束）</li></ul>
+<p class='para-multi'><span class="warn">⚠️</span> 补充：当前价 996.90 处超买区（RSI 83），若伊朗威胁降温+溢价回吐，960/945 两档有实际触发可能；若 L1 上破确认（8/23 评估，三关已齐但 Kelly 门槛 64%&lt;65% 未过），960/945 可能永不触发，届时按 monitor「金价站稳980→上破确认→承接档重估」重估建仓档位，禁止追涨。<br>两单均保留，到期 2026-09-10。</p></div>
+<div class="section"><h2>8. 后续关注</h2>
+<ul><li>观测: 伊朗地缘威胁(8/22)→升级/缓和路由：今日 15:35 北京（r004 数据前不重仓）</li><li>观测: L1三关齐后试盘放行评估：8/23 22:00 北京（Bull置信度≥65% + kelly≥15% + GLD/COT同向才放行试盘）</li><li>全球 Flash PMI(8月)：8/24 15:15 北京</li><li>核心 PCE 物价指数：8/26 20:30 北京（重要）</li><li>杰克逊霍尔沃什主旨演讲：8/28 21:00 北京（二阶鹰派风险催化剂）</li><li>ISM 制造业/服务业 PMI：9/1、9/2 22:00 北京</li><li>非农就业：9/4 20:30 北京</li></ul></div>
+<div class="section"><h2>9. 📚 经验提醒</h2>
+<ul><li>报告维度表 1:1 引用 2026-08-22 13:29 scan 程序化表（7 行），未手工计数</li><li>当前空仓：无 ATR 移动止盈持仓保护需求；新建仓后须重算 ATR 止损位（当前 ATR 移动止盈位 977.86 / 14日ATR 7.62 作为参考）</li><li>消息面地缘新闻标 [unverified]（Sputnikglobe/单源），未多源交叉，仅作方向参考不作事实引用</li></ul></div>
+<footer>AI Gold Miner · 青蚨 · 仅供个人投资决策参考</footer>
+</div>
+</body>
+</html>
