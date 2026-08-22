@@ -13,8 +13,14 @@
 #   REUSE_MODE|data/output/scan_report_YYYYMMDD.md|AGE=Ns|LATEST_PRICE=997.10   (或 RERUN_MODE|...)
 #   ASSEMBLE_OK|data/output/金价分析_YYYY-MM-DD.md   (或 ASSEMBLE_SKIP|... 当日报告已填充不覆盖)
 #   =====BUNDLE_START=====
-#   ### 报告骨架 / ### scan摘要 / ### 持仓 / ### 活跃条件单
+#   ### 报告骨架                                        (全模式)
+#   ### scan摘要 / ### 持仓 / ### 活跃条件单              (仅全量 bundle: RERUN / 未填充 REUSE)
 #   =====BUNDLE_END=====
+#
+# P6 (2026-08-22 提速): ①ASSEMBLE_SKIP 用轻量 bundle(仅骨架 — 已填充报告已含 portfolio/条件单/摘要结论, 省~170行≈4-5k token)
+#                       ②python 单进程化: REUSE 补价+组装合一个 heredoc; digest 并入 assemble 全量(main 内写)
+#                       ③REUSE SKIP 不刷 digest (scan_report 未变 → digest 是其确定性产物, 刷新=白耗一次冷启动)
+#                         ※ RERUN+SKIP 仍刷 digest: scan_report 是新的, digest 必须跟踪
 #
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -24,18 +30,17 @@ THRESHOLD=10800  # 3h 复用窗口
 ANALYSIS="data/output/金价分析_$(date +%F).md"
 
 run_assemble() {
-  # scan 摘要(技术面/聪明钱明细)无条件刷新: ASSEMBLE_SKIP(当日报告已填充)时骨架不重建, 但摘要须更新。
-  # REUSE 场景 LLM 只读 骨架+摘要 双文件, 不再读 420 行 scan_report 全文(2026-08-22 提速P4)
-  python3 scripts/assemble_report.py --digest-only 2>/dev/null || true
-  # 已填充的当日报告不覆盖（无占位符 = LLM 已完成增量填充）；
-  # 强制重建用 ASSEMBLE_FORCE=1
+  # RERUN 路径专用: scan_report 是新的 → digest 必须跟着刷新（SKIP 时也刷, 与骨架解耦）。
+  # digest 已并入全量组装（main 内顺带写）, 全量时不再第二次冷启动；仅 SKIP 分支单独 --digest-only。
+  # 已填充的当日报告不覆盖（无占位符 = LLM 已完成增量填充）；强制重建用 ASSEMBLE_FORCE=1
   if [ -f "$ANALYSIS" ] && [ -z "${ASSEMBLE_FORCE:-}" ]; then
     if ! grep -q "LLM 增量填充\|LLM 补充" "$ANALYSIS"; then
+      python3 scripts/assemble_report.py --digest-only 2>/dev/null || true
       echo "ASSEMBLE_SKIP|${ANALYSIS}|当日报告已填充，不覆盖（强制重建: ASSEMBLE_FORCE=1）"
       return 0
     fi
   fi
-  python3 scripts/assemble_report.py
+  python3 scripts/assemble_report.py && echo "ASSEMBLE_OK|${ANALYSIS}"
 }
 
 emit_bundle() {
@@ -58,17 +63,63 @@ emit_bundle() {
   echo "=====BUNDLE_END====="
 }
 
+emit_bundle_light() {
+  # P6: ASSEMBLE_SKIP 轻量 bundle — 已填充报告已含 portfolio/条件单/维度结论,
+  # 只 cat 骨架(终端重发报告的唯一数据源), 省 ~170 行 ≈ 4-5k token/轮。
+  local day
+  day=$(date +%F)
+  echo "=====BUNDLE_START====="
+  echo "### 报告骨架: data/output/金价分析_${day}.md (已填充, 轻量bundle)"
+  cat "data/output/金价分析_${day}.md" 2>/dev/null || echo "(骨架不存在)"
+  echo "=====BUNDLE_END====="
+}
+
 if [ -z "${FORCE_SCAN:-}" ] && [ -f "$REPORT" ]; then
   MTIME=$(stat -f %m "$REPORT")
   AGE=$(( $(date +%s) - MTIME ))
   if [ "$AGE" -lt "$THRESHOLD" ]; then
-    # 复用模式：补一次单点最新价（秒级，JdAccumulationGoldFetcher 免登录）
-    PRICE=$(PYTHONPATH=src python3 -c \
-      "from gold_miner.data.jd_accumulation_gold import JdAccumulationGoldFetcher as F; p=F(bank='MS').fetch_price(); print(p.price if p else '')" \
-      2>/dev/null || echo "")
+    # 已填充判定提前（纯 grep, 零 python 冷启动）：SKIP 时只补价 + 轻量 bundle
+    FILLED=0
+    if [ -z "${ASSEMBLE_FORCE:-}" ] && [ -f "$ANALYSIS" ] && ! grep -q "LLM 增量填充\|LLM 补充" "$ANALYSIS"; then
+      FILLED=1
+    fi
+    # 单 python 进程：补最新价 (+ 未填充时顺带 digest+组装+增量基准, 与 RERUN 同一 main)
+    OUT=$(QS_FILLED="$FILLED" PYTHONPATH="src:scripts" python3 - <<'PYEOF' || printf 'LATEST_PRICE=N/A\nASSEMBLE_RC=1\n'
+import contextlib, io, os, sys
+
+# 1) 补最新价（REUSE 唯一网络动作；loguru/SSL 噪声收掉, stdout 只留结构化行）
+try:
+    with contextlib.redirect_stderr(io.StringIO()):
+        from gold_miner.data.jd_accumulation_gold import JdAccumulationGoldFetcher as F
+        p = F(bank="MS").fetch_price()
+    print(f"LATEST_PRICE={p.price if p else 'N/A'}")
+except Exception:
+    print("LATEST_PRICE=N/A")
+
+# 2) 未填充时才组装（已填充: scan_report 未变, 摘要/骨架是其确定性产物, 刷新=白耗冷启动）
+if os.environ.get("QS_FILLED") != "1":
+    try:
+        import assemble_report as ar
+        rc = ar.main([])   # 全量: digest + 骨架 + 增量基准刷新
+        print(f"ASSEMBLE_RC={rc}")
+    except Exception as e:
+        print("ASSEMBLE_RC=1")
+        print(f"⚠️ assemble 失败: {e}", file=sys.stderr)
+PYEOF
+)
+    PRICE=$(printf '%s\n' "$OUT" | sed -n 's/^LATEST_PRICE=//p' | tail -n1)
     echo "REUSE_MODE|$REPORT|AGE=${AGE}s|LATEST_PRICE=${PRICE:-N/A}"
-    run_assemble
-    emit_bundle
+    if [ "$FILLED" = "1" ]; then
+      echo "ASSEMBLE_SKIP|${ANALYSIS}|当日报告已填充，不覆盖（强制重建: ASSEMBLE_FORCE=1）"
+      emit_bundle_light
+    else
+      if printf '%s\n' "$OUT" | grep -q '^ASSEMBLE_RC=0'; then
+        echo "ASSEMBLE_OK|${ANALYSIS}"
+      else
+        echo "ASSEMBLE_FAIL|${ANALYSIS}|assemble 异常, 骨架可能未更新"
+      fi
+      emit_bundle
+    fi
     exit 0
   fi
 fi

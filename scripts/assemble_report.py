@@ -497,7 +497,12 @@ def main(argv: list[str] | None = None) -> int:
     else:
         out_path = OUTPUT_DIR / f"金价分析_{datetime.now().strftime('%Y-%m-%d')}.md"
 
-    assemble(scan_path.read_text(encoding="utf-8"), out_path)
+    scan_text = scan_path.read_text(encoding="utf-8")
+    # digest 与骨架同源同进程顺带刷新 (P6 2026-08-22: 消灭 quick_scan 全量路径里
+    # --digest-only 的第二次 python 冷启动; digest 是 scan_text 的确定性产物)
+    digest_path = OUTPUT_DIR / f"scan_digest_{datetime.now().strftime('%Y-%m-%d')}.md"
+    write_digest(scan_text, digest_path)
+    assemble(scan_text, out_path)
     # 每次全量分析后刷新增量判断基准 (问题#2/4: 增量引擎永远基于最新全量分析)
     try:
         from gold_miner.incremental.judge import seed_baseline_from_scan, load_state, save_state
