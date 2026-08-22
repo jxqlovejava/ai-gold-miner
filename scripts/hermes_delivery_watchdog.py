@@ -185,10 +185,16 @@ def main() -> int:
             continue  # 太旧的失败不补 (内容已过时)
 
         key = f"{job_id}:{today}"
-        attempts = state.get(key, {}).get("attempts", 0)
-        retried_runs = state.get(key, {}).get("retried_runs", [])
+        st = state.get(key, {})
+        attempts = st.get("attempts", 0)
+        retried_runs = st.get("retried_runs", [])
         if m.group(1) in retried_runs or attempts >= args.max_retries:
             continue
+        # 待重试: 本次 run 补发失败过 (attempts>0) 但未到上限 → 熔断恢复后跨窗口重试,
+        # 不被 age>window 丢弃 (2026-08-22 修复: 熔断2h+窗口45min 矛盾导致失败消息永久丢失).
+        is_pending = attempts > 0 and attempts < args.max_retries
+        if age_min > args.window_min and not is_pending:
+            continue  # 太旧的失败不补 (除非是待重试消息)
 
         if args.dry_run:
             actions.append(f"🔍 [dry-run] {label}: {age_min:.0f}分钟前投递失败, 将补发")
