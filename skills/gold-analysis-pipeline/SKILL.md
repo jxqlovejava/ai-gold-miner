@@ -33,7 +33,7 @@ description: 黄金价格走势分析完整 pipeline - 启动批协议+输出铁
 9. **主驱动因素板块（2026-08-21 起）**：每次分析必须在决策摘要前输出「🔍 主驱动因素」--一句话第一性主驱动 + 驱动排序表（性质/传导链/可预见性）。判定方法：与价格拐点同日发生+传导链最短+有量价佐证的事件。当一阶与二阶传导方向相反时，**短期(1-2周)方向判定以一阶为准**，二阶只作催化剂日期前的风险标注（2026-08-20 清仓教训：用二阶加息风险否决一阶利率下行）。详见 docs/report_template.md §1a/§1a-2。
    - **披露 transmission_warnings**：若 pipeline `scenario_plan["transmission_warnings"]` 非空，报告必须逐条披露，不得省略。
 10. **报告骨架程序化组装 + 落盘校验再输出（2026-08-22 P2/P3，内化到程序，不靠记忆）**：
-    - **组装已内嵌 `quick_scan.sh`**（P3，2026-08-22）：scan/复用完成后自动跑 `assemble_report.py` 生成骨架到 `data/output/金价分析_YYYY-MM-DD.md`（提取 scan 的决策/维度表/军规/Munger/画像/博弈/后续关注/经验提醒 + portfolio 持仓 + active 条件单），LLM **只增量填充 3 个推理板块**：主驱动因素(§1.1)、目标区间(§1.2)、条件单审查(§7)。**通知到达时骨架已就绪，禁止再手动跑 assemble_report.py**（当日已填充报告会输出 `ASSEMBLE_SKIP` 不覆盖；强制重建用 `ASSEMBLE_FORCE=1 bash scripts/quick_scan.sh`）。
+    - **组装已内嵌 `quick_scan.sh`**（P3/P5，2026-08-22）：scan/复用完成后自动跑 `assemble_report.py` 生成骨架到 `data/output/金价分析_YYYY-MM-DD.md`（提取 scan 的决策/维度表/军规/Munger/画像/博弈/后续关注/经验提醒 + portfolio 持仓 + active 条件单），LLM **只增量填充 3 个推理板块**：主驱动因素(§1.1)、目标区间(§1.2)、条件单审查(§7)。**脚本返回时骨架已就绪（bundle 内），禁止再手动跑 assemble_report.py**（当日已填充报告会输出 `ASSEMBLE_SKIP` 不覆盖；强制重建用 `ASSEMBLE_FORCE=1 bash scripts/quick_scan.sh`）。
     - 🛡️ **Edit 回填防 dash 陷阱**：骨架占位符已全 ASCII/「无」（`止盈: 无`，无 em-dash「-」）。Edit old_string 必须**从 Read 输出逐字复制**，禁止手打 dash 类近形字（-/–/-/- 视觉相同但编码不同，匹配必失败）；连续 2 次 Edit 失败即改用 python 行号定位替换，不要反复试错（2026-08-22 事故：`Error editing file` 排障 1 轮）。
     - **补最新价**：REUSE 场景 quick_scan 返回 LATEST_PRICE，骨架行情引文用其覆盖 scan 价格（assemble_report.py 用 scan 报告内价格）。
     - **落盘**：骨架填充后用 `Write` 写入 `data/output/金价分析_YYYY-MM-DD.md`--PostToolUse hook（`.claude/settings.json`，matcher=Write）自动运行 `scripts/validate_report_format.py` 校验「板块间禁止独立 `---` 分隔线」（表格 `|---|` / frontmatter 除外）。校验失败（exit 2）hook 拦截并给出违规行号，删除 `---` 后重新 Write 直到通过，再输出终端。
@@ -47,14 +47,13 @@ description: 黄金价格走势分析完整 pipeline - 启动批协议+输出铁
 4. **scheduled_at 必须传 `datetime` 带时区** - `datetime(2026, 7, 21, 8, 0, 0, tzinfo=timezone(timedelta(hours=-4)))`
 5. **手动事件同步必读 `references/event-sync.md`** - 含日历写入铁律(1.5-1.10)、gold_bias 判定规则、8 步同步流程、`calendar_events.jsonl` 排除规则
 6. **深度新闻搜索 P0 主题必须全覆盖** - P0 列表与执行铁律见 `references/event-sync.md` §1.9
-7. **scan 启动批 + 零轮询 + 自动组装（2026-08-22 P3/P4，⏱ 核心）** - `scripts/quick_scan.sh` 是唯一网络长任务（复用判断->补最新价->重 scan->组装报告骨架+摘要，四合一）。启动批的**同一条消息**里，后台跑 `scripts/quick_scan.sh` + 把全部静态读取并行发出，脚本完成前必须读完。**全程只允许 3 轮工具调用**：①启动批（quick_scan.sh + 全部静态读取）-> ②Read 骨架+摘要（REUSE 场景 0 网络调用）-> ③Write 填充 3 板块 + 终端完整输出。
-   - ✅ **quick_scan.sh 自动分流**：当日报告 <3h -> 秒级返回 `REUSE_MODE|路径|AGE|LATEST_PRICE` + 自动组装骨架（`ASSEMBLE_OK|骨架路径`；当日已填充报告则 `ASSEMBLE_SKIP` 不覆盖）；报告缺失/≥3h -> 前台跑 scan（约15-25s），完成后同样自动组装骨架。**启动批无需手动 stat，禁止读旧报告**。
-   - ⚡ **骨架+摘要双文件模式（P4，2026-08-22）**：LLM 数据源 = `data/output/金价分析_YYYY-MM-DD.md`（骨架：决策/维度表/军规/Munger/画像/博弈/条件单/后续关注）+ `data/output/scan_digest_YYYY-MM-DD.md`（摘要：技术面/聪明钱明细/缠论/分时/ATR，assemble_report.py --digest-only 自动生成，quick_scan.sh 无条件刷新含 ASSEMBLE_SKIP 场景）。启动批第①轮**直接并行 Read 这两个文件**（路径确定已知），文件不存在（RERUN 场景或骨架未组装完）则等通知后第②轮重读。**🚫 禁止 Read scan_report_YYYYMMDD.md 全文**（420 行 ≈12k token/轮，骨架+摘要 ≈5k token 已覆盖全部所需，这是 2026-08-22 P4 提速核心）。启动批静态读取只留 portfolio.yaml（必读全文）+ conditional_orders（active grep），画像/personal_rules/V9/doctrine/report_template 全部不读（骨架已含其结论）。
-   - 🛡️ **scan 报告原子写入**：`scan --report-file` 先写 `.tmp` 成功后才 rename 落盘；quick_scan.sh 重跑前会把陈旧报告移到 `.stale`。因此启动批并行 Read 只有两种结果：**文件存在（完整内容）或文件不存在（RERUN）**。若读到「文件不存在」：**直接等任务通知即可，禁止 ls/wc/cat/date 探测文件进度**（事故：2026-08-22 连环 4 轮排障浪费 ~2min）。
-   - 🧠 **思考深度分配（P4，2026-08-22）**：轮①（启动批发出+状态汇报）与轮②（读取骨架/摘要）用**最短思考**--直接输出，不展开推理链；仅轮③填充主驱动/目标区间/条件单审查 3 个推理板块时正常推理。每轮推理时间 ∝ 上下文 token 量，状态轮深思考 = 纯浪费（实测：3 轮各 20-25s 推理占全程 ~92%）。
-   - ❌ 禁止把预读拆成多轮串行 -- 每轮模型思考+往返 = 时间黑洞（事故：2026-08-22 多耗 ~2min）
-   - ❌ 禁止 `tail` 读后台输出文件（管道缓冲读到空 = 纯浪费一轮）
-   - ❌ 禁止显式 `TaskOutput` 阻塞等待 - 后台任务完成自动推送通知，靠通知驱动下一步
+7. **单轮取数协议（2026-08-22 P5，⏱ 核心）** - `bash scripts/quick_scan.sh` **前台**一条 Bash 调用拿齐全部数据：复用判断->补最新价->重 scan->组装骨架+摘要->**末尾 bundle 输出**（`=====BUNDLE_START=====` 内：骨架/摘要/portfolio/active 条件单）。**全程 2 轮模型调用**：①前台跑 quick_scan.sh（REUSE ~6s / RERUN ~15-30s，纯工具时间）-> ②推理填充 3 板块 + Write 落盘（hook 校验通过）+ 终端完整输出。仅 Write 校验失败才有轮③修复。
+   - ✅ **quick_scan.sh 自动分流**：当日报告 <3h -> 秒级返回 `REUSE_MODE|路径|AGE|LATEST_PRICE`；缺失/≥3h -> 前台重 scan。两种模式末尾都输出 bundle，骨架/摘要组装自动完成（`ASSEMBLE_OK`/`ASSEMBLE_SKIP`）。
+   - 🕐 **强制重 scan**：价格剧变（bundle 价格 vs LATEST_PRICE 跳变 >1%）或用户明确要最新 -> `FORCE_SCAN=1 bash scripts/quick_scan.sh`（仍单轮拿数）。
+   - 🚫 **禁止后台跑 + 通知驱动**（P3/P4 旧模式，3 轮推理各 20-25s；前台单轮省 1 轮推理 ~25s > RERUN 前台工具时间，REUSE 场景更优）。
+   - 🚫 **禁止 Read scan_report 全文**（420 行 ≈12k token/轮；bundle 内骨架+摘要已覆盖全部所需）。
+   - 🧠 **思考深度分配**：轮①发命令用最短思考；仅轮②填充主驱动/目标区间/条件单审查时正常推理。每轮推理时间 ∝ 上下文 token 量（实测：旧 3 轮推理占全程 ~92%）。
+   - 事故史：多轮串行预读（多耗 ~2min）/ tail 后台输出 / 显式 TaskOutput 阻塞 / 4 轮排障探测文件进度 -- 均已随单轮协议消除。
 8. **重大事件先查日历复用（2026-08-21 起）** - 消息面捕获重大事件标 `[unverified]` 时，**先本地查 `data/calendar_events.jsonl`**（grep 事件名/主题词），若已有带多源验证的 actual 记录（如 `[verified: T2 多源]`），直接复用、跳过外部搜索；仅当日历缺失/过时才走定向搜索（模板见 `references/event-sync.md` §1.10）。
 9. **scan 完成后零深挖（2026-08-22 起，⏱ 提速核心）** - `gold-miner scan` 报告（`data/output/scan_report_YYYYMMDD.md`）是**唯一数据源**（LLM 通过骨架+摘要双文件消费其内容，见铁律 7，不读原文），已包含：全部 9 步结果、8 维信号表、军规自查（r001-r035）、Agent 博弈、Munger、画像匹配、三情景骨架（含 r035 传导链校验 ✅）。**scan 完成后禁止任何深挖**：
    - ❌ 不单独跑 `EarlyWarningEngine().check_recent_results()` / `get_active_monitors()` / `check_stale_events()` - scan 日志已输出「未记录:N | 活跃Monitor:N | Stale:N」，细节直接用 scan 报告或本地 grep `data/calendar_events.jsonl` 即可
@@ -81,26 +80,14 @@ description: 黄金价格走势分析完整 pipeline - 启动批协议+输出铁
 
 ## 1.0 启动批协议（唯一执行路径）
 
-**启动批 = 一条消息，禁止拆轮**：后台跑 `scripts/quick_scan.sh`（四合一：复用判断->补最新价->重 scan->组装骨架+摘要）的同时，把**全部**静态读取并行发出，脚本完成前读完。
+**启动批 = 一条前台 Bash**：`bash scripts/quick_scan.sh`（五合一：复用判断->补最新价->重 scan->组装骨架+摘要->bundle 输出全部数据）。stdout 即全部输入：模式行（`REUSE_MODE|RERUN_MODE` + `LATEST_PRICE` + `ASSEMBLE_*`）+ bundle（`=====BUNDLE_START=====` 内：骨架/摘要/portfolio/active 条件单）。**不要后台运行**（后台 = 通知驱动 = 多一轮推理，见铁律 7）。
 
-| 文件 | 用途 | 读取方式 |
-|------|------|---------|
-| `data/private/portfolio.yaml` | 持仓/成本/止损/卖出手续费 | Read（**唯一必读全文**） |
-| `data/private/conditional_orders.jsonl` | active 条件单 | grep `"status": "active"`（**独立成行**） |
-| `data/output/金价分析_YYYY-MM-DD.md` | 报告骨架（决策/维度表/军规/Munger/画像/博弈/条件单/后续关注） | **启动批直接 Read（赌已存在）** |
-| `data/output/scan_digest_YYYY-MM-DD.md` | scan 摘要（技术面/聪明钱明细/缠论/分时/ATR，推理用） | **启动批直接 Read（赌已存在）** |
-| `data/private/investor_profile.md` | 定性画像（长期不变） | 不读（骨架已含结论）；仅重大持仓决策时 grep |
-| `data/private/personal_rules.md` | p001-p014 纪律（长期不变） | 不读（同上） |
-| `data/private/active_plan_v9.md` | V9 三池/分批/S协议 | 不读（同上） |
-| `data/calendar_events.jsonl` | 近3天事件 + active monitor | 可选 grep（加 `| tail -8` 限行） |
+**轮②（唯一推理轮）**：bundle 数据已在上下文 -> 推理填充 3 个板块（主驱动 §1.1 / 目标区间 §1.2 / 条件单审查 §7）-> `Write` 落盘（hook 校验通过）-> 终端完整输出报告。REUSE 场景用 LATEST_PRICE 覆盖骨架内 scan 价格。
 
-> 🚫 **禁止 Read `scan_report_YYYYMMDD.md` 全文**（420 行 ≈12k token/轮）：骨架+摘要双文件 ≈5k token 已覆盖全部所需（P4 提速核心，2026-08-22）。
-
-> ⚠️ **grep 拆开 + 限行纪律**：`conditional_orders.jsonl` 的 grep 必须**独立成行**（~1KB，绝不与 `calendar_events.jsonl` 合并--calendar 有 20+ 个 active monitor，合并输出 32KB 被截断 -> 条件单没拿到 -> 被迫补读多花一轮）。calendar 类大文件 grep 一律加 `| tail -8` 限行。
-> ⚠️ **路径纪律**：静态文件统一在 `data/private/`（portfolio/画像/personal_rules/条件单）与 `docs/`（doctrine/report_template）。禁止凭记忆猜路径。
-> ⚠️ **收到 quick_scan 通知后不单独读 `.output` 文件**（只有 1-2 行 REUSE_MODE/ASSEMBLE_* 状态 + LATEST_PRICE），骨架/摘要已在①轮读入或此时补读。
-> 🕐 **强制重 scan 的触发**（即使报告 <3h）：启动批 grep 到金价刚剧烈波动（news monitor 刚触发/快讯跳变 >1%）、或用户明确要求最新--此时直接后台跑 `gold-miner scan --days 30 --news --sentiment`，不走 quick_scan.sh 的 REUSE 分支。
-> 🚀 **通知到达后唯一动作**：校验返回模式。REUSE -> 骨架+摘要已在①轮读入，直接进轮③（用 LATEST_PRICE 补价）；RERUN -> 第②轮 Read 骨架 + 摘要。**目标全程 ≤60s**。
+- 🚫 禁止 Read `scan_report_YYYYMMDD.md` 全文（420 行 ≈12k token；bundle 内骨架+摘要已覆盖全部所需）。
+- 画像 / personal_rules / V9 / doctrine / report_template **不读**（骨架已含结论，定性内容在 memory 缓存）。
+- 需要事件细节时本地 grep `data/calendar_events.jsonl`（加 `| tail -8` 限行，绝不与条件单 grep 合并）。
+- 强制重 scan：`FORCE_SCAN=1 bash scripts/quick_scan.sh`（价格剧变/用户要最新）。**目标全程 ≤60s（REUSE ≤40s）**。
 
 ## Pipeline 步骤总览
 

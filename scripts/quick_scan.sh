@@ -1,26 +1,21 @@
 #!/bin/bash
-# quick_scan.sh - 金价分析启动批的第一条命令：条件复用 + 补最新价 + 重跑 scan + 组装报告骨架 四合一
+# quick_scan.sh - 金价分析单轮取数命令：条件复用 + 补最新价 + 重跑 scan + 组装骨架/摘要 + bundle 输出 五合一
 #
-# 目标：把「分析总耗时压到 ≤60s」+ 消灭模型中转轮次。scan 网络任务(14-25s)是数据源核心成本，
-#       当日已有 <3h 的 scan 报告时直接复用 + 只补一次最新积存金价，跳过重 scan；
-#       scan/reuse 完成后自动跑 assemble_report.py 组装报告骨架（2026-08-22 P3 串联，
-#       省掉「模型生成 assemble 调用」的一整轮 ~15s）。
+# 目标：一次金价分析 = 2 轮模型调用。本脚本前台跑（P5, 2026-08-22），stdout 即 LLM 全部输入：
+#       模式行(REUSE/RERUN + LATEST_PRICE + ASSEMBLE_*) + bundle(骨架/摘要/portfolio/active条件单)。
+#       旧后台+通知驱动模式已废弃（3 轮推理各 20-25s > 前台工具时间，单轮省 1 轮推理）。
 #
-# 用法（主对话第①轮，run_in_background=true）：
-#   Bash(background): scripts/quick_scan.sh
+# 用法（主对话第①轮，前台运行，非后台）：
+#   Bash(前台): bash scripts/quick_scan.sh              # REUSE ~6s / RERUN ~15-30s
+#   Bash(前台): FORCE_SCAN=1 bash scripts/quick_scan.sh # 强制重 scan（价格剧变/用户要最新）
 #
-# 输出模式（.output 文件，供通知后校验）：
-#   REUSE_MODE|data/output/scan_report_YYYYMMDD.md|AGE=Ns|LATEST_PRICE=997.10
-#       -> 报告新鲜，直接读报告路径 + 用 LATEST_PRICE 补最新价，无需重 scan
-#   RERUN_MODE|data/output/scan_report_YYYYMMDD.md|...
-#       -> 报告缺失或 >3h，前台跑 scan（约15-25s），完成后任务通知
-#   ASSEMBLE_OK|data/output/金价分析_YYYY-MM-DD.md（骨架已生成，LLM 只填 3 个推理板块）
-#   ASSEMBLE_SKIP|data/output/金价分析_YYYY-MM-DD.md（当日报告已填充，不覆盖；
-#       强制重建: ASSEMBLE_FORCE=1 bash scripts/quick_scan.sh 或手动跑 assemble_report.py）
-#   副产物: data/output/scan_digest_YYYY-MM-DD.md（技术面/聪明钱明细摘要，供 LLM 推理，
-#       配合骨架双文件模式替代 scan_report 全文读取）
+# 输出结构（stdout）：
+#   REUSE_MODE|data/output/scan_report_YYYYMMDD.md|AGE=Ns|LATEST_PRICE=997.10   (或 RERUN_MODE|...)
+#   ASSEMBLE_OK|data/output/金价分析_YYYY-MM-DD.md   (或 ASSEMBLE_SKIP|... 当日报告已填充不覆盖)
+#   =====BUNDLE_START=====
+#   ### 报告骨架 / ### scan摘要 / ### 持仓 / ### 活跃条件单
+#   =====BUNDLE_END=====
 #
-# 配合铁律 7（2 轮工具调用）：第①轮发此脚本 + 全部静态读取；第②轮 Read 骨架直接填充输出。
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -43,7 +38,27 @@ run_assemble() {
   python3 scripts/assemble_report.py
 }
 
-if [ -f "$REPORT" ]; then
+emit_bundle() {
+  # P5 单轮取数协议(2026-08-22): 脚本完成后把 LLM 所需全部数据 cat 到 stdout,
+  # 模型一条前台 Bash 拿齐(骨架+摘要+portfolio+active条件单), 消灭后台通知驱动的中间推理轮。
+  local day
+  day=$(date +%F)
+  echo "=====BUNDLE_START====="
+  echo "### 报告骨架: data/output/金价分析_${day}.md"
+  cat "data/output/金价分析_${day}.md" 2>/dev/null || echo "(骨架不存在)"
+  echo ""
+  echo "### scan摘要: data/output/scan_digest_${day}.md"
+  cat "data/output/scan_digest_${day}.md" 2>/dev/null || echo "(摘要不存在)"
+  echo ""
+  echo "### 持仓: data/private/portfolio.yaml"
+  cat data/private/portfolio.yaml 2>/dev/null || echo "(portfolio不存在)"
+  echo ""
+  echo "### 活跃条件单"
+  grep '"status": "active"' data/private/conditional_orders.jsonl 2>/dev/null || echo "(无active条件单)"
+  echo "=====BUNDLE_END====="
+}
+
+if [ -z "${FORCE_SCAN:-}" ] && [ -f "$REPORT" ]; then
   MTIME=$(stat -f %m "$REPORT")
   AGE=$(( $(date +%s) - MTIME ))
   if [ "$AGE" -lt "$THRESHOLD" ]; then
@@ -53,10 +68,11 @@ if [ -f "$REPORT" ]; then
       2>/dev/null || echo "")
     echo "REUSE_MODE|$REPORT|AGE=${AGE}s|LATEST_PRICE=${PRICE:-N/A}"
     run_assemble
+    emit_bundle
     exit 0
   fi
 fi
-echo "RERUN_MODE|$REPORT|无新鲜报告(<3h)，执行scan（约15-25s，完成后任务通知）"
+echo "RERUN_MODE|$REPORT|无新鲜报告(<3h)，前台执行scan（约15-25s）"
 # 陈旧报告移开（.stale 后缀不匹配 scan_report_*.md glob，不会被 assemble_report 选中）：
 # scan 现为原子写入（tmp + rename），报告落盘前并行 Read 得到干净的「文件不存在」，
 # 而不是读到陈旧报告或半截文件（2026-08-22 事故修复）
@@ -67,3 +83,4 @@ fi
 # 注意: 不用 exec -- scan 完成后还要接着组装骨架（set -e: scan 失败则中止，不组装）
 gold-miner scan --days 30 --news --sentiment --report-file "$REPORT"
 run_assemble
+emit_bundle
