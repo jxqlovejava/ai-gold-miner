@@ -9,12 +9,14 @@
 from __future__ import annotations
 
 import re
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 from loguru import logger
 
 from gold_miner.compat import StrEnum
+from gold_miner.data.caching import DiskCache, TtlCache
 from gold_miner.data.news import NewsItem
 from gold_miner.data.source_tiers import _domain_matches, get_source_tier
 from gold_miner.proxy import get_proxied_client
@@ -47,6 +49,10 @@ class FactChecker:
     2. 多源交叉 — 同一事件关键词搜索，统计独立报道源数量
     3. 时间线合理 — 事件时间是否逻辑合理
     """
+
+    # 交叉验证结果缓存 (同 query 30min 内不重复搜索; 2026-08-22 提速: 新闻信号 13.3s→2-3s)
+    _cross_ref_mem = TtlCache(ttl_seconds=1800)    # 进程内加速
+    _cross_ref_disk = DiskCache(key="fact_check_cross_ref", ttl_seconds=1800)  # 跨进程 (scan 每次新进程)
 
     # 官方/权威信息源域名
     OFFICIAL_DOMAINS: set[str] = {
@@ -285,23 +291,25 @@ class FactChecker:
         if not query:
             return []
 
-        all_sources: list[str] = []
+        # 0. 缓存命中 (同事件 30min 内不重复搜索; 进程内 mem 优先, 跨进程 disk 兜底)
+        cached = self._load_cross_ref_cache(query)
+        if cached is not None:
+            return cached
 
-        # DuckDuckGo
+        # 1. DDG + Bing 并行搜索 (原串行: DDG 完成才 Bing, 每条新闻多等一倍; 2026-08-22 提速)
+        ddg_sources: list[str] = []
+        bing_sources: list[str] = []
         try:
-            ddg_sources = self._search_duckduckgo(query, max_results)
-            all_sources.extend(ddg_sources)
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                f_ddg = pool.submit(self._search_duckduckgo, query, max_results)
+                f_bing = pool.submit(self._search_bing, query, max_results)
+                ddg_sources = f_ddg.result() or []
+                bing_sources = f_bing.result() or []
         except Exception as e:
-            logger.debug(f"交叉验证 DDG 搜索失败: {e}")
+            logger.debug(f"交叉验证并行搜索异常: {e}")
+        all_sources = ddg_sources + bing_sources
 
-        # Bing
-        try:
-            bing_sources = self._search_bing(query, max_results)
-            all_sources.extend(bing_sources)
-        except Exception as e:
-            logger.debug(f"交叉验证 Bing 搜索失败: {e}")
-
-        # 去重: 同域名的只算一个源
+        # 2. 去重: 同域名的只算一个源
         unique_domains: set[str] = set()
         unique_sources: list[str] = []
         for src in all_sources:
@@ -310,16 +318,47 @@ class FactChecker:
                 unique_domains.add(domain)
                 unique_sources.append(src)
 
-        # 排除原新闻来源
+        # 3. 排除原新闻来源
         original_domain = self._extract_domain(item.url)
         filtered = [s for s in unique_sources
                     if self._extract_domain(s) != original_domain]
 
-        # 源链过滤：同一线索链的多个域名不算独立确认
+        # 4. 源链过滤：同一线索链的多个域名不算独立确认
         # 例如 i24NEWS 独家被 JPost 转载 → 两个域名实际引用同一匿名源
         filtered = self._filter_chain_sources(filtered, original_domain)
 
-        return filtered[:max_results]
+        result = filtered[:max_results]
+        self._save_cross_ref_cache(query, result)
+        return result
+
+    @classmethod
+    def _load_cross_ref_cache(cls, query: str) -> list[str] | None:
+        """读交叉验证缓存 (进程内 mem → 跨进程 disk)."""
+        mem = cls._cross_ref_mem.get()
+        if isinstance(mem, dict) and query in mem:
+            return mem[query]
+        disk = cls._cross_ref_disk.get()
+        if isinstance(disk, dict) and query in disk:
+            # 回填进程内, 加速同进程后续命中
+            cls._cross_ref_mem.set(disk)
+            return disk[query]
+        return None
+
+    @classmethod
+    def _save_cross_ref_cache(cls, query: str, result: list[str]) -> None:
+        """写交叉验证缓存; 空结果不写 (避免缓存失败态)."""
+        if not result:
+            return
+        mem = cls._cross_ref_mem.get() or {}
+        mem = {**mem, query: result}
+        if len(mem) > 200:
+            mem = dict(list(mem.items())[-200:])
+        cls._cross_ref_mem.set(mem)
+        disk = cls._cross_ref_disk.get() or {}
+        disk = {**disk, query: result}
+        if len(disk) > 500:
+            disk = dict(list(disk.items())[-500:])
+        cls._cross_ref_disk.set(disk)
 
     def _detect_conflict(self, item: NewsItem, cross_sources_texts: list[str]) -> bool:
         """检测交叉源中是否存在与新闻核心主张明显矛盾的内容.
