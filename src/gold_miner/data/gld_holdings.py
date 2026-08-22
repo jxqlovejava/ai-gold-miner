@@ -130,15 +130,28 @@ class GldHoldingsFetcher(DataFetcher):
         self,
         start: datetime | None = None,
         end: datetime | None = None,
+        force_refresh: bool = False,
         **kwargs: Any,
     ) -> pd.DataFrame:
         """下载并解析 GLD 历史持仓数据 (进程内 TTL 缓存 + 数据库优先复用).
 
+        force_refresh=True (盘前预热 cron 用): 绕过全部缓存强制下载最新,
+        成功后回填双层缓存; 下载失败回退 DB, 不返回空。
+
         返回 DataFrame 列：timestamp, value（吨）, nav_per_share, shares_volume
         """
-        full = self._fetch_cache.get_or(
-            lambda: self._disk_cache.get_or(self._load_holdings)
-        )
+        if force_refresh:
+            # 注意: DataFrame 不能参与 or 短路 (真值歧义), 显式判 None
+            full = self._download_and_parse()
+            if full is None:
+                full = self._from_db()
+            if full is not None:
+                self._fetch_cache.set(full)
+                self._disk_cache.set(full)
+        else:
+            full = self._fetch_cache.get_or(
+                lambda: self._disk_cache.get_or(self._load_holdings)
+            )
         if full is None:
             logger.debug("GLD 持仓数据不可用")
             return pd.DataFrame(columns=["timestamp", "value", "nav_per_share", "shares_volume"])
