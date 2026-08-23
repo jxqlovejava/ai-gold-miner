@@ -213,6 +213,10 @@ class AnySearchFetcher:
 class SearchEngineFetcher:
     """使用搜索引擎直接抓取新闻 — 无需 API key."""
 
+    # ponytail: 进程级熔断——单主题 2 次超时=网络不可达，后续主题直接跳过
+    # (2026-08-23 事故: 8 主题串行各重试2次×12s 白耗 ~186s 零产出)
+    _ddg_circuit_open = False
+
     _HEADERS = {
         "User-Agent": (
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -223,12 +227,15 @@ class SearchEngineFetcher:
     }
 
     def fetch_from_duckduckgo(self, query: str, max_results: int = 10) -> list[NewsItem]:
-        """从 DuckDuckGo 抓取搜索结果（带重试）."""
+        """从 DuckDuckGo 抓取搜索结果（带重试+进程级熔断）."""
+        if SearchEngineFetcher._ddg_circuit_open:
+            return []
         url = f"https://duckduckgo.com/html/?q={query.replace(' ', '+')}"
         # DuckDuckGo 在本环境频繁超时，使用较短超时和较少重试
+        saw_network_error = False
         for attempt in range(2):
             try:
-                resp = fallback_get(url, headers=self._HEADERS, timeout=10)
+                resp = fallback_get(url, headers=self._HEADERS, timeout=5)
                 if _should_retry_status(resp.status_code):
                     if attempt < 1:
                         logger.warning(f"DuckDuckGo 返回 {resp.status_code}，即将重试")
@@ -238,11 +245,15 @@ class SearchEngineFetcher:
             except Exception as e:
                 if not _is_retryable_error(e):
                     break
+                saw_network_error = True
                 if attempt < 1:
                     logger.warning(f"DuckDuckGo抓取失败 (尝试 {attempt + 1}/2): {e}, 即将重试")
                     _sleep_backoff(attempt)
                 else:
                     logger.warning(f"DuckDuckGo抓取失败 (尝试 {attempt + 1}/2): {e}")
+        if saw_network_error:
+            SearchEngineFetcher._ddg_circuit_open = True
+            logger.warning("DuckDuckGo 连续网络失败，本轮后续查询熔断跳过")
         return []
 
     def fetch_from_bing(self, query: str, max_results: int = 10) -> list[NewsItem]:
