@@ -51,6 +51,7 @@ description: 黄金价格走势分析完整 pipeline - 启动批协议+输出铁
 6. **深度新闻搜索 P0 主题必须全覆盖** - P0 列表与执行铁律见 `references/event-sync.md` §1.9
 7. **单轮取数协议（2026-08-22 P5，⏱ 核心）** - `bash scripts/quick_scan.sh` **前台**一条 Bash 调用拿齐全部数据：复用判断->补最新价->重 scan->组装骨架+摘要->**末尾 bundle 输出**（`=====BUNDLE_START=====` 内：骨架/摘要/portfolio/active 条件单；**P6：ASSEMBLE_SKIP 时轻量 bundle 仅骨架**，已填充报告已含其余结论，省 ~170 行 ≈4-5k token）。**全程 2 轮模型调用**：①前台跑 quick_scan.sh（P6 后 REUSE+SKIP ~1s / RERUN ~15-30s，纯工具时间）-> ②推理填充 3 板块 + Write 落盘（hook 校验通过）+ cat 直出展示（P7 禁复述，见输出铁律 10）。仅 Write 校验失败才有轮③修复。
    - ✅ **quick_scan.sh 自动分流**：当日报告 <3h -> 秒级返回 `REUSE_MODE|路径|AGE|LATEST_PRICE`；缺失/≥3h -> 前台重 scan。两种模式末尾都输出 bundle，骨架/摘要组装自动完成（`ASSEMBLE_OK`/`ASSEMBLE_SKIP`）。
+   - 💾 **bundle 落盘（P8，2026-08-23）**：bundle 同步写 `data/private/.last_bundle.txt`（含 portfolio/条件单私密数据 → 走 gitignored 路径，禁放 data/output/ 被跟踪目录）。stdout 超限被持久化时**直接 Read 该文件**，禁对持久化文件 grep/awk 定位（省 1 轮推理 ≈1min）。
    - 🕐 **强制重 scan**：价格剧变（bundle 价格 vs LATEST_PRICE 跳变 >1%）或用户明确要最新 -> `FORCE_SCAN=1 bash scripts/quick_scan.sh`（仍单轮拿数）。
    - 🚫 **禁止后台跑 + 通知驱动**（P3/P4 旧模式，3 轮推理各 20-25s；前台单轮省 1 轮推理 ~25s > RERUN 前台工具时间，REUSE 场景更优）。
    - 🚫 **禁止 Read scan_report 全文**（420 行 ≈12k token/轮；bundle 内骨架+摘要已覆盖全部所需）。

@@ -16,6 +16,8 @@
 #   ### 报告骨架                                        (全模式)
 #   ### scan摘要 / ### 持仓 / ### 活跃条件单              (仅全量 bundle: RERUN / 未填充 REUSE)
 #   =====BUNDLE_END=====
+#   bundle 同步落盘 data/private/.last_bundle.txt (P8, 2026-08-23): 下一轮直接 Read 该文件,
+#   免对超限持久化输出 grep/awk 定位抽取（省 1 轮推理 ≈1min）。含私密数据 → 必须 gitignored 路径。
 #
 # P6 (2026-08-22 提速): ①ASSEMBLE_SKIP 用轻量 bundle(仅骨架 — 已填充报告已含 portfolio/条件单/摘要结论, 省~170行≈4-5k token)
 #                       ②python 单进程化: REUSE 补价+组装合一个 heredoc; digest 并入 assemble 全量(main 内写)
@@ -29,6 +31,7 @@ REPORT="data/output/scan_report_$(date +%Y%m%d).md"
 THRESHOLD=10800  # 3h 复用窗口
 ANALYSIS="data/output/金价分析_$(date +%F).md"
 STEPS="data/output/scan_steps_$(date +%F).md"
+BUNDLE_OUT="data/private/.last_bundle.txt"  # P8: bundle 落盘(含 portfolio/条件单私密数据 → gitignored 路径)
 
 # 步骤进度提取（2026-08-23 用户选定折中模式：步骤进度 + cat 直出报告）
 # scan 日志(44KB+)不再直打终端(超限折叠用户看不到)，收进 .log 文件, 提取 [N/9]+⏱Step+关键结论行
@@ -59,6 +62,7 @@ emit_bundle() {
   # 模型一条前台 Bash 拿齐(骨架+摘要+portfolio+active条件单), 消灭后台通知驱动的中间推理轮。
   local day
   day=$(date +%F)
+  {
   echo "=====BUNDLE_START====="
   echo "### 报告骨架: data/output/金价分析_${day}.md"
   cat "data/output/金价分析_${day}.md" 2>/dev/null || echo "(骨架不存在)"
@@ -72,6 +76,7 @@ emit_bundle() {
   echo "### 活跃条件单"
   grep '"status": "active"' data/private/conditional_orders.jsonl 2>/dev/null || echo "(无active条件单)"
   echo "=====BUNDLE_END====="
+  } | tee "$BUNDLE_OUT"
 }
 
 emit_bundle_light() {
@@ -79,10 +84,12 @@ emit_bundle_light() {
   # 只 cat 骨架(终端重发报告的唯一数据源), 省 ~170 行 ≈ 4-5k token/轮。
   local day
   day=$(date +%F)
+  {
   echo "=====BUNDLE_START====="
   echo "### 报告骨架: data/output/金价分析_${day}.md (已填充, 轻量bundle)"
   cat "data/output/金价分析_${day}.md" 2>/dev/null || echo "(骨架不存在)"
   echo "=====BUNDLE_END====="
+  } | tee "$BUNDLE_OUT"
 }
 
 if [ -z "${FORCE_SCAN:-}" ] && [ -f "$REPORT" ]; then
