@@ -39,6 +39,7 @@ description: 黄金价格走势分析完整 pipeline - 启动批协议+输出铁
     - **落盘**：骨架填充后用 `Write` 写入 `data/output/金价分析_YYYY-MM-DD.md`--PostToolUse hook（`.claude/settings.json`，matcher=Write）自动运行 `scripts/validate_report_format.py` 校验「板块间禁止独立 `---` 分隔线」（表格 `|---|` / frontmatter 除外）。校验失败（exit 2）hook 拦截并给出违规行号，删除 `---` 后重新 Write 直到通过，再按下方 cat 直出展示。
     - **📺 cat 直出（P7，2026-08-23，⏱ 省 60-90s/轮）**：终端展示**禁止模型复述报告全文**——落盘后（或 REUSE+SKIP 时报告已在盘上）用 `cat data/output/金价分析_YYYY-MM-DD.md` 工具输出直接展示全文。模型自己的终端文本只保留：决策一句话 + 价格校验结论（LATEST_PRICE vs 报告价格，一致就一句「价格无变化」，跳变 >1% 走 FORCE_SCAN）+ 条件单变动说明（如有）。复述 = 同一内容生成两遍（Write 参数 ~5k + 终端 ~5k ≈ 10k token ≈ 60-90s），REUSE+SKIP 场景更是零变更白生成一遍。cat 输出=完整全文到控制台，不违反输出铁律 1/2（铁律 2 禁的是「只给摘要」，cat 是全文；代价仅是终端表格不渲染，用户已选定此模式，切回=删除本条）。
     - **禁止绕过**：不手写整份报告（assemble_report.py 已生成 90% 程序化板块）；不绕过落盘校验直接手写终端文本（cat 直出不属绕过--展示的是已校验落盘文件本身）--绕过=失去程序校验=靠记忆约束，即 2026-08-22 复发根因。手动复跑：`python3 scripts/validate_report_format.py --file data/output/金价分析_YYYY-MM-DD.md`。
+    - **📶 步骤进度（2026-08-23 用户选定折中模式）**：终端展示顺序 = 模式行 → **步骤进度** → bundle → 模型填充/决策 → cat 报告。步骤进度由 quick_scan.sh 程序化生成（`data/output/scan_steps_YYYY-MM-DD.md`：scan 日志收进 `.scan_log_*.log` 防 44KB 折叠，提取 `[N/9]`标题+`⏱ Step`耗时+关键结论行），RERUN 时生成、REUSE 时复用，模型直接转贴不重写。
 
 ## 铁律
 

@@ -28,6 +28,17 @@ cd "$(dirname "$0")/.."
 REPORT="data/output/scan_report_$(date +%Y%m%d).md"
 THRESHOLD=10800  # 3h 复用窗口
 ANALYSIS="data/output/金价分析_$(date +%F).md"
+STEPS="data/output/scan_steps_$(date +%F).md"
+
+# 步骤进度提取（2026-08-23 用户选定折中模式：步骤进度 + cat 直出报告）
+# scan 日志(44KB+)不再直打终端(超限折叠用户看不到)，收进 .log 文件, 提取 [N/9]+⏱Step+关键结论行
+emit_steps() {
+  if [ -f "$STEPS" ]; then
+    echo "### 步骤进度: $STEPS"
+    cat "$STEPS"
+    echo ""
+  fi
+}
 
 run_assemble() {
   # RERUN 路径专用: scan_report 是新的 → digest 必须跟着刷新（SKIP 时也刷, 与骨架解耦）。
@@ -109,6 +120,7 @@ PYEOF
 )
     PRICE=$(printf '%s\n' "$OUT" | sed -n 's/^LATEST_PRICE=//p' | tail -n1)
     echo "REUSE_MODE|$REPORT|AGE=${AGE}s|LATEST_PRICE=${PRICE:-N/A}"
+    emit_steps
     if [ "$FILLED" = "1" ]; then
       echo "ASSEMBLE_SKIP|${ANALYSIS}|当日报告已填充，不覆盖（强制重建: ASSEMBLE_FORCE=1）"
       emit_bundle_light
@@ -132,6 +144,12 @@ if [ -f "$REPORT" ]; then
 fi
 # --report-file: scan 输出 tee 到 scan_report 文件 (P2 assemble_report.py 依赖最新 scan_report)
 # 注意: 不用 exec -- scan 完成后还要接着组装骨架（set -e: scan 失败则中止，不组装）
-gold-miner scan --days 30 --news --sentiment --report-file "$REPORT"
+# 2026-08-23: scan stdout(44KB+ 日志) 收进 .log 文件而非直打终端(超限折叠)，完成后提取步骤进度
+SCANLOG="data/output/.scan_log_$(date +%Y%m%d).log"
+gold-miner scan --days 30 --news --sentiment --report-file "$REPORT" > "$SCANLOG" 2>&1
+# 提取步骤进度: [N/9]标题 + ⏱Step耗时 + 关键结论行(评分/校验/价格/事件/画像/未来事件)
+grep -E '\[[1-9]/9\]|⏱ Step|综合评分:|跨维度不一致|事件同步\]|日历校验|官方日历比对|国内金价:|民生银行积存金|国际金价|实际利率最新|通胀预期最新|画像匹配:|未来14天' "$SCANLOG" \
+  | sed -E 's/^[0-9]{2}:[0-9]{2}:[0-9]{2} \| INFO *\| //' > "$STEPS" || true
+emit_steps
 run_assemble
 emit_bundle

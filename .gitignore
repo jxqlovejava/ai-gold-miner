@@ -51,3 +51,4 @@ data/proxy/*.db
 data/proxy/*.metadb
 src/gold_miner/proxy/mihomo
 docs/superpowers/specs/
+data/output/.scan_log_*.log
