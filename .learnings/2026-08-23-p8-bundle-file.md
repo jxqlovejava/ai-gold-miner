@@ -1,6 +1,6 @@
 # P8: bundle 落盘省一轮推理（2026-08-23）
 
-**现象**：金价分析一轮 4m47s，其中 pipeline 仅 7.0s。scan stdout 44KB+ 超工具输出持久化阈值，bundle 被收进 tool-results 文件，模型被迫 grep 定位 + awk 抽取 = 多花 1 轮推理 ≈1min（每轮推理全量重算 ~60k 上下文，kimi-k3 缓存弱，轮次数是唯一可控杠杆）。
+**现象**：金价分析一轮 4m47s，其中 pipeline 仅 7.0s。scan stdout 44KB+ 超工具输出持久化阈值，bundle 被收进 tool-results 文件，模型被迫 grep 定位 + awk 抽取 = 多花 1 轮推理 ≈1min（轮次数是主要可控杠杆；注：当日曾记"kimi-k3缓存弱"，2026-08-23 transcript实测 cache_read ~74-79k/轮命中正常，但TTL ~5min过期轮全价+output+往返，减轮次仍对）。
 
 **修复**：`quick_scan.sh` 的 `emit_bundle`/`emit_bundle_light` 输出块加 `| tee data/private/.last_bundle.txt`；stdout 超限场景直接 Read 该文件，禁对持久化输出 grep/awk。SKILL.md 铁律 7 已同步。
 
