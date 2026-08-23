@@ -62,6 +62,7 @@ description: 黄金价格走势分析完整 pipeline - 启动批协议+输出铁
    - ❌ 不猜 CLI 参数重跑子命令（`scenario --text` 等）- 报告缺什么就用手头数据补，不重启网络任务
    - 事故A（深挖）：2026-08-22 ~2.5min 浪费在深挖；事故B（编排）：~2min 浪费在 6 轮串行调用 + 废 tail + 显式阻塞（见铁律 7）
 10. **信任 scan 内置事件同步（2026-08-22 起）** - scan 已执行事件同步 + 深度新闻 + 日历校验。除铁律 8 的日历复用（本地 grep）外，**不再单独实例化数据采集类**（`EarlyWarningEngine`、`JdAccumulationGoldFetcher`、`NewsSignalGenerator` 等）去重跑 scan 已做过的网络工作。需要补充的信号细节，从 scan 报告与本地 JSONL/CSV 读取。
+11. **执行脚本不读源码（2026-08-23 起）** - 执行本 skill 已记录用法的脚本（`quick_scan.sh`、`validate_report_format.py`、`render_report_html.py` 等）前**禁止 Read 源码确认用法/参数**，直接按 skill 文档执行。脚本有更新时由改动者同步更新本 skill。仅三种例外可读源码：①要修改该脚本 ②行为与文档不符/报错排查 ③skill 未覆盖的新脚本。
 
 ## 摩擦成本铁律（r032，卖出决策必查）
 
