@@ -64,7 +64,9 @@ class DashboardFormatter:
         lines.extend(["", f"  生成时间: {decision.timestamp.strftime('%Y-%m-%d %H:%M:%S')}"])
 
         if decision.events:
-            lines.extend(["", "-" * 50, "  未来关注事件:"])
+            # 名实相符: decision.events 是近期已发生事件的结果回顾, 非未来事件前瞻
+            # (未来事件前瞻由 analysis.py step9 print「未来关注事件(未来14天)」板块, 2026-08-24 修复)
+            lines.extend(["", "-" * 50, "  近期事件结果回顾:"])
             for event in decision.events[:5]:
                 lines.append(f"    {event}")
 
@@ -155,9 +157,11 @@ class DashboardFormatter:
 
         events: list[str] = []
         for sig in signal_bundle.by_dimension("event"):
-            if sig.metadata.get("event_type"):
-                name = sig.name.replace("未来事件: ", "")
-                events.append(f"{name}: {sig.description}")
+            # 只收事件结果类信号 (2026-08-24 修复): event 维度混合「未来事件: 」提醒与
+            # 「事件结果: 」注入两类, 原不过滤导致板块内容形态漂移; 未来事件提醒由
+            # dimensions.print_economic_calendar / analysis.step9 板块承载, 不重复
+            if sig.metadata.get("event_type") and sig.name.startswith("事件结果"):
+                events.append(f"{sig.name}: {sig.description}")
 
         risk: dict[str, Any] = {
             "综合评分": f"{signal_bundle.composite_score:+.2f}",

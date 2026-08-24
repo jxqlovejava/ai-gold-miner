@@ -220,9 +220,21 @@ def print_economic_calendar(bundle: SignalBundle) -> None:
     events = [s for s in sigs if s.metadata.get("event_type")]
     warnings = [s for s in sigs if s.metadata.get("rule_id")]
 
-    if events:
-        print(f"  未来高影响事件 ({len(events)}个):")
-        for sig in events:
+    # 事件维度信号混排修复 (2026-08-24): 已发生事件信号(「事件结果:」结果注入 +
+    # 「近期事件:」时效性加权)与真正的未来事件提醒分开列出,
+    # 避免「未来高影响事件」标题下混入已发生事件
+    results = [s for s in events if s.name.startswith(("事件结果", "近期事件"))]
+    upcoming = [s for s in events if not s.name.startswith(("事件结果", "近期事件"))]
+
+    if upcoming:
+        print(f"  未来高影响事件 ({len(upcoming)}个):")
+        for sig in upcoming:
+            e = "!" if sig.strength == "strong" else "i"
+            print(f"    [{e}] {sig.name}: {sig.description[:60]}")
+
+    if results:
+        print(f"  近期事件结果注入 ({len(results)}个):")
+        for sig in results:
             e = "!" if sig.strength == "strong" else "i"
             print(f"    [{e}] {sig.name}: {sig.description[:60]}")
 

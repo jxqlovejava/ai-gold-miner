@@ -88,9 +88,18 @@ def _extract_decision(text: str) -> dict[str, str]:
     m = re.search(r"综合评分:\s*([+\-−]?[\d.]+)", text)
     if m:
         out["score"] = m.group(1).strip()
-    m = re.search(r"置信度:\s*(\d+%?)", text)
+    # 置信度优先取跨维度降权后的值 (步骤3「置信度 75% → 60%」行), 无降权才取原始值
+    # (2026-08-24 修复: 原取首个匹配=原始值, 报告头部置信度高于实际)
+    m = re.search(r"置信度[:：]?\s*\d+%?\s*→\s*(\d+%?)", text)
     if m:
         out["confidence"] = m.group(1).strip()
+        m2 = re.search(r"置信度[:：]?\s*(\d+%?)\s*→", text)
+        if m2:
+            out["confidence_raw"] = m2.group(1).strip()
+    else:
+        m = re.search(r"置信度:\s*(\d+%?)", text)
+        if m:
+            out["confidence"] = m.group(1).strip()
     m = re.search(r"止损位:\s*([\d.]+)", text)
     if m:
         out["stop_loss"] = m.group(1).strip()
@@ -201,22 +210,41 @@ def _extract_profile(text: str) -> str:
 
 
 def _extract_events(text: str) -> list[str]:
-    """提取未来关注事件."""
+    """提取未来关注事件 (analysis.py step9 print 的「未来关注事件(未来14天)」板块)."""
     lines = text.splitlines()
     events: list[str] = []
     in_block = False
     for ln in lines:
         s = ln.strip()
-        if "未来关注事件" in s:
+        if "未来关注事件(未来14天" in s:
             in_block = True
             continue
         if in_block:
             if not s:
                 continue
-            if s.startswith("=") or s.startswith("-" * 10):
+            if s.startswith("=") or s.startswith("-" * 10) or "| INFO" in ln:
                 break
             events.append(s)
     return events
+
+
+def _extract_event_results(text: str) -> list[str]:
+    """提取近期事件结果回顾 (dashboard.py print 的「近期事件结果回顾:」板块)."""
+    lines = text.splitlines()
+    results: list[str] = []
+    in_block = False
+    for ln in lines:
+        s = ln.strip()
+        if "近期事件结果回顾" in s:
+            in_block = True
+            continue
+        if in_block:
+            if not s:
+                continue
+            if s.startswith("=") or s.startswith("-" * 10) or "| INFO" in ln:
+                break
+            results.append(s)
+    return results
 
 
 def _extract_reminders(text: str) -> list[str]:
@@ -372,6 +400,7 @@ def assemble(scan_text: str, out_path: Path) -> None:
     munger = _extract_munger(scan_text)
     profile = _extract_profile(scan_text)
     events = _extract_events(scan_text)
+    event_results = _extract_event_results(scan_text)
     reminders = _extract_reminders(scan_text)
     orders = _load_conditional_orders()
     pf = _load_portfolio()
@@ -385,6 +414,8 @@ def assemble(scan_text: str, out_path: Path) -> None:
     signal = decision.get("signal", "观望")
     score = decision.get("score", "-")
     conf = decision.get("confidence", "-")
+    if decision.get("confidence_raw"):
+        conf = f"{conf}（原 {decision['confidence_raw']}，跨维度不一致降权）"
     accum = prices.get("accum") or prices.get("domestic", "-")
     intl = prices.get("intl", "-")
 
@@ -412,6 +443,32 @@ def assemble(scan_text: str, out_path: Path) -> None:
     lines.append("## 2. 维度信号")
     if table:
         lines.extend(table)
+    else:
+        lines.append("（本期无触发）")
+    lines.append("")
+    # 8 维逐项明细 (AGENTS.md「多维度信号必须逐项说明」强制, 缺=无效分析; 2026-08-24 补)
+    # 各维度明细板块从 scan_report 框线板块提取, 0 信号维度保留标题写空态
+    _DIM_SECTIONS = [
+        ("📊 技术面", "📊 技术面"),
+        ("🏛️ 基本面", "🏛️ 基本面"),
+        ("👔 聪明钱资金流", "聪明钱资金流"),
+        ("📰 消息面", "📰 消息面"),
+        ("💭 情绪面", "💭 情绪面"),
+        ("📅 事件驱动/经济日历", "📅 经济日历"),
+    ]
+    for dim_title, scan_marker in _DIM_SECTIONS:
+        sec = _extract_framed_section(scan_text, scan_marker)
+        lines.append(f"### {dim_title}")
+        if sec:
+            lines.extend(sec)
+        else:
+            lines.append("（本期无触发 / 数据缺失）")
+        lines.append("")
+    # 缠论结构子板块 (report_template.md 2026-08-12 起强制, 技术面必含)
+    chan_sec = _extract_infoblock(scan_text, "📊 缠论结构", max_lines=3)
+    lines.append("### 🀄 缠论结构")
+    if chan_sec:
+        lines.extend(chan_sec[1:])  # 首行是 digest 标题行, 略
     else:
         lines.append("（本期无触发）")
     lines.append("")
@@ -459,10 +516,18 @@ def assemble(scan_text: str, out_path: Path) -> None:
         lines.append("（无 active 条件单）")
     lines.append("")
     lines.append("## 8. 后续关注")
+    lines.append("### 📅 未来14天事件前瞻")
     if events:
-        lines.extend(f"- {e}" for e in events)
+        # step9 print 行已带「- 」前缀, 剥掉再统一加, 避免双横杠
+        lines.extend(f"- {e.lstrip('- ')}" for e in events)
     else:
-        lines.append("（本期无触发）")
+        lines.append("（本期无中高影响未来事件）")
+    lines.append("")
+    lines.append("### 📋 近期事件结果回顾")
+    if event_results:
+        lines.extend(f"- {r}" for r in event_results)
+    else:
+        lines.append("（本期无事件结果回顾）")
     lines.append("")
     lines.append("## 9. 📚 经验提醒")
     if reminders:

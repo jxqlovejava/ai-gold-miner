@@ -2603,6 +2603,13 @@ class AnalysisPipeline:
                 for e in upcoming[:15]
             ]
             logger.info(f"[9/9] 未来14天: {len(upcoming)}个中高影响事件")
+            # 落盘 scan_report: 供 assemble_report.py §8「后续关注」提取未来事件前瞻
+            # (此前只进内存+日志计数, 报告 §8 只能误提取 dashboard 的事件结果回顾, 2026-08-24 修复)
+            print(f"\n  未来关注事件(未来14天, 中高影响 {len(upcoming)}个):")
+            for e in upcoming[:15]:
+                print(f"    - {e.name} | {e.beijing_time_str} | 影响:{e.impact.value}")
+            if not upcoming:
+                print("    (本期无中高影响未来事件)")
         except Exception as e:
             logger.warning(f"[9/9] 未来事件扫描失败: {e}")
 
