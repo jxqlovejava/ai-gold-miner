@@ -2,8 +2,8 @@
 
 > **中文代号：青蚨** 🐛 — 典出《淮南子》「青蚨还钱」：母子青蚨分离必自动飞回，古人以母血涂钱、钱花出后复还。寓意这个系统长期持有的每一分投入，终会带着收益回流。
 >
-> **Skill 触发**：金价分析 / 黄金走势 / "分析"/"gold" → 自动 invoke `gold-analysis-pipeline` skill。
-> skill 主文件只含流程协议（启动批/输出铁律，轻量）；API 签名、枚举值、命令模板、常见错误速查在 skill 的 `references/api-reference.md`，事件同步铁律在 `references/event-sync.md`，**按需读取**。调 API 前先读对应参考文件，禁止凭记忆猜参数。
+> **触发快速通道（2026-08-24 起）**：金价分析 / 黄金走势 / "分析"/"gold" → **直接前台跑 `bash scripts/quick_scan.sh`**，不 invoke skill（省 1 轮大上下文推理 ~40-60s + 6k 注入；运行时协议已内化到「强制分析流程」节）。
+> `gold-analysis-pipeline` SKILL.md 仍是完整协议唯一真相源（输出铁律 1-10 / r032 摩擦成本 / 各步骤塑形）；API 签名、枚举值、命令模板在 `references/api-reference.md`，事件同步铁律在 `references/event-sync.md`。**仅排错 / 协议不清 / 手动降级 / 调 API 前才读取**，禁止凭记忆猜参数。
 
 ## 投资者画像
 
@@ -80,7 +80,16 @@ geo/policy_shift/trade_war/fed_emergency 等持续演变事件不能「搜一次
 
 ## 强制分析流程
 
-每次涉及金价分析、交易建议、持仓决策时，必须走完项目内置的完整 pipeline（`bash scripts/quick_scan.sh` 单轮拿数），禁止基于单一维度或未经交叉验证的信息直接下结论。**操作协议见 [`skills/gold-analysis-pipeline/SKILL.md`](skills/gold-analysis-pipeline/SKILL.md)**（真实路径在仓库根 `skills/`，`~/.claude/skills/gold-analysis-pipeline` 为 symlink）。
+每次涉及金价分析、交易建议、持仓决策时，必须走完项目内置的完整 pipeline（`bash scripts/quick_scan.sh` 单轮拿数），禁止基于单一维度或未经交叉验证的信息直接下结论。
+
+**快速通道运行时协议（2026-08-24 起，替代 invoke skill）**：
+
+1. 触发词 → 直接**前台**跑 `bash scripts/quick_scan.sh`（强制重扫 `FORCE_SCAN=1`）；禁后台跑 + 通知驱动。
+2. stdout = 模式行 + bundle；stdout 超限被持久化时直 Read `data/private/.last_bundle.txt`；**禁 Read scan_report 全文**。
+3. `ASSEMBLE_SKIP`（REUSE/RERUN 通用）→ bundle 骨架 = 盘上已校验报告全文，**逐字转贴输出**，前置 2-3 行增量摘要（决策一句话 + 价格校验 LATEST_PRICE vs 报告价，跳变 >1% 走 FORCE_SCAN；+ 条件单变动说明）。
+4. `ASSEMBLE_OK` → 只增量填充 3 板块（§1.1 主驱动 + 驱动排序表 / §1.2 三情景目标区间含概率 + r035 传导链 / §7 条件单审查表）；REUSE 时行情引文用 LATEST_PRICE 覆盖 → `Write` 落盘 `data/output/金价分析_YYYY-MM-DD.md`（Write hook 自动校验板块间禁 `---`，失败删后重写）→ 模型全文直发同内容。
+5. scan 后零深挖：不单独重跑引擎子命令 / 不追源码 / 不手写整份报告绕过组装。
+6. 完整协议真相源：[`skills/gold-analysis-pipeline/SKILL.md`](skills/gold-analysis-pipeline/SKILL.md)（仓库根 `skills/`，`~/.claude/skills/gold-analysis-pipeline` 为 symlink）—— 排错 / 协议不清 / 手动降级时按需读取。
 
 ### Pipeline 八步总览
 
