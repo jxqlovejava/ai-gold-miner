@@ -164,7 +164,7 @@ def _extract_block(text: str, title: str, end_markers: tuple[str, ...]) -> str:
             if started:
                 break
             continue  # 跳过标题后的框线行, 从实际内容开始收集
-        if any(mk in s for mk in end_markers):
+        if any(mk in s for mk in end_markers if mk != "=") or ("=" in end_markers and s.startswith("=")):
             break
         block.append(ln.rstrip())
         started = True
@@ -257,10 +257,18 @@ def _extract_reminders(text: str) -> list[str]:
 # scan 数据摘要 (digest, 2026-08-22 提速P4)
 # ═══════════════════════════════════════════════════════════════
 
+# 步骤7/8 无框线打印的起始标记 (辩论/决策理由/情绪温度计/风控/机构资金流).
+# 这些 print 紧跟「经济日历」框线板块之后、下一框线之前, 不设硬阻断会被
+# _extract_framed_section 吞进日历明细, 导致辩论块在 §2 与 §6 重复 (2026-08-24 修复).
+_STEP_PRINT_MARKERS = ("🐂 多头分析师", "🐻 空头分析师", "🏛️ 投资经理",
+                       "📋 决策理由", "🌡️ 散户情绪温度计", "✅ 风控", "🏦 机构资金流")
+
+
 def _extract_framed_section(text: str, title: str) -> list[str]:
     """提取 scan_report 中 `==== / 标题 / ====` 框线板块正文, 到下一框线结束.
 
     标题后紧跟的框线跳过; 收到正文后再遇框线即收尾. 排除 INFO 日志行.
+    遇步骤7/8 无框线打印标记 (辩论等) 同样收尾, 防吞并下游板块.
     """
     out: list[str] = []
     in_sec = False
@@ -270,6 +278,8 @@ def _extract_framed_section(text: str, title: str) -> list[str]:
             if title in s and "| INFO" not in ln and "| DEBUG" not in ln:
                 in_sec = True
             continue
+        if any(mk in s for mk in _STEP_PRINT_MARKERS):
+            break
         if s.startswith("="):
             if out:
                 break
