@@ -160,3 +160,19 @@ cal.add_event(CalendarEvent(
 ))
 "
 ```
+
+## 快速演变事件搜索铁律（2026-08-24 从 CLAUDE.md 移入）
+
+**geo/policy_shift/trade_war/fed_emergency 等持续演变事件**，不能按"搜索一次→写入 actual→永久有效"处理。标准三步校验（DOW/官网/交叉确认）不足以应对状态变化。
+
+1. **时间约束搜索** — 搜索必须限定时间范围，不搜不带日期约束的查询：
+   - 正确: `"美伊谈判" after:2026-07-14 site:reuters.com`
+   - 错误: `美伊谈判最新进展`（按 SEO 排序，"大新闻"压制逆转报道）
+2. **逆转/修正优先搜索** — 主动搜索事件被逆转/撤销/修正的信号：
+   - `"Hormuz fee" reversal OR backtrack OR withdraw OR cancel OR 撤销`
+   - `"Iran policy" update OR latest OR "as of"`
+3. **多时点交叉验证** — 对比三个时间点的报道：初始公告报道 → 中间状态 → 最新报道。若三者在 72h 内不一致，以最新 T0/T1 来源为准
+4. **搜索排序意识** — 搜索引擎偏向"大新闻"（初始公告），压制"小更新"（逆转）。不要仅依赖搜索结果第一页或摘要位置判断重要性。**主动向下翻页**或使用不同查询找更新
+5. **每次第一步都重新验证** — 对于 event_type 在 `FAST_EVOLVING_TYPES` 中且 `actual_updated_at` 超过阈值的事件，调用 `EarlyWarningEngine().check_stale_events(lookback_days=7)` 自动发现，然后对每个 stale 事件用上述规则重新搜索验证
+
+> 背景：2026-07-16 分析中美伊冲突使用 7/13 的过时信息（Trump 征收 20% Hormuz 费），未发现 7/14 已撤销收费改为海湾投资协议。根因：搜索引擎返回初始大新闻压制逆转报道 + 无 staleness 检测机制。
