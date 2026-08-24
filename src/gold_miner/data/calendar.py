@@ -1284,14 +1284,16 @@ class EventCalendar:
 
     @staticmethod
     def _generate_global_flash_pmi_events(year: int) -> list[CalendarEvent]:
-        """全球Flash PMI — 每月24日前后 (S&P Global).
+        """全球Flash PMI - 每月23日前后 (S&P Global).
 
         覆盖：法国/德国/欧元区/英国/美国 Flash PMI.
         制造业PMI + 服务业PMI + 综合PMI 在同一天发布（flash）.
+        实测2026: 2月20日/8月21日/9月23日(官方)；原24日近似偏晚1-3天，
+        致已发布事件被当"未来事件"+误触r004警告 (2026-08-24修正)。
         """
         events: list[CalendarEvent] = []
         for month in range(1, 13):
-            dt = datetime(year, month, 24, 9, 45)
+            dt = datetime(year, month, 23, 9, 45)
             dt = dt.replace(tzinfo=_et_offset(dt))
             events.append(CalendarEvent(
                 name="全球Flash PMI (7月)",
