@@ -37,6 +37,9 @@ PRIVATE_DIR = PROJECT_ROOT / "data" / "private"
 
 _ASCII_BOX = ("┌", "├", "└", "│")
 
+# 事件影响级别中文化 (输出语言铁律; §8 事件前瞻表格用, 2026-08-24)
+_IMPACT_ZH = {"high": "高", "medium": "中", "low": "低"}
+
 
 def _latest_scan_report() -> Path | None:
     """自动选最新 scan_report_*.md."""
@@ -458,17 +461,21 @@ def assemble(scan_text: str, out_path: Path) -> None:
     lines.append("")
     # 8 维逐项明细 (AGENTS.md「多维度信号必须逐项说明」强制, 缺=无效分析; 2026-08-24 补)
     # 各维度明细板块从 scan_report 框线板块提取, 0 信号维度保留标题写空态
+    # 小节顺序 = 维度表行序 (dimension key 字母序: event/fundamental/monitor/news/
+    # sentiment/smart_money/technical), 编号 2.1-2.7; 缠论结构 2.8 固定最后
+    # (技术面增强子板块, report_template.md 强制). 监控触发无独立框线板块 → 空态 (2026-08-24)
     _DIM_SECTIONS = [
-        ("📊 技术面", "📊 技术面"),
+        ("📅 事件驱动/经济日历", "📅 经济日历"),
         ("🏛️ 基本面", "🏛️ 基本面"),
-        ("👔 聪明钱资金流", "聪明钱资金流"),
+        ("📡 监控触发", "📡 监控触发"),
         ("📰 消息面", "📰 消息面"),
         ("💭 情绪面", "💭 情绪面"),
-        ("📅 事件驱动/经济日历", "📅 经济日历"),
+        ("👔 聪明钱资金流", "聪明钱资金流"),
+        ("📊 技术面", "📊 技术面"),
     ]
-    for dim_title, scan_marker in _DIM_SECTIONS:
+    for idx, (dim_title, scan_marker) in enumerate(_DIM_SECTIONS, start=1):
         sec = _extract_framed_section(scan_text, scan_marker)
-        lines.append(f"### {dim_title}")
+        lines.append(f"### 2.{idx} {dim_title}")
         if sec:
             lines.extend(sec)
         else:
@@ -476,7 +483,7 @@ def assemble(scan_text: str, out_path: Path) -> None:
         lines.append("")
     # 缠论结构子板块 (report_template.md 2026-08-12 起强制, 技术面必含)
     chan_sec = _extract_infoblock(scan_text, "📊 缠论结构", max_lines=3)
-    lines.append("### 🀄 缠论结构")
+    lines.append(f"### 2.{len(_DIM_SECTIONS) + 1} 🀄 缠论结构")
     if chan_sec:
         lines.extend(chan_sec[1:])  # 首行是 digest 标题行, 略
     else:
@@ -528,8 +535,21 @@ def assemble(scan_text: str, out_path: Path) -> None:
     lines.append("## 8. 后续关注")
     lines.append("### 📅 未来14天事件前瞻")
     if events:
-        # step9 print 行已带「- 」前缀, 剥掉再统一加, 避免双横杠
-        lines.extend(f"- {e.lstrip('- ')}" for e in events)
+        # step9 print 行已带「- 」前缀, 剥掉; 行格式「事件 | MM-DD HH:MM (周X) | 影响:high」
+        # → markdown 表格 (2026-08-24 用户要求). rsplit 从右切 2 段, 事件名含竖线也安全;
+        # 任一行解析失败 → 整段回退列表, 不渲染破表
+        parsed: list[tuple[str, str, str]] = []
+        for e in events:
+            parts = [p.strip() for p in e.lstrip("- ").rsplit("|", 2)]
+            if len(parts) == 3 and parts[2].startswith("影响"):
+                parsed.append((parts[0], parts[1], parts[2].replace("影响:", "").strip()))
+        if parsed and len(parsed) == len(events):
+            lines.append("| 事件 | 北京时间 | 影响 |")
+            lines.append("|---|---|---|")
+            for name, when, impact in parsed:
+                lines.append(f"| {name} | {when} | {_IMPACT_ZH.get(impact, impact)} |")
+        else:
+            lines.extend(f"- {e.lstrip('- ')}" for e in events)
     else:
         lines.append("（本期无中高影响未来事件）")
     lines.append("")
