@@ -9,7 +9,7 @@ from gold_miner.signals.base import Signal, SignalBundle
 
 # ── 通用表格渲染工具 (2026-08-25 各维度板块排版统一表格化) ──
 
-_DIR_ZH = {"bullish": "🟢 看多", "bearish": "🔴 看空", "neutral": "⚫ 中性"}
+_DIR_ZH = {"bullish": "🟢 看多", "bearish": "🔴 看空", "neutral": "⚪ 中性"}
 _STRENGTH_ZH = {"weak": "弱", "moderate": "中", "strong": "强"}
 _IMPACT_ZH = {"high": "高", "medium": "中", "low": "低"}
 
