@@ -89,6 +89,7 @@ geo/policy_shift/trade_war/fed_emergency 等持续演变事件不能「搜一次
 3. `ASSEMBLE_SKIP`（REUSE/RERUN 通用）→ bundle 骨架 = 盘上已校验报告全文，**逐字转贴输出**，前置 2-3 行增量摘要（决策一句话 + 价格校验 LATEST_PRICE vs 报告价，跳变 >1% 走 FORCE_SCAN；+ 条件单变动说明）。
 4. `ASSEMBLE_OK` → 只增量填充 3 板块（§1.1 主驱动 + 驱动排序表 / §1.2 三情景目标区间含概率 + r035 传导链 / §7 条件单审查表）；REUSE 时行情引文用 LATEST_PRICE 覆盖 → `Write` 落盘 `data/output/金价分析_YYYY-MM-DD.md`（Write hook 自动校验板块间禁 `---`，失败删后重写）→ 模型全文直发同内容。
 5. scan 后零深挖：不单独重跑引擎子命令 / 不追源码 / 不手写整份报告绕过组装。
+5b. **单次模式**：用户说「单次分析」/「不落盘」/「直接输出别写文件」-> `FORCE_SCAN=1 ASSEMBLE_FORCE=1 bash scripts/quick_scan.sh`（全新扫描+骨架重建，不 REUSE 不转贴历史报告）-> 模型直接文本输出完整报告（3 增量板块内嵌），**不 Write 报告文件**。细节见 SKILL.md 铁律 7 单次模式。
 6. 完整协议真相源：[`skills/gold-analysis-pipeline/SKILL.md`](skills/gold-analysis-pipeline/SKILL.md)（仓库根 `skills/`，`~/.claude/skills/gold-analysis-pipeline` 为 symlink）—— 排错 / 协议不清 / 手动降级时按需读取。
 
 ### Pipeline 八步总览

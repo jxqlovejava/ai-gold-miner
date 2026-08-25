@@ -55,6 +55,7 @@ description: 黄金价格走势分析完整 pipeline - 启动批协议+输出铁
    - ✅ **quick_scan.sh 自动分流**：当日报告 <3h -> 秒级返回 `REUSE_MODE|路径|AGE|LATEST_PRICE`；缺失/≥3h -> 前台重 scan。两种模式末尾都输出 bundle，骨架/摘要组装自动完成（`ASSEMBLE_OK`/`ASSEMBLE_SKIP`）。
    - 💾 **bundle 落盘（P8，2026-08-23）**：bundle 同步写 `data/private/.last_bundle.txt`（含 portfolio/条件单私密数据 → 走 gitignored 路径，禁放 data/output/ 被跟踪目录）。stdout 超限被持久化时**直接 Read 该文件**，禁对持久化文件 grep/awk 定位（省 1 轮推理 ≈1min）。
    - 🕐 **强制重 scan**：价格剧变（bundle 价格 vs LATEST_PRICE 跳变 >1%）或用户明确要最新 -> `FORCE_SCAN=1 bash scripts/quick_scan.sh`（仍单轮拿数）。
+   - 🎯 **单次模式（2026-08-25）**：用户说「单次分析」/「不落盘」/「直接输出别写文件」等 -> `FORCE_SCAN=1 ASSEMBLE_FORCE=1 bash scripts/quick_scan.sh`（全新扫描 + 骨架强制重建 = 不 REUSE、不转贴当日已填充报告）-> 模型**直接文本输出完整报告全文**（3 个增量板块直接内嵌在输出里），**不 Write 金价分析文件、不过 Write hook 校验**（格式按 report_template 自觉）。省 ~15-30s（Read 骨架 + Edits + 双份输出 token）。副作用披露：盘上会留未填充骨架并覆盖当日已填充报告；同日再正常问金价会走 ASSEMBLE_OK 重新填充，无损失。
    - 🚫 **禁止后台跑 + 通知驱动**（P3/P4 旧模式，3 轮推理各 20-25s；前台单轮省 1 轮推理 ~25s > RERUN 前台工具时间，REUSE 场景更优）。
    - 🚫 **禁止 Read scan_report 全文**（420 行 ≈12k token/轮；bundle 内骨架+摘要已覆盖全部所需）。
    - 🧠 **思考深度分配**：轮①发命令用最短思考；仅轮②填充主驱动/目标区间/条件单审查时正常推理。每轮推理时间 ∝ 上下文 token 量（实测：旧 3 轮推理占全程 ~92%）。
