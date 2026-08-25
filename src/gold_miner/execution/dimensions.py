@@ -189,6 +189,7 @@ def print_news(news_items: list, bundle: SignalBundle) -> None:
         print("  信号: 无 (新闻情感未达阈值)")
 
     if news_items:
+        print()  # 信号表与最近新闻表之间留空行 (2026-08-25 排版)
         # 来源标签动态化 (2026-08-25): 旧版硬编码 "NewsAPI" 但 fallback 路径实际是
         # anysearch/搜索引擎, 误导信源判断
         from collections import Counter as _Counter
@@ -200,7 +201,7 @@ def print_news(news_items: list, bundle: SignalBundle) -> None:
         for item in news_items[:6]:
             tier = item.metadata.get("source_tier", "")
             print(
-                f"  | {_cell(item.title, 66)} | {_cell(item.source, 14)} "
+                f"  | {_cell(item.title, 50)} | {_cell(item.source, 14)} "
                 f"| {tier or '-'} |"
             )
 
@@ -463,7 +464,8 @@ def print_monitor(bundle: SignalBundle) -> None:
 
     if watching:
         print(f"  观测中 ({len(watching)}个):")
-        # 前 5 个保留触发条件明细, 其余折成紧凑名称列表 (20+ 个全量表格超宽不可读)
+        # 前 5 个保留触发条件明细, 其余折成多行名称分组 (2026-08-25 排版: 旧版
+        # 130 字符单行硬塞 15 个 monitor, 与后续板块视觉上黏成一团)
         show, rest = watching[:5], watching[5:]
         print("  | Monitor | 触发条件 |")
         print("  |---|---|")
@@ -475,11 +477,14 @@ def print_monitor(bundle: SignalBundle) -> None:
                 f"| {_cell(md.get('trigger_condition', ''), 60)} |"
             )
         if rest:
-            rest_names = " / ".join(
+            rest_names = [
                 _strip_obs(str(s.metadata.get("monitor_name", _sig_name(s))))
                 for s in rest
-            )
-            print(f"  其余 {len(rest)} 个: {_cell(rest_names, 130)}")
+            ]
+            print(f"  其余 {len(rest)} 个(仅名称):")
+            for i in range(0, len(rest_names), 3):
+                print(f"    - " + "、".join(rest_names[i:i + 3]))
+        print()
 
 
 def print_all_dimensions(

@@ -41,6 +41,56 @@ def _sleep_backoff(attempt: int, base: float = 1.0) -> None:
     time.sleep(base * (2 ** attempt))
 
 
+# 贸易/地缘大事件窗口 (2026-08-25): 美加谈判破裂(8/21-22 50%关税)等事件跨周末,
+# 24h 窗口必漏 — 重大事件主题放宽到 72h
+_BIG_EVENT_WINDOW = 72
+
+# 宽松过滤词: 保留可能影响金价的新闻 (2026-08-25 补加拿大/贸易词条)
+_IMPACT_WORDS = (
+    "gold", "xau", "bullion", "precious metal",
+    "fed", "rate", "inflation", "cpi", "ppi",
+    "payroll", "nfp", "nonfarm", "unemployment", "job",
+    "iran", "middle east", "war", "conflict", "geopolitical",
+    "central bank", "stimulus", "recession", "dollar", "treasury",
+    "tariff", "sanction", "crisis", "safe haven", "避险",
+    "silver", "metal", "commodity", "precious",
+    "canada", "trade deal", "trade talks", "trade war", "usmca",
+)
+
+
+def _merge_news_items(*pools: list[NewsItem]) -> list[NewsItem]:
+    """多源新闻合并去重 (URL 优先, 无 URL 用标题)."""
+    merged: list[NewsItem] = []
+    seen: set[str] = set()
+    for pool in pools:
+        for it in pool:
+            key = it.url or (it.title or "").strip().lower()[:80]
+            if key and key in seen:
+                continue
+            if key:
+                seen.add(key)
+            merged.append(it)
+    return merged
+
+
+# 前瞻/预期类事件词 — 标题含这些词说明事件「尚未落地」, 需标注避免误导
+_FORWARD_LOOKING_WORDS = (
+    "expected", "ahead of", "plans to", "set to", "poised",
+    "to impose", "to unveil", "anticipated", "reportedly",
+    "considering", "mulling", "weighing", "will announce",
+    "is expected", "set for", "in talks to",
+)
+
+
+def _mark_forward_looking(items: list[NewsItem]) -> None:
+    """给前瞻/预期类新闻打 forward_looking 标记."""
+    for it in items:
+        text = f"{it.title} {it.summary}".lower()
+        it.metadata["forward_looking"] = any(
+            w in text for w in _FORWARD_LOOKING_WORDS
+        )
+
+
 @dataclass
 class NewsItem:
     """单条新闻."""
@@ -613,6 +663,10 @@ class NewsFetcher:
         "payroll", "nonfarm", "rate cut", "rate hike", "降息", "加息",
         "war", "conflict", "战争", "Iran", "Middle East", "sanction", "制裁",
         "crisis", "危机", "geopolitical", "unemployment", "strike",
+        # 2026-08-25 补: 贸易战/关税/谈判类 (美加谈判破裂50%关税此前 break_count 仅命中
+        # "war"=1, 不达 >=2 阈值, 进不了「重大事件」信号, 只在聚合里被淹没)
+        "trade war", "tariff", "tariffs", "trade talks", "trade deal",
+        "canada", "谈判破裂", "贸易战", "关税",
     ]
 
     def __init__(self) -> None:
@@ -714,6 +768,7 @@ class NewsFetcher:
         disk_hit = self._load_disk_cache().get(disk_key)
         if disk_hit and now - disk_hit.get("ts", 0) <= NewsFetcher._DISK_CACHE_TTL_SECONDS:
             items = [NewsFetcher._dict_to_newsitem(i) for i in disk_hit.get("items", [])]
+            _mark_forward_looking(items)  # 缓存路径同样打前瞻标注 (2026-08-25)
             NewsFetcher._fetch_cache[cache_key] = (now, items)
             return items
 
@@ -738,121 +793,37 @@ class NewsFetcher:
         hours: int,
         max_results: int,
     ) -> list[NewsItem]:
-        """无缓存的多源抓取 (news 信号/raw 首个调用真正执行)."""
-        items: list[NewsItem] = []
+        """无缓存的多源抓取 (news 信号/raw 首个调用真正执行).
 
-        # 检测是否非农发布日（每月第一个周五）
-        from datetime import datetime as dt
-        today = dt.now()
-        is_nfp_day = today.weekday() == 4 and 1 <= today.day <= 7
-
-        # 1. NewsAPI (国内直连可用, 质量最高)
+        2026-08-25 重构: NewsAPI 与 anysearch 并行合并去重, 不再 NewsAPI 非空即短路 —
+        旧逻辑使 f1de712 加的 anysearch 贸易主题(美加谈判/关税)永远不执行,
+        8/25「美加谈判破裂50%关税 / 美对伊制裁」重要新闻 0 覆盖.
+        """
+        # 1. NewsAPI (国内直连可用, 质量最高) + anysearch 并行, 合并去重
+        newsapi_items: list[NewsItem] = []
         if self.newsapi_key:
-            nfp_query = f"nonfarm payrolls {today.strftime('%B %Y')} results" if is_nfp_day else "nonfarm payrolls"
+            newsapi_items = self._fetch_newsapi_multi(hours)
+            if newsapi_items:
+                logger.info(f"NewsAPI 返回 {len(newsapi_items)} 条新闻")
+            else:
+                logger.warning("NewsAPI 多主题查询过滤后 0 条 -> 依赖 anysearch/降级")
 
-            # 多批查询: 黄金 + 宏观/地缘 + 就业 + 贸易 (2026-08-25 补贸易主题:
-            # 美加谈判破裂等贸易战新闻此前 0 查询覆盖)
-            queries = [
-                ("gold", "gold price OR gold market OR gold forecast"),
-                ("宏观", f"{nfp_query} OR Fed rate decision OR CPI inflation OR unemployment"),
-                ("地缘", "Iran conflict OR Middle East war OR geopolitical crisis"),
-                ("贸易", "trade tariff OR trade war OR sanctions"),
-            ]
-            all_items: list[NewsItem] = []
-            seen_urls: set[str] = set()
+        anysearch_items = self._fetch_anysearch_multi(hours, max_results)
+        if anysearch_items:
+            logger.info(f"anysearch 返回 {len(anysearch_items)} 条新闻")
 
-            # 并行拉取 3 条 query: NewsAPI 挂时最坏耗时收敛到单次超时×重试,
-            # 而非 3 倍串行 (fast-analysis: 完整分析 ≤1min)
-            with ThreadPoolExecutor(max_workers=3) as _news_exec:
-                batches = list(_news_exec.map(
-                    lambda q: self._fetch_from_newsapi(q, hours),
-                    [q for _, q in queries],
-                ))
+        merged = _merge_news_items(newsapi_items, anysearch_items)
+        # 统一宽松过滤 (anysearch 主题查询会带入娱乐/无关噪音, 如 Vulture/HuffPost)
+        merged = [
+            i for i in merged
+            if any(w in (i.title + " " + i.summary).lower() for w in _IMPACT_WORDS)
+        ]
+        if merged:
+            _mark_forward_looking(merged)
+            return merged
 
-            for (label, _q), batch in zip(queries, batches):
-                new_count = 0
-                for item in batch:
-                    if item.url and item.url not in seen_urls:
-                        seen_urls.add(item.url)
-                        all_items.append(item)
-                        new_count += 1
-                if new_count:
-                    logger.debug(f"NewsAPI {label}: {new_count} 条")
-
-            # 宽松过滤: 保留可能影响金价的新闻 (2026-08-25 补加拿大/贸易词条)
-            impact_words = [
-                "gold", "xau", "bullion", "precious metal",
-                "fed", "rate", "inflation", "cpi", "ppi",
-                "payroll", "nfp", "nonfarm", "unemployment", "job",
-                "iran", "middle east", "war", "conflict", "geopolitical",
-                "central bank", "stimulus", "recession", "dollar", "treasury",
-                "tariff", "sanction", "crisis", "safe haven", "避险",
-                "silver", "metal", "commodity", "precious",
-                "canada", "trade deal", "trade talks", "trade war", "usmca",
-            ]
-            items = [
-                i for i in all_items
-                if any(w in (i.title + " " + i.summary).lower() for w in impact_words)
-            ]
-
-            if items:
-                logger.info(f"NewsAPI 返回 {len(items)} 条新闻")
-                return items
-            # 降级要留痕: 免费层 24h 窗口对部分查询返回 0, 不能静默走 fallback
-            logger.warning(
-                f"NewsAPI {len(queries)} 条查询共 {len(all_items)} 条原始结果, "
-                f"过滤后 0 条 -> 降级 anysearch 多主题抓取"
-            )
-
-        # 2. 并行尝试 fallback 源 (anysearch / jdjr / 搜索引擎多查询), 保留优先级取首个成功.
-        #    任一源慢/失败时不用串行等完 (原串行 anysearch → jdjr → fetch_multi 会累加几十秒).
+        # 2. 并行尝试 fallback 源 (jdjr / 搜索引擎多查询), 保留优先级取首个成功.
         from concurrent.futures import ThreadPoolExecutor as _TPE
-
-        def _try_anysearch() -> list[NewsItem]:
-            # 多主题并行查询 (2026-08-25 重写): 旧版单查询 "gold price" 是图表页 SEO 词,
-            # 返回 goldprice.org/kitco 价格页而非新闻, 且完全不覆盖贸易战/制裁主题
-            # (8/25 事故: 美加谈判破裂50%关税+美对伊制裁两大新闻 0 覆盖).
-            # 主题与 NewsAPI queries 对齐: 黄金/宏观/地缘/贸易.
-            from concurrent.futures import ThreadPoolExecutor as _TPE2
-
-            themes: list[tuple[str, str]] = [
-                ("黄金", "gold price news today"),
-                ("宏观", "Fed inflation rate decision"),
-                ("地缘", "Iran Middle East sanctions"),
-                ("贸易", "US trade tariffs Canada"),
-            ]
-            if is_nfp_day:
-                themes.append(("非农", "nonfarm payrolls results"))
-            freshness = "day" if hours <= 24 else "week"
-
-            def _search_one(_q: str) -> list[NewsItem]:
-                return self.anysearch.search(
-                    query=_q, max_results=max_results,
-                    freshness=freshness, content_types=["news"],
-                )
-
-            with _TPE2(max_workers=len(themes)) as ex:
-                batches = list(ex.map(lambda t: _search_one(t[1]), themes))
-
-            merged: list[NewsItem] = []
-            seen: set[str] = set()
-            for (label, _q), batch in zip(themes, batches):
-                new_count = 0
-                for it in batch:
-                    # 去重: URL 优先, 无 URL 用标题
-                    key = it.url or (it.title or "").strip().lower()[:80]
-                    if key and key in seen:
-                        continue
-                    if key:
-                        seen.add(key)
-                    merged.append(it)
-                    new_count += 1
-                if new_count:
-                    logger.debug(f"anysearch {label}: {new_count} 条")
-
-            # 过滤噪音条目 (短标题/URL 标题; 结构行已在解析层剔除)
-            merged = [i for i in merged if len(i.title) > 20 and not i.title.startswith("http")]
-            return merged or []
 
         def _try_jdjr() -> list[NewsItem]:
             # jdgold 官方黄金资讯兜底 (免登录, 中文快讯, E3 2026-08-13)
@@ -879,14 +850,12 @@ class NewsFetcher:
         def _try_bing() -> list[NewsItem]:
             return self.search_engine.fetch_from_bing("gold price news", max_results) or []
 
-        # 前三个源并行; 拿首个成功即返回, 慢源不阻塞 (shutdown(wait=False) 不等待后台慢任务)
+        # fallback 源并行; 拿首个成功即返回, 慢源不阻塞 (shutdown(wait=False) 不等待后台慢任务)
         executor = _TPE(max_workers=3, thread_name_prefix="news-fallback")
         try:
-            f_as = executor.submit(_try_anysearch)
             f_jdjr = executor.submit(_try_jdjr)
             f_se = executor.submit(_try_search_engine)
             for fut, label in [
-                (f_as, "anysearch"),
                 (f_jdjr, "jdgold 资讯"),
                 (f_se, "搜索引擎多查询"),
             ]:
@@ -910,6 +879,101 @@ class NewsFetcher:
 
         logger.warning("所有新闻源均无法获取数据")
         return []
+
+    def _fetch_newsapi_multi(self, hours: int) -> list[NewsItem]:
+        """NewsAPI 多主题查询 → 合并去重 → 宽松过滤.
+
+        2026-08-25 修复:
+        - 贸易查询词从 'trade tariff OR trade war OR sanctions' 收紧为精确短语,
+          避免命中 NBA trade/股市噪音 (美加谈判破裂 0 覆盖根因之一);
+        - 贸易/地缘主题放宽到 max(hours, 72h) 窗口 — 美加谈判破裂(8/21-22)跨周末超 24h 必漏.
+        """
+        today = datetime.now()
+        is_nfp_day = today.weekday() == 4 and 1 <= today.day <= 7
+        nfp_query = (
+            f"nonfarm payrolls {today.strftime('%B %Y')} results"
+            if is_nfp_day else "nonfarm payrolls"
+        )
+        # (标签, 查询词, 窗口)
+        queries: list[tuple[str, str, int]] = [
+            ("gold", "gold price OR gold market OR gold forecast", hours),
+            ("宏观", f"{nfp_query} OR Fed rate decision OR CPI inflation OR unemployment", hours),
+            ("地缘", "Iran conflict OR Middle East war OR geopolitical crisis", max(hours, _BIG_EVENT_WINDOW)),
+            ("贸易", '"trade war" OR "trade talks" OR "trade deal" OR tariff', max(hours, _BIG_EVENT_WINDOW)),
+        ]
+        all_items: list[NewsItem] = []
+        seen_urls: set[str] = set()
+        # 并行拉取 4 条 query: NewsAPI 挂时最坏耗时收敛到单次超时×重试,
+        # 而非 4 倍串行 (fast-analysis: 完整分析 ≤1min)
+        with ThreadPoolExecutor(max_workers=3) as _news_exec:
+            batches = list(_news_exec.map(
+                lambda qh: self._fetch_from_newsapi(qh[0], qh[1]),
+                [(q, h) for _, q, h in queries],
+            ))
+        for (label, _q, _h), batch in zip(queries, batches):
+            new_count = 0
+            for item in batch:
+                if item.url and item.url not in seen_urls:
+                    seen_urls.add(item.url)
+                    all_items.append(item)
+                    new_count += 1
+            if new_count:
+                logger.debug(f"NewsAPI {label}: {new_count} 条")
+        return [
+            i for i in all_items
+            if any(w in (i.title + " " + i.summary).lower() for w in _IMPACT_WORDS)
+        ]
+
+    def _fetch_anysearch_multi(self, hours: int, max_results: int) -> list[NewsItem]:
+        """anysearch 多主题并行查询 (黄金/宏观/地缘/贸易).
+
+        2026-08-25 重写: 旧单查询 'gold price' 是图表页 SEO 词, 返回价格页而非新闻;
+        且 NewsAPI 短路使 f1de712 加的贸易主题仍未真正生效. 现主路径总是执行,
+        贸易/地缘主题放宽 freshness 到 week(72h 覆盖跨周末大事件).
+        """
+        today = datetime.now()
+        is_nfp_day = today.weekday() == 4 and 1 <= today.day <= 7
+        day_freshness = "day" if hours <= 24 else "week"
+        # (标签, 查询词, freshness) — 贸易/地缘放宽到 week
+        themes: list[tuple[str, str, str]] = [
+            ("黄金", "gold price news today", day_freshness),
+            ("宏观", "Fed inflation rate decision", day_freshness),
+            ("地缘", "Iran Middle East sanctions", "week"),
+            ("贸易", "US Canada trade tariffs trade war", "week"),
+        ]
+        if is_nfp_day:
+            themes.append(("非农", "nonfarm payrolls results", day_freshness))
+
+        def _search_one(t: tuple[str, str, str]) -> list[NewsItem]:
+            return self.anysearch.search(
+                query=t[1], max_results=max_results,
+                freshness=t[2], content_types=["news"],
+            )
+
+        with ThreadPoolExecutor(max_workers=len(themes)) as ex:
+            batches = list(ex.map(_search_one, themes))
+
+        merged: list[NewsItem] = []
+        seen: set[str] = set()
+        for (label, _q, _f), batch in zip(themes, batches):
+            new_count = 0
+            for it in batch:
+                # 去重: URL 优先, 无 URL 用标题
+                key = it.url or (it.title or "").strip().lower()[:80]
+                if key and key in seen:
+                    continue
+                if key:
+                    seen.add(key)
+                merged.append(it)
+                new_count += 1
+            if new_count:
+                logger.debug(f"anysearch {label}: {new_count} 条")
+
+        # 过滤噪音条目 (短标题/URL 标题; 结构行已在解析层剔除)
+        return [
+            i for i in merged
+            if len(i.title) > 20 and not i.title.startswith("http")
+        ]
 
     def _fetch_from_newsapi(self, query: str, hours: int) -> list[NewsItem]:
         """从 NewsAPI 获取新闻（带重试）."""

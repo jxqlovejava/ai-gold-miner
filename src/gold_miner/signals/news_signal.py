@@ -473,7 +473,16 @@ class NewsSignalGenerator:
                 for w in gold_impact_words
             )
         ]
-        breaking = breaking_all[:5]
+        # 取样排序 (2026-08-25): confirmed 优先 -> 前瞻排后(未落地不抢位) -> 权威 tier 靠前.
+        # 旧版按抓取顺序取前5, T0确认的FOMC/制裁+前瞻新闻占满槽位, 美加谈判破裂50%关税
+        # 等重大贸易新闻(AP/BBC/NYT, break_count=3)被挤到第6+截断.
+        def _breaking_key(n: NewsItem) -> tuple:
+            _tier_map = {"T0": 4, "T1": 3, "T2": 2, "T3": 1}
+            confirmed_bool = 1 if n.metadata.get("verification_status") == "confirmed" else 0
+            tier = _tier_map.get(str(n.metadata.get("source_tier", "unknown")), 0)
+            return (-confirmed_bool, bool(n.metadata.get("forward_looking")), -tier)
+
+        breaking = sorted(breaking_all, key=_breaking_key)[:5]
 
         if breaking:
             for news in breaking:
@@ -511,15 +520,19 @@ class NewsSignalGenerator:
 
                 tag = format_verification_tag(news)
 
+                # 前瞻/预期类事件标注 (2026-08-25): 标题含 expected/ahead of/to impose 等
+                # 说明事件「尚未落地」, 信号名/描述显式标注, 避免被当成已发生事实
+                fw = "【前瞻·未落地】" if news.metadata.get("forward_looking") else ""
+
                 # 格式化描述 — 结构化中文友好
                 title_short = news.title.strip()[:100]
-                desc_parts = [f"📰 {title_short}"]
+                desc_parts = [f"📰 {fw}{title_short}"]
                 if news.source:
                     desc_parts.append(f"📍{news.source}")
                 description = " | ".join(desc_parts)
 
                 signals.append(Signal(
-                    name=f"重大事件{tag}: {_format_geo_headline(news) if _is_geopolitical(news) else title_short[:60]}",
+                    name=f"重大事件{tag}{fw}: {_format_geo_headline(news) if _is_geopolitical(news) else title_short[:60]}",
                     dimension="news",
                     direction=direction,
                     strength=strength,
@@ -533,6 +546,7 @@ class NewsSignalGenerator:
                         "source_tier": v_tier,
                         "geopolitical": _is_geopolitical(news),
                         "geopolitical_boost": round(geo_boost, 2),
+                        "forward_looking": bool(news.metadata.get("forward_looking")),
                         "full_title": news.title,
                         "full_summary": news.summary,
                     },
