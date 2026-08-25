@@ -40,6 +40,7 @@ class PriceTarget:
     rating: str = ""  # buy/hold/sell
     date: datetime = field(default_factory=datetime.now)
     horizon: str = "12m"  # 目标价时间 horizon
+    as_of_price: float = 0.0  # 目标价录入时的基准现货价 (时效判断用; 0=未知/无法判断)
 
     @property
     def upside_pct(self) -> float:
@@ -81,24 +82,24 @@ class InvestmentBankTargetFetcher:
 
     # 回退数据 — 基于2026年公开信息的近似目标价
     FALLBACK_TARGETS: list[PriceTarget] = field(default_factory=lambda: [
-        PriceTarget("Goldman Sachs", 3700, 3300, "Buy", datetime(2026, 5, 15)),
-        PriceTarget("Morgan Stanley", 3600, 3300, "Overweight", datetime(2026, 5, 10)),
-        PriceTarget("JPMorgan", 3500, 3300, "Overweight", datetime(2026, 5, 12)),
-        PriceTarget("UBS", 3800, 3300, "Buy", datetime(2026, 5, 8)),
-        PriceTarget("Citigroup", 3400, 3300, "Neutral", datetime(2026, 5, 5)),
-        PriceTarget("Bank of America", 3650, 3300, "Buy", datetime(2026, 5, 18)),
-        PriceTarget("Deutsche Bank", 3550, 3300, "Buy", datetime(2026, 5, 3)),
+        PriceTarget("Goldman Sachs", 3700, 3300, "Buy", datetime(2026, 5, 15), as_of_price=3300),
+        PriceTarget("Morgan Stanley", 3600, 3300, "Overweight", datetime(2026, 5, 10), as_of_price=3300),
+        PriceTarget("JPMorgan", 3500, 3300, "Overweight", datetime(2026, 5, 12), as_of_price=3300),
+        PriceTarget("UBS", 3800, 3300, "Buy", datetime(2026, 5, 8), as_of_price=3300),
+        PriceTarget("Citigroup", 3400, 3300, "Neutral", datetime(2026, 5, 5), as_of_price=3300),
+        PriceTarget("Bank of America", 3650, 3300, "Buy", datetime(2026, 5, 18), as_of_price=3300),
+        PriceTarget("Deutsche Bank", 3550, 3300, "Buy", datetime(2026, 5, 3), as_of_price=3300),
     ])
 
     def __init__(self) -> None:
         self._fallback = [
-            PriceTarget("Goldman Sachs", 3700, 3300, "Buy", datetime(2026, 5, 15)),
-            PriceTarget("Morgan Stanley", 3600, 3300, "Overweight", datetime(2026, 5, 10)),
-            PriceTarget("JPMorgan", 3500, 3300, "Overweight", datetime(2026, 5, 12)),
-            PriceTarget("UBS", 3800, 3300, "Buy", datetime(2026, 5, 8)),
-            PriceTarget("Citigroup", 3400, 3300, "Neutral", datetime(2026, 5, 5)),
-            PriceTarget("Bank of America", 3650, 3300, "Buy", datetime(2026, 5, 18)),
-            PriceTarget("Deutsche Bank", 3550, 3300, "Buy", datetime(2026, 5, 3)),
+            PriceTarget("Goldman Sachs", 3700, 3300, "Buy", datetime(2026, 5, 15), as_of_price=3300),
+            PriceTarget("Morgan Stanley", 3600, 3300, "Overweight", datetime(2026, 5, 10), as_of_price=3300),
+            PriceTarget("JPMorgan", 3500, 3300, "Overweight", datetime(2026, 5, 12), as_of_price=3300),
+            PriceTarget("UBS", 3800, 3300, "Buy", datetime(2026, 5, 8), as_of_price=3300),
+            PriceTarget("Citigroup", 3400, 3300, "Neutral", datetime(2026, 5, 5), as_of_price=3300),
+            PriceTarget("Bank of America", 3650, 3300, "Buy", datetime(2026, 5, 18), as_of_price=3300),
+            PriceTarget("Deutsche Bank", 3550, 3300, "Buy", datetime(2026, 5, 3), as_of_price=3300),
         ]
         # 双层缓存: 进程内 TtlCache + 跨进程 DiskCache (投行目标价低频, 24h).
         # 搜索引擎抓取是最慢环节 (3 个串行 Bing 查询), scan 中
@@ -115,7 +116,7 @@ class InvestmentBankTargetFetcher:
         """
         try:
             # 尝试从搜索引擎获取最新目标价 (600s 内缓存命中不重复搜索)
-            web_targets = self._fetch_from_search_cached()
+            web_targets = self._fetch_from_search_cached(current_spot)
             if web_targets:
                 # 重新绑定当前现货价 (缓存中 target_price 固定, current_price 按调用时点刷新)
                 for t in web_targets:
@@ -129,11 +130,11 @@ class InvestmentBankTargetFetcher:
             t.current_price = current_spot
         return self._fallback
 
-    def _fetch_from_search_cached(self) -> list[PriceTarget] | None:
+    def _fetch_from_search_cached(self, current_spot: float = 3300) -> list[PriceTarget] | None:
         """缓存版本 — 进程内 TtlCache + 跨进程 DiskCache(24h), 避免重复 Bing 搜索.
 
-        DiskCache 只存稳定字段 (bank/target_price); current_price/date/rating
-        由 fetch_all_targets 按调用时点刷新。
+        DiskCache 存完整稳定字段 (bank/target_price/rating/date/as_of_price);
+        current_price 由 fetch_all_targets 按调用时点刷新为现价。
         """
         targets = self._search_cache.get()
         if targets is not None:
@@ -143,16 +144,32 @@ class InvestmentBankTargetFetcher:
         if disk:
             targets = [
                 # current_price 用占位值, fetch_all_targets 返回前会按调用时点统一刷新
-                PriceTarget(bank=d["bank"], target_price=d["target_price"], current_price=0.0)
+                PriceTarget(
+                    bank=d["bank"],
+                    target_price=d["target_price"],
+                    current_price=0.0,
+                    rating=d.get("rating", ""),
+                    date=datetime.fromisoformat(d["date"]) if d.get("date") else datetime.now(),
+                    as_of_price=float(d.get("as_of_price", 0) or 0),
+                )
                 for d in disk
             ]
             self._search_cache.set(targets)
             return [copy.copy(t) for t in targets]
-        result = self._fetch_from_search(3300)
+        result = self._fetch_from_search(current_spot)
         if result:
             self._search_cache.set(result)
             self._bank_disk.set(
-                [{"bank": t.bank, "target_price": t.target_price} for t in result]
+                [
+                    {
+                        "bank": t.bank,
+                        "target_price": t.target_price,
+                        "rating": t.rating,
+                        "date": t.date.isoformat() if t.date else None,
+                        "as_of_price": t.as_of_price,
+                    }
+                    for t in result
+                ]
             )
         return result
 
@@ -162,6 +179,8 @@ class InvestmentBankTargetFetcher:
         Returns:
             dict with: avg_target, median_target, upside_pct,
                        bullish_count, bearish_count, neutral_count,
+                       rating_bullish/bearish/neutral_count (评级方向),
+                       stale/as_of_price_avg/staleness_ratio (目标价时效),
                        latest_change_bank, latest_change_direction
         """
         targets = self.fetch_all_targets(current_spot)
@@ -178,6 +197,25 @@ class InvestmentBankTargetFetcher:
 
         upside = (avg_price / current_spot - 1) * 100 if current_spot > 0 else 0
 
+        # 评级方向 (2026-08-26): 投行「评级」是当前立场主信号, 目标价相对现价仅作空间参考。
+        # 金价快速上涨时投行研报目标价更新慢, 目标价会滞后现价 → 按 upside 判多空会误判
+        # (事故: 2026-08-25 目标价停在 $3300 基准, 现价 $4635, 7家评级全 Buy/Overweight 却被判「共识看空」)。
+        _BULLISH_RATINGS = {
+            "buy", "overweight", "strong buy", "outperform", "add", "accumulate", "top pick",
+        }
+        _BEARISH_RATINGS = {
+            "sell", "underweight", "reduce", "underperform", "neutral-weight", "avoid",
+        }
+        rating_bullish = sum(1 for t in targets if t.rating.strip().lower() in _BULLISH_RATINGS)
+        rating_bearish = sum(1 for t in targets if t.rating.strip().lower() in _BEARISH_RATINGS)
+        rating_neutral = len(targets) - rating_bullish - rating_bearish
+
+        # 目标价时效: 基准价(as_of_price) vs 现价偏离 >15% → 目标价滞后现价 (陈旧)
+        as_of_prices = [t.as_of_price for t in targets if t.as_of_price > 0]
+        as_of_avg = sum(as_of_prices) / len(as_of_prices) if as_of_prices else current_spot
+        staleness_ratio = (current_spot - as_of_avg) / as_of_avg if as_of_avg > 0 else 0.0
+        stale = abs(staleness_ratio) > 0.15
+
         return {
             "status": "ok",
             "avg_target": round(avg_price, 0),
@@ -191,6 +229,13 @@ class InvestmentBankTargetFetcher:
             "highest_target": max(prices),
             "lowest": min(targets, key=lambda t: t.target_price).bank,
             "lowest_target": min(prices),
+            # 时效保护 (2026-08-26)
+            "rating_bullish_count": rating_bullish,
+            "rating_bearish_count": rating_bearish,
+            "rating_neutral_count": rating_neutral,
+            "as_of_price_avg": round(as_of_avg, 0),
+            "staleness_ratio": round(staleness_ratio, 3),
+            "stale": stale,
         }
 
     def _fetch_from_search(self, current_spot: float) -> list[PriceTarget] | None:
@@ -250,6 +295,7 @@ class InvestmentBankTargetFetcher:
                             target_price=price,
                             current_price=current_spot,
                             date=datetime.now(),
+                            as_of_price=current_spot,
                         ))
                 except ValueError:
                     continue

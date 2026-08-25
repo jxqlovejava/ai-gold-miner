@@ -77,7 +77,57 @@ class InstitutionalSignalGenerator:
             if total == 0:
                 return signals
 
-            # 共识看涨信号
+            # 目标价时效保护 (2026-08-26): 目标价基准价 vs 现价偏离>15% → 目标价滞后现价,
+            # upside 已被现价大幅偏离扭曲, 方向以评级为准, 不再按 upside 判多空。
+            # 事故: 2026-08-25 目标价停 $3300 基准、现价 $4635, 评级全 Buy/Overweight 却被判「共识看空」。
+            stale = consensus.get("stale", False)
+            rating_bullish = consensus.get("rating_bullish_count", 0)
+            rating_bearish = consensus.get("rating_bearish_count", 0)
+            rating_neutral = consensus.get("rating_neutral_count", 0)
+            as_of_avg = consensus.get("as_of_price_avg", 0)
+            staleness_ratio = consensus.get("staleness_ratio", 0)
+
+            if stale:
+                if rating_bullish >= rating_bearish and rating_bullish >= rating_neutral and rating_bullish > 0:
+                    signals.append(Signal(
+                        name="投行目标价滞后现价(评级偏多)",
+                        dimension="smart_money",
+                        direction=SignalDirection.BULLISH,
+                        strength=SignalStrength.WEAK,
+                        score=0.15,
+                        description=(
+                            f"目标价基准${as_of_avg:,.0f}滞后现价${self.current_spot:,.0f}"
+                            f"({staleness_ratio:+.1%}), {rating_bullish}/{total}家评级偏多"
+                            f"(Buy/Overweight), 目标价未跟上金价涨幅, 非看空"
+                        ),
+                        metadata={"source": "bank_targets", "stale": True, "rating_bullish": rating_bullish},
+                    ))
+                elif rating_bearish > 0 and rating_bearish >= rating_bullish:
+                    signals.append(Signal(
+                        name="投行评级看空",
+                        dimension="smart_money",
+                        direction=SignalDirection.BEARISH,
+                        strength=SignalStrength.MODERATE,
+                        score=-0.5,
+                        description=f"{rating_bearish}/{total}家评级看空(Sell/Underweight), 平均目标价${avg_target:,.0f}",
+                        metadata={"source": "bank_targets", "rating_bearish": rating_bearish},
+                    ))
+                else:
+                    signals.append(Signal(
+                        name="投行目标价滞后现价",
+                        dimension="smart_money",
+                        direction=SignalDirection.NEUTRAL,
+                        strength=SignalStrength.WEAK,
+                        score=0.0,
+                        description=(
+                            f"目标价基准${as_of_avg:,.0f}滞后现价${self.current_spot:,.0f}"
+                            f"({staleness_ratio:+.1%}), 评级方向不明, 建议人工核对最新投行观点"
+                        ),
+                        metadata={"source": "bank_targets", "stale": True},
+                    ))
+                return signals
+
+            # 共识看涨信号 (数据新鲜: 目标价基准价接近现价, upside 有效)
             bullish_ratio = bullish / total
             if bullish_ratio >= 0.6 and upside > 5:
                 strength = SignalStrength.STRONG if bullish_ratio >= 0.7 else SignalStrength.MODERATE
