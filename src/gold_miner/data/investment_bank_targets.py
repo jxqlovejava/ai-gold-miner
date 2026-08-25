@@ -142,7 +142,8 @@ class InvestmentBankTargetFetcher:
         disk = self._bank_disk.get()
         if disk:
             targets = [
-                PriceTarget(bank=d["bank"], target_price=d["target_price"])
+                # current_price 用占位值, fetch_all_targets 返回前会按调用时点统一刷新
+                PriceTarget(bank=d["bank"], target_price=d["target_price"], current_price=0.0)
                 for d in disk
             ]
             self._search_cache.set(targets)
@@ -235,12 +236,14 @@ class InvestmentBankTargetFetcher:
         # 简单正则匹配: 银行名 + $数字 + gold
         for bank_info in self.BANKS:
             bank_name = bank_info["name"]
-            # 匹配 "$3,500" 或 "$3500" 或 "3,500 USD"
-            pattern = rf"{re.escape(bank_name)}.*?[\$\s]([\d,]{{4,5}})[\s\D]{{0,30}}gold"
+            # 匹配 "$3,500" 或 "$3500"; 必须带 $ 前缀, 避免把 "2026" 等裸年份数字当目标价
+            pattern = rf"{re.escape(bank_name)}.*?\$([\d,]+)[\s\D]{{0,30}}gold"
             matches = re.findall(pattern, html, re.IGNORECASE)
             for m in matches:
                 try:
                     price = float(m.replace(",", ""))
+                    if 1900 < price < 2100:  # 排除年份区间误抓 (如 "2026")
+                        continue
                     if 2000 < price < 10000:
                         targets.append(PriceTarget(
                             bank=bank_name,
