@@ -38,6 +38,7 @@
   - 部署完成后输出部署清单：同步了哪些文件、新增/更新了哪些 cron job。
 - **自主修Bug**：运行过程中发现系统 Bug 或错误（如导入报错、脚本异常、数据格式不匹配等），应尝试自行修复，而非仅报告错误等待用户指示。修复后继续原任务流程。
 - **配置不入库**：服务器配置（Hermes 配置 `data/private/hermes_config.sh`、证书等）一律保存到 `data/private/` 目录，GitHub 提交时不得提交（`.gitignore` 已覆盖 `data/private/`）。
+- **条件单数据源（2026-08-26 起）**：jdgold skill 拉取不到条件单数据（接口限制），条件单现状以**用户口头同步**为准，写入 `data/private/conditional_orders.jsonl`（唯一真相源）。分析/条件单审查读该账本，勿依赖 jdgold 条件单接口。
 
 ### 日期查询硬规则
 
