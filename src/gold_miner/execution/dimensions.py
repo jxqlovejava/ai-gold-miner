@@ -1,6 +1,8 @@
 """多维度详细输出 — 技术面/基本面/消息面/情绪面/资金流/经济日历."""
 from __future__ import annotations
 
+import re
+
 import pandas as pd
 
 from gold_miner.signals.base import Signal, SignalBundle
@@ -167,7 +169,12 @@ def print_news(news_items: list, bundle: SignalBundle) -> None:
 
     if news_items:
         print(f"  {'-'*56}")
-        print(f"  最近新闻 (NewsAPI, {len(news_items)}条):")
+        # 来源标签动态化 (2026-08-25): 旧版硬编码 "NewsAPI" 但 fallback 路径实际是
+        # anysearch/搜索引擎, 误导信源判断
+        from collections import Counter as _Counter
+        src_counts = _Counter((i.source or "unknown").split(".")[0].lower() for i in news_items)
+        src_label = "+".join(f"{s}×{c}" for s, c in src_counts.most_common(3))
+        print(f"  最近新闻 ({src_label}, {len(news_items)}条):")
         for item in news_items[:6]:
             s = item.sentiment
             e = "+" if s > 0.1 else "-" if s < -0.1 else "o"
@@ -281,33 +288,52 @@ def print_smart_money(bundle: SignalBundle) -> None:
         "smart_money_composite",
     ]
 
-    group_labels: dict[str, str] = {
-        "cot_report": "\U0001f4ca CFTC COT 期货持仓",
-        "gld_holdings_tonnes": "\U0001f4e6 GLD 官方持仓 (吨)",
-        "gold_etf_price_proxy": "\U0001f4c8 黄金ETF价格代理",
-        "gold_etf_volume_proxy": "\U0001f4ca 黄金ETF成交量代理",
-        "intl_gold_etf_volume_proxy": "\U0001f30d 国际黄金ETF资金流",
-        "domestic_intl_divergence": "\U00002194 国内外ETF背离",
-        "cross_etf": "\U0001f504 黄金vs比特币ETF交叉",
-        "bank_targets": "\U0001f3e6 投行目标价共识",
-        "comex_large_traders": "\U0001f3af COMEX大户集中度",
-        "jd_fund_bomb": "\U0001f4a3 jdgold资金炸弹 (分钟级大单)",
-        "jd_blogger_rank": "\U0001f451 jdgold大V加仓榜 (散户情绪)",
-        "13f_institutional": "\U0001f4cb 13F机构持仓",
-        "smart_money_composite": "\U0001f9e0 聪明钱综合评分",
+    group_labels: dict[str, str] = {  # noqa: F841 - 旧长标签, 保留供日志/其他调用方
     }
 
+    # 子项短标签 (表格用, 2026-08-25 表格化排版: 旧版逐条 emoji 头+缩进行阅读性差)
+    _short_labels: dict[str, str] = {
+        "cot_report": "📊 COT持仓",
+        "gld_holdings_tonnes": "📦 GLD持仓",
+        "gold_etf_price_proxy": "📈 ETF价格代理",
+        "gold_etf_volume_proxy": "📈 ETF成交量代理",
+        "intl_gold_etf_volume_proxy": "🌍 国际ETF资金流",
+        "domestic_intl_divergence": "↔️ 国内外ETF背离",
+        "cross_etf": "🔄 金vs比特币ETF",
+        "bank_targets": "🏦 投行目标价",
+        "comex_large_traders": "🎯 COMEX大户",
+        "jd_fund_bomb": "💣 资金炸弹",
+        "jd_blogger_rank": "👑 大V加仓榜",
+        "13f_institutional": "📋 13F持仓",
+        "smart_money_composite": "🧠 综合评分",
+    }
+    _strength_zh = {"weak": "弱", "moderate": "中", "strong": "强"}
+    _direction_zh = {"bullish": "🟢 看多", "bearish": "🔴 看空", "neutral": "⚫ 中性"}
+
+    def _cell(text: str, limit: int) -> str:
+        """表格单元格清洗: 去换行/竖线 + 截断."""
+        cleaned = str(text).replace("|", "/").replace("\n", " ").strip()
+        return cleaned[:limit] + "…" if len(cleaned) > limit else cleaned
+
+    rows: list[Signal] = []
     for src_key in _order:
-        sigs = groups.get(src_key, [])
-        if not sigs:
-            continue
-        label = group_labels.get(src_key, src_key)
-        print(f"  {label}:")
-        for sig in sigs:
-            d = "\U0001f7e2" if sig.direction.value == "bullish" else "\U0001f534" if sig.direction.value == "bearish" else "\U000026ab"
-            print(f"    {d} {sig.name} [{sig.strength.value}]: {sig.score:+.2f}")
-            if sig.description:
-                print(f"       {sig.description[:100]}")
+        rows.extend(groups.get(src_key, []))
+    # 未知来源兜底追加 (新信号源未登记 _order 时不丢)
+    known = set(_order)
+    rows.extend(s for s in all_smart if s.metadata.get("source", "other") not in known)
+
+    if rows:
+        print(f"  | 子项 | 信号 | 方向 | 强度 | 评分 | 说明 |")
+        print(f"  |---|---|---|---|---|---|")
+        for sig in rows:
+            src = sig.metadata.get("source", "other")
+            sub = _short_labels.get(src, src)
+            d = _direction_zh.get(sig.direction.value, sig.direction.value)
+            st = _strength_zh.get(sig.strength.value, sig.strength.value)
+            # 信号名尾部 "[weak]/[moderate]/[strong]" 与强度列重复, 去掉
+            name = re.sub(r"\s*\[(weak|moderate|strong)\]$", "", sig.name)
+            desc = _cell(sig.description, 60) if sig.description else ""
+            print(f"  | {sub} | {_cell(name, 40)} | {d} | {st} | {sig.score:+.2f} | {desc} |")
 
     # 加权汇总
     all_scores = [s.score for s in all_smart if abs(s.score) > 0.05]

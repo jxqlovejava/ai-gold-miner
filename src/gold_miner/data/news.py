@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -9,6 +10,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 from bs4 import BeautifulSoup
@@ -176,14 +178,91 @@ class AnySearchFetcher:
                 for entry in data["results"]:
                     items.append(self._entry_to_item(entry))
         except json.JSONDecodeError:
-            # 非 JSON，尝试按行解析
-            lines = [line.strip() for line in text.split("\n") if line.strip()]
-            for line in lines:
-                if line.startswith(("http://", "https://")):
-                    items.append(NewsItem(title=line, source="anysearch", published_at=datetime.now(), url=line))
-                elif len(line) > 20:
-                    items.append(NewsItem(title=line, source="anysearch", published_at=datetime.now()))
+            # 非 JSON -> 按 Markdown 块解析 (2026-08-25 重写):
+            # 旧逐行解析把每行 >20 字符都当独立条目, "- **URL**: ..." 行变垃圾条目,
+            # 且 URL 从未被提取 -> FactChecker 交叉验证(按域名多源确认)系统性全挂.
+            # 新解析: "### N. 标题" 开新条目, URL 行回填当前条目, 其余 "- " 行作摘要.
+            items = self._parse_anysearch_markdown(text)
 
+        return items
+
+    def _parse_anysearch_markdown(self, text: str) -> list[NewsItem]:
+        """按块解析 anysearch Markdown 搜索结果.
+
+        格式:
+            ## Search Results (N results, XXXms)
+            ### 1. Title ...
+            - **URL**: https://...
+            - summary line ...
+        """
+        items: list[NewsItem] = []
+        current: NewsItem | None = None
+
+        def _flush() -> None:
+            nonlocal current
+            if current is not None and current.title.strip():
+                items.append(current)
+            current = None
+
+        for raw_line in text.split("\n"):
+            line = raw_line.strip()
+            if not line:
+                continue
+            # 结构行: 结果统计头 / 分隔线
+            if line.startswith("## ") or line.startswith("---"):
+                continue
+            # 结果条目标题行: "### 1. Title"
+            m = re.match(r"^#{3,6}\s*\d*\.?\s*(.+)$", line)
+            if m:
+                _flush()
+                current = NewsItem(
+                    title=m.group(1).strip(),
+                    source="anysearch",
+                    published_at=datetime.now(),
+                )
+                continue
+            # URL 行: "- **URL**: https://..." -> 回填当前条目 (来源=域名, 定层级)
+            m = re.match(r"^-?\s*\*?\*?URL\*?\*?:?\s*(https?://\S+)$", line)
+            if m and current is not None:
+                current.url = m.group(1)
+                try:
+                    domain = urlparse(m.group(1)).netloc.replace("www.", "")
+                    if domain:
+                        current.source = domain
+                        current.metadata["source_tier"] = get_source_tier(domain, m.group(1))
+                except Exception:
+                    pass
+                continue
+            # 摘要行: "- text ..." -> 追加到当前条目摘要
+            m = re.match(r"^[-*]\s+(.+)$", line)
+            if m and current is not None:
+                snippet = m.group(1).strip()
+                if not current.summary:
+                    current.summary = snippet
+                elif len(current.summary) < 400:
+                    current.summary += " " + snippet
+                continue
+            # 纯 URL 行 (旧格式兼容)
+            if line.startswith(("http://", "https://")):
+                _flush()
+                current = NewsItem(
+                    title=line, source="anysearch", published_at=datetime.now(), url=line
+                )
+                continue
+            # 裸文本行: 有当前条目作摘要; 无当前条目且足够长时按独立条目兜底
+            # (兼容非 Markdown 的纯文本响应, 如单行标题)
+            if current is not None:
+                if not current.summary:
+                    current.summary = line
+                elif len(current.summary) < 400:
+                    current.summary += " " + line
+            elif len(line) > 20:
+                current = NewsItem(
+                    title=line, source="anysearch", published_at=datetime.now()
+                )
+                _flush()
+
+        _flush()
         return items
 
     def _entry_to_item(self, entry: dict[str, Any]) -> NewsItem:
@@ -671,11 +750,13 @@ class NewsFetcher:
         if self.newsapi_key:
             nfp_query = f"nonfarm payrolls {today.strftime('%B %Y')} results" if is_nfp_day else "nonfarm payrolls"
 
-            # 多批查询: 黄金 + 宏观/地缘 + 就业
+            # 多批查询: 黄金 + 宏观/地缘 + 就业 + 贸易 (2026-08-25 补贸易主题:
+            # 美加谈判破裂等贸易战新闻此前 0 查询覆盖)
             queries = [
                 ("gold", "gold price OR gold market OR gold forecast"),
                 ("宏观", f"{nfp_query} OR Fed rate decision OR CPI inflation OR unemployment"),
                 ("地缘", "Iran conflict OR Middle East war OR geopolitical crisis"),
+                ("贸易", "trade tariff OR trade war OR sanctions"),
             ]
             all_items: list[NewsItem] = []
             seen_urls: set[str] = set()
@@ -698,7 +779,7 @@ class NewsFetcher:
                 if new_count:
                     logger.debug(f"NewsAPI {label}: {new_count} 条")
 
-            # 宽松过滤: 保留可能影响金价的新闻
+            # 宽松过滤: 保留可能影响金价的新闻 (2026-08-25 补加拿大/贸易词条)
             impact_words = [
                 "gold", "xau", "bullion", "precious metal",
                 "fed", "rate", "inflation", "cpi", "ppi",
@@ -707,6 +788,7 @@ class NewsFetcher:
                 "central bank", "stimulus", "recession", "dollar", "treasury",
                 "tariff", "sanction", "crisis", "safe haven", "避险",
                 "silver", "metal", "commodity", "precious",
+                "canada", "trade deal", "trade talks", "trade war", "usmca",
             ]
             items = [
                 i for i in all_items
@@ -716,32 +798,61 @@ class NewsFetcher:
             if items:
                 logger.info(f"NewsAPI 返回 {len(items)} 条新闻")
                 return items
+            # 降级要留痕: 免费层 24h 窗口对部分查询返回 0, 不能静默走 fallback
+            logger.warning(
+                f"NewsAPI {len(queries)} 条查询共 {len(all_items)} 条原始结果, "
+                f"过滤后 0 条 -> 降级 anysearch 多主题抓取"
+            )
 
         # 2. 并行尝试 fallback 源 (anysearch / jdjr / 搜索引擎多查询), 保留优先级取首个成功.
         #    任一源慢/失败时不用串行等完 (原串行 anysearch → jdjr → fetch_multi 会累加几十秒).
         from concurrent.futures import ThreadPoolExecutor as _TPE
 
         def _try_anysearch() -> list[NewsItem]:
-            # anysearch + NFP专项（每月第一个周五自动补充）
-            if is_nfp_day:
-                nfp_items = self.anysearch.search(
-                    query="nonfarm payrolls results",
-                    max_results=3, freshness="day", content_types=["news"],
-                )
-                if nfp_items:
-                    nfp_items = [i for i in nfp_items if len(i.title) > 20]
-                    logger.info(f"anysearch NFP专项: {len(nfp_items)} 条")
+            # 多主题并行查询 (2026-08-25 重写): 旧版单查询 "gold price" 是图表页 SEO 词,
+            # 返回 goldprice.org/kitco 价格页而非新闻, 且完全不覆盖贸易战/制裁主题
+            # (8/25 事故: 美加谈判破裂50%关税+美对伊制裁两大新闻 0 覆盖).
+            # 主题与 NewsAPI queries 对齐: 黄金/宏观/地缘/贸易.
+            from concurrent.futures import ThreadPoolExecutor as _TPE2
 
-            items = self.anysearch.search(
-                query="gold price",
-                max_results=max_results,
-                freshness="day" if hours <= 24 else "week",
-                content_types=["news"],
-            )
-            if items:
-                # 过滤噪音行 (URL-only 条目)
-                items = [i for i in items if len(i.title) > 20 and not i.title.startswith("http")]
-            return items or []
+            themes: list[tuple[str, str]] = [
+                ("黄金", "gold price news today"),
+                ("宏观", "Fed inflation rate decision"),
+                ("地缘", "Iran Middle East sanctions"),
+                ("贸易", "US trade tariffs Canada"),
+            ]
+            if is_nfp_day:
+                themes.append(("非农", "nonfarm payrolls results"))
+            freshness = "day" if hours <= 24 else "week"
+
+            def _search_one(_q: str) -> list[NewsItem]:
+                return self.anysearch.search(
+                    query=_q, max_results=max_results,
+                    freshness=freshness, content_types=["news"],
+                )
+
+            with _TPE2(max_workers=len(themes)) as ex:
+                batches = list(ex.map(lambda t: _search_one(t[1]), themes))
+
+            merged: list[NewsItem] = []
+            seen: set[str] = set()
+            for (label, _q), batch in zip(themes, batches):
+                new_count = 0
+                for it in batch:
+                    # 去重: URL 优先, 无 URL 用标题
+                    key = it.url or (it.title or "").strip().lower()[:80]
+                    if key and key in seen:
+                        continue
+                    if key:
+                        seen.add(key)
+                    merged.append(it)
+                    new_count += 1
+                if new_count:
+                    logger.debug(f"anysearch {label}: {new_count} 条")
+
+            # 过滤噪音条目 (短标题/URL 标题; 结构行已在解析层剔除)
+            merged = [i for i in merged if len(i.title) > 20 and not i.title.startswith("http")]
+            return merged or []
 
         def _try_jdjr() -> list[NewsItem]:
             # jdgold 官方黄金资讯兜底 (免登录, 中文快讯, E3 2026-08-13)

@@ -23,6 +23,9 @@ _GEOPOLITICAL_TRIGGERS: dict[str, tuple[str, ...]] = {
         r"\bsaudi\b", r"\bopec\b", r"\bgeopolitical\b",
         r"\bwar\b", r"\bconflict\b", r"\bmilitary attack\b",
         r"\bairstrike\b", r"\bceasefire\b", r"\bnegotiation\b",
+        # 2026-08-25 补: 贸易战/制裁 (美加谈判破裂、美对伊经济制裁类事件)
+        r"\bsanction\b", r"\bsanctions\b", r"\btariff\b", r"\btariffs\b",
+        r"\btrade war\b", r"\btrade deal\b", r"\bcanada\b", r"\bmexico\b",
     ),
     "oil_link": (
         r"\boil\b", r"\bcrude\b", r"\bpetroleum\b", r"\bopec\b",
@@ -183,6 +186,13 @@ _GEO_TOPIC_LABELS: dict[str, str] = {
     "blockade": "封锁",
     "sanction": "制裁",
     "tariff": "关税",
+    "sanctions": "制裁",
+    "tariffs": "关税",
+    "trade war": "贸易战",
+    "trade deal": "贸易协定",
+    "trade talks": "贸易谈判",
+    "canada": "🇨🇦加拿大",
+    "mexico": "🇲🇽墨西哥",
     "nuclear": "核",
     "missile": "导弹",
     "drone": "无人机",
@@ -442,6 +452,9 @@ class NewsSignalGenerator:
             "iran", "middle east", "israel", "war", "oil", "geopolitical",
             "hormuz", "strait of hormuz", "attack", "strike", "ceasefire",
             "central bank", "stimulus", "recession", "safe haven",
+            # 2026-08-25 补: 贸易战/制裁主题 (美加谈判破裂50%关税类事件此前会被漏检)
+            "tariff", "sanction", "trade war", "trade deal", "trade talks",
+            "canada", "usmca", "negotiation",
         ]
 
         # 先尝试已确认的重大新闻
