@@ -25,10 +25,10 @@ def _sig_name(sig: Signal) -> str:
     return re.sub(r"\s*\[(weak|moderate|strong)\]$", "", sig.name)
 
 
-def _signal_table(sigs: list[Signal], name_limit: int = 36, desc_limit: int = 70) -> None:
+def _signal_table(sigs: list[Signal], name_limit: int = 30, desc_limit: int = 45) -> None:
     """通用信号表格: | 信号 | 方向 | 评分 | 说明 |"""
-    print(f"  | 信号 | 方向 | 评分 | 说明 |")
-    print(f"  |---|---|---|---|")
+    print("  | 信号 | 方向 | 评分 | 说明 |")
+    print("  |---|---|---|---|")
     for sig in sigs:
         d = _DIR_ZH.get(sig.direction.value, sig.direction.value)
         print(
@@ -126,7 +126,6 @@ def print_technical(
         )
 
     sigs = bundle.by_dimension("technical")
-    print(f"  {'-'*56}")
     if sigs:
         _print_avg_header(sigs)
         _signal_table(sigs)
@@ -169,7 +168,6 @@ def print_fundamental(
         print(f"  | 金银比 | {ratio:.1f} | {ratio_label} |")
 
     sigs = bundle.by_dimension("fundamental")
-    print(f"  {'-'*56}")
     if sigs:
         _print_avg_header(sigs)
         _signal_table(sigs)
@@ -186,12 +184,11 @@ def print_news(news_items: list, bundle: SignalBundle) -> None:
     sigs = bundle.by_dimension("news")
     if sigs:
         _print_avg_header(sigs)
-        _signal_table(sigs, name_limit=44, desc_limit=80)
+        _signal_table(sigs, name_limit=34, desc_limit=45)
     else:
         print("  信号: 无 (新闻情感未达阈值)")
 
     if news_items:
-        print(f"  {'-'*56}")
         # 来源标签动态化 (2026-08-25): 旧版硬编码 "NewsAPI" 但 fallback 路径实际是
         # anysearch/搜索引擎, 误导信源判断
         from collections import Counter as _Counter
@@ -228,7 +225,6 @@ def print_sentiment(au_df: pd.DataFrame | None, bundle: SignalBundle) -> None:
         print(f"  | 成交量 | {vol:.0f}手 | {vol_label} |")
 
     sigs = bundle.by_dimension("sentiment")
-    print(f"  {'-'*56}")
     if sigs:
         _print_avg_header(sigs)
         _signal_table(sigs)
@@ -265,11 +261,11 @@ def print_economic_calendar(bundle: SignalBundle) -> None:
 
     if upcoming:
         print(f"  未来高影响事件 ({len(upcoming)}个):")
-        print("  | 事件 | 影响 | ET时间 | 北京时间 | 距今 | 来源 |")
-        print("  |---|---|---|---|---|---|")
+        print("  | 事件 | 影响 | ET时间 | 北京时间 | 距今 |")
+        print("  |---|---|---|---|---|")
         for sig in upcoming:
             md = sig.metadata
-            name = _sig_name(sig).removeprefix("未来事件: ")
+            name = _sig_name(sig).removeprefix("未来事件: ").removeprefix("观测: ")
             impact = _IMPACT_ZH.get(md.get("impact", ""), md.get("impact", "-"))
             et = _fmt_iso(md.get("scheduled_at"))
             bj = _fmt_iso(md.get("scheduled_at_beijing"))
@@ -277,29 +273,25 @@ def print_economic_calendar(bundle: SignalBundle) -> None:
             until = f"{hours:.0f}h" if hours is not None and hours < 48 else (
                 f"{md.get('days_until', '-')}天" if md.get("days_until") is not None else "-"
             )
-            print(
-                f"  | {_cell(name, 40)} | {impact} | {et} | {bj} "
-                f"| {until} | {_cell(md.get('source', '-'), 12)} |"
-            )
+            print(f"  | {_cell(name, 44)} | {impact} | {et} | {bj} | {until} |")
 
     if review_warnings:
         print(f"  ⚠️ 复核/待查 ({len(review_warnings)}个):")
         for sig in review_warnings:
-            print(f"    [!] {_cell(sig.name, 80)}")
-            if sig.description:
-                print(f"        {_cell(sig.description, 90)}")
+            name = _cell(_sig_name(sig).removeprefix("⚠️ "), 52)
+            desc = _cell(_compact_conflict_desc(sig.description or ""), 62)
+            print(f"    - {name}: {desc}")
 
     if results:
-        print(f"  近期事件结果注入 ({len(results)}个):")
-        print("  | 事件 | 方向 | 评分 | 发生 | 距今 | 实际 vs 预期 |")
-        print("  |---|---|---|---|---|---|")
-        for sig in results:
+        merged = _dedupe_event_results(results)
+        print(f"  近期事件结果 ({len(merged)}个):")
+        print("  | 事件 | 方向 | 评分 | 距今 | 实际 vs 预期 |")
+        print("  |---|---|---|---|---|")
+        for sig in merged:
             md = sig.metadata
             name = _sig_name(sig)
             name = name.removeprefix("事件结果: ").removeprefix("近期事件: ")
             d = _DIR_ZH.get(sig.direction.value, sig.direction.value)
-            sched = md.get("scheduled_at")
-            happened = _fmt_iso(sched) if sched else "-"
             hours_ago = md.get("hours_ago")
             ago = (
                 f"{hours_ago/24:.0f}天前" if hours_ago is not None and hours_ago >= 72
@@ -307,18 +299,45 @@ def print_economic_calendar(bundle: SignalBundle) -> None:
             )
             actual = md.get("actual") or "-"
             forecast = md.get("forecast")
-            av = _cell(actual, 60)
+            av = _cell(actual, 40)
             if forecast:
-                av += f" (预期 {_cell(forecast, 20)})"
-            print(f"  | {_cell(name, 32)} | {d} | {sig.score:+.2f} | {happened} | {ago} | {av} |")
+                av += f" (预期 {_cell(forecast, 15)})"
+            print(f"  | {_cell(name, 32)} | {d} | {sig.score:+.2f} | {ago} | {_cell(av, 62)} |")
 
     if warnings:
-        print(f"  {'-'*56}")
         print("  军规提醒:")
         for sig in warnings:
-            print(f"    [!] {_cell(sig.name, 80)}")
-            if sig.description:
-                print(f"        {_cell(sig.description, 90)}")
+            print(f"    - {_cell(sig.name, 44)}: {_cell(sig.description or '', 62)}")
+
+
+def _dedupe_event_results(results: list[Signal]) -> list[Signal]:
+    """事件结果/近期事件 双版本按事件名去重, 优先保留带 scheduled_at 的更完整版本.
+
+    事件维度同一事件会产生「事件结果: X」(结果注入, 带发生时间/actual) 与
+    「近期事件: X」(时效性加权) 两条信号, 表格若都显示会造成 14 行重复观感
+    (2026-08-25 排版重排).
+    """
+    best: dict[str, Signal] = {}
+    for sig in results:
+        key = _sig_name(sig).removeprefix("事件结果: ").removeprefix("近期事件: ")
+        cur = best.get(key)
+        if cur is None:
+            best[key] = sig
+        elif sig.metadata.get("scheduled_at") and not cur.metadata.get("scheduled_at"):
+            best[key] = sig
+    return list(best.values())
+
+
+def _compact_conflict_desc(desc: str) -> str:
+    """'写入判定=X 与关键词推断=Y 冲突, 以写入判定为准...' -> 紧凑单行 '写入 X vs 推断 Y 冲突'."""
+    m = re.search(r"写入判定=(\S+)\s+与关键词推断=(\S+)\s+冲突", desc)
+    if not m:
+        return desc
+    tail = ""
+    tm = re.search(r"需人工复核(.*)$", desc)
+    if tm:
+        tail = _cell(tm.group(1), 24)
+    return f"写入 {m.group(1)} vs 推断 {m.group(2)} 冲突, 需人工复核 {tail}"
 
 
 def _fmt_iso(iso: str | None) -> str:
@@ -406,6 +425,11 @@ def print_smart_money(bundle: SignalBundle) -> None:
             )
 
 
+def _strip_obs(name: str) -> str:
+    """去掉 monitor 名称冗余 '观测: ' 前缀 (板块头已标注观测/触发, 2026-08-25)."""
+    return re.sub(r"^\s*观测:\s*", "", name)
+
+
 def print_monitor(bundle: SignalBundle) -> None:
     """监控触发维度 (2026-08-25 新增渲染: 此前无框线板块, 报告恒为空态, 27个活跃 monitor 全被吞)."""
     sigs = bundle.by_dimension("monitor")
@@ -422,8 +446,8 @@ def print_monitor(bundle: SignalBundle) -> None:
 
     if triggered:
         print(f"  已触发 ({len(triggered)}个):")
-        print("  | Monitor | 方向 | 评分 | 距今 | 触发结果 |")
-        print("  |---|---|---|---|---|")
+        print("  | Monitor | 方向 | 距今 | 触发结果 |")
+        print("  |---|---|---|---|")
         for sig in triggered:
             md = sig.metadata
             hours_ago = md.get("hours_ago")
@@ -432,21 +456,30 @@ def print_monitor(bundle: SignalBundle) -> None:
                 else f"{hours_ago:.0f}h前" if hours_ago is not None else "-"
             )
             print(
-                f"  | {_cell(md.get('monitor_name', _sig_name(sig)), 30)} "
+                f"  | {_cell(_strip_obs(str(md.get('monitor_name', _sig_name(sig)))), 34)} "
                 f"| {_DIR_ZH.get(sig.direction.value, sig.direction.value)} "
-                f"| {sig.score:+.2f} | {ago} | {_cell(md.get('trigger_result', ''), 55)} |"
+                f"| {ago} | {_cell(md.get('trigger_result', ''), 42)} |"
             )
 
     if watching:
         print(f"  观测中 ({len(watching)}个):")
+        # 前 5 个保留触发条件明细, 其余折成紧凑名称列表 (20+ 个全量表格超宽不可读)
+        show, rest = watching[:5], watching[5:]
         print("  | Monitor | 触发条件 |")
         print("  |---|---|")
-        for sig in watching:
+        for sig in show:
             md = sig.metadata
+            name = _strip_obs(str(md.get("monitor_name", _sig_name(sig))))
             print(
-                f"  | {_cell(md.get('monitor_name', _sig_name(sig)), 36)} "
+                f"  | {_cell(name, 34)} "
                 f"| {_cell(md.get('trigger_condition', ''), 60)} |"
             )
+        if rest:
+            rest_names = " / ".join(
+                _strip_obs(str(s.metadata.get("monitor_name", _sig_name(s))))
+                for s in rest
+            )
+            print(f"  其余 {len(rest)} 个: {_cell(rest_names, 130)}")
 
 
 def print_all_dimensions(
