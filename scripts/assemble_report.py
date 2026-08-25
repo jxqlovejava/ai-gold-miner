@@ -250,6 +250,35 @@ def _extract_event_results(text: str) -> list[str]:
     return results
 
 
+_PENDING_RE = re.compile(r"待查结果: (.+?): (\d+)个事件已发布")
+
+
+def _extract_pending_results(text: str) -> list[dict]:
+    """提取「已发布但未同步实际结果」的事件 (scan 的待查结果提醒).
+
+    行格式: 「待查结果: 事件A、事件B: N个事件已发布但未同步实际结果…」
+    (dimensions.py print_economic_calendar 的复核/待查区)。INFO/DEBUG 日志行跳过,
+    避免「⚠️ 待查结果:」日志行与复核区重复提取 (2026-08-26)。
+
+    返回 [{names: [事件名...], count: N}] — 这些事件已发布, 分析必须补查并纳入正文。
+    """
+    found: list[dict] = []
+    seen: set[str] = set()
+    for ln in text.splitlines():
+        if "| INFO" in ln or "| DEBUG" in ln:
+            continue
+        m = _PENDING_RE.search(ln)
+        if not m:
+            continue
+        names = [n.strip() for n in m.group(1).split("、") if n.strip()]
+        key = "、".join(names)
+        if not names or key in seen:
+            continue
+        seen.add(key)
+        found.append({"names": names, "count": int(m.group(2))})
+    return found
+
+
 def _extract_reminders(text: str) -> list[str]:
     """提取经验提醒."""
     block = _extract_block(text, "经验提醒", ("=",))
@@ -453,6 +482,18 @@ def assemble(scan_text: str, out_path: Path) -> None:
     lines.append("## 1.2 🎯 金价目标区间预测（未来 1-3 个月）")
     lines.append("（LLM 增量填充：三情景目标区间表，含概率/触发条件/传导链 r035）")
     lines.append("")
+    # 待查事件强制板块: scan 检测到「已发布但 actual 未同步」的事件 (2026-08-26 新增)。
+    # LLM 组装必填: 补查实际值并写日历持久化, 禁止跳过 — validate_report_format 拦截残留占位。
+    pending = _extract_pending_results(scan_text)
+    if pending:
+        lines.append("## ⚠️ 待查事件 · 已发布未同步 · 必须补查")
+        lines.append("> （LLM 必填：搜索权威来源补查实际值并写入下方，补查后写日历持久化 `update_event_result` + `gold_bias`，禁止跳过）")
+        lines.append("| 事件 | 预期 | 状态 |")
+        lines.append("|---|---|---|")
+        for p in pending:
+            for name in p["names"]:
+                lines.append(f"| {name} | （待补查） | ⏳ 已发布未同步 |")
+        lines.append("")
     lines.append("## 2. 维度信号")
     if table:
         lines.extend(table)

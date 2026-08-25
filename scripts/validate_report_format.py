@@ -63,6 +63,21 @@ def find_violations(text: str):
     return violations
 
 
+# 待查事件占位残留标记: 报告若仍含这些字样 = LLM 未补查已发布事件 (2026-08-26 新增).
+# assemble_report.py 生成骨架时插入「⚠️ 待查事件 · 必须补查」板块, LLM 补查后须替换为实际数据;
+# 残留即未处理 → 拦截 (不可自动修复, 需人工补查).
+PENDING_RESIDUE_MARKERS = ("必须补查", "（LLM 必填：补查")
+
+
+def find_pending_residue(text: str) -> list[int]:
+    """返回仍含待查占位标记的行号列表 (报告未补查已发布事件)."""
+    hits: list[int] = []
+    for idx, line in enumerate(text.split("\n"), start=1):
+        if any(m in line for m in PENDING_RESIDUE_MARKERS):
+            hits.append(idx)
+    return hits
+
+
 def remove_separators(text: str) -> tuple[str, int]:
     """删除文本中的独立 --- 分隔线（非表格、非 frontmatter），返回 (修复后文本, 删除行数)。
 
@@ -87,6 +102,14 @@ def remove_separators(text: str) -> tuple[str, int]:
 
 
 def _check(text: str, path: str = '') -> int:
+    residue = find_pending_residue(text)
+    if residue:
+        err = [f'❌ 报告校验失败（{path or "输出"}）: 检测到「待查事件·必须补查」占位未处理 — 已发布事件必须补查进正文。发现 {len(residue)} 处:']
+        for line_no in residue:
+            err.append(f'   第 {line_no} 行: 含待查占位标记')
+        err.append('修复: 搜索权威来源补查实际值, 将占位板块替换为实际数据表, 并写日历持久化 (update_event_result + gold_bias)。')
+        print('\n'.join(err), file=sys.stderr)
+        return 2
     violations = find_violations(text)
     if violations:
         # 失败信息走 stderr：PostToolUse hook 靠「exit 非 0 + stderr」向模型呈现拦截原因（stdout 不会被 hook 捕获）
@@ -137,6 +160,15 @@ def main() -> int:
                 return 0
         if not is_report_file(path):
             return 0
+        # 待查占位残留: 不可自动修复, 直接拦截 (LLM 需回头补查; 2026-08-26 新增)
+        residue = find_pending_residue(content)
+        if residue:
+            err = [f'❌ 报告校验失败（{path or "输出"}）: 检测到「待查事件·必须补查」占位未处理 — 已发布事件必须补查进正文。']
+            for line_no in residue:
+                err.append(f'   第 {line_no} 行: 含待查占位标记')
+            err.append('修复: 搜索权威来源补查实际值, 将占位板块替换为实际数据表, 并写日历持久化 (update_event_result + gold_bias)。')
+            print('\n'.join(err), file=sys.stderr)
+            return 2
         violations = find_violations(content)
         if not violations:
             print(f'✅ 报告格式校验通过（{path or "输出"}）: 无独立 "---" 分隔线')
