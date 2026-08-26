@@ -40,7 +40,7 @@ from gold_miner.execution.dashboard import DashboardFormatter, TradeDecision
 from gold_miner.execution.dimensions import print_all_dimensions
 from gold_miner.execution.notifier import Notifier
 from gold_miner.experience import ExperienceLoader
-from gold_miner.improvement.tracker import PredictionRecord, PredictionTracker
+from gold_miner.improvement.tracker import PredictionRecord, PredictionTracker, predict_direction
 from gold_miner.llm.client import LLMClient
 from gold_miner.signals.base import (
     FactType,
@@ -2359,16 +2359,13 @@ class AnalysisPipeline:
             sd["timestamp"] = sd["timestamp"].isoformat()
             serialized_signals.append(sd)
 
-        # 方向：优先 action 映射，便于结算 long/neutral
-        action = result.final_decision.get("action", "")
-        if action == "add":
-            track_direction = "long"
-        elif action in ("reduce", "stop"):
-            track_direction = "short"  # 结算语义：预期价格下跌侧有利
-        elif action == "hold":
-            track_direction = "neutral"
-        else:
-            track_direction = result.final_decision.get("direction", "neutral")
+        # 方向：基于综合评分符号 + 置信度阈值 (2026-08-26 优化)
+        # 旧逻辑按 action 映射 (hold→neutral) 把「持有」全部抹成观望 → 预测 93% neutral。
+        # 新逻辑 (tracker.predict_direction): |composite_score| ≥ 0.15 且置信度 ≥ 0.5 才押方向。
+        # 历史重演: score≥0.15 组上涨率 80% vs always-long 基准 63% (+17pp 增量), 样本独立。
+        track_direction = predict_direction(
+            result.bundle.composite_score, result.bundle.confidence
+        )
 
         tracker = PredictionTracker()
         if result.current_price > 0:

@@ -13,6 +13,7 @@ from gold_miner.improvement.tracker import (
     PredictionTracker,
     determine_correctness,
     normalize_direction,
+    predict_direction,
 )
 
 
@@ -82,6 +83,31 @@ class TestDetermineCorrectness:
     def test_neutral_outside_band(self):
         assert determine_correctness("neutral", 0.02) is False
         assert determine_correctness("观望", -0.02) is False
+
+
+class TestPredictDirection:
+    """方向预测阈值 (2026-08-26): |score|>=0.15 且 conf>=0.5 才押方向, 否则观望."""
+
+    def test_strong_bullish_goes_long(self):
+        assert predict_direction(0.20, 0.6) == "long"
+
+    def test_strong_bearish_goes_short(self):
+        assert predict_direction(-0.20, 0.6) == "short"
+
+    def test_threshold_boundary(self):
+        assert predict_direction(0.15, 0.5) == "long"
+        assert predict_direction(-0.15, 0.5) == "short"
+
+    def test_below_threshold_neutral(self):
+        assert predict_direction(0.14, 0.6) == "neutral"
+        assert predict_direction(-0.14, 0.6) == "neutral"
+
+    def test_low_confidence_neutral(self):
+        assert predict_direction(0.30, 0.4) == "neutral"
+
+    def test_none_defaults_neutral(self):
+        assert predict_direction(None, None) == "neutral"
+        assert predict_direction(0.0, 0.0) == "neutral"
 
 
 class TestPredictionRecord:

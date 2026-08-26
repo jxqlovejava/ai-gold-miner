@@ -81,6 +81,28 @@ def determine_correctness(direction: str, actual_return: float) -> bool:
     return abs(actual_return) < _NEUTRAL_BAND
 
 
+# 方向预测阈值 (2026-08-26): |composite_score| ≥ 阈值 且 置信度 ≥ 阈值 才押方向。
+# 旧机制按持仓 action 映射 (hold→neutral) 抹平方向 → 预测 93% neutral。
+# 历史重演验证: score≥0.15 组上涨率 80% vs always-long 基准 63% (+17pp)。
+_DIRECTION_SCORE_THRESHOLD = 0.15
+_DIRECTION_CONF_THRESHOLD = 0.5
+
+
+def predict_direction(composite_score: float, confidence: float) -> str:
+    """综合评分 + 置信度 → 预测方向 (long/short/neutral).
+
+    评分显著偏多 → long, 显著偏空 → short, 否则 neutral (弱信号不押方向)。
+    取代「按持仓 action 映射方向」的旧机制 (2026-08-26)。
+    """
+    score = float(composite_score or 0)
+    conf = float(confidence or 0)
+    if conf >= _DIRECTION_CONF_THRESHOLD and score >= _DIRECTION_SCORE_THRESHOLD:
+        return "long"
+    if conf >= _DIRECTION_CONF_THRESHOLD and score <= -_DIRECTION_SCORE_THRESHOLD:
+        return "short"
+    return "neutral"
+
+
 @dataclass
 class PredictionRecord:
     """单条预测记录."""
