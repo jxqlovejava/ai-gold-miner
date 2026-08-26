@@ -75,6 +75,7 @@ P0 主题列表（必须全覆盖）：
    - **T0 优先**：BLS.gov、FRED、CME FedWatch、FederalReserve.gov、BEA.gov
    - **T2 备用**：Reuters、Bloomberg、Kitco - 禁止仅依赖搜索摘要
    - **英文一手源必双引擎（2026-08-26 起）**：英文 T0/T1 事件补查必须跑 `PYTHONPATH=src python3 scripts/dual_engine_verify.py "<查询>" --from <日期>`（引擎A anysearch + 引擎B wigolo，wigolo 自动带 news+日期+force-refresh 约束），输出**标注引擎来源**；两引擎命中同域 = 引擎级互证点，以 T0/T1 域为准校验数值。wigolo 不可用 → 脚本自动降级单引擎并提示，此时报告中须注明「引擎B缺失，单引擎确认」
+   - **内置 WebSearch 工具 schema 铁律（2026-08-27 起）**：`WebSearch` **仅接受** `query` / `allowed_domains` / `blocked_domains`，**禁止传 `time_range` / `from_date` / `country` 等参数**——任何额外参数触发 `InputValidationError`（UI 显示为 `Invalid tool parameters`，事故：2026-08-26 补查 PCE/贸易帐两连错）。时间/新鲜度约束请改用：查询文本内嵌日期（`... July 2026`）、`anysearch_cli.py` 的 `--days`/`freshness`（JSON 内）、或 wigolo `time_range`/`from_date`（仅 wigolo 接受）。WebFetch 的 `prompt` 参数必填，缺省同样报 InputValidationError。
 3. 将实际结果写入 `calendar_events.jsonl`（`calendar.update_event_result()`，**必须同时写入 `gold_bias`**，判定规则见上方铁律）
 4. 调用 `EarlyWarningEngine().get_active_monitors()` 查活跃 monitor
 5. 逐一评估每个 active monitor 的 `trigger_condition` 是否满足
