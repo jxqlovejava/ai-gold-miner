@@ -487,7 +487,7 @@ def assemble(scan_text: str, out_path: Path) -> None:
     pending = _extract_pending_results(scan_text)
     if pending:
         lines.append("## ⚠️ 待查事件 · 已发布未同步 · 必须补查")
-        lines.append("> （LLM 必填：搜索权威来源补查实际值并写入下方，补查后写日历持久化 `update_event_result` + `gold_bias`，禁止跳过）")
+        lines.append("> （LLM 必填：搜索权威来源补查实际值并写入下方，补查后写日历持久化 `update_event_result` + `gold_bias`，**然后 FORCE_SCAN=1 重跑 scan 使结果进入事件驱动信号权重**（scan 快照式，补查前事件不进权重），禁止跳过）")
         lines.append("| 事件 | 预期 | 状态 |")
         lines.append("|---|---|---|")
         for p in pending:

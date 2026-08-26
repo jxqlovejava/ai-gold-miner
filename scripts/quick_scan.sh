@@ -92,6 +92,22 @@ emit_bundle_light() {
   } | tee "$BUNDLE_OUT"
 }
 
+# 待查事件检测（2026-08-26 系统性修复）：scan 是快照式，信号生成发生在补查之前——
+# 「已发布但 actual 为空」的事件不产生事件信号，不进入事件驱动权重。
+# 补查写日历(update_event_result+gold_bias)后，须 FORCE_SCAN=1 重跑 scan，
+# RecentEventSignalGenerator 才会消费 get_recent_events_with_results() 将其纳入权重。
+# 返回待查事件数；无待查输出空串。
+detect_pending() {
+  grep -oE '待查结果: .*: [0-9]+个事件已发布' "$1" 2>/dev/null \
+    | grep -oE '[0-9]+个事件已发布' | grep -oE '^[0-9]+' | tail -n1
+}
+emit_pending_warning() {
+  local n="$1"
+  if [ -n "$n" ] && [ "$n" -gt 0 ] 2>/dev/null; then
+    echo "PENDING_RESCAN|$n|检测到 $n 个待查事件(已发布未同步)：补查写日历(update_event_result+gold_bias)后必须 FORCE_SCAN=1 重跑 scan，事件结果才会进入事件驱动信号权重"
+  fi
+}
+
 if [ -z "${FORCE_SCAN:-}" ] && [ -f "$REPORT" ]; then
   MTIME=$(stat -f %m "$REPORT")
   AGE=$(( $(date +%s) - MTIME ))
@@ -134,6 +150,7 @@ PYEOF
     else
       if printf '%s\n' "$OUT" | grep -q '^ASSEMBLE_RC=0'; then
         echo "ASSEMBLE_OK|${ANALYSIS}"
+        emit_pending_warning "$(detect_pending "$REPORT")"
       else
         echo "ASSEMBLE_FAIL|${ANALYSIS}|assemble 异常, 骨架可能未更新"
       fi
@@ -158,5 +175,6 @@ gold-miner scan --days 30 --news --sentiment --report-file "$REPORT" > "$SCANLOG
 grep -E '\[[1-9]/9\]|⏱ Step|综合评分:|跨维度不一致|事件同步\]|日历校验|官方日历比对|国内金价:|民生银行积存金|国际金价|实际利率最新|通胀预期最新|画像匹配:|未来14天' "$SCANLOG" \
   | sed -E 's/^[0-9]{2}:[0-9]{2}:[0-9]{2} \| INFO *\| //' > "$STEPS" || true
 emit_steps
+emit_pending_warning "$(detect_pending "$SCANLOG")"
 run_assemble
 emit_bundle
