@@ -172,7 +172,7 @@ echo "==> 试跑 gold_price.py (price 模式)"
 
 echo ""
 echo "==> 部署监控脚本"
-for script in adaptive_gold_monitor.py gold_plan_alert.py overnight_news_scanner.py evening_event_preview.py price_surge_monitor.py profit_protection_monitor.py gold_stop_level_alert.py hermes_delivery_watchdog.py gold_self_review.py; do
+for script in adaptive_gold_monitor.py gold_plan_alert.py overnight_news_scanner.py evening_event_preview.py price_surge_monitor.py profit_protection_monitor.py gold_stop_level_alert.py hermes_delivery_watchdog.py gold_self_review.py weekly_prediction_review.py; do
     if [[ -f "$ROOT/scripts/$script" ]]; then
         "${SCP[@]}" "$ROOT/scripts/$script" "$HOST:$REMOTE_ROOT/scripts/"
         echo "  ✅ scripts/$script"
@@ -206,6 +206,11 @@ if [[ -f "$ROOT/scripts/hermes_wrapper_selfreview.py" ]]; then
     "${SCP[@]}" "$ROOT/scripts/hermes_wrapper_selfreview.py" "$HOST:/home/ubuntu/.hermes/scripts/gold_self_review.py"
     "${SSH[@]}" "$HOST" "chmod +x /home/ubuntu/.hermes/scripts/gold_self_review.py"
     echo "  ✅ gold_self_review.py (系统自评·周复盘, 服务器自主)"
+fi
+if [[ -f "$ROOT/scripts/hermes_wrapper_weekly_prediction.py" ]]; then
+    "${SCP[@]}" "$ROOT/scripts/hermes_wrapper_weekly_prediction.py" "$HOST:/home/ubuntu/.hermes/scripts/weekly_prediction_review.py"
+    "${SSH[@]}" "$HOST" "chmod +x /home/ubuntu/.hermes/scripts/weekly_prediction_review.py"
+    echo "  ✅ weekly_prediction_review.py (预测自检·周复盘, 服务器自主)"
 fi
 
 echo "==> 部署 crontab 配置文件"
