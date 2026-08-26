@@ -122,6 +122,7 @@ class PredictionRecord:
     was_correct: bool | None = None
     invalidated: bool = False
     invalidation_reason: str = ""
+    calibrated_confidence: float | None = None  # 历史命中率校准后的置信度 (2026-08-26)
 
 
 class PredictionTracker:
@@ -146,10 +147,25 @@ class PredictionTracker:
 
     def record_prediction(self, record: PredictionRecord) -> None:
         record.direction = normalize_direction(record.direction)
+        # 置信度校准 (2026-08-26): 用历史同方向已结算命中率校准 confidence。
+        # 某方向样本 < MIN_CALIBRATION_SAMPLES 时保留原始 confidence (小样本不可靠)。
+        try:
+            from gold_miner.improvement.calibration import (
+                build_calibration,
+                calibrate_confidence,
+            )
+
+            table = build_calibration(self.records)
+            record.calibrated_confidence = calibrate_confidence(
+                record.direction, record.confidence, table
+            )
+        except Exception:
+            record.calibrated_confidence = record.confidence
         self.records.append(record)
         self._append(record)
         logger.info(
             f"预测已记录 (id: {record.id}, 方向: {record.direction}, "
+            f"置信度: {record.confidence:.0%} → 校准 {record.calibrated_confidence:.0%}, "
             f"仓位: {record.position_pct:.0%})"
         )
 

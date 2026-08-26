@@ -25,6 +25,8 @@ import sys
 from collections import Counter
 from pathlib import Path
 
+from gold_miner.improvement.calibration import build_calibration, calibrate_confidence
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_PATH = PROJECT_ROOT / "data" / "private" / "prediction_journal.jsonl"
 
@@ -109,6 +111,15 @@ def collect(records: list[dict]) -> dict:
         brier_terms.append((conf - actual) ** 2)
     brier = st.mean(brier_terms) if brier_terms else 0.0
 
+    # 方向级置信度校准 (2026-08-26): 用历史同方向命中率校准后重算 Brier
+    calib_table = build_calibration(resolved)
+    calib_terms = []
+    for r in resolved:
+        conf = calibrate_confidence(r.get("direction"), r.get("confidence") or 0, calib_table)
+        actual = 1.0 if _is_correct(r.get("direction"), r.get("actual_return") or 0) else 0.0
+        calib_terms.append((conf - actual) ** 2)
+    brier_calibrated = st.mean(calib_terms) if calib_terms else 0.0
+
     # 方向性预测 (真正押方向, 排除 neutral)
     directional = [r for r in resolved if (r.get("direction") or "").lower() not in ("neutral", "hold")]
     dir_correct = sum(1 for r in directional if _is_correct(r.get("direction"), r.get("actual_return") or 0))
@@ -127,6 +138,8 @@ def collect(records: list[dict]) -> dict:
         "band_sensitivity": band_sensitivity,
         "conf_buckets": conf_buckets,
         "brier": brier,
+        "brier_calibrated": brier_calibrated,
+        "calib_table": calib_table,
         "n_directional": len(directional),
         "directional_correct": dir_correct,
         "overall_correct": overall_correct,
@@ -171,12 +184,22 @@ def render_md(s: dict) -> str:
     for b in s["band_sensitivity"]:
         L.append(f"| {b['band']:.1%} | {b['n']} | {b['hit_rate']:.0%} |")
     L.append("")
-    L.append("## 4. 置信度校准")
+    L.append("## 4. 置信度校准 (方向级)")
+    L.append("| 方向 | 样本 | 历史命中率 | 平均原始置信度 | 校准后置信度 |")
+    L.append("|---|---|---|---|---|")
+    for d, v in s["calib_table"].items():
+        cal = f"{v['hit_rate']:.0%}" if v["n"] >= 10 else "保留原始"
+        L.append(f"| {d} | {int(v['n'])} | {v['hit_rate']:.0%} | {v['mean_conf']:.2f} | {cal} |")
+    L.append(f"\n**Brier: 原始 {s['brier']:.4f} → 方向级校准后 {s['brier_calibrated']:.4f}** (0=完美, 越低越好)")
+    L.append("")
+    L.append("> 校准策略: 方向历史样本 ≥10 才用命中率校准, 否则保留原始置信度 (小样本不可靠)。")
+    L.append("> 中性命中率是「|收益|<1.5% 中性带」概率, 反映行情波动而非预测能力。")
+    L.append("")
+    L.append("### 4.1 置信度区间命中率 (未校准, 供参考)")
     L.append("| 置信度区间 | 样本 | 实际命中率 |")
     L.append("|---|---|---|")
     for b in s["conf_buckets"]:
         L.append(f"| {b['range']} | {b['n']} | {b['hit_rate']:.0%} |")
-    L.append(f"\n**Brier score: {s['brier']:.4f}** (0=完美, 越低越好; 无方向性参考基线 ~0.25)")
     L.append("")
     L.append("## 5. 数据质量警告")
     warns = []
