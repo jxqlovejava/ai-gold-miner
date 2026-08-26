@@ -63,6 +63,29 @@ class RecencyWeightConfig:
 # 事件→信号方向映射
 # ---------------------------------------------------------------------------
 
+# 复杂对冲事件标记 — actual 里分析师已显式写下双向推理 (一阶/二阶/对冲/双向/取中性),
+# 或文本同时含利多+利空方向信号 → 关键词推断不可靠, 跳过 naive 冲突告警。
+# 事故: 2026-08-26 Flash PMI(写neutral, 推断bullish因'加息概率回落')与
+#        国债回购(写bullish, 推断bearish因二阶风险注'鹰派加息')两连假阳性待复核。
+_HEDGED_MARKERS = ("对冲", "双向", "取中性", "一阶", "二阶", "双通道", "两因素")
+
+
+def _is_hedged_reasoning(actual: str) -> bool:
+    """actual 是否已显式包含双向对冲推理.
+
+    关键词推断无法解析「一阶利多 + 二阶利空 → 取中性」这类复合推理,
+    命中标记时跳过 naive 冲突告警, 避免复杂事件反复出现假阳性待复核。
+    """
+    low = (actual or "").lower()
+    if not low:
+        return False
+    if any(m in low for m in _HEDGED_MARKERS):
+        return True
+    # 双向信号并存也视为对冲 (利多+利空 或 看多+看空 同时出现)
+    has_bull = any(k in low for k in ("利多", "看多", "bullish", "利好"))
+    has_bear = any(k in low for k in ("利空", "看空", "bearish", "利淡"))
+    return has_bull and has_bear
+
 
 def _infer_direction_from_event(
     name: str,
@@ -101,6 +124,7 @@ def _infer_direction_from_event(
     if (
         keyword_direction is not SignalDirection.NEUTRAL
         and keyword_direction is not explicit
+        and not _is_hedged_reasoning(actual)
     ):
         conflict = (
             f"写入判定={explicit.value} 与关键词推断={keyword_direction.value} 冲突, "

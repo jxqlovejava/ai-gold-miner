@@ -2,11 +2,22 @@
 
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
+
+# 项目根 (优先 GOLD_MINER_ROOT 环境变量, 兼容服务器/本地) — 默认路径必须从根解析,
+# 不能裸用 CWD 相对路径: 哨兵可被 cron/wrapper 从任意目录拉起, CWD 漂移即
+# FileNotFoundError (事故: 2026-08-27 内联 python 在 jdgold scripts 目录读
+# data/private/conditional_orders.jsonl 失败)。
+_PROJECT_ROOT = (
+    Path(os.environ["GOLD_MINER_ROOT"])
+    if os.environ.get("GOLD_MINER_ROOT")
+    else Path(__file__).resolve().parents[3]
+)
 
 
 class AlertLevel(StrEnum):
@@ -59,11 +70,11 @@ class PortfolioSnapshot:
 @dataclass
 class SentinelConfig:
     """哨兵配置."""
-    # 路径
-    portfolio_path: Path = Path("data/private/portfolio.yaml")
-    orders_path: Path = Path("data/private/conditional_orders.jsonl")
-    calendar_path: Path = Path("data/calendar_events.jsonl")
-    state_path: Path = Path("data/sentinel_state.json")
+    # 路径 — 一律从项目根解析, 不依赖 CWD (事故 2026-08-27: CWD 漂移→FileNotFoundError)
+    portfolio_path: Path = _PROJECT_ROOT / "data/private/portfolio.yaml"
+    orders_path: Path = _PROJECT_ROOT / "data/private/conditional_orders.jsonl"
+    calendar_path: Path = _PROJECT_ROOT / "data/calendar_events.jsonl"
+    state_path: Path = _PROJECT_ROOT / "data/sentinel_state.json"
 
     # 阈值
     stop_near_pct: float = 2.0        # 距止损 ≤ 2% 预警

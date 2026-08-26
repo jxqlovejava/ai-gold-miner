@@ -100,6 +100,49 @@ class TestExplicitGoldBias:
         assert conflict is not None  # 关键词 bullish vs 显式 neutral → 告警
 
 
+class TestHedgedReasoning:
+    """复杂对冲事件不再产生假阳性冲突告警 (2026-08-27 事故修复).
+
+    事故: Flash PMI(写 neutral, 关键词因"加息概率回落"判 bullish) 与
+    国债回购(写 bullish, 关键词因二阶风险注"鹰派加息"判 bearish) 两连假阳性。
+    修复: actual 含双向对冲标记(一阶/二阶/对冲/双向/取中性) 或 利多+利空并存
+    时, 关键词推断不可靠 → 跳过 naive 冲突告警, 以显式 gold_bias 为准。
+    """
+
+    FLASH_PMI = (
+        "美国: 综合PMI 56.0(前值54.5, 52个月新高); 价格压力降温, '产出更热+通胀更冷'"
+        "goldilocks组合; gold_bias=neutral判定: 一阶通胀降温->加息概率回落->利多金价; "
+        "二阶增长新高->risk-on+避险需求下降->利空金价; 双向对冲取中性"
+    )
+    BUYBACK = (
+        "一阶TGA支出=向银行体系注入准备金+压制长端收益率->实际利率预期下行->利多金价; "
+        "二阶风险升级标注: 流动性注入放大通胀反弹风险->鹰派加息->实际利率反升; "
+        "gold_bias=bullish维持"
+    )
+
+    def test_hedged_flash_pmi_no_conflict(self) -> None:
+        direction, conflict = _infer_direction_from_event(
+            "全球Flash PMI(8月)", self.FLASH_PMI, None, gold_bias="neutral",
+        )
+        assert direction is SignalDirection.NEUTRAL
+        assert conflict is None
+
+    def test_hedged_buyback_no_conflict(self) -> None:
+        direction, conflict = _infer_direction_from_event(
+            "美财政部扩大长端国债回购", self.BUYBACK, None, gold_bias="bullish",
+        )
+        assert direction is SignalDirection.BULLISH
+        assert conflict is None
+
+    def test_unhedged_true_conflict_still_warns(self) -> None:
+        """无对冲标记 + 关键词与显式方向相反 → 仍须告警 (不误杀真实冲突)."""
+        direction, conflict = _infer_direction_from_event(
+            "测试", "数据低于预期, 就业放缓, 降息预期升温", None, gold_bias="bearish",
+        )
+        assert direction is SignalDirection.BEARISH
+        assert conflict is not None
+
+
 class TestSerde:
     """gold_bias 序列化往返 + 写入校验."""
 
