@@ -74,6 +74,7 @@ P0 主题列表（必须全覆盖）：
 2. 对每个待查事件，按优先级搜索权威来源：
    - **T0 优先**：BLS.gov、FRED、CME FedWatch、FederalReserve.gov、BEA.gov
    - **T2 备用**：Reuters、Bloomberg、Kitco - 禁止仅依赖搜索摘要
+   - **英文一手源必双引擎（2026-08-26 起）**：英文 T0/T1 事件补查必须跑 `PYTHONPATH=src python3 scripts/dual_engine_verify.py "<查询>" --from <日期>`（引擎A anysearch + 引擎B wigolo，wigolo 自动带 news+日期+force-refresh 约束），输出**标注引擎来源**；两引擎命中同域 = 引擎级互证点，以 T0/T1 域为准校验数值。wigolo 不可用 → 脚本自动降级单引擎并提示，此时报告中须注明「引擎B缺失，单引擎确认」
 3. 将实际结果写入 `calendar_events.jsonl`（`calendar.update_event_result()`，**必须同时写入 `gold_bias`**，判定规则见上方铁律）
 4. 调用 `EarlyWarningEngine().get_active_monitors()` 查活跃 monitor
 5. 逐一评估每个 active monitor 的 `trigger_condition` 是否满足
