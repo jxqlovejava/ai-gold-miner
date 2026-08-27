@@ -258,3 +258,108 @@ def test_insufficient_data():
 
     with pytest.raises(ValueError, match="数据不足"):
         ts.calculate(df)
+
+
+# ---------------------------------------------------------------------------
+# 分档锁利 (r025, 2026-08-27): 浮盈轨底线按最高浮盈档位上移
+#   >=2xATR -> 保本价+1xATR; >=1xATR -> 保本价+0.5xATR; 否则保本价
+# ---------------------------------------------------------------------------
+
+
+def test_tier1_profit_lock_floor():
+    """最高浮盈介于 1-2×ATR: 底线 = 保本价 + 0.5×ATR, 且应抬高止损位."""
+    # 前13天横盘1000(TR=4, ATR基线), 末日冲高: 最高=1004.8, 浮盈4.8
+    prices = [1000.0] * 13 + [1002.8]
+    df = _make_df(prices)
+
+    ts = ATRTrailingStop(
+        atr_period=14, profit_multiplier=2.5, cost_basis=1000.0,
+    )
+    signal = ts.calculate(df, entry_price=1000.0)
+
+    atr = signal.atr
+    peak_profit = signal.highest_high - 1000.0
+    assert 1 * atr <= peak_profit < 2 * atr  # 前提: 落在一档区间
+    expected_floor = 1000.0 + 0.5 * atr
+    assert signal.profit_lock_floor == pytest.approx(expected_floor, abs=0.02)
+    # 回撤轨(最高-2.5×ATR)低于底线, 底线应生效
+    assert signal.stop_price == pytest.approx(expected_floor, abs=0.02)
+    assert signal.triggered is False
+
+
+def test_tier2_profit_lock_floor():
+    """最高浮盈 >= 2×ATR: 底线 = 保本价 + 1×ATR, 且应抬高止损位."""
+    # 最高=1010.8, 浮盈10.8 >= 2×ATR
+    prices = [1000.0] * 13 + [1008.8]
+    df = _make_df(prices)
+
+    ts = ATRTrailingStop(
+        atr_period=14, profit_multiplier=2.5, cost_basis=1000.0,
+    )
+    signal = ts.calculate(df, entry_price=1000.0)
+
+    atr = signal.atr
+    peak_profit = signal.highest_high - 1000.0
+    assert peak_profit >= 2 * atr  # 前提: 二档
+    expected_floor = 1000.0 + 1.0 * atr
+    assert signal.profit_lock_floor == pytest.approx(expected_floor, abs=0.02)
+    assert signal.stop_price == pytest.approx(expected_floor, abs=0.02)
+    assert signal.triggered is False
+
+
+def test_profit_lock_ratchet_after_pullback():
+    """价格从峰回落但峰浮盈已达档位: 底线保持锁利不回撤(棘轮)."""
+    # 冲高到1008.8后回落到1005, 峰浮盈10.8仍 >= 2×ATR, 底线=保本+1×ATR
+    prices = [1000.0] * 13 + [1008.8, 1005.0]
+    df = _make_df(prices)
+
+    ts = ATRTrailingStop(
+        atr_period=14, profit_multiplier=2.5, cost_basis=1000.0,
+    )
+    signal = ts.calculate(df, entry_price=1000.0)
+
+    assert signal.profit_lock_floor >= 1000.0 + 1.0 * signal.atr
+    assert signal.stop_price >= signal.profit_lock_floor
+    assert "分档锁利" in signal.reason
+
+
+def test_profit_lock_floor_none_without_cost_basis():
+    """无成本价(无保本价)时无锁利底线, 行为与旧版一致."""
+    prices = [1000.0] * 13 + [1008.8]
+    df = _make_df(prices)
+
+    ts = ATRTrailingStop(atr_period=14, profit_multiplier=2.5)
+    signal = ts.calculate(df, entry_price=1000.0)
+
+    assert signal.profit_lock_floor is None
+
+
+def test_profit_lock_floor_breakeven_when_small_profit():
+    """峰浮盈 < 1×ATR: 底线退化为保本价(旧版平底行为)."""
+    # 最高=1002.5, 浮盈2.5 < 1×ATR(约4)
+    prices = [1000.0] * 13 + [1000.5]
+    df = _make_df(prices)
+
+    ts = ATRTrailingStop(
+        atr_period=14, profit_multiplier=2.5, cost_basis=1000.0,
+    )
+    signal = ts.calculate(df, entry_price=1000.0)
+
+    assert signal.highest_high - 1000.0 < 1 * signal.atr  # 前提: 未达一档
+    assert signal.profit_lock_floor == pytest.approx(1000.0, abs=0.01)
+
+
+def test_tiered_profit_lock_floor_function():
+    """公共函数: 档位判定 + 无效输入边界."""
+    from gold_miner.strategy.trailing_stop import tiered_profit_lock_floor
+
+    assert tiered_profit_lock_floor(None, 10.0, 1100.0) is None  # 无保本价
+    assert tiered_profit_lock_floor(1000.0, 0.0, 1100.0) is None  # 无ATR
+    assert tiered_profit_lock_floor(1000.0, float("nan"), 1100.0) is None
+    # 峰浮盈 100 >= 2×40 -> 二档
+    assert tiered_profit_lock_floor(1000.0, 40.0, 1100.0) == pytest.approx(1040.0)
+    # 峰浮盈 50 >= 2×20? 否(=2×20=40? 50>=40 是二档) -> 用 1×ATR=20: 50>=40 且 >=20 -> 二档=1020
+    # 改为峰浮盈 30, ATR 20: 30 < 40, >= 20 -> 一档 1010
+    assert tiered_profit_lock_floor(1000.0, 20.0, 1030.0) == pytest.approx(1010.0)
+    # 峰浮盈 10 < 20 -> 底线=保本价
+    assert tiered_profit_lock_floor(1000.0, 20.0, 1010.0) == pytest.approx(1000.0)

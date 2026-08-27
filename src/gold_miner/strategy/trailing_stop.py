@@ -1,13 +1,19 @@
 """ATR 双轨移动止损/止盈模块.
 
 实现基于真实波幅(ATR)的双轨策略:
-- 浮盈轨: 止损价 = max(持仓期间最高价 - profit_multiplier × ATR, 净保本价)
+- 浮盈轨: 止损价 = max(持仓期间最高价 - profit_multiplier × ATR, 分档锁利底线)
 - 浮亏轨: 止损价 = max(成本价 - loss_multiplier × ATR, 硬止损价)
 - 价格创新高, 浮盈轨跟随上移
 - 价格持续下跌, 浮亏轨限制亏损扩大
 
 净保本价 = 成本价 / (1 - sell_fee_pct) — 卖出扣手续费后真正回本的价格 (r032 摩擦成本).
 sell_fee_pct 默认为 0, 此时净保本价退化为成本价, 行为与旧版完全一致.
+
+分档锁利底线 (r025, 2026-08-27 起): 以持仓期间最高浮盈(最高价-净保本价)按峰判定,
+档位只升不降(棘轮), 替代旧版"浮盈轨不低于净保本价"的平底保护:
+- 最高浮盈 >= 2xATR -> 底线 = 保本价 + 1xATR
+- 最高浮盈 >= 1xATR -> 底线 = 保本价 + 0.5xATR
+- 其余              -> 底线 = 保本价 (旧版行为)
 """
 from __future__ import annotations
 
@@ -17,6 +23,9 @@ from datetime import datetime
 import pandas as pd
 
 from gold_miner.signals._price_utils import true_range as _true_range_fn
+
+# 分档锁利档位 (r025): (浮盈档位(ATR倍数), 锁定底线加成(ATR倍数)), 自高到低排列
+PROFIT_LOCK_TIERS: tuple[tuple[float, float], ...] = ((2.0, 1.0), (1.0, 0.5))
 
 
 @dataclass(frozen=True)
@@ -35,6 +44,36 @@ class TrailingStopSignal:
     triggered: bool
     action: str  # "hold" | "reduce_half" | "close_all"
     reason: str
+    profit_lock_floor: float | None = None  # 分档锁利底线 (r025); None=无保本价/无ATR
+
+
+def tiered_profit_lock_floor(
+    breakeven: float | None,
+    atr: float,
+    peak_price: float,
+) -> float | None:
+    """分档锁利底线 (r025).
+
+    以持仓期间最高浮盈 (peak_price - breakeven, 按峰判定) 分档, 档位只升不降(棘轮):
+      最高浮盈 >= 2xATR -> 底线 = 保本价 + 1xATR
+      最高浮盈 >= 1xATR -> 底线 = 保本价 + 0.5xATR
+      其余              -> 底线 = 保本价 (旧版平底保护)
+
+    Args:
+        breakeven: 净保本价; None 时无底线 (返回 None)
+        atr: 最新 ATR; 非正数/NaN 时返回 None (退化为无底线)
+        peak_price: 持仓期间最高价 (含进场价), 棘轮锚点
+
+    Returns:
+        锁利底线价; None 表示无底线
+    """
+    if breakeven is None or not (atr > 0):
+        return None
+    peak_profit = peak_price - breakeven
+    for threshold_atr, lock_atr in PROFIT_LOCK_TIERS:
+        if peak_profit >= threshold_atr * atr:
+            return breakeven + lock_atr * atr
+    return breakeven
 
 
 class ATRTrailingStop:
@@ -149,10 +188,13 @@ class ATRTrailingStop:
         in_profit = breakeven is not None and current_price > breakeven
 
         # 计算双轨止损价
+        lock_floor = tiered_profit_lock_floor(breakeven, latest_atr, highest_high)
         if in_profit:
-            # 浮盈轨: 从最高点回撤 profit_multiplier×ATR, 但不低于净保本价(扣卖出手续费后仍保本)
+            # 浮盈轨: 从最高点回撤 profit_multiplier×ATR, 但不低于分档锁利底线(r025)
             profit_stop = highest_high - self.profit_multiplier * latest_atr
-            trailing_stop = profit_stop if breakeven is None else max(profit_stop, breakeven)
+            trailing_stop = (
+                profit_stop if lock_floor is None else max(profit_stop, lock_floor)
+            )
             track = "profit"
             action = self.profit_action
         else:
@@ -206,6 +248,12 @@ class ATRTrailingStop:
                     reason += (
                         f"；当前浮盈, 浮盈轨(最高-{self.profit_multiplier}×ATR)生效中"
                     )
+                    if lock_floor is not None and breakeven is not None and lock_floor > breakeven:
+                        lock_atr = (lock_floor - breakeven) / latest_atr
+                        reason += (
+                            f", 分档锁利底线 {lock_floor:.2f}"
+                            f"(保本+{lock_atr:.1f}×ATR)"
+                        )
                 else:
                     reason += (
                         f"；当前浮亏, 浮亏轨(成本-{self.loss_multiplier}×ATR)生效中, "
@@ -233,6 +281,9 @@ class ATRTrailingStop:
             triggered=triggered,
             action=action,
             reason=reason,
+            profit_lock_floor=(
+                round(lock_floor, 2) if lock_floor is not None else None
+            ),
         )
 
     def _build_trigger_reason(
@@ -258,10 +309,19 @@ class ATRTrailingStop:
             fee_note = (
                 f"(含{self.sell_fee_pct:.1%}卖出费)" if self.sell_fee_pct > 0 else ""
             )
+            lock_floor = tiered_profit_lock_floor(breakeven, latest_atr, highest_high)
+            if lock_floor is not None and lock_floor > protect:
+                lock_note = (
+                    f", 分档锁利 保本+{(lock_floor - protect) / latest_atr:.1f}×ATR"
+                    f"={lock_floor:.2f}"
+                )
+            else:
+                lock_note = ""
             return (
                 f"价格 {current_price:.2f} 触及浮盈止损位 {effective_stop:.2f} "
                 f"(从高点 {highest_high:.2f} 回撤 {self.profit_multiplier}×ATR="
-                f"{self.profit_multiplier * latest_atr:.2f}, 已保净本 {protect:.2f}{fee_note})"
+                f"{self.profit_multiplier * latest_atr:.2f}, 已保净本 {protect:.2f}"
+                f"{fee_note}{lock_note})"
             )
 
         if cost_basis is not None:
@@ -292,6 +352,7 @@ def format_signal(signal: TrailingStopSignal) -> str:
         f"14日 ATR: {signal.atr}",
         f"浮盈轨: 最高 - {signal.profit_multiplier}×ATR",
         f"浮亏轨: 成本 - {signal.loss_multiplier}×ATR",
+        f"分档锁利底线: {signal.profit_lock_floor if signal.profit_lock_floor is not None else '未启用'}",
         f"有效止损位: {signal.stop_price}",
         f"当前轨道: {signal.track}",
         f"触发状态: {'已触发' if signal.triggered else '未触发'}",

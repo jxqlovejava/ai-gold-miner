@@ -242,7 +242,7 @@ RULE_SMART_MONEY_FLOW = InvestmentRule(
 RULE_ATR_TRAILING_STOP = InvestmentRule(
     id="r025",
     name="ATR移动止盈",
-    description="日线14×ATR×2.5，从阶段高点回撤触发后减仓一半；成本价保护下止损不低于成本价",
+    description="日线14×ATR×2.5，从阶段高点回撤触发后减仓一半；分档锁利：最高浮盈≥2×ATR止损底线=保本价+1×ATR、≥1×ATR=保本价+0.5×ATR（按峰判定棘轮）",
     severity="block",
     category="trend",
     check_fn="check_atr_trailing_stop",

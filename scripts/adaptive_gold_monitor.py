@@ -309,14 +309,17 @@ def _get_stop_context(current: float) -> dict:
             )
             signal = ts.calculate(df)
             ctx["atr_stop"] = float(getattr(signal, "stop_price", 0) or 0)
-            # ATR止盈 (浮盈轨): 最高 - profit_multiplier×ATR, 不低于净保本价 (r025)
+            # ATR止盈 (浮盈轨): 最高 - profit_multiplier×ATR, 不低于分档锁利底线 (r025)
             high = float(getattr(signal, "highest_high", 0) or 0)
             atr_val = float(getattr(signal, "atr", 0) or 0)
             pmult = float(getattr(signal, "profit_multiplier", 2.5) or 2.5)
             lmult = float(getattr(signal, "loss_multiplier", 3.0) or 3.0)
+            lock_floor = getattr(signal, "profit_lock_floor", None)
             if high > 0 and atr_val > 0:
                 tp = high - pmult * atr_val
-                if breakeven:
+                if lock_floor is not None:
+                    tp = max(tp, lock_floor)
+                elif breakeven:
                     tp = max(tp, breakeven)
                 ctx["atr_take_profit"] = round(tp, 2)
             # ATR止损 (浮亏轨): 成本 - loss_multiplier×ATR, 不低于硬止损

@@ -1864,7 +1864,8 @@ class AnalysisPipeline:
 
         之前 dashboard 的止损位是 current_price × 0.97 的固定百分比,
         不随新高上移。这里调用 ATRTrailingStop 用积存金历史计算:
-          止损位 = max(持仓期最高价 - 2.5×14日ATR, 净保本价)
+          止损位 = max(持仓期最高价 - 2.5×14日ATR, 分档锁利底线)
+        分档锁利底线 (r025): 最高浮盈≥2×ATR -> 保本价+1×ATR; ≥1×ATR -> 保本价+0.5×ATR; 否则保本价.
         使 scan 决策输出真正体现 ATR 动态止损。
 
         失败时静默降级为原固定百分比止损 (不阻断分析).
