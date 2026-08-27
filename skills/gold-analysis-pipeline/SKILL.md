@@ -54,6 +54,7 @@ description: 黄金价格走势分析完整 pipeline - 启动批协议+输出铁
 7. **单轮取数协议（2026-08-22 P5，⏱ 核心）** - `bash scripts/quick_scan.sh` **前台**一条 Bash 调用拿齐全部数据：复用判断->补最新价->重 scan->组装骨架+摘要->**末尾 bundle 输出**（`=====BUNDLE_START=====` 内：骨架/摘要/portfolio/active 条件单；**P6：ASSEMBLE_SKIP 时轻量 bundle 仅骨架**，已填充报告已含其余结论，省 ~170 行 ≈4-5k token）。**全程 2 轮模型调用**：①前台跑 quick_scan.sh（P6 后 REUSE+SKIP ~1s / RERUN ~15-30s，纯工具时间）-> ②推理填充 3 板块 + Write 落盘（hook 校验通过）+ 模型全文直发展示（见输出铁律 10 P9）。仅 Write 校验失败才有轮③修复。
    - ✅ **quick_scan.sh 自动分流**：当日报告 <3h -> 秒级返回 `REUSE_MODE|路径|AGE|LATEST_PRICE`；缺失/≥3h -> 前台重 scan。两种模式末尾都输出 bundle，骨架/摘要组装自动完成（`ASSEMBLE_OK`/`ASSEMBLE_SKIP`）。
    - 💾 **bundle 落盘（P8，2026-08-23）**：bundle 同步写 `data/private/.last_bundle.txt`（含 portfolio/条件单私密数据 → 走 gitignored 路径，禁放 data/output/ 被跟踪目录）。stdout 超限被持久化时**直接 Read 该文件**，禁对持久化文件 grep/awk 定位（省 1 轮推理 ≈1min）。
+   - 🚫 **禁止截断 quick_scan.sh stdout**（2026-08-27 事故根因）：**禁 `| tail`/`| head`/`| grep` 管线**——脚本已内置输出控制（scan 日志收 `.scan_log_*.log`、步骤收摘要），stdout 完整交付 bundle（实测 RERUN 全量 ~18KB 不超限）；自行 tail 会丢报告骨架 → 模型误判「输出被截断」回退读文件，反而多一轮。bundle 确不完整时**静默 Read `data/private/.last_bundle.txt` 继续，禁止在正文输出「输出被截断」等过程自述**（金价分析正文只输出报告内容）。
    - 🕐 **强制重 scan**：价格剧变（bundle 价格 vs LATEST_PRICE 跳变 >1%）或用户明确要最新 -> `FORCE_SCAN=1 bash scripts/quick_scan.sh`（仍单轮拿数）。
    - 🎯 **单次模式（2026-08-25）**：用户说「单次分析」/「不落盘」/「直接输出别写文件」等 -> `FORCE_SCAN=1 ASSEMBLE_FORCE=1 bash scripts/quick_scan.sh`（全新扫描 + 骨架强制重建 = 不 REUSE、不转贴当日已填充报告）-> 模型**直接文本输出完整报告全文**（3 个增量板块直接内嵌在输出里；**2.1-2.8 维度明细必须 1:1 转贴骨架程序化表格、禁止压缩成散文**，见 report_template §2「明细必须 1:1 转贴」），**不 Write 金价分析文件、不过 Write hook 校验**（格式按 report_template 自觉）。省 ~15-30s（Read 骨架 + Edits + 双份输出 token）。副作用披露：盘上会留未填充骨架并覆盖当日已填充报告；同日再正常问金价会走 ASSEMBLE_OK 重新填充，无损失。
    - 🚫 **禁止后台跑 + 通知驱动**（P3/P4 旧模式，3 轮推理各 20-25s；前台单轮省 1 轮推理 ~25s > RERUN 前台工具时间，REUSE 场景更优）。
@@ -88,7 +89,7 @@ description: 黄金价格走势分析完整 pipeline - 启动批协议+输出铁
 
 ## 1.0 启动批协议（唯一执行路径）
 
-**启动批 = 一条前台 Bash**：`bash scripts/quick_scan.sh`（五合一：复用判断->补最新价->重 scan->组装骨架+摘要->bundle 输出全部数据）。stdout 即全部输入：模式行（`REUSE_MODE|RERUN_MODE` + `LATEST_PRICE` + `ASSEMBLE_*`）+ bundle（`=====BUNDLE_START=====` 内：骨架/摘要/portfolio/active 条件单；SKIP 时仅骨架）。**不要后台运行**（后台 = 通知驱动 = 多一轮推理，见铁律 7）。
+**启动批 = 一条前台 Bash**：`bash scripts/quick_scan.sh`（五合一：复用判断->补最新价->重 scan->组装骨架+摘要->bundle 输出全部数据）。stdout 即全部输入：模式行（`REUSE_MODE|RERUN_MODE` + `LATEST_PRICE` + `ASSEMBLE_*`）+ bundle（`=====BUNDLE_START=====` 内：骨架/摘要/portfolio/active 条件单；SKIP 时仅骨架）。**不要后台运行**（后台 = 通知驱动 = 多一轮推理，见铁律 7）。**不要给 stdout 加 tail/head/grep 截断管线**（会丢 bundle 骨架，触发「输出被截断」回退读文件，见铁律 7）。
 
 **轮②（唯一推理轮）**：bundle 数据已在上下文 -> 推理填充 3 个板块（主驱动 §1.1 / 目标区间 §1.2 / 条件单审查 §7）-> `Write` 落盘（hook 校验通过）-> `cat` 直出展示报告（P7：模型不复述全文，仅补决策一句话+价格校验结论）。**REUSE+SKIP 场景免填充免 Write**：直接 `cat` 盘上报告 + 价格校验一句（LATEST_PRICE 与报告价一致=「价格无变化」；跳变 >1% 走 FORCE_SCAN）。REUSE 填充场景用 LATEST_PRICE 覆盖骨架内 scan 价格。
 

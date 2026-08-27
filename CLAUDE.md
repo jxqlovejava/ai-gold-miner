@@ -85,8 +85,8 @@ geo/policy_shift/trade_war/fed_emergency 等持续演变事件不能「搜一次
 
 **快速通道运行时协议（2026-08-24 起，替代 invoke skill）**：
 
-1. 触发词 → 直接**前台**跑 `bash scripts/quick_scan.sh`（强制重扫 `FORCE_SCAN=1`）；禁后台跑 + 通知驱动。
-2. stdout = 模式行 + bundle；stdout 超限被持久化时直 Read `data/private/.last_bundle.txt`；**禁 Read scan_report 全文**。
+1. 触发词 → 直接**前台**跑 `bash scripts/quick_scan.sh`（强制重扫 `FORCE_SCAN=1`）；禁后台跑 + 通知驱动。**禁对 stdout 做任何截断管线**（`| tail`/`| head`/`| grep`）——脚本已内置输出控制（scan 日志收 `.scan_log_*.log`、步骤收摘要），stdout = 模式行+步骤+bundle 完整交付（实测 ~18KB 不超限）；自行 tail/head 会丢报告骨架 → 触发「输出被截断」回退读文件，反而多一轮（2026-08-27 事故根因）。
+2. stdout = 模式行 + bundle；stdout 超限被持久化时直 Read `data/private/.last_bundle.txt`；**禁 Read scan_report 全文**。bundle 确不完整时**静默** Read `.last_bundle.txt` 继续，**禁止输出「输出被截断」等过程自述**（金价分析正文只输出报告内容）。
 3. `ASSEMBLE_SKIP`（REUSE/RERUN 通用）→ bundle 骨架 = 盘上已校验报告全文，**逐字转贴输出**，前置 2-3 行增量摘要（决策一句话 + 价格校验 LATEST_PRICE vs 报告价，跳变 >1% 走 FORCE_SCAN；+ 条件单变动说明）。
 4. `ASSEMBLE_OK` → 只增量填充 3 板块（§1.1 主驱动 + 驱动排序表 / §1.2 三情景目标区间含概率 + r035 传导链 / §7 条件单审查表）；REUSE 时行情引文用 LATEST_PRICE 覆盖 → `Write` 落盘 `data/output/金价分析_YYYY-MM-DD.md`（Write hook 自动校验板块间禁 `---`，失败删后重写）→ 模型全文直发同内容。
 4b. **待查结果必补查**：bundle 骨架含「⚠️ 待查事件 · 必须补查」板块（scan 检测到已发布但未同步实际结果的事件）→ 组装/单次输出前**必须**搜索权威源补查实际值（**英文一手源补查必须双引擎交叉验证**：`PYTHONPATH=src python3 scripts/dual_engine_verify.py "<查询>" --from <日期>`，引擎A anysearch + 引擎B wigolo，输出须标注引擎来源，细则见 event-sync §1.7；再写日历 `update_event_result` + `gold_bias` 持久化），纳入「近期事件结果回顾」+ 主驱动/目标区间；→ **补查写日历后必须 `FORCE_SCAN=1` 重跑一次 scan**（scan 是快照式，信号生成发生在补查前，待查事件 `actual` 为空不进事件驱动信号权重；quick_scan.sh 检测到待查会输出 `PENDING_RESCAN|N` 标记强制提示）→ 重跑后基于新 bundle 组装（细则见 SKILL.md 铁律 12 第④步）；**补查后的新事件时效加权 <24h=1.0（最高，是 7 天前事件的 3.3 倍）**。禁止跳过——残留占位 Write hook（`validate_report_format.py`）会拦截 exit 2；单次模式靠 SKILL.md 铁律 12 自觉执行。
