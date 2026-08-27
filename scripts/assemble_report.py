@@ -2,7 +2,7 @@
 """金价分析报告组装器 — scan_report 程序化组装报告骨架 (P2, 2026-08-22).
 
 目标: 把「LLM 每次从头撰写整份报告」降为「LLM 只补 3 个推理板块」。
-程序化从 scan_report 提取 决策/评分/置信度/维度表/军规/Munger/画像/博弈/后续关注/经验提醒,
+程序化从 scan_report 提取 决策/评分/置信度/维度表/军规/Munger/画像/博弈/后续关注,
 从 portfolio.yaml 提取持仓, 从 conditional_orders.jsonl 提取 active 条件单,
 按 docs/report_template.md 板块顺序组装报告骨架。
 
@@ -279,12 +279,6 @@ def _extract_pending_results(text: str) -> list[dict]:
     return found
 
 
-def _extract_reminders(text: str) -> list[str]:
-    """提取经验提醒."""
-    block = _extract_block(text, "经验提醒", ("=",))
-    return [ln.strip().lstrip("0123456789. ") for ln in (block or "").splitlines() if ln.strip()][:5]
-
-
 # ═══════════════════════════════════════════════════════════════
 # scan 数据摘要 (digest, 2026-08-22 提速P4)
 # ═══════════════════════════════════════════════════════════════
@@ -443,7 +437,6 @@ def assemble(scan_text: str, out_path: Path) -> None:
     profile = _extract_profile(scan_text)
     events = _extract_events(scan_text)
     event_results = _extract_event_results(scan_text)
-    reminders = _extract_reminders(scan_text)
     orders = _load_conditional_orders()
     pf = _load_portfolio()
     gold = (pf.get("positions") or {}).get("gold_jd", {})
@@ -600,13 +593,6 @@ def assemble(scan_text: str, out_path: Path) -> None:
     else:
         lines.append("（本期无事件结果回顾）")
     lines.append("")
-    lines.append("## 9. 📚 经验提醒")
-    if reminders:
-        lines.extend(f"- {r}" for r in reminders)
-    else:
-        lines.append("- （本期无触发）")
-    lines.append("")
-
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text("\n".join(lines), encoding="utf-8")
     print(f"✅ 报告骨架已组装: {out_path}（{len(lines)} 行）", file=sys.stderr)
