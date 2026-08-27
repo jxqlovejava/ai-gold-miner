@@ -60,6 +60,12 @@ DIMENSION_LABELS: dict[str, str] = {
 }
 
 
+# 运营监控维度：仅承载 0 分运营占位（观测中 / 无方向触发的 monitor），
+# 不进评分维度总表；有方向的触发型 monitor 已并入 event 维度计分（monitor_signal.py）。
+# 由报告独立「§2.3 监控触发」板块展示。
+OPERATIONAL_DIMENSIONS: frozenset[str] = frozenset({"monitor"})
+
+
 def dimension_label(dim: str) -> str:
     """信号维度 key → 中文标签；未收录的 key 原样返回."""
     return DIMENSION_LABELS.get(dim, dim)
@@ -350,18 +356,25 @@ class SignalBundle:
             }
         return summary
 
-    def dimension_direction_counts(self) -> tuple[int, int, int, int]:
+    def dimension_direction_counts(
+        self, summary: dict[str, dict] | None = None,
+    ) -> tuple[int, int, int, int]:
         """返回 (看多维度数, 看空维度数, 分歧维度数, 数据不足维度数)。
 
         基于 dimension_direction_summary() 的 dominant 字段计算。
         看多/看空为有效方向维度；分歧（多空平手）单独计数，作为观望信号
         不计入有效方向；数据不足为信息缺失维度。
 
+        Args:
+            summary: 可选预计算维度摘要；传入时使用该摘要而非重新计算
+                （format_dimension_table 传已排除运营监控维度的摘要，保持汇总口径一致）。
+
         Returns:
             tuple: (bullish_dimensions, bearish_dimensions,
                     dispute_dimensions, insufficient_data_dimensions)
         """
-        summary = self.dimension_direction_summary()
+        if summary is None:
+            summary = self.dimension_direction_summary()
         bullish = sum(1 for v in summary.values() if v["dominant"] == "bullish")
         bearish = sum(1 for v in summary.values() if v["dominant"] == "bearish")
         dispute = sum(1 for v in summary.values() if v["dispute"])
@@ -374,7 +387,9 @@ class SignalBundle:
         表格包含每个维度的方向、看多/看空/中性信号数、均分，以及「加权影响」列：
         加权影响 = 维度分 × 维度权重 ÷ 活跃权重和，与综合评分(composite_score)同口径。
         维度分优先取评分引擎的强度加权均分(dim_scores)，未评分 bundle fallback 简单均分。
-        不在权重表内的信息维度（如监控触发）显示「不参与」——它们不进入综合评分。
+        运营监控维度（监控触发）不进评分维度总表——有方向的触发型 monitor 并入 event 维度
+        计分，0 分观测占位由报告独立「监控触发」板块展示；其余不在权重表内的信息维度
+        显示「不参与」——它们不进入综合评分。
 
         表底输出「整体偏向总结」：加权净影响 + 方向（利多/利空/中性）+ 强度分级
         （重度 ≥0.6 / 中度 ≥0.3 / 轻度 <0.3，与 ScoringEngine.recommend() 阈值对齐），
@@ -389,6 +404,15 @@ class SignalBundle:
             str: 格式化的中文表格字符串
         """
         summary = self.dimension_direction_summary()
+        if not summary:
+            return "(无信号)"
+
+        # 运营监控维度不进评分维度总表：其 0 分观测占位无方向信息，
+        # 由报告独立「§2.3 监控触发」板块展示；有方向的触发型 monitor 已并入 event 计分。
+        summary = {
+            dim: info for dim, info in summary.items()
+            if dim not in OPERATIONAL_DIMENSIONS
+        }
         if not summary:
             return "(无信号)"
 
@@ -437,7 +461,7 @@ class SignalBundle:
         lines.append("└──────────────────┴────────────────────┴──────┴──────┴──────┴────────┴──────────┘")
 
         # 汇总行 1: 维度数对比（有效维度间的方向对比，分歧维度单独标注）
-        bull_dims, bear_dims, disp_dims, insuf_dims = self.dimension_direction_counts()
+        bull_dims, bear_dims, disp_dims, insuf_dims = self.dimension_direction_counts(summary)
         active = bull_dims + bear_dims
         if active > 0:
             if bull_dims > bear_dims:
@@ -454,11 +478,11 @@ class SignalBundle:
             consensus_note += f"（{insuf_dims}维数据不足）"
         lines.append(f"  有效维度方向对比: {consensus_note}")
 
-        # 汇总行 2: 信号数对比（全部信号的看多/看空/中性计数）
+        # 汇总行 2: 信号数对比（评分维度信号的看多/看空/中性计数，运营监控占位不计入）
         # 揭示维度粒度掩盖的背离 —— 资金流各子项常被归入同一维度
-        sig_bull = sum(1 for s in self.signals if s.direction == SignalDirection.BULLISH)
-        sig_bear = sum(1 for s in self.signals if s.direction == SignalDirection.BEARISH)
-        sig_neutral = sum(1 for s in self.signals if s.direction == SignalDirection.NEUTRAL)
+        sig_bull = sum(1 for s in self.signals if s.direction == SignalDirection.BULLISH and s.dimension not in OPERATIONAL_DIMENSIONS)
+        sig_bear = sum(1 for s in self.signals if s.direction == SignalDirection.BEARISH and s.dimension not in OPERATIONAL_DIMENSIONS)
+        sig_neutral = sum(1 for s in self.signals if s.direction == SignalDirection.NEUTRAL and s.dimension not in OPERATIONAL_DIMENSIONS)
         if sig_bull or sig_bear or sig_neutral:
             sig_note = f"看多 {sig_bull}个 vs 看空 {sig_bear}个"
             if sig_neutral > 0:

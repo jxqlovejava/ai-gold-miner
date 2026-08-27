@@ -2,8 +2,9 @@
 
 将第〇步 Monitor 检查的结果转换为管线 Step 2 可消费的信号：
 
-- triggered monitors → 方向信号（按触发时间时效性加权）
-- active monitors  → 中性"观测中"提醒信号
+- triggered monitors 有方向 → 并入 event 维度计分（按触发时间时效性加权, 影响看多/看空）
+- triggered monitors 无方向 + active monitors → 运营维度(maintain "monitor")中性观测提醒,
+  不进评分维度总表, 由报告「监控触发」板块展示
 
 打通第〇步 close_monitor() → Step 2 _step_generate_signals 的数据流断点。
 """
@@ -146,10 +147,14 @@ class MonitorSignalGenerator:
             if monitor.action_on_trigger:
                 description_parts.append(f"建议: {monitor.action_on_trigger[:100]}")
 
+            # 有方向的触发型 monitor = 已兑现事件的方向信号 → 并入 event 维度计分,
+            # 影响看多/看空; 无方向的中性触发(信息性)与观测中 monitor 同属运营维度,
+            # 不进评分维度总表, 由报告「§2.3 监控触发」板块展示.
+            dimension = "event" if direction != SignalDirection.NEUTRAL else "monitor"
             signals.append(
                 Signal(
                     name=f"Monitor触发: {monitor.name}",
-                    dimension="monitor",
+                    dimension=dimension,
                     direction=direction,
                     strength=strength,
                     score=score,

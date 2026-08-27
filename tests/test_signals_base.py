@@ -5,6 +5,7 @@ from datetime import datetime
 
 from gold_miner.signals.base import (
     DIMENSION_LABELS,
+    OPERATIONAL_DIMENSIONS,
     Signal,
     SignalBundle,
     SignalDirection,
@@ -333,8 +334,12 @@ class TestSignalBundle:
 
         table = bundle.format_dimension_table()
         for dim, label in DIMENSION_LABELS.items():
+            if dim in OPERATIONAL_DIMENSIONS:
+                continue  # 运营监控维度不进评分维度总表
             assert label in table, f"维度 {dim} 应显示中文「{label}」"
             assert dim not in table, f"维度 {dim} 不得以英文出现在表格中"
+        # 运营监控维度（监控触发）不得出现在评分维度总表
+        assert "监控触发" not in table
 
     def test_format_dimension_table_dual_totals(self) -> None:
         """双口径汇总: 维度数对比 + 信号数对比并存, 揭示维度粒度掩盖的背离.
@@ -398,10 +403,16 @@ class TestSignalBundle:
         assert "轻度利多" in table
         assert "弱信号" in table
 
-    def test_format_dimension_table_non_weighted_dimension_not_participating(self) -> None:
-        """不在权重表的维度（监控触发）显示「不参与」，不进入综合评分."""
+    def test_format_dimension_table_operational_monitor_excluded(self) -> None:
+        """运营监控维度（监控触发）不进评分维度总表：纯监控 bundle 显示无信号."""
         bundle = SignalBundle()
         bundle.add(Signal(name="m", dimension="monitor", direction=SignalDirection.NEUTRAL, strength=SignalStrength.WEAK, score=0.0))
+        assert bundle.format_dimension_table() == "(无信号)"
+
+    def test_format_dimension_table_non_weighted_dimension_not_participating(self) -> None:
+        """不在权重表的信息维度（如长期趋势）显示「不参与」，不进入综合评分."""
+        bundle = SignalBundle()
+        bundle.add(Signal(name="lt", dimension="long_term", direction=SignalDirection.NEUTRAL, strength=SignalStrength.WEAK, score=0.0))
         table = bundle.format_dimension_table()
         assert "不参与" in table
 
@@ -417,7 +428,7 @@ class TestSignalBundle:
             name="关税", dimension="fundamental",
             direction=SignalDirection.BEARISH, strength=SignalStrength.WEAK, score=-0.1,
         ))
-        bundle.add(Signal(name="监控", dimension="monitor", direction=SignalDirection.NEUTRAL, strength=SignalStrength.WEAK, score=0.0))
+        bundle.add(Signal(name="长期", dimension="long_term", direction=SignalDirection.NEUTRAL, strength=SignalStrength.WEAK, score=0.0))
         ScoringEngine().score(bundle)
         table = bundle.format_dimension_table()
         # fundamental 强度加权均分 (0.8×3+-0.1×1)/4=0.575；贡献 0.575×0.30/0.30=+0.575
