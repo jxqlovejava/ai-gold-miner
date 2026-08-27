@@ -1,46 +1,16 @@
 """多因子打分引擎."""
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Any
 
 from loguru import logger
 
-from gold_miner.signals.base import SignalBundle, SignalStrength, hype_suppression_factor
-
-
-@dataclass
-class DimensionWeights:
-    """各维度权重配置（维度间加权）.
-
-    维度内信号级别加权由 ScoringEngine._strength_weight() 处理：
-    STRONG=3x, MODERATE=2x, WEAK=1x — 确保央行购金、COT大减仓等
-    决定性信号不会被同维度弱信号（如印度关税调整）稀释。
-
-    2026-08-22 维度重构（MECE 单一轴「观测对象」）：
-    - oil 权重并入 fundamental（油价是纯宏观传导，非独立观测对象）
-    - 原 sentiment 0.12 承载「资金流+散户」拆为 sentiment 0.06 + smart_money 0.06
-    - 资金流类（COT/ETF/机构/资金炸弹）从 sentiment 拆出到 smart_money 维度
-    """
-
-    technical: float = 0.14
-    fundamental: float = 0.30   # 原 0.22 + oil 0.08
-    news: float = 0.14
-    sentiment: float = 0.06     # 原 0.12（含资金流），资金流拆出后仅剩纯散户心理
-    event: float = 0.10
-    polymarket: float = 0.05
-    anomaly: float = 0.05
-    scenario: float = 0.10
-    smart_money: float = 0.06   # 新增：COT/ETF/机构/资金炸弹
-
-    def __post_init__(self) -> None:
-        total = (
-            self.technical + self.fundamental + self.news
-            + self.sentiment + self.event + self.polymarket
-            + self.anomaly + self.scenario + self.smart_money
-        )
-        if abs(total - 1.0) > 0.001:
-            raise ValueError(f"权重之和必须等于1，当前={total}")
+from gold_miner.signals.base import (
+    DimensionWeights,
+    SignalBundle,
+    SignalStrength,
+    hype_suppression_factor,
+)
 
 
 class ScoringEngine:
@@ -122,6 +92,13 @@ class ScoringEngine:
 
         bundle.composite_score = max(-1.0, min(1.0, composite))
         bundle.confidence = confidence
+        # 持久化强度加权维度分 / 实际权重表 / 活跃权重和，供 format_dimension_table
+        # 输出「加权影响值」列（与 composite_score 同口径的逐维度贡献）。
+        bundle.dim_scores = dict(dim_avg)
+        bundle.dim_weights = {
+            d: getattr(self.weights, d) for d in self.weights.__dataclass_fields__
+        }
+        bundle.weight_used = weight_used
         return bundle
 
     def apply_anomaly_adjustments(

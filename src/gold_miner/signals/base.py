@@ -85,6 +85,57 @@ def hype_suppression_factor(signals: list[Signal]) -> float:
 DIMENSION_NOISE_BAND = 0.10
 
 
+@dataclass
+class DimensionWeights:
+    """各维度权重配置（维度间加权）.
+
+    维度内信号级别加权由 ScoringEngine._STRENGTH_MAP 处理：
+    STRONG=3x, MODERATE=2x, WEAK=1x — 确保央行购金、COT大减仓等
+    决定性信号不会被同维度弱信号（如印度关税调整）稀释。
+
+    2026-08-22 维度重构（MECE 单一轴「观测对象」）：
+    - oil 权重并入 fundamental（油价是纯宏观传导，非独立观测对象）
+    - 原 sentiment 0.12 承载「资金流+散户」拆为 sentiment 0.06 + smart_money 0.06
+    - 资金流类（COT/ETF/机构/资金炸弹）从 sentiment 拆出到 smart_money 维度
+
+    定义在 base.py 而非 engine.py：format_dimension_table() 输出「加权影响值」列
+    需要权重表，而 base 被 engine 依赖（engine → base），故权重定义放 base 避免循环。
+    """
+
+    technical: float = 0.14
+    fundamental: float = 0.30   # 原 0.22 + oil 0.08
+    news: float = 0.14
+    sentiment: float = 0.06     # 原 0.12（含资金流），资金流拆出后仅剩纯散户心理
+    event: float = 0.10
+    polymarket: float = 0.05
+    anomaly: float = 0.05
+    scenario: float = 0.10
+    smart_money: float = 0.06   # 新增：COT/ETF/机构/资金炸弹
+
+    def __post_init__(self) -> None:
+        total = (
+            self.technical + self.fundamental + self.news
+            + self.sentiment + self.event + self.polymarket
+            + self.anomaly + self.scenario + self.smart_money
+        )
+        if abs(total - 1.0) > 0.001:
+            raise ValueError(f"权重之和必须等于1，当前={total}")
+
+
+# 整体偏向强度分级阈值（与 ScoringEngine.recommend() 的 ±0.3 操作阈值对齐）：
+# |score| ≥ 0.6 → 重度；0.3 ≤ |score| < 0.6 → 中度（达操作阈值）；|score| < 0.3 → 轻度弱信号。
+WEIGHTED_STRONG_SCORE = 0.6
+WEIGHTED_MODERATE_SCORE = 0.3
+
+
+def default_dimension_weights() -> dict[str, float]:
+    """默认维度权重表（dict 形式），供 format_dimension_table 在未评分 bundle 时使用."""
+    return {
+        d: getattr(DimensionWeights(), d)
+        for d in DimensionWeights.__dataclass_fields__
+    }
+
+
 def _char_width(ch: str) -> int:
     """单字符显示宽度（CJK 全角=2，其余=1）."""
     return 2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1
@@ -153,6 +204,12 @@ class SignalBundle:
     composite_score: float = 0.0
     confidence: float = 0.0
     hype_suppression: float = 0.0  # 反带节奏压制系数(本次评分已施加)，供日志/报告披露
+    # 评分引擎(ScoringEngine.score)持久化的强度加权维度分与实际权重表，
+    # 供 format_dimension_table 输出「加权影响值」列（与 composite_score 同口径）。
+    # 未评分 bundle 保持空 dict / 0.0，format 时 fallback 到简单均分。
+    dim_scores: dict[str, float] = field(default_factory=dict)  # 维度内按信号强度加权均分
+    dim_weights: dict[str, float] = field(default_factory=dict)  # 评分实际使用的维度间权重表
+    weight_used: float = 0.0  # 参与评分的活跃维度权重和（归一化分母）
 
     def add(self, signal: Signal) -> None:
         self.signals.append(signal)
@@ -314,8 +371,16 @@ class SignalBundle:
     def format_dimension_table(self) -> str:
         """生成程序化维度方向总览表，LLM 可直接嵌入报告。
 
-        表格包含每个维度的方向、看多/看空/中性信号数、均分，
-        以及双口径汇总行：
+        表格包含每个维度的方向、看多/看空/中性信号数、均分，以及「加权影响」列：
+        加权影响 = 维度分 × 维度权重 ÷ 活跃权重和，与综合评分(composite_score)同口径。
+        维度分优先取评分引擎的强度加权均分(dim_scores)，未评分 bundle fallback 简单均分。
+        不在权重表内的信息维度（如监控触发）显示「不参与」——它们不进入综合评分。
+
+        表底输出「整体偏向总结」：加权净影响 + 方向（利多/利空/中性）+ 强度分级
+        （重度 ≥0.6 / 中度 ≥0.3 / 轻度 <0.3，与 ScoringEngine.recommend() 阈值对齐），
+        未达 ±0.3 操作阈值时提示弱信号观望。
+
+        双口径汇总行：
           - 维度数对比（有效维度间的方向对比）
           - 信号数对比（全部信号的看多/看空/中性计数）
         双口径并列为用户提供两种视角：维度粒度看方向共识, 信号粒度看内部背离.
@@ -327,10 +392,26 @@ class SignalBundle:
         if not summary:
             return "(无信号)"
 
+        # 加权影响值数据源：评分引擎持久化的强度加权维度分；未评分 fallback 简单均分。
+        weight_table = self.dim_weights or default_dimension_weights()
+        weight_used = self.weight_used
+        if weight_used <= 0:
+            # 未评分：活跃权重维度 = 权重表 ∩ 有信号维度（与 ScoringEngine 归一化口径一致）
+            weight_used = sum(
+                w for d, w in weight_table.items() if d in summary
+            )
+
+        def _contrib(dim: str, dim_score: float) -> str:
+            """单维度加权影响值（对综合评分的归一化贡献）；非权重维度 → 不参与."""
+            w = weight_table.get(dim)
+            if w is None or weight_used <= 0:
+                return "不参与"
+            return f"{dim_score * w / weight_used:+.3f}"
+
         lines = [
-            "┌──────────────────┬────────────────────┬──────┬──────┬──────┬────────┐",
-            "│      维度        │        方向        │ 看多 │ 看空 │ 中性 │  均分  │",
-            "├──────────────────┼────────────────────┼──────┼──────┼──────┼────────┤",
+            "┌──────────────────┬────────────────────┬──────┬──────┬──────┬────────┬──────────┐",
+            "│      维度        │        方向        │ 看多 │ 看空 │ 中性 │  均分  │ 加权影响 │",
+            "├──────────────────┼────────────────────┼──────┼──────┼──────┼────────┼──────────┤",
         ]
 
         dir_labels = {
@@ -344,13 +425,16 @@ class SignalBundle:
             # 维度名输出中文标签（输出语言铁律），按显示宽度对齐
             dim_display = dimension_label(dim)
             dir_display = dir_labels.get(info["dominant"], info["dominant"])
+            dim_score = self.dim_scores.get(dim, info["avg_score"])
+            contrib = _contrib(dim, dim_score)
             lines.append(
                 f"│ {_fit_display(dim_display, 16)} │ {_fit_display(dir_display, 18)} │ "
                 f"{info['bullish']:>4} │ {info['bearish']:>4} │ "
-                f"{info['neutral']:>4} │ {info['avg_score']:>+6.2f} │"
+                f"{info['neutral']:>4} │ {info['avg_score']:>+6.2f} │ "
+                f"{_fit_display(contrib, 10)} │"
             )
 
-        lines.append("└──────────────────┴────────────────────┴──────┴──────┴──────┴────────┘")
+        lines.append("└──────────────────┴────────────────────┴──────┴──────┴──────┴────────┴──────────┘")
 
         # 汇总行 1: 维度数对比（有效维度间的方向对比，分歧维度单独标注）
         bull_dims, bear_dims, disp_dims, insuf_dims = self.dimension_direction_counts()
@@ -380,5 +464,33 @@ class SignalBundle:
             if sig_neutral > 0:
                 sig_note += f"（{sig_neutral}个中性）"
             lines.append(f"  有效信号方向对比: {sig_note}")
+
+        # 整体偏向总结：净影响 + 方向（利多/利空/中性）+ 强度分级 + 是否弱信号观望
+        if self.dim_scores:
+            net = self.composite_score  # 已评分：与综合评分同口径（含信号强度加权）
+        else:
+            net = 0.0  # 未评分：展示口径 Σ(简单均分 × 权重 ÷ 活跃权重和)
+            for dim, info in summary.items():
+                w = weight_table.get(dim)
+                if w is not None and weight_used > 0:
+                    net += info["avg_score"] * w / weight_used
+
+        if net > 1e-9:
+            direction_cn = "利多"
+        elif net < -1e-9:
+            direction_cn = "利空"
+        else:
+            direction_cn = "中性"
+
+        abs_net = abs(net)
+        if abs_net >= WEIGHTED_STRONG_SCORE:
+            strength_cn = "重度"
+        elif abs_net >= WEIGHTED_MODERATE_SCORE:
+            strength_cn = "中度"
+        else:
+            strength_cn = "轻度"
+
+        weak_note = " | 弱信号(未达±0.3操作阈值)" if abs_net < WEIGHTED_MODERATE_SCORE else ""
+        lines.append(f"  整体偏向: {strength_cn}{direction_cn} | 加权净影响 {net:+.3f}{weak_note}")
 
         return "\n".join(lines)

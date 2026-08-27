@@ -117,6 +117,49 @@ class TestScoringEngine:
         result = engine.score(bundle)
         assert result.confidence > 0.5
 
+    def test_score_persists_dim_scores_and_weights(self) -> None:
+        """score() 应把强度加权维度分/实际权重表/活跃权重和持久化到 bundle，
+        供 format_dimension_table 输出加权影响值列（与 composite_score 同口径）。"""
+        engine = ScoringEngine()
+        bundle = SignalBundle()
+        bundle.add(Signal(
+            name="央行购金", dimension="fundamental",
+            direction=SignalDirection.BULLISH, strength=SignalStrength.STRONG, score=0.8,
+        ))
+        bundle.add(Signal(
+            name="关税", dimension="fundamental",
+            direction=SignalDirection.BEARISH, strength=SignalStrength.WEAK, score=-0.1,
+        ))
+        bundle.add(Signal(
+            name="PCE", dimension="event",
+            direction=SignalDirection.BEARISH, strength=SignalStrength.STRONG, score=-1.0,
+        ))
+        result = engine.score(bundle)
+
+        # 维度内强度加权: fundamental = (0.8*3 + -0.1*1) / (3+1) = 0.575
+        assert abs(result.dim_scores["fundamental"] - 0.575) < 1e-9
+        assert result.dim_scores["event"] == -1.0
+        # 实际权重表 + 活跃权重和 (fundamental 0.30 + event 0.10)
+        assert result.dim_weights["fundamental"] == 0.30
+        assert result.dim_weights["technical"] == 0.14
+        assert abs(result.weight_used - 0.40) < 1e-9
+        # 加权贡献 Σ 与 composite_score 一致
+        expected = (0.575 * 0.30 + -1.0 * 0.10) / 0.40
+        assert abs(result.composite_score - expected) < 1e-6
+
+    def test_score_persists_sentiment_hype_suppression(self) -> None:
+        """反带节奏压制后的情绪面维度分也应持久化（展示口径与 composite 一致）."""
+        engine = ScoringEngine()
+        bundle = SignalBundle()
+        bundle.add(Signal(
+            name="散户狂热", dimension="sentiment",
+            direction=SignalDirection.BULLISH, strength=SignalStrength.STRONG,
+            score=0.9, metadata={"heuristic": True},
+        ))
+        result = engine.score(bundle)
+        assert result.dim_scores["sentiment"] < 0.9  # 被压制
+        assert result.hype_suppression > 0
+
     def test_recommend_buy_when_score_above_threshold(self) -> None:
         engine = ScoringEngine()
         bundle = SignalBundle()

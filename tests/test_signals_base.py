@@ -10,6 +10,7 @@ from gold_miner.signals.base import (
     SignalDirection,
     SignalStrength,
 )
+from gold_miner.signals.engine import ScoringEngine
 
 
 class TestSignalDirection:
@@ -372,6 +373,58 @@ class TestSignalBundle:
         table = bundle.format_dimension_table()
         assert "⚠️ 分歧" in table
         assert "（1维分歧）" in table
+
+
+    def test_format_dimension_table_has_weighted_impact_column(self) -> None:
+        """表格应包含「加权影响」列 + 「整体偏向」总结行（加权影响值与综合评分同口径）."""
+        bundle = SignalBundle()
+        bundle.add(Signal(name="a", dimension="technical", direction=SignalDirection.BULLISH, strength=SignalStrength.STRONG, score=0.5))
+        bundle.add(Signal(name="b", dimension="news", direction=SignalDirection.BEARISH, strength=SignalStrength.MODERATE, score=-0.3))
+        table = bundle.format_dimension_table()
+        assert "加权影响" in table
+        assert "整体偏向" in table
+
+    def test_format_dimension_table_weighted_impact_value(self) -> None:
+        """未评分路径：加权影响 = 简单均分 × 权重 ÷ 活跃权重和
+        （technical/news 权重各 0.14，weight_used=0.28）."""
+        bundle = SignalBundle()
+        bundle.add(Signal(name="a", dimension="technical", direction=SignalDirection.BULLISH, strength=SignalStrength.STRONG, score=0.5))
+        bundle.add(Signal(name="b", dimension="news", direction=SignalDirection.BEARISH, strength=SignalStrength.MODERATE, score=-0.3))
+        table = bundle.format_dimension_table()
+        # technical: 0.5×0.14/0.28=+0.250 ; news: -0.3×0.14/0.28=-0.150
+        assert "+0.250" in table
+        assert "-0.150" in table
+        # 净影响 +0.100 → 轻度利多 + 弱信号标注（未达 ±0.3 操作阈值）
+        assert "轻度利多" in table
+        assert "弱信号" in table
+
+    def test_format_dimension_table_non_weighted_dimension_not_participating(self) -> None:
+        """不在权重表的维度（监控触发）显示「不参与」，不进入综合评分."""
+        bundle = SignalBundle()
+        bundle.add(Signal(name="m", dimension="monitor", direction=SignalDirection.NEUTRAL, strength=SignalStrength.WEAK, score=0.0))
+        table = bundle.format_dimension_table()
+        assert "不参与" in table
+
+    def test_format_dimension_table_scored_uses_strength_weighted(self) -> None:
+        """已评分路径：加权影响列用强度加权维度分（与 composite_score 同口径），
+        非权重维度仍显示「不参与」."""
+        bundle = SignalBundle()
+        bundle.add(Signal(
+            name="央行购金", dimension="fundamental",
+            direction=SignalDirection.BULLISH, strength=SignalStrength.STRONG, score=0.8,
+        ))
+        bundle.add(Signal(
+            name="关税", dimension="fundamental",
+            direction=SignalDirection.BEARISH, strength=SignalStrength.WEAK, score=-0.1,
+        ))
+        bundle.add(Signal(name="监控", dimension="monitor", direction=SignalDirection.NEUTRAL, strength=SignalStrength.WEAK, score=0.0))
+        ScoringEngine().score(bundle)
+        table = bundle.format_dimension_table()
+        # fundamental 强度加权均分 (0.8×3+-0.1×1)/4=0.575；贡献 0.575×0.30/0.30=+0.575
+        assert "+0.575" in table
+        assert "不参与" in table
+        # 整体偏向净影响 = composite_score
+        assert f"{bundle.composite_score:+.3f}" in table
 
 
 class TestMECEDimensionRestructure:
