@@ -29,7 +29,11 @@ def test_run_with_report_writes_print_output(tmp_path):
     """report_file 应捕获 print 输出到文件（Tee 落盘）. """
     report_file = str(tmp_path / "scan.log")
 
-    _run_with_report(lambda: print("测试报告行内容"), report_file)
+    def _run() -> str:
+        print("测试报告行内容")
+        return "ok"  # 模拟 run 成功（run() 返回 None 会被 _run_with_report 视为失败并删除 tmp）
+
+    _run_with_report(_run, report_file)
 
     content = Path(report_file).read_text(encoding="utf-8")
     assert "测试报告行内容" in content
