@@ -121,6 +121,15 @@ if [[ -f "$ROOT/data/signal_snapshot.json" ]]; then
 else
   echo "  本地无 data/signal_snapshot.json，跳过 (下次 pipeline 运行后产生)"
 fi
+# 京东积存金历史 (jd_ms_gold_history.csv — ATR/止损计算数据源, 2026-08-28 根因修复)
+# 不同步则服务器历史<14条自动 SGE Au99.99 代理回填, ATR(≈17) 与本地扫描 ATR(≈7) 不一致,
+# 导致监控 ATR止盈/止损 (1003.5/939.1) 与扫描报告 (969.58) 对不上
+if [[ -f "$ROOT/data/private/jd_ms_gold_history.csv" ]]; then
+  "${SCP[@]}" "$ROOT/data/private/jd_ms_gold_history.csv" "$HOST:$REMOTE_ROOT/data/private/jd_ms_gold_history.csv"
+  echo "  ✅ jd_ms_gold_history.csv (JD积存金历史, ATR数据源)"
+else
+  echo "  ⚠️ 本地无 data/private/jd_ms_gold_history.csv，跳过 (服务器将落 SGE 回填, ATR失真)"
+fi
 
 echo "==> 写入默认配置"
 "${SSH[@]}" "$HOST" "test -f '$REMOTE_CFG' || cp '$REMOTE_ROOT/scripts/hermes_gold_miner_config.json' '$REMOTE_CFG'"
