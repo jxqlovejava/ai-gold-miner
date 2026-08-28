@@ -143,6 +143,64 @@ class TestHedgedReasoning:
         assert conflict is not None
 
 
+class TestTradeBalancePolarity:
+    """贸易帐反向极性 (2026-08-28 系统性修复).
+
+    事故: 逆差扩大被泛化"超预期"关键词判 bearish, 与 gold_bias=bullish 假阳性冲突。
+    修复: 贸易帐事件走 _event_specific_direction 专项判定 (反向极性注册表),
+    逆差扩大 → bullish / 收窄 → bearish, 与写入判定一致, 消除假阳性冲突。
+    """
+
+    TRADE_WIDENED = (
+        "赤字 $118.8B (7月, 前值$101.4B, 预期$101.4B) — 逆差扩大超预期; "
+        "出口$199.4B(-6.0B), 进口$318.2B(+11.4B)"
+    )
+    TRADE_NARROWED = (
+        "赤字 $90.1B (7月, 前值$101.4B, 预期$101.4B) — 逆差收窄; "
+        "出口$210.0B(+10.6B), 进口$300.1B(-18.1B)"
+    )
+    TRADE_DEFICIT_BEAT = "赤字 $118.8B, 超预期 (预期$101.4B)"
+
+    def test_widened_deficit_agrees_with_gold_bias_no_conflict(self) -> None:
+        """本次事故场景: 逆差扩大 + gold_bias=bullish → 专项判 bullish, 无假阳性冲突."""
+        direction, conflict = _infer_direction_from_event(
+            "美国商品贸易帐(初值)", self.TRADE_WIDENED, None, gold_bias="bullish",
+        )
+        assert direction is SignalDirection.BULLISH
+        assert conflict is None
+
+    def test_widened_deficit_keyword_fallback_is_bullish(self) -> None:
+        """无 gold_bias 时专项判定仍正确 (修复前泛化引擎误判 bearish)."""
+        direction, conflict = _infer_direction_from_event(
+            "美国商品贸易帐(初值)", self.TRADE_WIDENED, None,
+        )
+        assert direction is SignalDirection.BULLISH
+        assert conflict is None
+
+    def test_deficit_beat_without_direction_word_is_bullish(self) -> None:
+        """无"扩大"词但"赤字+超预期" → 逆差比预期更大 → 仍判利多 (防回退泛化引擎)."""
+        direction, _ = _infer_direction_from_event(
+            "美国商品贸易帐(初值)", self.TRADE_DEFICIT_BEAT, None,
+        )
+        assert direction is SignalDirection.BULLISH
+
+    def test_narrowed_deficit_agrees_with_gold_bias_no_conflict(self) -> None:
+        """逆差收窄 + gold_bias=bearish → 一致, 无冲突."""
+        direction, conflict = _infer_direction_from_event(
+            "美国商品贸易帐(初值)", self.TRADE_NARROWED, None, gold_bias="bearish",
+        )
+        assert direction is SignalDirection.BEARISH
+        assert conflict is None
+
+    def test_narrowed_deficit_true_conflict_still_warns(self) -> None:
+        """收窄但写入 bullish → 真实冲突仍须告警 (专项判定不误杀真实冲突)."""
+        direction, conflict = _infer_direction_from_event(
+            "美国商品贸易帐(初值)", self.TRADE_NARROWED, None, gold_bias="bullish",
+        )
+        assert direction is SignalDirection.BULLISH
+        assert conflict is not None
+
+
 class TestSerde:
     """gold_bias 序列化往返 + 写入校验."""
 

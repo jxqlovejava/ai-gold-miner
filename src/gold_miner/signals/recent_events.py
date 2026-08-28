@@ -10,13 +10,19 @@
   3-7d   → weight=0.3  已基本定价，仅作背景参考
   >7d    → 不纳入
 
-初请/续请失业金方向判定 (2026-08-11 增强):
-  初请是反向指标 — 申请人数低 = 劳动力强 = 偏鹰 = 利空黄金。
-  但「劳动力稳健」不能只看与预期的差距，必须综合:
-    1. 预期差 (低于预期 → 偏鹰)
-    2. 环比涨幅 (环比上升 = 边际恶化 → 利多, 抵消"低于预期"的鹰派解读)
-    3. 分母幻觉 (参与率下降时, 低初请部分反映退出者不再申领, 不代表雇佣强劲)
-  参见 _infer_claims_direction。
+反向指标专项方向判定:
+  初请/续请失业金 (2026-08-11 增强):
+    初请是反向指标 — 申请人数低 = 劳动力强 = 偏鹰 = 利空黄金。
+    但「劳动力稳健」不能只看与预期的差距，必须综合:
+      1. 预期差 (低于预期 → 偏鹰)
+      2. 环比涨幅 (环比上升 = 边际恶化 → 利多, 抵消"低于预期"的鹰派解读)
+      3. 分母幻觉 (参与率下降时, 低初请部分反映退出者不再申领, 不代表雇佣强劲)
+    参见 _infer_claims_direction。
+  贸易帐/贸易逆差 (2026-08-28 增强):
+    逆差扩大 = 经常账户恶化 = 美元贬值 = 美元计价黄金受益 → 利多;
+    逆差收窄 = 美元升值 → 利空。与泛化「超预期=经济强=利空」假设相反。
+    参见 _infer_trade_balance_direction。
+  统一注册表: _event_specific_direction 按事件名分派专项判定, 未命中落泛化引擎。
 """
 
 from __future__ import annotations
@@ -109,7 +115,7 @@ def _infer_direction_from_event(
     Returns:
         (direction, conflict_note): conflict_note 为 None 表示无冲突。
     """
-    keyword_direction = _infer_claims_direction(name, actual, forecast, previous)
+    keyword_direction = _event_specific_direction(name, actual, forecast, previous)
     if keyword_direction is None:
         keyword_direction = _infer_direction_by_keywords(actual)
 
@@ -223,6 +229,81 @@ def _infer_claims_direction(
     if denominator_illusion and base_dir is SignalDirection.BEARISH:
         return SignalDirection.NEUTRAL  # 分母幻觉削弱鹰派解读
     return base_dir
+
+
+# ---------------------------------------------------------------------------
+# 事件名 → 专项方向判定注册表 (2026-08-28 系统性修复)
+#
+# 泛化关键词引擎 _infer_direction_by_keywords 的核心假设是「顺周期」:
+#   "超预期/上升/加速" = 经济强 = 利空黄金。
+# 该假设对多数宏观指标成立, 但对【反向极性指标】错误 — 其结果语义与顺周期
+# 相反, 泛化引擎会把正确方向判反, 与写入时 AI 判定的 gold_bias 冲突,
+# 产生假阳性「方向冲突待复核」。
+#
+# 事故: 2026-08-28 美国商品贸易帐(初值) 逆差扩大 → 泛化"超预期"判 bearish,
+#       与 gold_bias=bullish 冲突。实际逆差扩大 = 经常账户恶化 = 美元贬值
+#       = 美元计价黄金受益 (利多)。初请类已由 _infer_claims_direction 专项处理,
+#       贸易帐缺失 → 新增本注册表统一调度, 未命中才落泛化引擎。
+# ---------------------------------------------------------------------------
+
+_TRADE_BALANCE_MARKERS = ("贸易帐", "贸易逆差", "贸易收支", "trade balance", "trade deficit")
+
+
+def _is_trade_balance_event(name: str) -> bool:
+    """是否为贸易帐/贸易逆差类事件 (反向极性指标)."""
+    return any(m in name.lower() for m in _TRADE_BALANCE_MARKERS)
+
+
+def _infer_trade_balance_direction(actual: str) -> SignalDirection | None:
+    """贸易帐/贸易逆差专用方向判定 — 反向极性指标.
+
+    传导链 (与泛化引擎假设相反):
+      逆差扩大 → 经常账户恶化 → 美元贬值压力 → 美元计价黄金受益 → 利多
+      逆差收窄 → 经常账户改善 → 美元升值压力 → 利空黄金
+
+    依赖整体逆差方向词而非数字比较: 贸易帐 actual 单位混乱 (B/亿混合),
+    且分项描述 (出口/进口增减) 不代表整体逆差方向, 数字与分项均不参与判定。
+    """
+    low = (actual or "").lower()
+    if not low:
+        return None
+    # 收窄/改善优先 (覆盖"收窄超预期" → 判收窄)
+    if any(m in low for m in (
+        "收窄", "缩窄", "缩小", "改善",
+        "narrow", "narrower", "shrink", "shrunk", "improve", "improved",
+    )):
+        return SignalDirection.BEARISH
+    # 扩大/恶化 → 逆差扩大 → 利多
+    if any(m in low for m in (
+        "扩大", "走阔", "恶化",
+        "widen", "widened", "widening",
+    )):
+        return SignalDirection.BULLISH
+    # 无明确方向词时: "赤字/逆差 + 超预期/高于预期" = 逆差比预期更大 → 利多
+    if ("赤字" in low or "逆差" in low or "deficit" in low) and any(
+        m in low for m in ("超预期", "高于预期", "above", "beat", "高于")
+    ):
+        return SignalDirection.BULLISH
+    return None
+
+
+def _event_specific_direction(
+    name: str,
+    actual: str,
+    forecast: str | None,
+    previous: str | None,
+) -> SignalDirection | None:
+    """事件类型专项方向判定 — 覆盖泛化关键词引擎不适用的反向极性事件.
+
+    按事件名分派到对应专项判定; 未命中任何注册事件时返回 None,
+    由调用方回退 _infer_direction_by_keywords。新增反向指标事件时
+    在此注册一行即可 (系统性可扩展)。
+    """
+    if _is_claims_event(name):
+        return _infer_claims_direction(name, actual, forecast, previous)
+    if _is_trade_balance_event(name):
+        return _infer_trade_balance_direction(actual)
+    return None
 
 
 def _infer_direction_by_keywords(actual: str) -> SignalDirection:
