@@ -98,7 +98,7 @@ emit_bundle_light() {
 # RecentEventSignalGenerator 才会消费 get_recent_events_with_results() 将其纳入权重。
 # 返回待查事件数；无待查输出空串。
 detect_pending() {
-  grep -oE '待查结果: .*: [0-9]+个事件已发布' "$1" 2>/dev/null \
+  grep -oE '待查结果.{0,160}[0-9]+个事件已发布' "$1" 2>/dev/null \
     | grep -oE '[0-9]+个事件已发布' | grep -oE '^[0-9]+' | tail -n1
 }
 emit_pending_warning() {

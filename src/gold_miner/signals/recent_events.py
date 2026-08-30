@@ -438,6 +438,73 @@ class RecentEventSignalGenerator:
                 )
             )
 
+        # ── 到期未闭环的 monitor（2026-08-30 沃什演讲事故系统性修复）──
+        # 一次性 dated monitor(演讲/听证等)日期已过仍 active = 结果无人回收，
+        # 不进「近期事件结果回顾」也不进事件驱动权重，且不会被上面的
+        # pending_data_events 覆盖(monitor 不需要 actual)。生成待查信号提示
+        # 闭环: close_monitor(triggered/expired) 或升级为正式事件(含 gold_bias)。
+        # 措辞含「待查结果…个事件已发布」→ quick_scan.sh PENDING_RESCAN 强制重扫。
+        overdue_monitors = self.calendar.get_overdue_active_monitors()
+        if overdue_monitors:
+            mon_names = "、".join(e.name for e in overdue_monitors)
+            signals.append(
+                Signal(
+                    name=f"⚠️ 待查结果: Monitor未闭环({len(overdue_monitors)}): {mon_names}",
+                    dimension="event",
+                    direction=SignalDirection.NEUTRAL,
+                    strength=SignalStrength.STRONG,
+                    score=0.0,
+                    description=(
+                        f"{len(overdue_monitors)}个事件已发布(或已到期)但 monitor 仍为 active 未闭环，"
+                        f"请核实结果后 close_monitor(triggered/expired)，"
+                        f"或升级注册为正式事件(update_event_result + gold_bias)"
+                    ),
+                    metadata={
+                        "event_type": "pending_monitor_close",
+                        "pending_count": len(overdue_monitors),
+                        "pending_events": [
+                            {
+                                "name": e.name,
+                                "scheduled_at": e.scheduled_at.isoformat(),
+                                "expires_at": e.expires_at,
+                                "trigger_condition": e.trigger_condition,
+                            }
+                            for e in overdue_monitors
+                        ],
+                        "source_tier": "system",
+                    },
+                )
+            )
+
+        # ── 过期未续期的条件触发型 monitor（生命周期提醒，非待查）──
+        # 条件型 monitor 过期≠事件发生，只需续期或关闭；措辞刻意避开
+        # 「待查结果…个事件已发布」，不触发 quick_scan.sh PENDING_RESCAN 强制重扫。
+        expired_monitors = self.calendar.get_expired_conditional_monitors()
+        if expired_monitors:
+            exp_names = "、".join(e.name for e in expired_monitors)
+            signals.append(
+                Signal(
+                    name=f"🧹 Monitor到期待处理({len(expired_monitors)}): {exp_names}",
+                    dimension="monitor",
+                    direction=SignalDirection.NEUTRAL,
+                    strength=SignalStrength.WEAK,
+                    score=0.0,
+                    description=(
+                        f"{len(expired_monitors)}个条件型 monitor 已过 expires_at 仍为 active，"
+                        f"仍在观察期的请 renew_monitor 续期，失效的请 close_monitor 关闭"
+                    ),
+                    metadata={
+                        "event_type": "monitor_lifecycle_reminder",
+                        "pending_count": len(expired_monitors),
+                        "pending_events": [
+                            {"name": e.name, "expires_at": e.expires_at}
+                            for e in expired_monitors
+                        ],
+                        "source_tier": "system",
+                    },
+                )
+            )
+
         if not events:
             logger.debug("近期无已发布事件结果")
             return signals

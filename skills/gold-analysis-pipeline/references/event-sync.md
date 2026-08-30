@@ -163,6 +163,23 @@ cal.add_event(CalendarEvent(
 "
 ```
 
+## Monitor 生命周期铁律（2026-08-31 沃什演讲事故后程序化强制）
+
+1. **dated 一次性事件（演讲/听证/发布会/主旨，有确定日期）必须注册为正式事件**（fed_speech 等类型），不得注册为 monitor。monitor 只用于「条件触发型路由」（如"霍尔木兹航运量跌破50%→…"）。
+2. **monitor 到期必须闭环**：触发 → `close_monitor(name, result, "triggered")`（方向信号自动并入事件驱动计分）；条件失效 → `close_monitor(..., "expired")`；结果被升级为正式事件承载 → `close_monitor(..., "closed")`（避免与正式事件双计）。
+3. **仍在观察期的条件型 monitor 过期前续期**：`renew_monitor(name, new_expires_at)`。
+4. **程序检测**（scan 内置，无需手跑）：dated monitor 日期已过 24h 仍 active → 「⚠️ 待查结果： Monitor未闭环」信号，措辞触发 quick_scan.sh `PENDING_RESCAN` 强制补查重扫（与数据事件同流程）；条件型 monitor 过 expires_at 仍 active → 「🧹 Monitor到期待处理」弱提醒（不强制重扫）。
+
+```bash
+# 闭环/续期模板
+PYTHONPATH=src python3 -c "
+from gold_miner.data.calendar import EventCalendar
+cal = EventCalendar()
+cal.close_monitor('观测: 精确名称', result='触发结果描述', new_status='triggered')  # 或 expired/closed
+cal.renew_monitor('观测: 精确名称', '2026-10-31T00:00:00-04:00')
+"
+```
+
 ## 快速演变事件搜索铁律（2026-08-24 从 CLAUDE.md 移入）
 
 **geo/policy_shift/trade_war/fed_emergency 等持续演变事件**，不能按"搜索一次→写入 actual→永久有效"处理。标准三步校验（DOW/官网/交叉确认）不足以应对状态变化。

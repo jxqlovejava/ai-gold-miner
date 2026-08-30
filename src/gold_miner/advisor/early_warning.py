@@ -192,9 +192,16 @@ class EarlyWarningEngine:
         Returns:
             需要查询结果的事件列表（按时间倒序）
         """
-        return self.calendar.get_recently_published_without_result(
-            lookback_days=lookback_days,
-        )
+        # 排除 monitor: monitor 无 actual 概念，生命周期由 close_monitor 管理；
+        # 到期未闭环的 dated monitor 由 get_overdue_active_monitors 单独检测
+        # (2026-08-30 沃什演讲事故: 混在此计数导致「未记录:1」歧义)。
+        return [
+            e
+            for e in self.calendar.get_recently_published_without_result(
+                lookback_days=lookback_days,
+            )
+            if e.event_type != EventType.MONITOR
+        ]
 
     def get_active_monitors(self) -> list[CalendarEvent]:
         """查询所有活跃的 monitor 事件.

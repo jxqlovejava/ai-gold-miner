@@ -37,6 +37,13 @@ from gold_miner.compat import StrEnum
 # 北京时间 = UTC+8
 _BEIJING_TZ = timezone(timedelta(hours=8))
 
+# 一次性 dated 事件关键词 — monitor 名称含这些词表示它锚定「特定日期发生的
+# 演讲/听证/发布会」，事件发生后必须闭环(close_monitor 或升级为正式事件)，
+# 不能像条件触发型 monitor(如"霍尔木兹航运量跌破50%")那样长期挂起。
+_ONESHOT_MONITOR_KEYWORDS = (
+    "演讲", "讲话", "听证", "发布会", "主旨", "访谈", "keynote", "hearing",
+)
+
 
 def _is_us_dst(dt: datetime) -> bool:
     """美东夏令时 (EDT, UTC-4): 3月第二个周日 – 11月第一个周日."""
@@ -858,6 +865,85 @@ class EventCalendar:
             e for e in self.events
             if e.event_type == EventType.MONITOR and e.status == "active"
         ]
+
+    def get_overdue_active_monitors(
+        self,
+        reference_time: datetime | None = None,
+        grace_hours: int = 24,
+    ) -> list[CalendarEvent]:
+        """返回「日期已过但仍 active 未闭环」的一次性 dated monitor 事件.
+
+        判定: scheduled_at 已过 grace_hours 且名称含一次性事件关键词
+        (演讲/听证/发布会等) — 事件已发生，结果无人回收。
+
+        背景: 2026-08-30 沃什杰克逊霍尔演讲事故 — 演讲已发生 2 天，
+        条目仍是 active monitor，结果既不进「近期事件结果回顾」也不进
+        事件驱动信号权重，被静默丢失。
+
+        注意: expires_at 已过期的条件触发型 monitor 不在此列，
+        由 get_expired_conditional_monitors() 单独返回（生命周期问题，
+        不需要按「待查事件结果」流程补查重扫）。
+        """
+        now = reference_time or datetime.now(tz=UTC)
+        overdue: list[CalendarEvent] = []
+        for e in self.get_active_monitors():
+            if not any(k in e.name for k in _ONESHOT_MONITOR_KEYWORDS):
+                continue
+            scheduled_dt = e.scheduled_at
+            if scheduled_dt.tzinfo is None:
+                scheduled_dt = scheduled_dt.replace(tzinfo=UTC)
+            if (now - scheduled_dt) > timedelta(hours=grace_hours):
+                overdue.append(e)
+        return overdue
+
+    def get_expired_conditional_monitors(
+        self,
+        reference_time: datetime | None = None,
+    ) -> list[CalendarEvent]:
+        """返回 expires_at 已过期但仍 active 的条件触发型 monitor.
+
+        这类 monitor 是「条件满足才触发」的长期观测项（如美伊停火路由），
+        过期不代表事件发生，只需续期（renew_monitor）或关闭（close_monitor）。
+        与 get_overdue_active_monitors() 区分: 后者是一次性 dated 事件，
+        结果已客观存在、必须回收，走待查补查流程。
+        """
+        now = reference_time or datetime.now(tz=UTC)
+        expired: list[CalendarEvent] = []
+        for e in self.get_active_monitors():
+            if any(k in e.name for k in _ONESHOT_MONITOR_KEYWORDS):
+                continue  # dated 一次性事件归 get_overdue_active_monitors
+            if not e.expires_at:
+                continue
+            try:
+                exp_dt = datetime.fromisoformat(e.expires_at)
+            except (ValueError, TypeError):
+                continue
+            if exp_dt.tzinfo is None:
+                exp_dt = exp_dt.replace(tzinfo=UTC)
+            if exp_dt < now:
+                expired.append(e)
+        return expired
+
+    def renew_monitor(
+        self,
+        name: str,
+        new_expires_at: str,
+    ) -> bool:
+        """续期 monitor 事件的 expires_at（内存 + 重写 JSONL）.
+
+        Args:
+            name: monitor 事件名称（精确匹配）
+            new_expires_at: 新的过期时间 ISO 格式字符串
+
+        Returns:
+            True 如果找到并更新了事件
+        """
+        for e in self.events:
+            if e.name == name and e.is_active_monitor:
+                e.expires_at = new_expires_at
+                self._rewrite_jsonl()
+                return True
+        return False
 
     def close_monitor(
         self,
