@@ -133,6 +133,18 @@ def print_technical(
         print("  信号: 无 (技术指标未触发极端值)")
 
 
+def _match_named_signals(sigs: list[Signal], *keywords: str) -> list[Signal]:
+    """按信号名关键词匹配 (基本面指标表「关联信号」列用)."""
+    return [s for s in sigs if any(kw in s.name for kw in keywords)]
+
+
+def _fmt_linked_signals(matched: list[Signal], miss_hint: str) -> str:
+    """关联信号列文案: 有匹配→'名称 +0.30；...', 无匹配→'未触发(阈值原因)'."""
+    if not matched:
+        return f"未触发 ({miss_hint})"
+    return "；".join(f"{_sig_name(s)} {s.score:+.2f}" for s in matched)
+
+
 def print_fundamental(
     dxy_df: pd.DataFrame, rate_df: pd.DataFrame, breakeven_df: pd.DataFrame,
     gold_df: pd.DataFrame, silver_df: pd.DataFrame, bundle: SignalBundle,
@@ -142,32 +154,47 @@ def print_fundamental(
     print(f"  {dim_name}")
     print(f"{'='*60}")
 
-    # 核心指标表格 (2026-08-25 排版统一)
-    print("  | 指标 | 现值 | 对比20日均 |")
-    print("  |---|---|---|")
+    sigs = bundle.by_dimension("fundamental")
+
+    # 核心指标表格 (2026-08-25 排版统一; 2026-08-31 加「关联信号」列:
+    # 指标与下方信号表按名称挂钩, 未触发标注阈值原因 — 消除
+    # "指标表有 DXY/盈亏平衡通胀率但信号表找不到" 的解读困惑)
+    print("  | 指标 | 现值 | 对比20日均 | 关联信号 |")
+    print("  |---|---|---|---|")
     if not dxy_df.empty:
         dxy_now = dxy_df["value"].iloc[-1]
         dxy_20 = dxy_df["value"].tail(20).mean()
         dxy_dir = "走弱 ↓" if dxy_now < dxy_20 else "走强 ↑"
-        print(f"  | 美元指数 DXY | {dxy_now:.2f} | {dxy_dir} (20日均 {dxy_20:.2f}) |")
+        linked = _fmt_linked_signals(
+            _match_named_signals(sigs, "美元指数"), "MA5偏离20日均<±0.5%"
+        )
+        print(f"  | 美元指数 DXY | {dxy_now:.2f} | {dxy_dir} (20日均 {dxy_20:.2f}) | {linked} |")
     if not rate_df.empty:
         rate_now = rate_df["value"].iloc[-1]
         rate_20 = rate_df["value"].tail(20).mean()
         rate_dir = "↓" if rate_now < rate_20 else "↑"
-        print(f"  | 10Y 实际利率 | {rate_now:.2f}% | {rate_dir} (20日均 {rate_20:.2f}%) |")
+        linked = _fmt_linked_signals(
+            _match_named_signals(sigs, "实际利率"), "MA5偏离<±0.5%且利率非负"
+        )
+        print(f"  | 10Y 实际利率 | {rate_now:.2f}% | {rate_dir} (20日均 {rate_20:.2f}%) | {linked} |")
     if not breakeven_df.empty:
         be_now = breakeven_df["value"].iloc[-1]
         be_20 = breakeven_df["value"].tail(20).mean()
         be_dir = "↓" if be_now < be_20 else "↑"
-        print(f"  | 盈亏平衡通胀率 | {be_now:.2f}% | {be_dir} (20日均 {be_20:.2f}%) |")
+        linked = _fmt_linked_signals(
+            _match_named_signals(sigs, "通胀预期"), "MA5偏离<±0.3%且≤2.5%"
+        )
+        print(f"  | 盈亏平衡通胀率 | {be_now:.2f}% | {be_dir} (20日均 {be_20:.2f}%) | {linked} |")
     if not gold_df.empty and not silver_df.empty:
         gold_s = gold_df["close"].iloc[-1]
         silver_s = silver_df["value"].iloc[-1]
         ratio = gold_s / silver_s if silver_s > 0 else 0
         ratio_label = "极高位(避险极端)" if ratio > 85 else "低位(风险偏好高)" if ratio < 60 else "正常"
-        print(f"  | 金银比 | {ratio:.1f} | {ratio_label} |")
+        linked = _fmt_linked_signals(
+            _match_named_signals(sigs, "金银比"), "60-85正常区间"
+        )
+        print(f"  | 金银比 | {ratio:.1f} | {ratio_label} | {linked} |")
 
-    sigs = bundle.by_dimension("fundamental")
     if sigs:
         _print_avg_header(sigs)
         _signal_table(sigs)
