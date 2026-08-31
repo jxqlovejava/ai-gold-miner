@@ -48,24 +48,24 @@ BEIJING = timezone(timedelta(hours=8))
 
 # 各状态的检查间隔 (秒)
 MIN_INTERVALS: dict[str, int] = {
-    "NORMAL": 300,    # 5分钟
+    "NORMAL": 300,  # 5分钟
     "WATCHING": 120,  # 2分钟
-    "ALERT": 60,      # 1分钟
-    "CRITICAL": 60,   # 1分钟 (但每次都推送)
+    "ALERT": 60,  # 1分钟
+    "CRITICAL": 60,  # 1分钟 (但每次都推送)
 }
 
 # 状态转换阈值
 ESCALATION_PCT = {
-    "to_watching": 0.3,    # 跌 >0.3% → WATCHING
-    "to_alert": 0.5,       # 跌 >0.5% → ALERT
-    "to_critical": 0.5,    # ALERT状态下继续跌 0.5% → CRITICAL
+    "to_watching": 0.3,  # 跌 >0.3% → WATCHING
+    "to_alert": 0.5,  # 跌 >0.5% → ALERT
+    "to_critical": 0.5,  # ALERT状态下继续跌 0.5% → CRITICAL
     "de_escalation_pct": 0.5,  # 回升 >0.5% → 降一级
 }
 
 # 稳定回退时间 (秒)
 STABLE_TIMEOUTS = {
-    "WATCHING": 600,   # 10分钟稳定 → NORMAL
-    "ALERT": 900,      # 15分钟稳定 → WATCHING
+    "WATCHING": 600,  # 10分钟稳定 → NORMAL
+    "ALERT": 900,  # 15分钟稳定 → WATCHING
     "CRITICAL": 1200,  # 20分钟稳定 → ALERT
 }
 
@@ -96,56 +96,64 @@ COST_PROXIMITY_BANDS = [
 
 # 冷却: 告警推送最小间隔 (秒)
 ALERT_COOLDOWN = {
-    "NORMAL": 600,     # 10分钟
-    "WATCHING": 300,   # 5分钟
-    "ALERT": 120,      # 2分钟
-    "CRITICAL": 60,    # 1分钟 (急跌时每次推送)
+    "NORMAL": 600,  # 10分钟
+    "WATCHING": 300,  # 5分钟
+    "ALERT": 120,  # 2分钟
+    "CRITICAL": 60,  # 1分钟 (急跌时每次推送)
 }
 
 # 路径
-PROJECT_ROOT = Path(os.environ.get(
-    "GOLD_MINER_ROOT",
-    str(Path(__file__).resolve().parents[1]),
-))
-STATE_FILE = Path(os.environ.get(
-    "ADAPTIVE_MONITOR_STATE",
-    os.path.expanduser("~/.hermes/gold/adaptive_monitor_state.json"),
-))
+PROJECT_ROOT = Path(
+    os.environ.get(
+        "GOLD_MINER_ROOT",
+        str(Path(__file__).resolve().parents[1]),
+    )
+)
+STATE_FILE = Path(
+    os.environ.get(
+        "ADAPTIVE_MONITOR_STATE",
+        os.path.expanduser("~/.hermes/gold/adaptive_monitor_state.json"),
+    )
+)
 PORTFOLIO_PATH = PROJECT_ROOT / "data/private/portfolio.yaml"
-LOG_FILE = Path(os.environ.get(
-    "ADAPTIVE_MONITOR_LOG",
-    str(PROJECT_ROOT / "logs/adaptive_monitor.log"),
-))
+LOG_FILE = Path(
+    os.environ.get(
+        "ADAPTIVE_MONITOR_LOG",
+        str(PROJECT_ROOT / "logs/adaptive_monitor.log"),
+    )
+)
 
 # ═══════════════════════════════════════════════════════════════
 # 机会提醒配置 (止盈/抄底) — 可选 data/private/opportunity_config.yaml 覆盖
 # ═══════════════════════════════════════════════════════════════
 
 OPP_DEFAULTS: dict = {
-    "require_surge": True,          # 止盈是否需要急涨速度条件
-    "breakout_lookback_days": 20,   # N日新高窗口
-    "min_profit_pct": 0.05,         # 浮盈阈值
-    "dip_lookback_days": 20,        # N日低点窗口
-    "key_levels": [921.0, 850.0],   # 元/克; 921≈$4000/oz (USD/CNY≈7.16)
-    "key_level_band_pct": 0.01,     # 关键价位带宽 ±1%
+    "require_surge": True,  # 止盈是否需要急涨速度条件
+    "breakout_lookback_days": 20,  # N日新高窗口
+    "min_profit_pct": 0.05,  # 浮盈阈值
+    "dip_lookback_days": 20,  # N日低点窗口
+    "key_levels": [921.0, 850.0],  # 元/克; 921≈$4000/oz (USD/CNY≈7.16)
+    "key_level_band_pct": 0.01,  # 关键价位带宽 ±1%
     "cooldown_take_profit_min": 60,
     "cooldown_dip_low_min": 60,
-    "realert_move_pct": 0.01,       # 冷却内同向再走1%可再提醒
-    "snapshot_stale_hours": 48,     # 信号快照过期阈值
+    "realert_move_pct": 0.01,  # 冷却内同向再走1%可再提醒
+    "snapshot_stale_hours": 48,  # 信号快照过期阈值
     # 突破前兆 (Req1B 2026-08-11): 整数关口逼近 / 距N日高点≤1.5% → 变盘窗口预警
-    "breakout_key_levels": [950.0, 1000.0],   # 突破前兆整数关口 (元/克)
-    "breakout_level_band_pct": 0.01,          # 关口带宽 ±1%
-    "breakout_high_lookback_days": 20,        # N日高点窗口
-    "breakout_high_approach_pct": 0.015,      # 距N日高点≤1.5% 视为逼近
-    "cooldown_breakout_min": 60,              # 突破预警冷却
-    "cooldown_rebound_min": 60,               # 反弹通知冷却 (2026-08-12: 反弹持续时每5分钟推送触发 iLink 限流)
-    "trend_high_window_polls": 12,            # 本轮高点采样窗口(轮询次数, 5min×12≈1h): 用窗口内最高价而非下跌前单一快照
-    "cooldown_atr_sl_min": 60,                # ATR浮亏轨破位提醒冷却 (2026-08-14: 908破位清机动仓评估, 60min不重复)
-    "atr_sl_break_key_levels": [908.0],       # 自定义破位警戒位(元/克) 优先级高于动态ATR浮亏轨; 空列表=[只跟动态]
-    "atr_sl_break_band_pct": 0.003,           # 破位带宽 ±0.3% (接近但不触发, 供"逼近"提示)
-    "atr_sl_recovery_pct": 0.01,              # 破位后回升超1%再跌破才重提醒 (防跌穿后反复)
-    "order_near_pct": 1.5,                    # 条件单接近阈值: 距触发价≤1.5%提醒 (与盘前哨兵同款)
-    "cooldown_order_prox_min": 60,            # 条件单接近提醒冷却 (防价位居阈值带内反复横跳刷屏)
+    "breakout_key_levels": [950.0, 1000.0],  # 突破前兆整数关口 (元/克)
+    "breakout_level_band_pct": 0.01,  # 关口带宽 ±1%
+    "breakout_high_lookback_days": 20,  # N日高点窗口
+    "breakout_high_approach_pct": 0.015,  # 距N日高点≤1.5% 视为逼近
+    "cooldown_breakout_min": 60,  # 突破预警冷却
+    "cooldown_rebound_min": 60,  # 反弹通知冷却 (2026-08-12: 反弹持续时每5分钟推送触发 iLink 限流)
+    "trend_high_window_polls": 12,  # 本轮高点采样窗口(轮询次数, 5min×12≈1h): 用窗口内最高价而非下跌前单一快照
+    "cooldown_atr_sl_min": 60,  # ATR浮亏轨破位提醒冷却 (2026-08-14: 908破位清机动仓评估, 60min不重复)
+    "atr_sl_break_key_levels": [
+        908.0
+    ],  # 自定义破位警戒位(元/克) 优先级高于动态ATR浮亏轨; 空列表=[只跟动态]
+    "atr_sl_break_band_pct": 0.003,  # 破位带宽 ±0.3% (接近但不触发, 供"逼近"提示)
+    "atr_sl_recovery_pct": 0.01,  # 破位后回升超1%再跌破才重提醒 (防跌穿后反复)
+    "order_near_pct": 1.5,  # 条件单接近阈值: 距触发价≤1.5%提醒 (与盘前哨兵同款)
+    "cooldown_order_prox_min": 60,  # 条件单接近提醒冷却 (防价位居阈值带内反复横跳刷屏)
 }
 OPP_CONFIG_PATH = PROJECT_ROOT / "data/private/opportunity_config.yaml"
 SIGNAL_SNAPSHOT_PATH = PROJECT_ROOT / "data/signal_snapshot.json"
@@ -158,6 +166,7 @@ def _load_opp_config() -> dict:
     if OPP_CONFIG_PATH.exists():
         try:
             import yaml
+
             user_cfg = yaml.safe_load(OPP_CONFIG_PATH.read_text(encoding="utf-8")) or {}
             if isinstance(user_cfg, dict):
                 cfg.update({k: v for k, v in user_cfg.items() if k in cfg})
@@ -185,6 +194,7 @@ def _is_accum_trading_time() -> bool:
 # 价格获取
 # ═══════════════════════════════════════════════════════════════
 
+
 def _fetch_price() -> dict | None:
     """获取积存金当前价 — jdgold 主源 → latestPrice H5 兜底 (收口至 jdgold_client)."""
     from gold_miner.data.jdgold_client import fetch_accumulation_quote
@@ -198,6 +208,7 @@ def _load_portfolio() -> dict | None:
         return None
     try:
         import yaml
+
         with open(PORTFOLIO_PATH) as f:
             return yaml.safe_load(f)
     except Exception:
@@ -302,10 +313,15 @@ def _get_stop_context(current: float) -> dict:
                 except (KeyError, TypeError):
                     pass
             ts = ATRTrailingStop(
-                atr_period=14, profit_multiplier=2.5, loss_multiplier=3.0,
-                cost_basis=cost_basis, hard_stop_price=hard,
-                profit_action="reduce_half", loss_action="reduce_half",
-                sell_fee_pct=sell_fee, entry_date=entry_date,
+                atr_period=14,
+                profit_multiplier=2.5,
+                loss_multiplier=3.0,
+                cost_basis=cost_basis,
+                hard_stop_price=hard,
+                profit_action="reduce_half",
+                loss_action="reduce_half",
+                sell_fee_pct=sell_fee,
+                entry_date=entry_date,
             )
             signal = ts.calculate(df)
             ctx["atr_stop"] = float(getattr(signal, "stop_price", 0) or 0)
@@ -337,7 +353,9 @@ def _get_stop_context(current: float) -> dict:
     if ctx["hard_stop"] > 0 and current > 0:
         ctx["to_hard_pct"] = (current - ctx["hard_stop"]) / ctx["hard_stop"] * 100
     if ctx["secondary_stop"] > 0 and current > 0:
-        ctx["to_secondary_pct"] = (current - ctx["secondary_stop"]) / ctx["secondary_stop"] * 100
+        ctx["to_secondary_pct"] = (
+            (current - ctx["secondary_stop"]) / ctx["secondary_stop"] * 100
+        )
     return ctx
 
 
@@ -348,17 +366,25 @@ def _format_stop_context(ctx: dict) -> str:
         if ctx["to_atr_pct"] <= 0:
             parts.append(f"🔴 已跌破ATR止盈位 {ctx['atr_stop']:.0f}, 按r025减仓一半")
         elif ctx["to_atr_pct"] <= 3:
-            parts.append(f"⚠️ 逼近ATR止盈位 {ctx['atr_stop']:.0f} (仅剩{ctx['to_atr_pct']:.1f}%)")
+            parts.append(
+                f"⚠️ 逼近ATR止盈位 {ctx['atr_stop']:.0f} (仅剩{ctx['to_atr_pct']:.1f}%)"
+            )
         elif ctx["to_atr_pct"] <= 8:
-            parts.append(f"🎯 距ATR止盈位 {ctx['atr_stop']:.0f} 还有 {ctx['to_atr_pct']:.1f}%")
+            parts.append(
+                f"🎯 距ATR止盈位 {ctx['atr_stop']:.0f} 还有 {ctx['to_atr_pct']:.1f}%"
+            )
     if ctx["secondary_stop"] > 0 and ctx["to_secondary_pct"] is not None:
         if 0 < ctx["to_secondary_pct"] <= 5:
-            parts.append(f"⚠️ 逼近二级止损 {ctx['secondary_stop']:.0f} (仅剩{ctx['to_secondary_pct']:.1f}%)")
+            parts.append(
+                f"⚠️ 逼近二级止损 {ctx['secondary_stop']:.0f} (仅剩{ctx['to_secondary_pct']:.1f}%)"
+            )
         elif ctx["to_secondary_pct"] <= 0:
             parts.append(f"🔴 已跌破二级止损 {ctx['secondary_stop']:.0f}, 检查条件单")
     if ctx["hard_stop"] > 0 and ctx["to_hard_pct"] is not None:
         if 0 < ctx["to_hard_pct"] <= 8:
-            parts.append(f"🚨 逼近硬止损 {ctx['hard_stop']:.0f} (仅剩{ctx['to_hard_pct']:.1f}%)")
+            parts.append(
+                f"🚨 逼近硬止损 {ctx['hard_stop']:.0f} (仅剩{ctx['to_hard_pct']:.1f}%)"
+            )
         elif ctx["to_hard_pct"] <= 0:
             parts.append(f"🚨 已跌破硬止损 {ctx['hard_stop']:.0f}, 立即清仓")
     return " · ".join(parts) if parts else ""
@@ -375,9 +401,13 @@ def _format_atr_levels(ctx: dict, current: float) -> list[str]:
     tp = ctx.get("atr_take_profit", 0.0) or 0.0
     sl = ctx.get("atr_stop_loss", 0.0) or 0.0
     if tp > 0 and current > 0:
-        lines.append(f"ATR止盈：{tp:.1f}元，当前价距止盈位{(current - tp) / tp * 100:+.1f}%")
+        lines.append(
+            f"ATR止盈：{tp:.1f}元，当前价距止盈位{(current - tp) / tp * 100:+.1f}%"
+        )
     if sl > 0 and current > 0:
-        lines.append(f"ATR止损：{sl:.1f}元，当前价距止损位{(current - sl) / sl * 100:+.1f}%")
+        lines.append(
+            f"ATR止损：{sl:.1f}元，当前价距止损位{(current - sl) / sl * 100:+.1f}%"
+        )
     return lines
 
 
@@ -385,13 +415,20 @@ def _get_historical(days: int = 30) -> list[dict]:
     """获取积存金历史."""
     try:
         from gold_miner.data.jd_accumulation_gold import JdAccumulationGoldFetcher
+
         f = JdAccumulationGoldFetcher(bank="MS")
         df = f.fetch(days=days)
         if df is None or df.empty:
             return []
         return [
-            {"date": str(row["timestamp"].date()) if hasattr(row["timestamp"], "date") else str(row["timestamp"])[:10],
-             "close": float(row["close"])}
+            {
+                "date": (
+                    str(row["timestamp"].date())
+                    if hasattr(row["timestamp"], "date")
+                    else str(row["timestamp"])[:10]
+                ),
+                "close": float(row["close"]),
+            }
             for _, row in df.iterrows()
         ]
     except Exception:
@@ -411,9 +448,9 @@ DEFAULT_STATE = {
     "level_entered_at": None,
     "consecutive_skips": 0,
     # 反弹检测
-    "trend_low": None,       # 本次下跌的最低点
-    "trend_high": None,      # 下跌起点(阶段高点, 取最近N次轮询最高价)
-    "recent_high": None,     # 最近 N 次轮询的最高价 (定位本轮真实峰值)
+    "trend_low": None,  # 本次下跌的最低点
+    "trend_high": None,  # 下跌起点(阶段高点, 取最近N次轮询最高价)
+    "recent_high": None,  # 最近 N 次轮询的最高价 (定位本轮真实峰值)
     "recent_high_polls": 0,  # recent_high 距今轮询数 (超过窗口则过期重启)
     "prev_change_pct": 0.0,  # 上次检查的涨跌幅
     # 机会提醒 (止盈/抄底)
@@ -423,7 +460,7 @@ DEFAULT_STATE = {
     "dip_alert_price": None,
     "in_band_levels": [],
     # 突破前兆 (Req1B 2026-08-11)
-    "breakout_near_levels": [],   # 当前在关口下轨带内的价位列表
+    "breakout_near_levels": [],  # 当前在关口下轨带内的价位列表
     "breakout_alert_at": None,
     "breakout_alert_price": None,
     # 进行中事件去重 (2026-08-13): 同一事件窗口内只推送一次的 key 列表
@@ -456,6 +493,7 @@ def _save_state(state: dict) -> None:
 # ═══════════════════════════════════════════════════════════════
 # 自适应频率核心: 状态机
 # ═══════════════════════════════════════════════════════════════
+
 
 def _should_check(state: dict) -> tuple[bool, str]:
     """决定本次是否执行完整检查."""
@@ -525,7 +563,11 @@ def _determine_escalation(current: float, state: dict) -> str:
                 stable_seconds = (_now() - entered_dt).total_seconds()
                 timeout = STABLE_TIMEOUTS.get(level, 99999)
                 if stable_seconds >= timeout:
-                    downgrade = {"CRITICAL": "ALERT", "ALERT": "WATCHING", "WATCHING": "NORMAL"}
+                    downgrade = {
+                        "CRITICAL": "ALERT",
+                        "ALERT": "WATCHING",
+                        "WATCHING": "NORMAL",
+                    }
                     return downgrade.get(level, level)
             except (ValueError, TypeError):
                 pass
@@ -536,6 +578,7 @@ def _determine_escalation(current: float, state: dict) -> str:
 # ═══════════════════════════════════════════════════════════════
 # 检测逻辑
 # ═══════════════════════════════════════════════════════════════
+
 
 def _check_cost_proximity(current: float, cost: float) -> dict | None:
     """成本逼近检测. cost 传入净保本价(扣卖出手续费后的回本线), 不是毛成本价."""
@@ -557,7 +600,9 @@ def _check_cost_proximity(current: float, cost: float) -> dict | None:
     return None
 
 
-def _check_atr_stop_break(current: float, stop_ctx: dict, state: dict, cfg: dict) -> dict | None:
+def _check_atr_stop_break(
+    current: float, stop_ctx: dict, state: dict, cfg: dict
+) -> dict | None:
     """ATR 浮亏轨破位检测 — 跌破 ATR 止损位(浮亏轨)时推送微信提醒.
 
     2026-08-14: 用户机动仓已降至 7.13g, 不再挂 908 卖出条件单(克数太小, 摩擦>保护),
@@ -578,6 +623,7 @@ def _check_atr_stop_break(current: float, stop_ctx: dict, state: dict, cfg: dict
         if last_at:
             try:
                 from datetime import datetime as _dt
+
                 elapsed = (_now() - _dt.fromisoformat(last_at)).total_seconds()
             except (ValueError, TypeError):
                 elapsed = 99999.0
@@ -610,7 +656,8 @@ def _check_peak_drawdown(current: float, historical: list[dict]) -> dict | None:
             if drawdown >= threshold:
                 return {
                     "type": "peak_drawdown",
-                    "message": msg.format(window=window_days) + f" | {window_days}日高点 {peak:.0f}→{current:.0f} ({drawdown*100:.1f}%)",
+                    "message": msg.format(window=window_days)
+                    + f" | {window_days}日高点 {peak:.0f}→{current:.0f} ({drawdown*100:.1f}%)",
                     "severity": "HIGH" if drawdown > 0.05 else "MEDIUM",
                 }
     return None
@@ -627,7 +674,9 @@ def _check_consecutive_down(historical: list[dict]) -> dict | None:
         else:
             break
     if down_count >= CONSECUTIVE_DOWN_DAYS:
-        total_change = (closes[-1] - closes[-1 - down_count]) / closes[-1 - down_count] * 100
+        total_change = (
+            (closes[-1] - closes[-1 - down_count]) / closes[-1 - down_count] * 100
+        )
         avg_daily = total_change / down_count
         return {
             "type": "consecutive_down",
@@ -640,7 +689,9 @@ def _check_consecutive_down(historical: list[dict]) -> dict | None:
     return None
 
 
-def _check_intraday_reversal(change_pct: float, prev_close: float, current: float) -> dict | None:
+def _check_intraday_reversal(
+    change_pct: float, prev_close: float, current: float
+) -> dict | None:
     if change_pct <= -INTRADAY_REVERSAL_PCT:
         return {
             "type": "intraday_reversal",
@@ -663,14 +714,17 @@ def _check_surge(current: float, state: dict) -> dict | None:
             "direction": direction,
             "change_pct": round(change_pct, 2),
             "message": f"{'📈' if direction == 'up' else '📉'} 价格{'急涨' if direction == 'up' else '急跌'}! "
-                       f"{last_price:.0f}→{current:.0f} ({change_pct:+.2f}%)",
+            f"{last_price:.0f}→{current:.0f} ({change_pct:+.2f}%)",
             "severity": "CRITICAL" if abs(change_pct) > 1.0 else "HIGH",
         }
     return None
 
 
 def _check_rebound(
-    current: float, state: dict, cost_basis: float | None = None, cfg: dict | None = None
+    current: float,
+    state: dict,
+    cost_basis: float | None = None,
+    cfg: dict | None = None,
 ) -> dict | None:
     """检测下跌后的反弹.
 
@@ -694,7 +748,9 @@ def _check_rebound(
     last_at = state.get("rebound_alert_at")
     if last_at:
         try:
-            elapsed_min = (_now() - datetime.fromisoformat(last_at)).total_seconds() / 60
+            elapsed_min = (
+                _now() - datetime.fromisoformat(last_at)
+            ).total_seconds() / 60
         except (ValueError, TypeError):
             elapsed_min = 999.0
         if elapsed_min < cfg.get("cooldown_rebound_min", 60):
@@ -739,6 +795,7 @@ def _check_rebound(
 # ═══════════════════════════════════════════════════════════════
 # 进行中高影响事件检测
 # ═══════════════════════════════════════════════════════════════
+
 
 def _check_ongoing_events(state: dict | None = None) -> list[dict]:
     """检查是否有正在进行中的高/极影响宏观事件 (FOMC/CPI/PCE/非农等).
@@ -796,13 +853,15 @@ def _check_ongoing_events(state: dict | None = None) -> list[dict]:
             clock = dual_clock_str(e.scheduled_at)
             when = "即将" if e.scheduled_at > now else "正在进行"
             notified.add(key)
-            events.append({
-                "type": "ongoing_event",
-                "message": f"📅 {when}: {e.name} | {clock}",
-                "severity": "HIGH",
-                "_event_name": e.name,
-                "_impact": e.impact.value,
-            })
+            events.append(
+                {
+                    "type": "ongoing_event",
+                    "message": f"📅 {when}: {e.name} | {clock}",
+                    "severity": "HIGH",
+                    "_event_name": e.name,
+                    "_impact": e.impact.value,
+                }
+            )
         if state is not None:
             # 只保留最近通知过的 key, 防无限增长
             state["ongoing_notified"] = sorted(notified)[-60:]
@@ -1064,7 +1123,9 @@ def _check_order_proximity(current: float, state: dict, cfg: dict) -> list[dict]
         alerts: list[dict] = []
         for o, dist in check_order_proximity(orders, current, near_pct)[:3]:  # 最多3条
             # 冷却去重: 同单冷却期内不重复提醒
-            key = f"order_prox_at_{o.id}" if o.id else f"order_prox_at_{o.trigger_price}"
+            key = (
+                f"order_prox_at_{o.id}" if o.id else f"order_prox_at_{o.trigger_price}"
+            )
             last_at = state.get(key)
             if last_at:
                 try:
@@ -1080,7 +1141,9 @@ def _check_order_proximity(current: float, state: dict, cfg: dict) -> list[dict]
                 f"🎯 条件单接近: {type_cn}@{o.trigger_price:.0f}元 "
                 f"({direction_sym}{dist:.1f}%){qty} — 当前 {current:.0f}元"
             )
-            alerts.append({"type": "order_proximity", "message": msg, "severity": "MEDIUM"})
+            alerts.append(
+                {"type": "order_proximity", "message": msg, "severity": "MEDIUM"}
+            )
             state[key] = _now().isoformat()
         return alerts
     except Exception:
@@ -1100,6 +1163,7 @@ def _gather_evidence(current: float, historical: list[dict], cfg: dict) -> dict:
     }
     try:
         from gold_miner.data.calendar import EventCalendar, EventImpact, EventType
+
         cal = EventCalendar()
         # 只列真实"待落地"的数据事件: 排除 MONITOR 观测 (由分析 pipeline 评估, 不是即将公布的数据)
         # 和 actual 已填的结果已出事件. 与 _check_ongoing_events 同一套过滤 (2026-08-13 系统修复).
@@ -1146,7 +1210,9 @@ def _evaluate_reason(action: str, candidate: dict, ev: dict, cfg: dict) -> dict:
         }
 
     bull, bear, clarity = snap["bull"], snap["bear"], snap["clarity"]
-    snap_line = f"信号快照({snap['timestamp'][5:16].replace('T', ' ')})：多{bull}维 空{bear}维"
+    snap_line = (
+        f"信号快照({snap['timestamp'][5:16].replace('T', ' ')})：多{bull}维 空{bear}维"
+    )
     reasons: list[str] = []
 
     if action == "take_profit":
@@ -1182,7 +1248,9 @@ def _evaluate_reason(action: str, candidate: dict, ev: dict, cfg: dict) -> dict:
             "reasons": [],
             "veto_note": f"{snap_line}，信号仍偏空，支撑未确认，未触发买入建议",
         }
-    resonance = bool(candidate.get("broke_low")) and candidate.get("key_level") is not None
+    resonance = (
+        bool(candidate.get("broke_low")) and candidate.get("key_level") is not None
+    )
     if resonance and rsi is not None and rsi < 30:
         reasons.append(
             f"破{candidate['lookback']}日低点与关键价位{candidate['key_level']:.0f}共振"
@@ -1207,7 +1275,9 @@ _COOLDOWN_KEYS = {
 }
 
 
-def _opp_cooldown_ok(state: dict, prefix: str, current: float, direction: str, cfg: dict) -> bool:
+def _opp_cooldown_ok(
+    state: dict, prefix: str, current: float, direction: str, cfg: dict
+) -> bool:
     """冷却判定: 过冷却期 或 冷却内同向价格再走 realert_move_pct."""
     last_at = state.get(f"{prefix}_alert_at")
     if not last_at:
@@ -1283,8 +1353,10 @@ def _build_opp_alert(
                 "severity": "INFO",
             }
         if candidate.get("broke_low") and candidate.get("key_level") is not None:
-            cond = (f"破{candidate['lookback']}日低点 {candidate['low_n']:.0f} "
-                    f"+ 关键价位{candidate['key_level']:.0f}共振")
+            cond = (
+                f"破{candidate['lookback']}日低点 {candidate['low_n']:.0f} "
+                f"+ 关键价位{candidate['key_level']:.0f}共振"
+            )
         elif candidate.get("broke_low"):
             cond = f"跌破{candidate['lookback']}日低点 {candidate['low_n']:.0f}"
         else:
@@ -1336,7 +1408,9 @@ def _push_weixin(text: str) -> bool:
     try:
         r = subprocess.run(
             ["hermes", "send", "-t", _WEIXIN_TARGET, "-q", text],
-            capture_output=True, text=True, timeout=120,
+            capture_output=True,
+            text=True,
+            timeout=120,
         )
         return r.returncode == 0
     except Exception as e:
@@ -1356,6 +1430,7 @@ def _send_alert(message: str) -> bool:
     if os.environ.get("GOLD_MONITOR_STDOUT_DELIVERY") == "1":
         return True
     import subprocess
+
     success = _push_weixin(message)
 
     # macOS 桌面通知 (本地开发补充, 服务器上 osascript 不存在自动跳过)
@@ -1368,9 +1443,13 @@ def _send_alert(message: str) -> bool:
         title_clean = title.replace('"', "'").replace("\\", "")
         body_clean = body.replace('"', "'").replace("\\", "")
         subprocess.run(
-            ["osascript", "-e",
-             f'display notification "{body_clean}" with title "{title_clean}" sound name "Glass"'],
-            capture_output=True, timeout=10,
+            [
+                "osascript",
+                "-e",
+                f'display notification "{body_clean}" with title "{title_clean}" sound name "Glass"',
+            ],
+            capture_output=True,
+            timeout=10,
         )
     except Exception:
         pass
@@ -1412,116 +1491,200 @@ def _load_flow_cache() -> dict | None:
 def _save_flow_cache(result: dict) -> None:
     try:
         _FLOW_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
-        _FLOW_CACHE_FILE.write_text(json.dumps({
-            "cached_at": _now().isoformat(),
-            "result": result,
-        }, ensure_ascii=False))
+        _FLOW_CACHE_FILE.write_text(
+            json.dumps(
+                {
+                    "cached_at": _now().isoformat(),
+                    "result": result,
+                },
+                ensure_ascii=False,
+            )
+        )
     except Exception:
         pass
+
+
+def _fmt_data_date(iso: str | None) -> str:
+    """数据日期紧凑化: '2026-08-29T00:00:00' -> '8/29'; 解析失败原样前10位."""
+    if not iso:
+        return "?"
+    try:
+        d = datetime.fromisoformat(str(iso))
+        return f"{d.month}/{d.day}"
+    except ValueError:
+        return str(iso)[:10]
 
 
 def _analyze_drop_reason(state: dict) -> dict:
     """分析金价下跌驱动因素: 机构抛售 vs 宏观压制 vs 消息面.
 
-    返回 {'category': str, 'institutional_selling': bool, 'detail': str}
-    category: 'institutional' | 'mixed' | 'macro' | 'unknown'
+    返回 {'category': str, 'institutional_selling': bool, 'detail': str,
+          'short': str, 'fingerprint': str}
+    category: 'institutional' | 'mixed' | 'macro' | 'degraded' | 'unknown'
+    fingerprint: category + 两源数据日期, 供 main 比对 state.last_flow_fp
+                 实现「结论未变化」去重 (COT周更/ETF日更, 期间结论天然不变).
+    文案铁律: 注入实时数字+数据截至日期; 只陈述两通道机制, 不做「散户出逃」
+    之类规则引擎给不出的归因断言.
     """
     # 1) 检查文件缓存 (跨 cron 进程)
     cached = _load_flow_cache()
     if cached:
         return cached
 
-    result = {
+    result: dict = {
         "category": "unknown",
         "institutional_selling": False,
-        "detail": "无法确认下跌驱动因素",
+        "detail": "",
+        "short": "",
     }
 
-    has_cot_data = False
-    has_etf_data = False
-    cot_selling = False
-    etf_selling = False
-    cot_score = 0.0
-    etf_score = 0.0
+    # 数据源三态: 'ok' 有数据 / 'no_data' 无信号 / 'error' 拉取异常
+    # (旧实现把「拿不到COT数据」当「COT未减仓」-> 单ETF源也敢下「COT未同步」结论)
+    cot = {
+        "status": "no_data",
+        "selling": False,
+        "score": 0.0,
+        "net": None,
+        "change": None,
+        "date": None,
+        "error": "",
+    }
+    etf = {
+        "status": "no_data",
+        "selling": False,
+        "score": 0.0,
+        "tonnes_delta": None,
+        "holdings": None,
+        "date": None,
+        "error": "",
+    }
 
+    # 2) COT 机构持仓 - 周度, 判断聪明钱方向
     try:
-        # 2) COT 机构持仓 — 周度, 判断聪明钱方向
-        try:
-            from gold_miner.signals.cot_signal import CotSignalGenerator
-            cot_sigs = CotSignalGenerator().generate_signals()
-            for s in cot_sigs:
-                if "减仓" in s.name:
-                    has_cot_data = True
-                    cot_score = s.score  # 负值
-                    cot_selling = cot_score < -0.3
-                    break
-                elif "加仓" in s.name:
-                    has_cot_data = True
-                    cot_score = s.score  # 正值
-                    cot_selling = False
-                    break
-        except Exception:
-            pass
+        from gold_miner.signals.cot_signal import CotSignalGenerator
 
-        # 3) ETF 资金流 — 日度, 补充确认
-        try:
-            from gold_miner.signals.etf_flow_signal import EtfFlowSignalGenerator
-            etf_sigs = EtfFlowSignalGenerator().generate_signals()
-            for s in etf_sigs:
-                name = s.name
-                if "流出" in name:
-                    has_etf_data = True
-                    etf_score = s.score
-                    # ETF流出信号分两档: "大幅流出" vs "资金流出"
-                    etf_selling = etf_score < -0.3
-                    break
-                elif "流入" in name:
-                    has_etf_data = True
-                    etf_score = s.score
-                    etf_selling = False
-                    break
-        except Exception:
-            pass
+        for s in CotSignalGenerator().generate_signals():
+            if "减仓" in s.name or "加仓" in s.name:
+                m = s.metadata or {}
+                cot.update(
+                    status="ok",
+                    score=s.score,
+                    selling="减仓" in s.name and s.score < -0.3,
+                    net=m.get("latest_net"),
+                    change=m.get("change"),
+                    date=m.get("report_date"),
+                )
+                break
+    except Exception as e:
+        cot["status"] = "error"
+        cot["error"] = str(e)[:80]
 
-        # 4) 交叉验证判断
-        if has_cot_data or has_etf_data:
-            if cot_selling and etf_selling:
-                # 两源一致 → 机构抛售确认
-                result["institutional_selling"] = True
-                result["category"] = "institutional"
-                result["detail"] = (
-                    "🔴 机构资金在撤退 — COT净多仓减少 + ETF资金流出, "
-                    "聪明钱在卖, 不是普通回调, 建议跟随减仓别死扛"
-                )
-            elif cot_selling:
-                # 仅COT
-                result["institutional_selling"] = True
-                result["category"] = "mixed"
-                result["detail"] = (
-                    "🟠 COT非商业净多仓减少, 但ETF未同步流出. "
-                    "部分机构在减仓, 关注是否加速. 可考虑小幅减仓"
-                )
-            elif etf_selling:
-                # 仅ETF
-                result["category"] = "mixed"
-                result["detail"] = (
-                    "🟠 黄金ETF资金流出, 但COT未同步减仓. "
-                    "可能是散户/短线资金出逃, 机构尚未转向. 继续观察"
-                )
-            else:
-                # 有数据但无卖出信号
-                result["category"] = "macro"
-                result["detail"] = (
-                    "🟡 未见机构大规模出逃 — COT和ETF均无显著卖出. "
-                    "下跌来自宏观压力(加息预期/强美元/油价)或消息面, "
-                    "待FOMC/PCE明朗后再决定"
-                )
-        # else: 无任何数据 → 保持 unknown
+    # 3) ETF 资金流 - 日度, 补充确认 (只认 GLD 真实持仓通道, 价格 proxy 不算)
+    try:
+        from gold_miner.signals.etf_flow_signal import EtfFlowSignalGenerator
 
-    except Exception:
-        pass
+        for s in EtfFlowSignalGenerator().generate_signals():
+            if ("流出" in s.name or "流入" in s.name) and (s.metadata or {}).get(
+                "is_real_flow"
+            ):
+                m = s.metadata or {}
+                etf.update(
+                    status="ok",
+                    score=s.score,
+                    selling="流出" in s.name and s.score < -0.3,
+                    tonnes_delta=m.get("tonnes_delta"),
+                    holdings=m.get("holdings_tonnes"),
+                    date=m.get("as_of"),
+                )
+                break
+    except Exception as e:
+        etf["status"] = "error"
+        etf["error"] = str(e)[:80]
 
-    # 5) 缓存并返回
+    # 4) 通道事实描述 (数字+截至日期, 机器可核查)
+    cot_date = _fmt_data_date(cot["date"])
+    etf_date = _fmt_data_date(etf["date"])
+
+    if cot["status"] == "ok":
+        chg = cot["change"] if cot["change"] is not None else 0
+        net = cot["net"] if cot["net"] is not None else 0
+        cot_txt = (
+            f"COT非商业净多{chg:+,}手(现{net:,}手, 截至{cot_date})"
+            f"{'机构减仓' if cot['selling'] else '机构未转向'}"
+        )
+    elif cot["status"] == "error":
+        cot_txt = f"COT源拉取异常({cot['error']})"
+    else:
+        cot_txt = "COT源无信号数据"
+
+    if etf["status"] == "ok":
+        td = etf["tonnes_delta"] if etf["tonnes_delta"] is not None else 0.0
+        h = etf["holdings"] if etf["holdings"] is not None else 0.0
+        etf_txt = (
+            f"GLD持仓{td:+.2f}吨(现{h:.1f}吨, 截至{etf_date})"
+            f"{'真实流出' if etf['selling'] else '未现流出'}"
+        )
+    elif etf["status"] == "error":
+        etf_txt = f"ETF源拉取异常({etf['error']})"
+    else:
+        etf_txt = "ETF源无信号数据"
+
+    # 5) 交叉验证判断 (仅两源都有数据才下完整结论)
+    if cot["status"] == "ok" and etf["status"] == "ok":
+        if cot["selling"] and etf["selling"]:
+            result["institutional_selling"] = True
+            result["category"] = "institutional"
+            result["detail"] = (
+                f"🔴 机构资金撤退确认: {cot_txt} + {etf_txt}, "
+                "两通道一致看空, 聪明钱在卖, 建议跟随减仓别死扛"
+            )
+            result["short"] = "两通道一致: 机构在卖"
+        elif cot["selling"]:
+            result["institutional_selling"] = True
+            result["category"] = "mixed"
+            result["detail"] = (
+                f"🟠 {cot_txt}, 但{etf_txt}. 仅COT通道减仓, "
+                "部分机构撤退, 关注ETF是否跟进"
+            )
+            result["short"] = "仅COT通道减仓"
+        elif etf["selling"]:
+            result["category"] = "mixed"
+            result["detail"] = (
+                f"🟠 {etf_txt}, 但{cot_txt}. ETF通道流出与COT通道背离, "
+                "规则仅监测这两条通道, 无法归因至机构整体行为, "
+                "不构成'散户出逃'证据, 待新数据落地再评估"
+            )
+            result["short"] = "通道背离: ETF流出/COT未转向"
+        else:
+            result["category"] = "macro"
+            result["detail"] = (
+                f"🟡 两通道均无卖出信号: {cot_txt}, {etf_txt}. "
+                "下跌驱动不在已监测资金通道, 更可能是宏观利率/美元/消息面, "
+                "待FOMC/PCE明朗后再决定"
+            )
+            result["short"] = "资金通道无卖出, 疑宏观驱动"
+    elif cot["status"] == "ok" or etf["status"] == "ok":
+        # 单源可用 -> 结论降级, 明说缺哪个源
+        failed = "COT" if cot["status"] != "ok" else "ETF"
+        only = cot_txt if cot["status"] == "ok" else etf_txt
+        result["category"] = "degraded"
+        result["detail"] = (
+            f"🟡 数据降级({failed}源不可用), 仅单通道: {only}. "
+            "结论置信度低, 不作为减仓依据"
+        )
+        result["short"] = f"单通道({failed}源缺), 置信度低"
+    else:
+        result["category"] = "unknown"
+        result["detail"] = "⚠️ COT/ETF数据源均不可用, 无法评估下跌驱动"
+        result["short"] = "数据源均不可用"
+
+    # 6) 指纹: 结论类别+两源数据日期 (新COT周报/新GLD日更才会变化)
+    result["fingerprint"] = (
+        f"{result['category']}|cot:{cot['date'] or cot['status']}"
+        f"|etf:{etf['date'] or etf['status']}"
+    )
+
+    # 7) 缓存并返回
     _save_flow_cache(result)
     return result
 
@@ -1529,6 +1692,7 @@ def _analyze_drop_reason(state: dict) -> dict:
 # ═══════════════════════════════════════════════════════════════
 # 格式化
 # ═══════════════════════════════════════════════════════════════
+
 
 def _format_card(
     level: str,
@@ -1564,7 +1728,9 @@ def _format_card(
         price = price_info["price"]
         sell_fee = _get_sell_fee_pct()
         pnl = (price - cost_basis) / cost_basis * 100
-        line = f"📊 成本¥{cost_basis:.2f} | 浮{'盈' if pnl >= 0 else '亏'} {abs(pnl):.1f}%"
+        line = (
+            f"📊 成本¥{cost_basis:.2f} | 浮{'盈' if pnl >= 0 else '亏'} {abs(pnl):.1f}%"
+        )
         net_pnl = pnl
         if sell_fee > 0:
             net_breakeven = _net_breakeven(cost_basis, sell_fee)
@@ -1620,30 +1786,33 @@ def _format_card(
     # 已处理: consecutive_down, peak_drawdown, cost_proximity, cost_below, breakout_approach
     # 当趋势摘要已覆盖时, 急变/逆转信号冗余 → 跳过
     shown_types = {
-        "consecutive_down", "peak_drawdown", "cost_proximity", "cost_below",
-        "breakout_approach", "breakout_approach_vetoed",
+        "consecutive_down",
+        "peak_drawdown",
+        "cost_proximity",
+        "cost_below",
+        "breakout_approach",
+        "breakout_approach_vetoed",
     }
     if trend_parts:
         # 趋势摘要已覆盖下跌方向, price_surge + intraday_reversal 是重复信息
         shown_types.update({"price_surge", "intraday_reversal"})
 
-    remaining = [
-        a for a in alerts
-        if a["type"] not in shown_types
-    ]
+    remaining = [a for a in alerts if a["type"] not in shown_types]
     if remaining:
         lines.append("")
         for a in remaining:
             lines.append(f"  {a['message']}")
 
-    # 🆕 下跌原因分析
-    if drop_reason and drop_reason.get("detail"):
-        is_institutional = drop_reason.get("institutional_selling", False)
-        header = "━━━ 🔍 谁在卖？━━━"
+    # 🆕 下跌原因分析 (unchanged=结论指纹与上次推送相同 -> 一行短格式, 不复读全文)
+    if drop_reason and (drop_reason.get("detail") or drop_reason.get("short")):
         action = drop_reason.get("action_hint", "")
         lines.append("")
-        lines.append(header)
-        lines.append(drop_reason["detail"])
+        if drop_reason.get("unchanged"):
+            lines.append("━━━ 🔍 谁在卖？(与上次结论相同) ━━━")
+            lines.append(drop_reason.get("short") or drop_reason.get("detail", ""))
+        else:
+            lines.append("━━━ 🔍 谁在卖？━━━")
+            lines.append(drop_reason.get("detail", ""))
         if action:
             lines.append(f"  💡 {action}")
 
@@ -1653,6 +1822,7 @@ def _format_card(
 # ═══════════════════════════════════════════════════════════════
 # 主入口
 # ═══════════════════════════════════════════════════════════════
+
 
 def main() -> int:
     state = _load_state()
@@ -1731,7 +1901,9 @@ def main() -> int:
         alerts.append(rebound)
 
     # 4g. 机会提醒 (止盈/抄底/突破前兆) — 触发层 + 理由引擎
-    tp_candidate = _check_take_profit_breakout(current, historical, cost_basis, opp_cfg, surge)
+    tp_candidate = _check_take_profit_breakout(
+        current, historical, cost_basis, opp_cfg, surge
+    )
     dip_candidate = _check_dip_buy_opportunity(current, state, historical, opp_cfg)
     bk_candidate = _check_breakout_approach(current, state, historical, opp_cfg)
     if tp_candidate or dip_candidate or bk_candidate:
@@ -1739,21 +1911,27 @@ def main() -> int:
         if tp_candidate and _opp_cooldown_ok(state, "tp", current, "up", opp_cfg):
             verdict = _evaluate_reason("take_profit", tp_candidate, ev, opp_cfg)
             alerts.append(
-                _build_opp_alert("take_profit", tp_candidate, verdict, ev, current, cost_basis)
+                _build_opp_alert(
+                    "take_profit", tp_candidate, verdict, ev, current, cost_basis
+                )
             )
             state["tp_alert_at"] = _now().isoformat()
             state["tp_alert_price"] = current
         if dip_candidate and _opp_cooldown_ok(state, "dip", current, "down", opp_cfg):
             verdict = _evaluate_reason("dip_buy", dip_candidate, ev, opp_cfg)
             alerts.append(
-                _build_opp_alert("dip_buy", dip_candidate, verdict, ev, current, cost_basis)
+                _build_opp_alert(
+                    "dip_buy", dip_candidate, verdict, ev, current, cost_basis
+                )
             )
             state["dip_alert_at"] = _now().isoformat()
             state["dip_alert_price"] = current
         if bk_candidate and _opp_cooldown_ok(state, "breakout", current, "up", opp_cfg):
             verdict = _evaluate_reason("breakout_approach", bk_candidate, ev, opp_cfg)
             alerts.append(
-                _build_opp_alert("breakout_approach", bk_candidate, verdict, ev, current, cost_basis)
+                _build_opp_alert(
+                    "breakout_approach", bk_candidate, verdict, ev, current, cost_basis
+                )
             )
             state["breakout_alert_at"] = _now().isoformat()
             state["breakout_alert_price"] = current
@@ -1788,14 +1966,13 @@ def main() -> int:
         if drop_reason.get("institutional_selling"):
             drop_reason["action_hint"] = "机构在跑, 你也应该考虑减仓, 不要死扛"
         elif drop_reason.get("category") == "macro":
-            drop_reason["action_hint"] = "非机构抛售, 观察宏观事件(FOMC/PCE)明朗后再决定"
+            drop_reason["action_hint"] = (
+                "非机构抛售, 观察宏观事件(FOMC/PCE)明朗后再决定"
+            )
 
     # 6. 通知 — 仅在有实质内容时输出
     # 已去重: 单独的成本对比不再触发通知 (趋势摘要替代)
-    has_real_alerts = any(
-        a["type"] not in ("cost_proximity",)
-        for a in alerts
-    )
+    has_real_alerts = any(a["type"] not in ("cost_proximity",) for a in alerts)
     should_output = (
         has_real_alerts
         or level_changed
@@ -1805,15 +1982,33 @@ def main() -> int:
     )
 
     if should_output:
+        # 谁在卖 结论去重 (2026-08-31): fingerprint=category+两源数据日期,
+        # 与上次已推送结论相同 -> 卡片改一行短格式; 只有新 COT 周报/新 GLD
+        # 日更或结论类别变化才复读全文. 指纹仅在真实推送时落 state,
+        # 未推送的周期不计入 (否则会误吞下一次推送的全文).
+        if drop_reason and drop_reason.get("fingerprint"):
+            if state.get("last_flow_fp") == drop_reason["fingerprint"]:
+                drop_reason["unchanged"] = True
+            state["last_flow_fp"] = drop_reason["fingerprint"]
         # 风控上下文已在 4i 提前计算 (stop_ctx 复用), 卡片常驻 ATR止盈/止损数值行
         if surge and stop_ctx:
             ctx_line = _format_stop_context(stop_ctx)
             if ctx_line:
                 # 直接改 surge 原对象 (alerts 列表内也是它); copy 会生成新dict导致告警不带上下文
                 surge["message"] = f"{surge['message']}\n    {ctx_line}"
-        card = _format_card(new_level, old_level, price_info, cost_basis, alerts, state, drop_reason, historical, stop_ctx=stop_ctx)
+        card = _format_card(
+            new_level,
+            old_level,
+            price_info,
+            cost_basis,
+            alerts,
+            state,
+            drop_reason,
+            historical,
+            stop_ctx=stop_ctx,
+        )
         print(card, flush=True)  # 同时输出到 log 文件
-        _send_alert(card)        # Hermes → 微信
+        _send_alert(card)  # Hermes → 微信
         # 记录反弹通知时间戳, 供 _check_rebound 冷却判定
         if rebound is not None:
             state["rebound_alert_at"] = _now().isoformat()
@@ -1825,7 +2020,8 @@ def main() -> int:
     prev_price = state.get("last_price")
     state["prev_change_pct"] = (
         (current - prev_price) / prev_price * 100
-        if prev_price and prev_price > 0 else 0.0
+        if prev_price and prev_price > 0
+        else 0.0
     )
     _update_trend_bookkeeping(current, prev_price, state, opp_cfg)
 
@@ -1837,7 +2033,9 @@ def main() -> int:
         state["level_entered_at"] = now_iso
     if should_output:
         state["last_alert_time"] = now_iso
-        state["last_alert_type"] = ",".join(a["type"] for a in alerts) if alerts else "level_change"
+        state["last_alert_type"] = (
+            ",".join(a["type"] for a in alerts) if alerts else "level_change"
+        )
 
     _save_state(state)
     return 0

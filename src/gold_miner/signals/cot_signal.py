@@ -65,22 +65,24 @@ class CotSignalGenerator:
             is_aligned = div.metadata.get("pattern", "").startswith("aligned_")
             if is_aligned and div.direction == trend.direction:
                 new_score = max(-0.95, min(0.95, trend.score + div.score))
-                merged = [Signal(
-                    name=trend.name,
-                    dimension=trend.dimension,
-                    direction=trend.direction,
-                    strength=trend.strength,
-                    score=round(new_score, 2),
-                    description=(
-                        f"{trend.description}; 商业套保同向确认 "
-                        f"({div.description})"
-                    ),
-                    metadata={
-                        **trend.metadata,
-                        "merged_divergence": div.name,
-                        "commercial_confirmation": True,
-                    },
-                )]
+                merged = [
+                    Signal(
+                        name=trend.name,
+                        dimension=trend.dimension,
+                        direction=trend.direction,
+                        strength=trend.strength,
+                        score=round(new_score, 2),
+                        description=(
+                            f"{trend.description}; 商业套保同向确认 "
+                            f"({div.description})"
+                        ),
+                        metadata={
+                            **trend.metadata,
+                            "merged_divergence": div.name,
+                            "commercial_confirmation": True,
+                        },
+                    )
+                ]
             else:
                 # divergence_* 背离 (方向相反) → 独立触发, 保留独立信息
                 merged.append(div)
@@ -105,9 +107,9 @@ class CotSignalGenerator:
             df = df.sort_values("timestamp")
             window = min(len(df), 52)
 
-            longs = df["open"].astype(float)    # 非商业多头 (gross long)
-            shorts = df["low"].astype(float)    # 非商业空头 (gross short)
-            oi = df["volume"].astype(float)     # 总持仓 (Open Interest)
+            longs = df["open"].astype(float)  # 非商业多头 (gross long)
+            shorts = df["low"].astype(float)  # 非商业空头 (gross short)
+            oi = df["volume"].astype(float)  # 总持仓 (Open Interest)
             latest = len(df) - 1
 
             oi_peak = oi.tail(window).max()
@@ -129,15 +131,21 @@ class CotSignalGenerator:
 
             # 3) 多头回归: 多头从周期低谷回升 ≥30% 且最近一期仍在增仓
             spread = long_peak - long_trough
-            return_from_trough = bool(spread > 0 and (cur_long - long_trough) / spread >= 0.30)
+            return_from_trough = bool(
+                spread > 0 and (cur_long - long_trough) / spread >= 0.30
+            )
             rising = bool(latest >= 1 and longs.iloc[latest] > longs.iloc[latest - 1])
             long_return = bool(return_from_trough and rising)
 
-            confirmed = [name for name, ok in (
-                ("总持仓出清", washout),
-                ("空头投降", capitulation),
-                ("多头回归", long_return),
-            ) if ok]
+            confirmed = [
+                name
+                for name, ok in (
+                    ("总持仓出清", washout),
+                    ("空头投降", capitulation),
+                    ("多头回归", long_return),
+                )
+                if ok
+            ]
 
             if not confirmed:
                 return signals
@@ -156,31 +164,33 @@ class CotSignalGenerator:
                 strength = SignalStrength.WEAK
                 score = 0.15
 
-            signals.append(Signal(
-                name=name,
-                dimension="smart_money",
-                direction=SignalDirection.BULLISH,
-                strength=strength,
-                score=score,
-                description=(
-                    f"持仓结构{len(confirmed)}/3段改善 [{', '.join(confirmed)}]: "
-                    f"总持仓 {cur_oi:,.0f}/{oi_peak:,.0f}手({washout_ratio:.0%}), "
-                    f"空头 {cur_short:,.0f}/{short_peak:,.0f}手({capitulation_ratio:.0%}), "
-                    f"多头 {cur_long:,.0f}手。结构性洗盘特征支持反转而非反弹"
-                ),
-                metadata={
-                    "source": "cot_report",
-                    "signal_type": "position_structure",
-                    "confirmed": confirmed,
-                    "washout_ratio": round(washout_ratio, 3),
-                    "capitulation_ratio": round(capitulation_ratio, 3),
-                    "oi_peak": int(oi_peak),
-                    "short_peak": int(short_peak),
-                    "long_trough": int(long_trough),
-                    "window_weeks": window,
-                    "real_data": True,
-                },
-            ))
+            signals.append(
+                Signal(
+                    name=name,
+                    dimension="smart_money",
+                    direction=SignalDirection.BULLISH,
+                    strength=strength,
+                    score=score,
+                    description=(
+                        f"持仓结构{len(confirmed)}/3段改善 [{', '.join(confirmed)}]: "
+                        f"总持仓 {cur_oi:,.0f}/{oi_peak:,.0f}手({washout_ratio:.0%}), "
+                        f"空头 {cur_short:,.0f}/{short_peak:,.0f}手({capitulation_ratio:.0%}), "
+                        f"多头 {cur_long:,.0f}手。结构性洗盘特征支持反转而非反弹"
+                    ),
+                    metadata={
+                        "source": "cot_report",
+                        "signal_type": "position_structure",
+                        "confirmed": confirmed,
+                        "washout_ratio": round(washout_ratio, 3),
+                        "capitulation_ratio": round(capitulation_ratio, 3),
+                        "oi_peak": int(oi_peak),
+                        "short_peak": int(short_peak),
+                        "long_trough": int(long_trough),
+                        "window_weeks": window,
+                        "real_data": True,
+                    },
+                )
+            )
         except Exception as e:
             logger.debug(f"COT持仓结构信号异常: {e}")
 
@@ -200,45 +210,57 @@ class CotSignalGenerator:
             latest_net = summary.get("latest_net", 0)
 
             if trend == "up" and change > 0:
-                strength = SignalStrength.STRONG if pct_change > 5 else SignalStrength.MODERATE
+                strength = (
+                    SignalStrength.STRONG if pct_change > 5 else SignalStrength.MODERATE
+                )
                 score = min(pct_change / 10, 0.8)
-                signals.append(Signal(
-                    name="COT聪明钱加仓",
-                    dimension="smart_money",
-                    direction=SignalDirection.BULLISH,
-                    strength=strength,
-                    score=round(score, 2),
-                    description=(
-                        f"非商业净多仓连续增加: {latest_net:,}手 "
-                        f"(+{change:,}, +{pct_change:.1f}%)，机构看涨"
-                    ),
-                    metadata={
-                        "source": "cot_report",
-                        "latest_net": latest_net,
-                        "change": change,
-                        "trend": trend,
-                    },
-                ))
+                signals.append(
+                    Signal(
+                        name="COT聪明钱加仓",
+                        dimension="smart_money",
+                        direction=SignalDirection.BULLISH,
+                        strength=strength,
+                        score=round(score, 2),
+                        description=(
+                            f"非商业净多仓连续增加: {latest_net:,}手 "
+                            f"(+{change:,}, +{pct_change:.1f}%)，机构看涨"
+                        ),
+                        metadata={
+                            "source": "cot_report",
+                            "latest_net": latest_net,
+                            "change": change,
+                            "trend": trend,
+                            "report_date": summary.get("report_date"),
+                        },
+                    )
+                )
             elif trend == "down" and change < 0:
-                strength = SignalStrength.STRONG if pct_change < -5 else SignalStrength.MODERATE
+                strength = (
+                    SignalStrength.STRONG
+                    if pct_change < -5
+                    else SignalStrength.MODERATE
+                )
                 score = max(pct_change / 10, -0.8)
-                signals.append(Signal(
-                    name="COT聪明钱减仓",
-                    dimension="smart_money",
-                    direction=SignalDirection.BEARISH,
-                    strength=strength,
-                    score=round(score, 2),
-                    description=(
-                        f"非商业净多仓连续减少: {latest_net:,}手 "
-                        f"({change:,}, {pct_change:.1f}%)，机构看空"
-                    ),
-                    metadata={
-                        "source": "cot_report",
-                        "latest_net": latest_net,
-                        "change": change,
-                        "trend": trend,
-                    },
-                ))
+                signals.append(
+                    Signal(
+                        name="COT聪明钱减仓",
+                        dimension="smart_money",
+                        direction=SignalDirection.BEARISH,
+                        strength=strength,
+                        score=round(score, 2),
+                        description=(
+                            f"非商业净多仓连续减少: {latest_net:,}手 "
+                            f"({change:,}, {pct_change:.1f}%)，机构看空"
+                        ),
+                        metadata={
+                            "source": "cot_report",
+                            "latest_net": latest_net,
+                            "change": change,
+                            "trend": trend,
+                            "report_date": summary.get("report_date"),
+                        },
+                    )
+                )
 
         except Exception as e:
             logger.debug(f"COT趋势信号异常: {e}")
@@ -257,73 +279,80 @@ class CotSignalGenerator:
             latest_net = summary.get("latest_net", 0)
 
             if position > 0.90:
-                signals.append(Signal(
-                    name="COT聪明钱极度拥挤(警告)",
-                    dimension="smart_money",
-                    direction=SignalDirection.BEARISH,  # 极度拥挤后通常反转
-                    strength=SignalStrength.MODERATE,
-                    score=-0.35,
-                    description=(
-                        f"非商业净多仓处于52周高位 ({position:.0%}), "
-                        f"机构过于拥挤，回调风险上升"
-                    ),
-                    metadata={
-                        "source": "cot_report",
-                        "position_52w": position,
-                        "latest_net": latest_net,
-                        "signal_type": "crowded_long_warning",
-                    },
-                ))
+                signals.append(
+                    Signal(
+                        name="COT聪明钱极度拥挤(警告)",
+                        dimension="smart_money",
+                        direction=SignalDirection.BEARISH,  # 极度拥挤后通常反转
+                        strength=SignalStrength.MODERATE,
+                        score=-0.35,
+                        description=(
+                            f"非商业净多仓处于52周高位 ({position:.0%}), "
+                            f"机构过于拥挤，回调风险上升"
+                        ),
+                        metadata={
+                            "source": "cot_report",
+                            "position_52w": position,
+                            "latest_net": latest_net,
+                            "signal_type": "crowded_long_warning",
+                        },
+                    )
+                )
             elif position > 0.80:
-                signals.append(Signal(
-                    name="COT聪明钱持仓偏高",
-                    dimension="smart_money",
-                    direction=SignalDirection.BULLISH,  # 仍偏多但需警惕
-                    strength=SignalStrength.WEAK,
-                    score=0.15,
-                    description=(
-                        f"非商业净多仓处于52周 {position:.0%} 分位，"
-                        f"机构偏多但尚未极端"
-                    ),
-                    metadata={
-                        "source": "cot_report",
-                        "position_52w": position,
-                    },
-                ))
+                signals.append(
+                    Signal(
+                        name="COT聪明钱持仓偏高",
+                        dimension="smart_money",
+                        direction=SignalDirection.BULLISH,  # 仍偏多但需警惕
+                        strength=SignalStrength.WEAK,
+                        score=0.15,
+                        description=(
+                            f"非商业净多仓处于52周 {position:.0%} 分位，"
+                            f"机构偏多但尚未极端"
+                        ),
+                        metadata={
+                            "source": "cot_report",
+                            "position_52w": position,
+                        },
+                    )
+                )
             elif position < 0.10:
-                signals.append(Signal(
-                    name="COT聪明钱极度悲观(机会)",
-                    dimension="smart_money",
-                    direction=SignalDirection.BULLISH,  # 极度悲观 = 反向机会
-                    strength=SignalStrength.MODERATE,
-                    score=0.4,
-                    description=(
-                        f"非商业净多仓处于52周低位 ({position:.0%}), "
-                        f"机构极度悲观，可能形成反向买点"
-                    ),
-                    metadata={
-                        "source": "cot_report",
-                        "position_52w": position,
-                        "latest_net": latest_net,
-                        "signal_type": "extreme_pessimism",
-                    },
-                ))
+                signals.append(
+                    Signal(
+                        name="COT聪明钱极度悲观(机会)",
+                        dimension="smart_money",
+                        direction=SignalDirection.BULLISH,  # 极度悲观 = 反向机会
+                        strength=SignalStrength.MODERATE,
+                        score=0.4,
+                        description=(
+                            f"非商业净多仓处于52周低位 ({position:.0%}), "
+                            f"机构极度悲观，可能形成反向买点"
+                        ),
+                        metadata={
+                            "source": "cot_report",
+                            "position_52w": position,
+                            "latest_net": latest_net,
+                            "signal_type": "extreme_pessimism",
+                        },
+                    )
+                )
             elif position < 0.20:
-                signals.append(Signal(
-                    name="COT聪明钱持仓偏低",
-                    dimension="smart_money",
-                    direction=SignalDirection.BEARISH,
-                    strength=SignalStrength.WEAK,
-                    score=-0.15,
-                    description=(
-                        f"非商业净多仓处于52周 {position:.0%} 分位，"
-                        f"机构偏空"
-                    ),
-                    metadata={
-                        "source": "cot_report",
-                        "position_52w": position,
-                    },
-                ))
+                signals.append(
+                    Signal(
+                        name="COT聪明钱持仓偏低",
+                        dimension="smart_money",
+                        direction=SignalDirection.BEARISH,
+                        strength=SignalStrength.WEAK,
+                        score=-0.15,
+                        description=(
+                            f"非商业净多仓处于52周 {position:.0%} 分位，" f"机构偏空"
+                        ),
+                        metadata={
+                            "source": "cot_report",
+                            "position_52w": position,
+                        },
+                    )
+                )
 
         except Exception as e:
             logger.debug(f"COT极端信号异常: {e}")
@@ -350,49 +379,75 @@ class CotSignalGenerator:
             comm_net_prev = prev.get("comm_net", 0)
 
             # 一致看涨: 聪明钱加仓 + 商业套保减少 (comm_net 增加)
-            if noncomm_net_latest > noncomm_net_prev and comm_net_latest > comm_net_prev:
-                signals.append(Signal(
-                    name="COT一致看多信号",
-                    dimension="smart_money",
-                    direction=SignalDirection.BULLISH,
-                    strength=SignalStrength.MODERATE,
-                    score=0.3,
-                    description="非商业加仓 + 商业套保减少，多空一致看多",
-                    metadata={"source": "cot_report", "pattern": "aligned_bullish"},
-                ))
+            if (
+                noncomm_net_latest > noncomm_net_prev
+                and comm_net_latest > comm_net_prev
+            ):
+                signals.append(
+                    Signal(
+                        name="COT一致看多信号",
+                        dimension="smart_money",
+                        direction=SignalDirection.BULLISH,
+                        strength=SignalStrength.MODERATE,
+                        score=0.3,
+                        description="非商业加仓 + 商业套保减少，多空一致看多",
+                        metadata={"source": "cot_report", "pattern": "aligned_bullish"},
+                    )
+                )
             # 一致看跌: 聪明钱减仓 + 商业套保增加 (comm_net 减少)
-            elif noncomm_net_latest < noncomm_net_prev and comm_net_latest < comm_net_prev:
-                signals.append(Signal(
-                    name="COT一致看空信号",
-                    dimension="smart_money",
-                    direction=SignalDirection.BEARISH,
-                    strength=SignalStrength.MODERATE,
-                    score=-0.3,
-                    description="非商业减仓 + 商业套保增加，多空一致看空",
-                    metadata={"source": "cot_report", "pattern": "aligned_bearish"},
-                ))
+            elif (
+                noncomm_net_latest < noncomm_net_prev
+                and comm_net_latest < comm_net_prev
+            ):
+                signals.append(
+                    Signal(
+                        name="COT一致看空信号",
+                        dimension="smart_money",
+                        direction=SignalDirection.BEARISH,
+                        strength=SignalStrength.MODERATE,
+                        score=-0.3,
+                        description="非商业减仓 + 商业套保增加，多空一致看空",
+                        metadata={"source": "cot_report", "pattern": "aligned_bearish"},
+                    )
+                )
             # 背离看涨: 聪明钱减仓但商业套保减少 (Producer 端偏乐观)
-            elif noncomm_net_latest < noncomm_net_prev and comm_net_latest > comm_net_prev:
-                signals.append(Signal(
-                    name="COT持仓背离: 商业减套保",
-                    dimension="smart_money",
-                    direction=SignalDirection.BULLISH,
-                    strength=SignalStrength.WEAK,
-                    score=0.15,
-                    description="聪明钱减仓但商业套保减少，Producer 端偏乐观",
-                    metadata={"source": "cot_report", "pattern": "divergence_bullish"},
-                ))
+            elif (
+                noncomm_net_latest < noncomm_net_prev
+                and comm_net_latest > comm_net_prev
+            ):
+                signals.append(
+                    Signal(
+                        name="COT持仓背离: 商业减套保",
+                        dimension="smart_money",
+                        direction=SignalDirection.BULLISH,
+                        strength=SignalStrength.WEAK,
+                        score=0.15,
+                        description="聪明钱减仓但商业套保减少，Producer 端偏乐观",
+                        metadata={
+                            "source": "cot_report",
+                            "pattern": "divergence_bullish",
+                        },
+                    )
+                )
             # 背离看跌: 聪明钱加仓但商业套保增加
-            elif noncomm_net_latest > noncomm_net_prev and comm_net_latest < comm_net_prev:
-                signals.append(Signal(
-                    name="COT持仓背离: 商业加套保",
-                    dimension="smart_money",
-                    direction=SignalDirection.BEARISH,
-                    strength=SignalStrength.WEAK,
-                    score=-0.15,
-                    description="聪明钱加仓但商业套保增加，Producer 端偏悲观",
-                    metadata={"source": "cot_report", "pattern": "divergence_bearish"},
-                ))
+            elif (
+                noncomm_net_latest > noncomm_net_prev
+                and comm_net_latest < comm_net_prev
+            ):
+                signals.append(
+                    Signal(
+                        name="COT持仓背离: 商业加套保",
+                        dimension="smart_money",
+                        direction=SignalDirection.BEARISH,
+                        strength=SignalStrength.WEAK,
+                        score=-0.15,
+                        description="聪明钱加仓但商业套保增加，Producer 端偏悲观",
+                        metadata={
+                            "source": "cot_report",
+                            "pattern": "divergence_bearish",
+                        },
+                    )
+                )
 
         except Exception as e:
             logger.debug(f"COT背离信号异常: {e}")
