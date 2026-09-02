@@ -194,6 +194,73 @@ class TestDoctrineChecker:
         assert adjusted["direction"] == "neutral"
         assert "doctrine_override" in adjusted
 
+    # ------------------------------------------------------------------
+    # 卖出类动作 position_pct 语义 = 减仓比例 (2026-09-02 系统性修复)
+    # ------------------------------------------------------------------
+
+    def test_reduce_not_blocked_by_position_cap(self) -> None:
+        """减仓动作 position_pct=0.5 是减仓比例，r001 单笔上限不应误判为仓位50%>20%."""
+        checker = DoctrineChecker()
+        decision = {"direction": "neutral", "position_pct": 0.50, "action": "reduce"}
+        result = checker.check(decision, {})
+        pos_violations = [v for v in result.violations if v.rule.id == "r001"]
+        assert len(pos_violations) == 1
+        assert pos_violations[0].passed
+        assert not result.has_blocks
+
+    def test_reduce_not_blocked_by_total_exposure(self) -> None:
+        """减仓动作不触发 r002 总敞口上限（减仓是降敞口）."""
+        checker = DoctrineChecker()
+        decision = {"direction": "neutral", "position_pct": 0.50, "action": "reduce"}
+        result = checker.check(decision, {"current_exposure": 0.50})
+        exp_violations = [v for v in result.violations if v.rule.id == "r002"]
+        assert len(exp_violations) == 1
+        assert exp_violations[0].passed
+
+    def test_stop_not_blocked_by_atr_rule(self) -> None:
+        """全清止损 position_pct=1.0 不应被 r025 ATR「建议减半」误阻断."""
+        checker = DoctrineChecker()
+        decision = {"direction": "neutral", "position_pct": 1.0, "action": "stop"}
+        result = checker.check(decision, {"atr_trailing_triggered": True, "atr_trailing_active": True})
+        atr_violations = [v for v in result.violations if v.rule.id == "r025"]
+        assert len(atr_violations) == 1
+        assert atr_violations[0].passed
+
+    def test_reduce_apply_doctrine_keeps_fraction(self) -> None:
+        """减仓动作 block 只记录不覆盖 position_pct（不清零减仓比例）."""
+        checker = DoctrineChecker()
+        result = DoctrineResult()
+        result.blocks = [
+            RuleViolation(rule=RULE_SINGLE_POSITION_LIMIT, passed=False, message="仓位超限"),
+        ]
+        decision = {"direction": "neutral", "position_pct": 0.50, "action": "reduce"}
+        adjusted = checker.apply_doctrine(decision, result)
+        assert adjusted["position_pct"] == 0.50  # 不被清零
+        assert "卖出豁免清零" in adjusted["doctrine_override"]
+
+    def test_reduce_apply_doctrine_warnings_keep_fraction(self) -> None:
+        """减仓动作 warning 不按 warn 系数打折减仓比例."""
+        checker = DoctrineChecker()
+        result = DoctrineResult()
+        result.warnings = [
+            RuleViolation(rule=RULE_NO_CHASE, passed=False, message="追涨"),
+        ]
+        decision = {"direction": "neutral", "position_pct": 0.50, "action": "reduce"}
+        adjusted = checker.apply_doctrine(decision, result)
+        assert adjusted["position_pct"] == 0.50  # 不打折
+        assert "军规警告" in adjusted["doctrine_override"]
+
+    def test_hold_apply_doctrine_warnings_still_shrink(self) -> None:
+        """非卖出动作 warning 仍按原逻辑打折仓位（回归保护）."""
+        checker = DoctrineChecker()
+        result = DoctrineResult()
+        result.warnings = [
+            RuleViolation(rule=RULE_NO_CHASE, passed=False, message="追涨"),
+        ]
+        decision = {"direction": "long", "position_pct": 0.40, "action": "hold"}
+        adjusted = checker.apply_doctrine(decision, result)
+        assert adjusted["position_pct"] == 0.30  # 40% * (1 - 1*0.25)
+
     def test_apply_doctrine_warnings_reduce_position(self) -> None:
         checker = DoctrineChecker()
         result = DoctrineResult()

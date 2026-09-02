@@ -8,6 +8,48 @@ from typing import Any
 from gold_miner.doctrine.models import DoctrineResult, InvestmentRule, RuleViolation
 from gold_miner.doctrine.rules import ALL_RULES
 
+# 卖出类动作: position_pct 语义为「减仓比例」(0.5=减仓一半), 而非「目标仓位」.
+# 与 position_state.resolve_position_state 的 reduce/stop 分支对齐.
+SELL_ACTIONS = frozenset({
+    "sell", "reduce", "reduce_half", "reduce_quarter",
+    "close", "close_all", "take_profit", "stop",
+})
+
+# 「建仓/持仓仓位纪律」规则: 它们读 decision.position_pct 当目标仓位上限检查,
+# 对卖出类动作语义失效 (减仓比例≠目标仓位), 应豁免以免误阻断风控减仓.
+# 系统性修复 2026-09-02: r001 单笔上限曾把 reduce 0.5 判为「仓位50%>20%」block,
+# 触发 apply_doctrine 清零 position_pct → 报告出现「减仓｜观望｜变动仓位0%」自相矛盾.
+_POSITION_CAP_CHECK_FNS = frozenset({
+    "check_position_limit",            # r001 单笔仓位上限
+    "check_total_exposure",            # r002 总敞口上限
+    "check_pre_data_heavy",            # r004 数据前不重仓
+    "check_pre_data_adjustment",       # r016 数据前提前调整
+    "check_no_chase",                  # r005 不追涨杀跌
+    "check_friday_exposure",           # r006 周五减仓
+    "check_holiday_exposure",          # r007 长假减仓
+    "check_consecutive_stops",         # r008 连续止损休整 (position>0 即触发, 卖出时指减仓比例)
+    "check_extreme_sentiment",         # r009 情绪极端暂停
+    "check_conflict_cautious",         # r013 分歧过大观望
+    "check_stop_loss_set",             # r014 必须设止损 (卖出本身是风控, 不再要求另设止损)
+    "check_conditional_orders",        # r017 条件单代替盯盘
+    "check_consecutive_high_volatility",   # r019 连续高波动暂停
+    "check_retail_buy_institutional_sell", # r021 散户抄底机构出货
+    "check_loss_decision_quality",     # r022 浮亏决策质量
+    "check_empty_perspective",         # r023 空仓视角检验 (已决定减仓即已作答)
+    "check_smart_money_flow",          # r024 聪明钱流向
+    "check_atr_trailing_stop",         # r025 ATR移动止盈 (全清时 position_pct=1.0 不应被"建议减半"误阻断)
+    "check_kelly_position",            # r031 凯利仓位
+})
+
+
+def _is_sell_action(decision: dict[str, Any]) -> bool:
+    """判断决策是否为卖出/减仓类动作.
+
+    卖出类动作的 position_pct 是减仓比例, 不是目标仓位, 不应走仓位上限类规则.
+    """
+    action = str(decision.get("action") or "").lower()
+    return action in SELL_ACTIONS
+
 
 class DoctrineChecker:
     """投资军规检查器.
@@ -30,6 +72,7 @@ class DoctrineChecker:
         """对所有启用的规则运行检查."""
         ctx = context or {}
         violations: list[RuleViolation] = []
+        is_sell = _is_sell_action(decision)
 
         for rule in self.rules:
             checker_fn = getattr(self, rule.check_fn, None)
@@ -38,6 +81,19 @@ class DoctrineChecker:
                     rule=rule,
                     passed=True,
                     message=f"检查函数 {rule.check_fn} 未实现",
+                ))
+                continue
+
+            # 卖出类动作: 仓位上限类规则豁免 (position_pct 是减仓比例, 非目标仓位)
+            if is_sell and rule.check_fn in _POSITION_CAP_CHECK_FNS:
+                violations.append(RuleViolation(
+                    rule=rule,
+                    passed=True,
+                    message=(
+                        f"卖出类动作 ({decision.get('action')})，"
+                        f"position_pct={decision.get('position_pct', 0):.0%} 为减仓比例，"
+                        f"非目标仓位，跳过「{rule.name}」上限检查"
+                    ),
                 ))
                 continue
 
@@ -70,22 +126,34 @@ class DoctrineChecker:
         decision: dict[str, Any],
         result: DoctrineResult,
     ) -> dict[str, Any]:
-        """根据军规检查结果调整决策."""
+        """根据军规检查结果调整决策.
+
+        卖出类动作的 position_pct 是减仓比例（如 reduce 0.5=减一半），不是目标仓位：
+        block/warning 只记录不覆盖其减仓比例，否则会把「减仓一半」清零成「减仓0%」，
+        与 position_state 风控止损冲突（2026-09-02 系统性修复）。
+        """
         adjusted = dict(decision)
+        is_sell = _is_sell_action(decision)
 
         if result.has_blocks:
-            adjusted["position_pct"] = 0.0
-            adjusted["direction"] = "neutral"
             block_names = [v.rule.name for v in result.blocks]
-            adjusted["doctrine_override"] = f"军规阻断: {', '.join(block_names)}"
+            if is_sell:
+                adjusted["doctrine_override"] = f"军规阻断(卖出豁免清零): {', '.join(block_names)}"
+            else:
+                adjusted["position_pct"] = 0.0
+                adjusted["direction"] = "neutral"
+                adjusted["doctrine_override"] = f"军规阻断: {', '.join(block_names)}"
             return adjusted
 
         if result.warnings:
             warn_count = len(result.warnings)
-            original = adjusted.get("position_pct", 0)
-            adjusted["position_pct"] = round(original * max(0.5, 1 - warn_count * 0.25), 2)
             warn_names = [v.rule.name for v in result.warnings]
-            adjusted["doctrine_override"] = f"军规警告({warn_count}项): {', '.join(warn_names)}"
+            if is_sell:
+                adjusted["doctrine_override"] = f"军规警告({warn_count}项): {', '.join(warn_names)}"
+            else:
+                original = adjusted.get("position_pct", 0)
+                adjusted["position_pct"] = round(original * max(0.5, 1 - warn_count * 0.25), 2)
+                adjusted["doctrine_override"] = f"军规警告({warn_count}项): {', '.join(warn_names)}"
 
         return adjusted
 
@@ -344,9 +412,8 @@ class DoctrineChecker:
     def check_friction_cost(self, decision: dict, ctx: dict) -> RuleViolation:
         """r032: 卖出类决策必须按扣除卖出手续费后的净收益核算."""
         rule = self._get_rule("check_friction_cost")
-        sell_actions = {"sell", "reduce", "reduce_half", "close", "close_all", "take_profit"}
         action = str(decision.get("action", "")).lower()
-        if action not in sell_actions:
+        if action not in SELL_ACTIONS:
             return RuleViolation(rule=rule, passed=True, message="非卖出决策，无需核算摩擦成本")
         fee = float(ctx.get("sell_fee_pct", 0) or 0)
         considered = bool(ctx.get("friction_cost_considered", False)) or fee > 0
