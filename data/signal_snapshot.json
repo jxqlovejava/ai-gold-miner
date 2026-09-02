@@ -1,9 +1,9 @@
 {
-  "timestamp": "2026-08-31T10:02:41.147301+08:00",
-  "current_price": 959.45,
+  "timestamp": "2026-09-02T11:18:11.318482+08:00",
+  "current_price": 931.3,
   "bull_dims": 2,
-  "bear_dims": 0,
-  "dispute_dims": 1,
+  "bear_dims": 1,
+  "dispute_dims": 0,
   "insufficient_dims": 4,
-  "direction_clarity": "bullish"
+  "direction_clarity": "mixed"
 }
