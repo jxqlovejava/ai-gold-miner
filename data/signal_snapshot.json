@@ -1,9 +1,9 @@
 {
-  "timestamp": "2026-09-02T11:18:11.318482+08:00",
-  "current_price": 931.3,
+  "timestamp": "2026-09-03T10:19:31.685732+08:00",
+  "current_price": 954.0,
   "bull_dims": 2,
-  "bear_dims": 1,
-  "dispute_dims": 0,
-  "insufficient_dims": 4,
-  "direction_clarity": "mixed"
+  "bear_dims": 2,
+  "dispute_dims": 1,
+  "insufficient_dims": 2,
+  "direction_clarity": "conflicted"
 }
