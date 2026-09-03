@@ -318,7 +318,63 @@ class FundamentalAnalyzer:
         # 月度重点国别央行购金监控
         signals.extend(self._analyze_monthly_central_bank())
 
-        return signals
+        return self._merge_central_bank_family(signals)
+
+    @staticmethod
+    def _merge_central_bank_family(signals: list[Signal]) -> list[Signal]:
+        """合并央行购金信号族，消除同一底层事实的重复加权.
+
+        族内信号数据嵌套包含：中国月度 ⊂ 重点国别月度合计 ⊂ WGC季度总量，
+        占比信号与季度总量同分子。同向叠发会把「央行在买金」这一件事计分
+        多次（2026-09-03 本期 +0.8/+0.4/+0.35/+0.3 合计 +1.85，占基本面
+        看多力量 75%），虚增维度均分与看多计数。
+
+        规则（参照 COT 方案A, cot_signal.py）：
+        - 同向信号合并为一条主信号（取 |score| 最强档），
+          score = 主分 ± 0.1×(确认数-1)，绝对值封顶 1.0；
+        - 子信号明细并入主信号描述（信息不丢），不单独发信号；
+        - 方向冲突（如季度 bullish + 月度 selling）不合并，双方独立保留
+          —— 月度恶化 vs 季度结构性水平携带独立信息。
+        """
+        if len(signals) <= 1:
+            return signals
+
+        merged: list[Signal] = []
+        for direction in (SignalDirection.BULLISH, SignalDirection.BEARISH):
+            group = [s for s in signals if s.direction == direction]
+            if not group:
+                continue
+            if len(group) == 1 or group[0].score == 0:
+                merged.extend(group)
+                continue
+            primary = max(group, key=lambda s: abs(s.score))
+            bonus = 0.1 * (len(group) - 1)
+            new_score = (
+                min(primary.score + bonus, 1.0)
+                if primary.score > 0
+                else max(primary.score - bonus, -1.0)
+            )
+            confirmations = [s for s in group if s is not primary]
+            details = "；".join(s.description for s in confirmations if s.description)
+            merged.append(Signal(
+                name=primary.name,
+                dimension=primary.dimension,
+                direction=primary.direction,
+                strength=primary.strength,
+                score=round(new_score, 2),
+                description=(
+                    f"{primary.description}；同族确认: {details}"
+                    if details else primary.description
+                ),
+                metadata={
+                    **primary.metadata,
+                    "family": "central_bank",
+                    "family_merged": [s.name for s in confirmations],
+                    "family_confirmations": len(confirmations),
+                },
+            ))
+        merged.extend(s for s in signals if s.direction == SignalDirection.NEUTRAL)
+        return merged
 
     def _analyze_monthly_central_bank(self) -> list[Signal]:
         """分析重点国别央行月度购金数据.

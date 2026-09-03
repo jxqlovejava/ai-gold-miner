@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from gold_miner.signals.base import Signal, SignalDirection, SignalStrength
 from gold_miner.signals.fundamental import FundamentalAnalyzer
 
 
@@ -102,3 +103,60 @@ class TestGoldSilverRatio:
         signals = analyzer.generate_signals()
         signal_names = [s.name for s in signals]
         assert any("金银比" in n for n in signal_names)
+
+
+class TestCentralBankFamilyMerge:
+    """央行购金信号族合并 — 同一事实(中国⊂月度⊂季度)不得重复计分."""
+
+    @staticmethod
+    def _cb(name: str, direction: SignalDirection, score: float, desc: str = "") -> Signal:
+        return Signal(
+            name=name,
+            dimension="fundamental",
+            direction=direction,
+            strength=SignalStrength.MODERATE,
+            score=score,
+            description=desc or name,
+        )
+
+    def test_same_direction_merges_with_capped_bonus(self):
+        signals = [
+            self._cb("央行大规模购金", SignalDirection.BULLISH, 0.8),
+            self._cb("央行购金占比高", SignalDirection.BULLISH, 0.4),
+            self._cb("重点央行月度持续购金", SignalDirection.BULLISH, 0.35),
+            self._cb("中国央行加大购金", SignalDirection.BULLISH, 0.3),
+        ]
+        merged = FundamentalAnalyzer._merge_central_bank_family(signals)
+        assert len(merged) == 1
+        assert merged[0].name == "央行大规模购金"  # 最强档为主信号
+        assert merged[0].score == 1.0  # 0.8 + 0.1×3 = 1.1 → 封顶 1.0
+        # 子信号明细并入描述，信息不丢
+        for sub in ("央行购金占比高", "重点央行月度持续购金", "中国央行加大购金"):
+            assert sub in merged[0].description
+        assert merged[0].metadata["family_confirmations"] == 3
+
+    def test_direction_conflict_not_merged(self):
+        # 季度 bullish + 月度 selling (方向相反) → 各自独立保留
+        signals = [
+            self._cb("央行大规模购金", SignalDirection.BULLISH, 0.8),
+            self._cb("重点央行月度净卖出", SignalDirection.BEARISH, -0.15),
+        ]
+        merged = FundamentalAnalyzer._merge_central_bank_family(signals)
+        assert len(merged) == 2
+        assert {s.score for s in merged} == {0.8, -0.15}
+
+    def test_bearish_group_merges_downward(self):
+        signals = [
+            self._cb("央行净卖出", SignalDirection.BEARISH, -0.3),
+            self._cb("重点央行月度净卖出", SignalDirection.BEARISH, -0.15),
+        ]
+        merged = FundamentalAnalyzer._merge_central_bank_family(signals)
+        assert len(merged) == 1
+        assert merged[0].score == -0.4  # -0.3 - 0.1×1
+
+    def test_single_signal_unchanged(self):
+        signals = [self._cb("央行持续购金", SignalDirection.BULLISH, 0.5)]
+        merged = FundamentalAnalyzer._merge_central_bank_family(signals)
+        assert len(merged) == 1
+        assert merged[0].score == 0.5
+        assert "family" not in merged[0].metadata
