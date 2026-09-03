@@ -358,7 +358,16 @@ class EventCalendar:
                     evs.append(candidate)
 
         # ---- NFP (每月第一个周五) ----
-        nfp_missing = _missing_months("nfp", set(range(1, 13)))
+        # 初请失业金复用 EventType.NFP（周频），不能占据月度非农槽位：
+        # 补查初请结果会被 _persist_programmatic_updates 持久化进 JSONL，
+        # 若按 (nfp, month) 裸去重会挤掉该月真正的非农事件（2026-09-03 事故：
+        # 9/3 初请持久化后 9/4 非农消失）。槽位判断须排除初请类事件。
+        nfp_months = {
+            e.scheduled_at.month
+            for e in events
+            if e.event_type.value == "nfp" and "初请" not in e.name
+        }
+        nfp_missing = set(range(1, 13)) - nfp_months
         if nfp_missing:
             nfp_events = EventCalendar._generate_nfp_events(year, skip_months=None)
             for e in nfp_events:

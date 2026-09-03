@@ -151,6 +151,29 @@ class TestEventCalendar2026:
         for e in cpi_events:
             assert "approx" in e.source.lower() or "推算" in e.source
 
+    # --- NFP 槽位不被初请挤占 (2026-09-03 事故回归) ---
+
+    def test_jobless_claims_does_not_displace_nfp(self):
+        """初请失业金复用 EventType.NFP，持久化进 JSONL 后不得挤掉该月非农.
+
+        事故: 补查初请结果 → _persist_programmatic_updates 将初请写入 JSONL →
+        _supplement_missing_categories 按 (nfp, month) 裸去重 → 9/4 非农消失。
+        """
+        # 每个月都必须有「非农」类事件（名称含"非农"），即便该月已有初请(nfp类型)
+        nfp_events = [
+            e for e in self.events
+            if "初请" not in e.name and e.event_type.value == "nfp"
+        ]
+        months = {e.scheduled_at.month for e in nfp_events}
+        assert months == set(range(1, 13)), f"非农缺失月份: {sorted(set(range(1, 13)) - months)}"
+        # 9/4 (2026年9月第一个周五) 非农必须存在
+        sep_nfp = [
+            e for e in nfp_events
+            if e.scheduled_at.month == 9 and e.scheduled_at.day == 4
+        ]
+        assert len(sep_nfp) == 1
+        assert sep_nfp[0].impact == EventImpact.HIGH
+
     # --- 本周事件查询 ---
 
     def test_get_upcoming_finds_this_week(self):
