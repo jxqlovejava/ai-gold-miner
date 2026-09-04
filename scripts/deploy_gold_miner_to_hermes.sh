@@ -98,6 +98,14 @@ if [[ -f "$ROOT/data/private/conditional_orders.jsonl" ]]; then
 else
   echo "  本地无 data/private/conditional_orders.jsonl，跳过"
 fi
+# 操作节奏账本 (operation_pace — 近10日操作序列+冷却, analysis 档位表读 data/private/operations.jsonl)
+if [[ -f "$ROOT/data/private/operations.jsonl" ]]; then
+  "${SSH[@]}" "$HOST" "mkdir -p '$REMOTE_ROOT/data/private'"
+  "${SCP[@]}" "$ROOT/data/private/operations.jsonl" "$HOST:$REMOTE_ROOT/data/private/operations.jsonl"
+  echo "  ✅ operations.jsonl (操作节奏账本)"
+else
+  echo "  本地无 data/private/operations.jsonl，跳过"
+fi
 if [[ -f "$ROOT/data/calendar_events.jsonl" ]]; then
   # 双路径同步: .hermes/gold/ (Hermes哨兵) + 项目 data/ (EventCalendar 默认读取)
   "${SCP[@]}" "$ROOT/data/calendar_events.jsonl" "$HOST:$REMOTE_CALENDAR"

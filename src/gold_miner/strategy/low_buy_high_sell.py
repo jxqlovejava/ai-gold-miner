@@ -113,6 +113,8 @@ class LowBuyHighSellAdvisor:
         price_in_low_band: bool = False,               # 现价是否已落入低吸参考带
         smart_money_flow: str | None = None,           # 综合聪明钱流: inflow/outflow/divergence/None
         low_band_suggestions: list[dict[str, Any]] | None = None,  # 低吸档位建议
+        # 操作节奏冷却 (2026-09-04): 近窗口密集连买 → build+在带时转「冷却」不触发主动低吸
+        low_buy_cooldown: bool = False,
     ) -> LowBuyHighSellSignal:
         """评估当前状态, 输出分级低吸高抛建议.
 
@@ -189,6 +191,7 @@ class LowBuyHighSellAdvisor:
             stance=stance,
             price_in_low_band=price_in_low_band,
             bands=low_band_suggestions or [],
+            low_buy_cooldown=low_buy_cooldown,
         )
         high_sell = self._summarize_high_sell(core_advice, tactical_advice)
 
@@ -388,12 +391,15 @@ class LowBuyHighSellAdvisor:
         stance: str = "balance",
         price_in_low_band: bool = False,
         bands: list[dict[str, Any]] | None = None,
+        low_buy_cooldown: bool = False,
     ) -> str:
         """汇总低吸建议.
 
         仅对允许低吸的池 (low_buy=True) 给出低吸建议; 禁止低吸的池被排除。
         r037 (2026-09-04): stance=build(建仓优先) 且现价已落入低吸带 → 输出
-        可执行「低吸触发」档位, 而非空泛「等待回调」; balance/defend 维持原语义.
+        可执行「低吸触发」档位, 而非空泛「等待回调」; balance/defend 维持原语义。
+        操作节奏冷却 (2026-09-04): 近窗口密集连买 (buy_cooldown) → 转「低吸冷却」,
+        只靠条件单被动接货, 不新增手动低吸 (防手痒连击越接越深).
         """
         if gate_closed:
             warnings.append("聪明钱闸门关闭 (COT 转流出): 禁止主动低吸, 只靠低吸单被动接货")
@@ -409,6 +415,12 @@ class LowBuyHighSellAdvisor:
         if price_in_low_band:
             # 现价已在低吸参考带内: build → 可执行触发; 其他 → 观察
             if stance == "build":
+                if low_buy_cooldown:
+                    warnings.append(
+                        "低吸冷却 (近窗口密集连买): 现价到带但近期已连续买入, "
+                        "仅执行计划内条件单被动接货, 不新增手动低吸 (防手痒连击)"
+                    )
+                    return f"低吸冷却 (到带但近窗口连买, 条件单被动接{band_note})"
                 warnings.append(
                     "低吸触发 (r037 建仓优先): 现价进入低吸带, 建议按档位分批接; "
                     "单档≤5%总资金 (低吸铁律), 每批≤50% (r028)"

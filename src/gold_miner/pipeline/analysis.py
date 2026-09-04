@@ -2095,6 +2095,16 @@ class AnalysisPipeline:
             except (TypeError, ValueError):
                 smart_money_flow = None
 
+            # 操作节奏 (近10日操作序列 + 同向密集冷却): 读私有成交事件账本; 失败静默 None
+            pace = None
+            try:
+                from gold_miner.strategy.operation_pace import analyze_pace, load_operations
+                _ops = load_operations("data/private/operations.jsonl")
+                if _ops:
+                    pace = analyze_pace(_ops)
+            except Exception:
+                pace = None
+
             advisor = LowBuyHighSellAdvisor(config=lbhs_cfg or None)
             sig = advisor.evaluate(
                 current_price=current_price,
@@ -2105,6 +2115,7 @@ class AnalysisPipeline:
                 price_in_low_band=price_in_low_band,
                 smart_money_flow=smart_money_flow,
                 low_band_suggestions=[dict(b) for b in bands if isinstance(b, dict)],
+                low_buy_cooldown=bool(pace and pace.buy_cooldown),
             )
             stance_cn = {
                 "build": "建仓优先",
@@ -2116,6 +2127,8 @@ class AnalysisPipeline:
                 f" | 现仓 {current_exposure_pct:.1f}% / 阶段目标 {target_pct:.0f}%"
                 f" | 闸门{'关' if '禁用' in sig.low_buy_suggestion else '开'}"
             ]
+            if pace is not None and pace.recent:
+                seg_lines.append(f"   · {pace.summary()}")
             if sig.stance_reason:
                 seg_lines.append(f"   · {sig.stance_reason}")
             for b in sig.low_buy_bands:

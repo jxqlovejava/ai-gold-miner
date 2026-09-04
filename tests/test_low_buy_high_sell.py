@@ -283,3 +283,30 @@ def test_divergence_cot_inflow_gld_outflow_keeps_gate_open_in_build():
         cot_net_position_change=3.0, smart_money_flow="divergence",
     )
     assert sig.low_buy_suggestion != "禁用 (MK4 闸门)"
+
+
+def test_build_cooldown_overrides_trigger_when_dense_buys():
+    """build + 到带 + 操作节奏冷却(近窗口密集连买) → 转「低吸冷却」非触发."""
+    advisor = LowBuyHighSellAdvisor()
+    sig = advisor.evaluate(
+        current_price=920.0, pools=_default_pools(),
+        current_exposure_pct=13, target_exposure_pct=20, max_exposure_pct=80,
+        price_in_low_band=True,
+        low_band_suggestions=[{"price": 925, "grams": 10}],
+        low_buy_cooldown=True,
+    )
+    assert "低吸冷却" in sig.low_buy_suggestion
+    assert "低吸触发" not in sig.low_buy_suggestion
+    assert any("冷却" in w for w in sig.warnings)
+
+
+def test_build_trigger_when_no_cooldown_default():
+    """默认 low_buy_cooldown=False → 到带仍触发 (向后兼容)."""
+    advisor = LowBuyHighSellAdvisor()
+    sig = advisor.evaluate(
+        current_price=920.0, pools=_default_pools(),
+        current_exposure_pct=13, target_exposure_pct=20, max_exposure_pct=80,
+        price_in_low_band=True,
+        low_band_suggestions=[{"price": 925, "grams": 10}],
+    )
+    assert "低吸触发" in sig.low_buy_suggestion
