@@ -1154,12 +1154,21 @@ class AnalysisPipeline:
                 result.messages.append(chanlun_block)
                 logger.info(f"\n{chanlun_block}")
 
-        # --- 4a-2. 日内分时板块 (SGE 1分钟: 动能/位置/振幅) ---
+        # --- 4a-2. 日内分时板块 (SGE 1分钟: 动能/位置/振幅 + 三段时段节奏) ---
         if result.intraday_summary:
             intraday_block = self._format_intraday_structure(result.intraday_summary)
+            slot_lines = self._intraday_slot_lines(result.intraday_data)
+            if intraday_block and slot_lines:
+                intraday_block = intraday_block + "\n" + "\n".join(slot_lines)
             if intraday_block:
                 result.messages.append(intraday_block)
                 logger.info(f"\n{intraday_block}")
+
+        # --- 4a-3. 三日走势板块 (国内SGE近3交易收盘+逐日涨跌, 报告开头行情回顾 §1.0.1) ---
+        three_day = self._build_three_day_block(result.gold_df, result.current_price)
+        if three_day:
+            result.messages.append(three_day)
+            logger.info(f"\n{three_day}")
 
         # --- 4b. 信号快照落盘 (供 adaptive_gold_monitor 理由引擎读取) ---
         try:
@@ -1216,6 +1225,95 @@ class AnalysisPipeline:
         if summary.get("stale"):
             lines.append(f"  ⚠️ 数据截至 {summary['last_time']}（休市/盘外，分时冻结）")
         return "\n".join(lines)
+
+    @staticmethod
+    def _build_three_day_block(gold_df: pd.DataFrame, current_price: float) -> str:
+        """近3个交易日收盘/现价 + 逐日涨跌 — 报告开头「三日走势」数据（§1.0.1）.
+
+        口径: 国内 SGE Au99.99 元/克（与民生积存金同源联动）; scan 日线末 bar 为
+        当日盘中则按现价标注. 数据不足 3 根时输出可用根数, 不抛错.
+        """
+        from datetime import datetime
+
+        if gold_df is None or gold_df.empty or "close" not in gold_df.columns:
+            return ""
+        df = gold_df.copy()
+        if "timestamp" in df.columns:
+            df = df.sort_values("timestamp").reset_index(drop=True)
+        closes = df["close"].astype(float)
+        pct = closes.pct_change() * 100.0
+        n_tail = min(3, len(df))
+        today = datetime.now().date()
+        lines = ["📈 三日走势（国内 SGE ¥/g，与积存金同源联动）"]
+        for j in range(n_tail):
+            gl = len(df) - n_tail + j
+            close = closes.iloc[gl]
+            chg = pct.iloc[gl]
+            chg_s = f"{chg:+.2f}%" if pd.notna(chg) else " —"
+            is_today = False
+            if "timestamp" in df.columns:
+                ts = pd.Timestamp(df["timestamp"].iloc[gl])
+                date_s = ts.strftime("%m-%d")
+                is_today = ts.date() == today
+                mark = "现" if is_today else "收"
+            else:
+                date_s = "-"
+                mark = "收"
+            row = f"  {date_s} {mark} {close:.2f}  {chg_s}"
+            if is_today:
+                row += "  ← 今日盘中"
+            lines.append(row)
+        return "\n".join(lines)
+
+    @staticmethod
+    def _intraday_slot_lines(intraday: dict | None) -> list[str]:
+        """日内 SGE 三段（夜盘/早盘/午后）时段涨跌节奏 — 报告开头「日内走势」数据（§1.0.2）.
+
+        消费与 IntradayAnalyzer 同源 points; 仅描述盘中状态, 不构成独立趋势 (r033).
+        """
+        points = [
+            p for p in ((intraday or {}).get("points") or [])
+            if p.get("price") and p.get("time") and p.get("date")
+        ]
+        if not points:
+            return []
+
+        def slot_of(t: str) -> str | None:
+            if t >= "20:00" or t <= "02:30":
+                return "夜盘"
+            if "09:00" <= t <= "11:30":
+                return "早盘"
+            if "13:30" <= t <= "15:30":
+                return "午后"
+            return None
+
+        bucket: dict[str, list[float]] = {"夜盘": [], "早盘": [], "午后": []}
+        for p in points:
+            s = slot_of(p["time"])
+            if s:
+                bucket[s].append(float(p["price"]))
+        last_t = points[-1]["time"]
+        lines = ["  ▶ 日内分时段节奏（SGE 三段: 夜盘/早盘/午后）"]
+        for label, start_hm in (("夜盘", "20:00"), ("早盘", "09:00"), ("午后", "13:30")):
+            ps = bucket[label]
+            if not ps:
+                if label == "夜盘":
+                    note = "（无夜盘数据）"
+                elif last_t < start_hm:
+                    note = "（未开盘）"
+                else:
+                    note = "（该段无数据点）"
+                lines.append(f"  {label}  {note}")
+                continue
+            o, c = ps[0], ps[-1]
+            chg = (c - o) / o * 100 if o else 0.0
+            ups = sum(1 for i in range(1, len(ps)) if ps[i] > ps[i - 1])
+            downs = sum(1 for i in range(1, len(ps)) if ps[i] < ps[i - 1])
+            lines.append(
+                f"  {label}  {o:.2f} → {c:.2f}  {chg:+.2f}%"
+                f" | 高 {max(ps):.2f}/低 {min(ps):.2f} | 涨{ups}分/跌{downs}分"
+            )
+        return lines
 
     @staticmethod
     def _format_chanlun_structure(summary: dict) -> str:

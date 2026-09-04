@@ -359,10 +359,16 @@ def write_digest(scan_text: str, out_path: Path) -> int:
         lines.append("## 缠论结构")
         lines.extend(chan)
         lines.append("")
-    intraday = _extract_infoblock(scan_text, "⏱️ 日内分时", max_lines=7)
+    # 2026-09-04: 日内分时块已追加 SGE 三段时段节奏行 (analysis._intraday_slot_lines) → 放宽行数截断
+    intraday = _extract_infoblock(scan_text, "⏱️ 日内分时", max_lines=24)
     if intraday:
         lines.append("## 日内分时")
         lines.extend(intraday)
+        lines.append("")
+    three_day = _extract_infoblock(scan_text, "📈 三日走势")
+    if three_day:
+        lines.append("## 三日走势")
+        lines.extend(three_day)
         lines.append("")
     for ln in scan_text.splitlines():
         if "📐 ATR 移动止盈" in ln and "| INFO" not in ln:
@@ -468,6 +474,27 @@ def assemble(scan_text: str, out_path: Path) -> None:
     # 占位符用「无」不用 em-dash「—」：LLM Edit 回填时复打 dash 极易打成变体，
     # 精确匹配失败报「Error editing file」（2026-08-22 事故）。全 ASCII/无近形字。
     lines.append("止盈: 无")
+    lines.append("")
+    # 1.0 行情回顾 (2026-09-04 用户要求固化): 决策摘要后/主驱动前 展示近三日走势 + 日内 SGE 三段分时。
+    # 数据来自 scan 侧 analysis._build_three_day_block / _intraday_slot_lines 输出块 (同 digest 素材)。
+    lines.append("## 1.0 📈 行情回顾（三日走势 · 日内分时）")
+    lines.append("### 1.0.1 三日金价走势（国内 SGE ¥/g，与积存金同源联动）")
+    _three_day = _extract_infoblock(scan_text, "📈 三日走势")
+    if _three_day and len(_three_day) > 1:
+        lines.extend(_three_day[1:])  # 首行为块自带标题, 与 ### 小标题重复, 跳过
+    elif _three_day:
+        lines.append("  （仅今日数据，暂不足三日）")
+    else:
+        lines.append("  （本期无三日走势数据）")
+    lines.append("")
+    lines.append("### 1.0.2 日内金价走势（SGE 三段: 夜盘/早盘/午后）")
+    _intraday = _extract_infoblock(scan_text, "⏱️ 日内分时", max_lines=24)
+    if _intraday:
+        lines.extend(_intraday)
+    else:
+        lines.append("  （本期无日内分时数据）")
+    lines.append("")
+    lines.append("（LLM 增量填充：三日逐日盘面概括与归因、日内各时段节奏解读——替换本行为各 1-2 句人话；表列不改）")
     lines.append("")
     lines.append("## 1.1 🔍 主驱动因素")
     lines.append("> （LLM 增量填充：一句话第一性主驱动 + 驱动排序表）")
