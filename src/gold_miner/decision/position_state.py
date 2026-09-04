@@ -5,6 +5,7 @@ hold/add/reduce/stop/stand_aside。
 """
 from __future__ import annotations
 
+from datetime import date, datetime
 from typing import Any
 
 _ACTION_CN = {
@@ -83,6 +84,60 @@ def _extract_positions(portfolio: dict[str, Any]) -> tuple[float, float, float |
     return total_grams, avg_cost, hard_stop, secondary_stop
 
 
+def _last_reduce_meta(
+    portfolio: dict[str, Any],
+) -> tuple[str | None, float | None]:
+    """读取主仓 gold_jd 最近一次减仓元数据.
+
+    portfolio.yaml 的 positions.gold_jd 在每次实际减仓(含 r025 ATR 移动止盈)后
+    由用户/同步脚本维护 last_reduce_at(YYYY-MM-DD) 与 last_reduce_price(减仓价)。
+
+    Returns:
+        (last_reduce_at, last_reduce_price); 无字段时返回 (None, None) → r036 护栏不启用,
+        行为与旧版完全一致 (兼容无该字段的存量配置).
+    """
+    positions = portfolio.get("positions") or {}
+    pos = positions.get("gold_jd") if isinstance(positions, dict) else None
+    if not isinstance(pos, dict):
+        return None, None
+    return pos.get("last_reduce_at"), pos.get("last_reduce_price")
+
+
+def is_same_wave_reduce(
+    portfolio: dict[str, Any],
+    current_price: float,
+    *,
+    today: date | None = None,
+) -> bool:
+    """r036 同波二次破位判定 (2026-09-04, 9/2 教训).
+
+    最近一次减仓 (last_reduce_at) 距今 ≤10 自然日 且 现价仍在该次减仓价下方
+    (未重新武装) → 视为同一波下跌的二次破位, 应避免重复机械减半 (防波段底二次割肉)。
+
+    供 decision/position_state.resolve_position_state 与 sentinel/engine 共用,
+    保证主决策与监控推送对 r036 判定一致.
+
+    Args:
+        portfolio: portfolio.yaml 结构 (positions.gold_jd.last_reduce_at/last_reduce_price)
+        current_price: 当前金价 (CNY/g)
+        today: 日期基准 (默认 date.today(); 测试可注入固定日期)
+    """
+    reduce_at, reduce_price = _last_reduce_meta(portfolio)
+    if reduce_at is None:
+        return False
+    try:
+        reduce_d = datetime.strptime(str(reduce_at), "%Y-%m-%d").date()
+    except (TypeError, ValueError):
+        return False
+    ref = today if today is not None else date.today()
+    if (ref - reduce_d).days > 10:
+        return False
+    # 现价已反弹回到上次减仓价上方 → 重新武装(新波), 护栏解除
+    if reduce_price and current_price > float(reduce_price):
+        return False
+    return True
+
+
 def resolve_position_state(
     portfolio: dict[str, Any],
     current_price: float,
@@ -116,6 +171,12 @@ def resolve_position_state(
     unrealized_pnl_pct = (
         (float(current_price) - avg_cost) / avg_cost if avg_cost > 0 else 0.0
     )
+
+    # r036 同波二次破位护栏 (2026-09-04, 9/2 教训): 最近一次减仓(如 r025 高抛)之后
+    # 10 个自然日内若现价仍在该减仓价下方(同波未重新武装)再破次级止损 → 不重复机械减半,
+    # 防止把正确的减仓演变成波段底二次割肉。硬止损分支不受影响(无条件 stop)。
+    same_wave_reduced = is_same_wave_reduce(portfolio, current_price)
+    last_reduce_at = _last_reduce_meta(portfolio)  # (date | None, price | None) — 供 reason 展示
 
     direction_raw = str(raw_decision.get("direction") or "neutral")
     composite_score = float(raw_decision.get("composite_score") or 0.0)
@@ -188,6 +249,24 @@ def resolve_position_state(
             signal_type="强信号",
         )
     if has_position and near_secondary_stop:
+        if same_wave_reduced:
+            # r036: 同波二次破位 → 不重复机械减半, 转低吸/观察 (防波段底二次割肉)
+            reduce_note = (
+                f" @{float(last_reduce_at[1]):.2f}" if last_reduce_at[1] else ""
+            )
+            return _result(
+                "hold",
+                direction="long" if current_gold_pct > 0 else "neutral",
+                position_pct=0.0,
+                target_gold_pct=current_gold_pct,
+                reason=(
+                    f"r036 同波二次破位护栏: {last_reduce_at[0]}{reduce_note} 已减仓, "
+                    f"现价 {current_price:.2f} 再破次级止损 {secondary_stop:.2f} "
+                    f"→ 不再重复减半 (防底割, 9/2 教训); "
+                    f"硬止损 {hard_stop:.2f} 仍为最后防线, 转低吸档评估"
+                ),
+                signal_type="无信号",
+            )
         reduce_frac = 0.5 if not near_hard_stop else 1.0
         target = max(0.0, current_gold_pct * (1.0 - reduce_frac))
         return _result(

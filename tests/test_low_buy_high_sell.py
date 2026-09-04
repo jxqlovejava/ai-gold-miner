@@ -77,7 +77,7 @@ def test_tactical_rebalance_high_sell():
 
 
 def test_tactical_extreme_sentiment():
-    """RSI>80 + COT 转流出 → 机动池高抛 (r030)."""
+    """RSI>80 + COT 转流出 → 机动池高抛 (情绪纪律; 不误引 r030 安全边际号)."""
     advisor = LowBuyHighSellAdvisor()
     sig = advisor.evaluate(
         current_price=950.0,
@@ -88,7 +88,7 @@ def test_tactical_extreme_sentiment():
 
     assert sig.tactical_pool["action"] == "波段高抛"
     assert "tactical_extreme_sentiment" in sig.triggered_signals
-    assert "r030" in sig.rule_ids
+    assert "r030" not in sig.rule_ids  # r030 实为「安全边际」, 情绪高抛不标此号 (2026-09-04)
 
 
 def test_rsi_high_but_cot_inflow_no_high_sell():
@@ -185,3 +185,101 @@ def test_current_price_zero_no_crash():
     advisor = LowBuyHighSellAdvisor()
     sig = advisor.evaluate(current_price=0.0, pools=_default_pools())
     assert sig.high_sell_suggestion == "持有"
+
+
+# ----------------------------------------------------------------------
+# r037 仓位感知 stance (2026-09-04): 全部默认值 → 旧行为兼容; 显式传参 → 新逻辑
+# ----------------------------------------------------------------------
+
+def test_stance_build_when_low_exposure():
+    """现仓 13% ≤ 阶段目标 20%×0.8 → stance=build (建仓优先)."""
+    advisor = LowBuyHighSellAdvisor()
+    sig = advisor.evaluate(
+        current_price=960.0, pools=_default_pools(),
+        current_exposure_pct=13, target_exposure_pct=20, max_exposure_pct=80,
+    )
+    assert sig.stance == "build"
+    assert "13" in sig.stance_reason
+
+
+def test_stance_defend_near_cap():
+    """现仓 76% 近上限 80% → stance=defend."""
+    advisor = LowBuyHighSellAdvisor()
+    sig = advisor.evaluate(
+        current_price=960.0, pools=_default_pools(),
+        current_exposure_pct=76, target_exposure_pct=20, max_exposure_pct=80,
+    )
+    assert sig.stance == "defend"
+
+
+def test_stance_balance_default_when_no_exposure():
+    """未传仓位/目标 → stance=balance, 输出与旧版完全一致 (向后兼容)."""
+    advisor = LowBuyHighSellAdvisor()
+    sig = advisor.evaluate(current_price=960.0, pools=_default_pools())
+    assert sig.stance == "balance"
+    assert sig.low_buy_suggestion == "等待回调低吸 (核心池/机动池)"
+    assert sig.low_buy_bands == []
+
+
+def test_build_trigger_when_price_in_low_band():
+    """build + 现价进入低吸带 → 输出可执行「低吸触发」档位 (r037)."""
+    advisor = LowBuyHighSellAdvisor()
+    bands = [
+        {"price": 925, "grams": 10, "existing": False},
+        {"price": 878, "grams": 15, "existing": True},
+    ]
+    sig = advisor.evaluate(
+        current_price=920.0, pools=_default_pools(),
+        current_exposure_pct=13, target_exposure_pct=20, max_exposure_pct=80,
+        price_in_low_band=True, low_band_suggestions=bands,
+    )
+    assert sig.stance == "build"
+    assert "低吸触发" in sig.low_buy_suggestion
+    assert [b["price"] for b in sig.low_buy_bands] == [925, 878]
+    assert any("r037" in w or "低吸触发" in w for w in sig.warnings)
+
+
+def test_smart_money_gate_degrades_in_build_when_cot_out_only():
+    """build + 仅 COT 转出 (无综合流佐证) → 闸门放行 (r037 降级), 不标 r020."""
+    advisor = LowBuyHighSellAdvisor()
+    sig = advisor.evaluate(
+        current_price=920.0, pools=_default_pools(),
+        current_exposure_pct=13, target_exposure_pct=20, max_exposure_pct=80,
+        cot_net_position_change=-8.0,
+    )
+    assert sig.stance == "build"
+    assert "禁用" not in sig.low_buy_suggestion
+    assert "r020" not in sig.rule_ids
+
+
+def test_smart_money_gate_still_closes_in_build_with_outflow():
+    """build + COT 转出 + 综合流出 → 仍关闸防接飞刀."""
+    advisor = LowBuyHighSellAdvisor()
+    sig = advisor.evaluate(
+        current_price=920.0, pools=_default_pools(),
+        current_exposure_pct=13, target_exposure_pct=20, max_exposure_pct=80,
+        cot_net_position_change=-8.0, smart_money_flow="outflow",
+    )
+    assert sig.low_buy_suggestion == "禁用 (MK4 闸门)"
+    assert "r020" in sig.rule_ids
+
+
+def test_gate_strict_in_balance_backward_compat():
+    """balance (旧路径) + COT 转出 → 保持禁用, 与既有 test_smart_money_gate_closes_low_buy 一致."""
+    advisor = LowBuyHighSellAdvisor()
+    sig = advisor.evaluate(
+        current_price=920.0, pools=_default_pools(),
+        cot_net_position_change=-8.0,
+    )
+    assert sig.low_buy_suggestion == "禁用 (MK4 闸门)"
+
+
+def test_divergence_cot_inflow_gld_outflow_keeps_gate_open_in_build():
+    """9/2 型: build + COT 仍在吸(转流入)但 GLD/综合背离 → 闸门放行, 不误伤低位低吸."""
+    advisor = LowBuyHighSellAdvisor()
+    sig = advisor.evaluate(
+        current_price=920.0, pools=_default_pools(),
+        current_exposure_pct=13, target_exposure_pct=20, max_exposure_pct=80,
+        cot_net_position_change=3.0, smart_money_flow="divergence",
+    )
+    assert sig.low_buy_suggestion != "禁用 (MK4 闸门)"

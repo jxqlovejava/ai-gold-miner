@@ -31,6 +31,11 @@ class LowBuyHighSellSignal:
     triggered_signals: list[str] = field(default_factory=list)  # 触发的高抛信号
     warnings: list[str] = field(default_factory=list)           # 警告(如锚定偏差提示)
     rule_ids: list[str] = field(default_factory=list)           # 命中的军规 ID
+    # 仓位感知增强 (r037, 2026-09-04 起)
+    stance: str = "balance"               # 仓位感知姿态: build(建仓优先)/balance/defend(防守)
+    stance_reason: str = ""               # 姿态判定理由
+    target_exposure_pct: float | None = None  # 阶段目标仓位 % (V9 ramp), 供报告展示
+    low_buy_bands: list[dict[str, Any]] = field(default_factory=list)  # 低吸档位 [{price, grams, note, existing}]
 
     def to_dict(self) -> dict[str, Any]:
         """转为字典便于输出."""
@@ -43,6 +48,10 @@ class LowBuyHighSellSignal:
             "triggered_signals": self.triggered_signals,
             "warnings": self.warnings,
             "rule_ids": self.rule_ids,
+            "stance": self.stance,
+            "stance_reason": self.stance_reason,
+            "target_exposure_pct": self.target_exposure_pct,
+            "low_buy_bands": self.low_buy_bands,
         }
 
 
@@ -97,6 +106,13 @@ class LowBuyHighSellAdvisor:
         central_bank_buying_slow: bool = False,        # 央行购金连续两季<100吨
         pool_deviation_pp: dict[str, float] | None = None,  # 各池偏离目标 pp
         pool_profit_pct: dict[str, float] | None = None,    # 各池浮盈 %
+        # 仓位感知增强 (r037, 2026-09-04 起): 全部默认 None/False, 缺省走旧逻辑
+        current_exposure_pct: float | None = None,     # 当前黄金敞口占总资金 % (如 13)
+        target_exposure_pct: float | None = None,      # 阶段目标仓位 % (V9 ramp, 如 20)
+        max_exposure_pct: float | None = None,         # 上限仓位 % (r002, 如 80)
+        price_in_low_band: bool = False,               # 现价是否已落入低吸参考带
+        smart_money_flow: str | None = None,           # 综合聪明钱流: inflow/outflow/divergence/None
+        low_band_suggestions: list[dict[str, Any]] | None = None,  # 低吸档位建议
     ) -> LowBuyHighSellSignal:
         """评估当前状态, 输出分级低吸高抛建议.
 
@@ -153,13 +169,26 @@ class LowBuyHighSellAdvisor:
         # ---- 机会池建议 ----
         opp_advice = self._opportunity_pool_advice(config=opportunity, signals=signals)
 
-        # ---- 聪明钱闸门 (MK4) ----
-        gate_closed = self._smart_money_gate_closed(cot_net_position_change, rule_ids)
+        # ---- 仓位感知姿态 (r037) ----
+        stance, stance_reason = self._resolve_stance(
+            current_exposure_pct, target_exposure_pct, max_exposure_pct
+        )
+
+        # ---- 聪明钱闸门 (MK4, 低仓降级见 r037) ----
+        gate_closed = self._smart_money_gate_closed(
+            cot_net_position_change,
+            rule_ids,
+            stance=stance,
+            flow=smart_money_flow,
+        )
 
         # ---- 汇总 ----
         low_buy = self._summarize_low_buy(
             core_advice, tactical_advice, opp_advice, gate_closed, warnings,
             core_cfg=core, tactical_cfg=tactical,
+            stance=stance,
+            price_in_low_band=price_in_low_band,
+            bands=low_band_suggestions or [],
         )
         high_sell = self._summarize_high_sell(core_advice, tactical_advice)
 
@@ -172,6 +201,10 @@ class LowBuyHighSellAdvisor:
             triggered_signals=signals,
             warnings=warnings,
             rule_ids=rule_ids,
+            stance=stance,
+            stance_reason=stance_reason,
+            target_exposure_pct=target_exposure_pct,
+            low_buy_bands=low_band_suggestions or [],
         )
 
     # ------------------------------------------------------------------
@@ -244,15 +277,16 @@ class LowBuyHighSellAdvisor:
         if config.get("high_sell", False) and rsi_value is not None and rsi_value > 80:
             if cot_change is not None and cot_change < 0:
                 high_sell = True
-                reasons.append(f"估值/情绪极端 (r030): RSI {rsi_value:.0f} + COT 转流出")
+                reasons.append(f"估值/情绪极端: RSI {rsi_value:.0f} + COT 转流出 (情绪纪律)")
                 signals.append("tactical_extreme_sentiment")
-                rule_ids.append("r030")
+                # 注: 不标具体军规号——doctrine r030 实为「安全边际」, 情绪高抛非其裁决,
+                # 由 triggered_signals 标识即可 (2026-09-04 澄清 r030 id 漂移)
 
         if high_sell:
             action = "波段高抛"
             detail = "; ".join(reasons)
         else:
-            warnings.append("机动池: 无高抛信号, 不因'赚了一点'手动做T (r030)")
+            warnings.append("机动池: 无高抛信号, 不因'赚了一点'手动做T (禁手痒T)")
 
         return {"pool": "tactical", "action": action, "detail": detail}
 
@@ -269,13 +303,74 @@ class LowBuyHighSellAdvisor:
     # ------------------------------------------------------------------
     # 闸门与汇总
     # ------------------------------------------------------------------
+    @staticmethod
+    def _resolve_stance(
+        current_exposure_pct: float | None,
+        target_exposure_pct: float | None,
+        max_exposure_pct: float | None,
+    ) -> tuple[str, str]:
+        """仓位感知姿态 (r037, 2026-09-04).
+
+        目标: 低仓时「多低吸把仓位建够」, 高仓时「守仓防回撤」, 避免 9/2 型
+        (仓位仅 13% 却在波段底被机械减仓/闸门挡在低吸外).
+
+        Returns:
+            (stance, reason): stance ∈ build/balance/defend
+              - build(建仓优先): 当前仓位 ≤ 阶段目标×0.8 且未近上限 → 低吸触发放宽
+              - defend(防守):    当前仓位 ≥ 上限×0.95 或 ≥ 目标×1.5 → 只守不加
+              - balance(常规):   介于两者 → 现行严苛闸门不变
+        """
+        if current_exposure_pct is None or target_exposure_pct is None or target_exposure_pct <= 0:
+            return "balance", "未提供仓位/阶段目标, 常规执行"
+        if max_exposure_pct and current_exposure_pct >= max_exposure_pct * 0.95:
+            return "defend", f"仓位 {current_exposure_pct:.0f}% 已近上限 {max_exposure_pct:.0f}%, 只守不加"
+        if current_exposure_pct <= target_exposure_pct * 0.8:
+            return "build", (
+                f"仓位 {current_exposure_pct:.1f}% < 阶段目标 {target_exposure_pct:.0f}%×0.8, "
+                f"建仓优先 (r037)"
+            )
+        if current_exposure_pct >= target_exposure_pct * 1.5:
+            return "defend", f"仓位 {current_exposure_pct:.0f}% 超阶段目标 {target_exposure_pct:.0f}%×1.5, 防守"
+        return "balance", f"仓位 {current_exposure_pct:.0f}% 接近阶段目标 {target_exposure_pct:.0f}%, 常规执行"
+
     def _smart_money_gate_closed(
-        self, cot_change: float | None, rule_ids: list[str]
+        self,
+        cot_change: float | None,
+        rule_ids: list[str],
+        *,
+        stance: str = "balance",
+        flow: str | None = None,
     ) -> bool:
-        """聪明钱闸门 (MK4): COT 转流出时关闭, 禁止主动低吸."""
-        if cot_change is None:
+        """聪明钱闸门 (MK4): COT 转流出时关闭, 禁止主动低吸.
+
+        r037 仓位感知降级: stance=build(低仓建仓优先) 时, 单边 COT 转出不再全禁
+        (避免 9/2 型误伤——仅 ETF/GLD 流出而 COT 聪明钱仍在吸时挡掉正确低吸);
+        仅当 COT 转出 与 综合聪明钱流向同向强流出/背离 才关闭. balance/defend 保持
+        原判 (COT 转出即关, 宁踏空不接飞刀).
+
+        Args:
+            cot_change: COT 净多变化 (正=流入, 负=流出)
+            rule_ids: 命中的军规 ID 列表 (就地追加)
+            stance: 仓位感知姿态 (build/balance/defend)
+            flow: 综合聪明钱流向 (inflow/outflow/divergence/None); None=未提供
+        """
+        cot_out = cot_change is not None and cot_change < 0
+        if stance == "build":
+            # 强流出/背离: COT 转出 且 综合流亦流出/背离 → 关闸防接飞刀
+            if cot_out and flow in ("outflow", "divergence"):
+                rule_ids.append("r020")
+                rule_ids.append("r037")  # 标注低仓降级口径
+                return True
+            # 无 COT 佐证但综合流强流出 (ETF/对冲流出) → 保守关闭
+            if flow == "outflow" and cot_change is None:
+                rule_ids.append("r020")
+                return True
+            # 低仓 + 无强流出证据 → 闸门放行 (单档仍受 ≤5% 约束)
+            if cot_out:
+                rule_ids.append("r037")
             return False
-        if cot_change < 0:
+        # balance/defend: 原判不变
+        if cot_out:
             rule_ids.append("r020")  # 宁可踏空不可接飞刀
             return True
         return False
@@ -289,10 +384,16 @@ class LowBuyHighSellAdvisor:
         warnings: list[str],
         core_cfg: dict[str, Any] | None = None,
         tactical_cfg: dict[str, Any] | None = None,
+        *,
+        stance: str = "balance",
+        price_in_low_band: bool = False,
+        bands: list[dict[str, Any]] | None = None,
     ) -> str:
         """汇总低吸建议.
 
         仅对允许低吸的池 (low_buy=True) 给出低吸建议; 禁止低吸的池被排除。
+        r037 (2026-09-04): stance=build(建仓优先) 且现价已落入低吸带 → 输出
+        可执行「低吸触发」档位, 而非空泛「等待回调」; balance/defend 维持原语义.
         """
         if gate_closed:
             warnings.append("聪明钱闸门关闭 (COT 转流出): 禁止主动低吸, 只靠低吸单被动接货")
@@ -302,6 +403,23 @@ class LowBuyHighSellAdvisor:
         if not core_ok and not tactical_ok:
             warnings.append("核心池/机动池均禁止低吸 (low_buy=False), 无低吸档")
             return "禁用 (配置禁止低吸)"
+        bands = bands or []
+        first_price = bands[0].get("price") if bands and bands[0].get("price") else None
+        band_note = f" (近档 {first_price} 元)" if first_price else ""
+        if price_in_low_band:
+            # 现价已在低吸参考带内: build → 可执行触发; 其他 → 观察
+            if stance == "build":
+                warnings.append(
+                    "低吸触发 (r037 建仓优先): 现价进入低吸带, 建议按档位分批接; "
+                    "单档≤5%总资金 (低吸铁律), 每批≤50% (r028)"
+                )
+                return f"低吸触发 (现价进入低吸带{band_note})"
+            warnings.append(f"现价已进入低吸带{band_note}, 但仓位非 build, 分批小量观察")
+        elif stance == "build" and first_price:
+            # 建仓优先但价格未到位: 标注档位待触发
+            warnings.append(
+                f"建仓优先 (r037): 低吸档位已备——距近档 {first_price} 元待触发, 勿手痒抢跑 (纪律)"
+            )
         if core_ok and tactical_ok:
             return "等待回调低吸 (核心池/机动池)"
         if core_ok:

@@ -23,6 +23,9 @@ from .models import (
 from .orders import check_order_proximity, load_active_orders
 from .quotes import fetch_quotes
 
+# r036 同波二次破位判定 — 与 decision/position_state 共用同一真相 (2026-09-04)
+from gold_miner.decision.position_state import is_same_wave_reduce
+
 # 交易日/交易时段判断 — 单一真相源 (2026-08-16 迁移至 gold_miner.data.trading_hours)
 # is_cn_trading_day / next_cn_trading_day 在此 re-export 以兼容旧引用
 from gold_miner.data.trading_hours import is_cn_trading_day, next_cn_trading_day
@@ -62,6 +65,7 @@ class SentinelEngine:
 
     def __init__(self, config: SentinelConfig):
         self.cfg = config
+        self._portfolio_raw: dict | None = None  # r036/r037: 缓存原始 portfolio 供 _check_portfolio 读 last_reduce/low_buy_bands
 
     def run(self) -> SentinelResult:
         """执行一次哨兵检查."""
@@ -125,9 +129,11 @@ class SentinelEngine:
         if not pf_path.exists():
             return None
         try:
-            data = yaml.safe_load(pf_path.read_text(encoding="utf-8"))
+            data = yaml.safe_load(pf_path.read_text(encoding="utf-8")) or {}
+            self._portfolio_raw = data
         except Exception as e:
             logger.warning(f"持仓解析失败: {e}")
+            self._portfolio_raw = None
             return None
 
         positions = data.get("positions", {})
@@ -206,6 +212,15 @@ class SentinelEngine:
         """持仓风险检查."""
         alerts: list[SentinelAlert] = []
 
+        # r036/r037 上下文 (2026-09-04): 复用 decision 层同波判定 + 低吸档位 (portfolio 原始结构)
+        raw = (self._portfolio_raw or {}) if isinstance(self._portfolio_raw, dict) else {}
+        same_wave = is_same_wave_reduce(raw, p.current_price)
+        low_bands = [
+            b
+            for b in ((raw.get("long_term") or {}).get("low_buy_bands") or [])
+            if isinstance(b, dict) and b.get("price")
+        ]
+
         # 硬止损触发
         if p.current_price <= p.hard_stop:
             alerts.append(SentinelAlert(
@@ -227,12 +242,20 @@ class SentinelEngine:
 
         # 二级止损
         if p.secondary_stop > 0 and p.current_price <= p.secondary_stop:
-            alerts.append(SentinelAlert(
-                level=AlertLevel.P0,
-                title="🔴 二级止损触发!",
-                detail=f"当前价{p.current_price:.0f}元 ≤ 二级止损{p.secondary_stop}元",
-                suggestion="检查条件单 co_20260716_003 是否已触发卖出9g",
-            ))
+            if same_wave:
+                alerts.append(SentinelAlert(
+                    level=AlertLevel.P2,
+                    title="⚠️ 二级止损区 · r036 同波护栏",
+                    detail=f"当前{p.current_price:.0f}元 ≤ 次级止损{p.secondary_stop}元; 同波已减仓",
+                    suggestion="r036: 防波段底二次割肉——不再重复减半, 检查低吸档是否到位转低吸; 硬止损仍是最后防线",
+                ))
+            else:
+                alerts.append(SentinelAlert(
+                    level=AlertLevel.P0,
+                    title="🔴 二级止损触发!",
+                    detail=f"当前价{p.current_price:.0f}元 ≤ 二级止损{p.secondary_stop}元",
+                    suggestion="按纪律减仓评估; 若属同波已减仓场景请核对 last_reduce_at/last_reduce_price 配置 (r036)",
+                ))
         elif p.secondary_stop > 0:
             dist_to_sec = (p.current_price - p.secondary_stop) / p.secondary_stop * 100
             if dist_to_sec <= self.cfg.stop_near_pct:
@@ -242,14 +265,22 @@ class SentinelEngine:
                     detail=f"当前{p.current_price:.0f}元, 止损{p.secondary_stop}元",
                 ))
 
-        # r025 ATR 移动止盈位触发 (跌破 → 减仓一半)
+        # r025 ATR 移动止盈位触发 (跌破 → 减仓一半; r036 同波已减则不重复)
         if p.atr_stop_price > 0 and p.current_price <= p.atr_stop_price:
-            alerts.append(SentinelAlert(
-                level=AlertLevel.P0,
-                title="🔴 ATR止盈位触发!",
-                detail=f"当前价{p.current_price:.0f}元 ≤ ATR止盈位{p.atr_stop_price:.2f}元",
-                suggestion="r025: 触发移动止盈, 减仓一半锁定浮盈, 剩余博长期",
-            ))
+            if same_wave:
+                alerts.append(SentinelAlert(
+                    level=AlertLevel.P2,
+                    title="⚠️ ATR止盈位下方 · r036 同波护栏",
+                    detail=f"当前{p.current_price:.0f}元 ≤ ATR止盈位{p.atr_stop_price:.2f}元; 同波已按 r025 减仓",
+                    suggestion="不再重复减仓一半 (防底割); 检查低吸档是否到位, 转低吸评估",
+                ))
+            else:
+                alerts.append(SentinelAlert(
+                    level=AlertLevel.P0,
+                    title="🔴 ATR止盈位触发!",
+                    detail=f"当前价{p.current_price:.0f}元 ≤ ATR止盈位{p.atr_stop_price:.2f}元",
+                    suggestion="r025: 触发移动止盈, 减仓一半锁定浮盈, 剩余博长期",
+                ))
         elif p.atr_stop_price > 0:
             dist_to_atr = (p.current_price - p.atr_stop_price) / p.atr_stop_price * 100
             if dist_to_atr <= self.cfg.stop_near_pct:
@@ -276,6 +307,26 @@ class SentinelEngine:
                 title=f"浮盈 {p.unrealized_pnl_pct:+.1f}%, 检查止损上移",
                 detail="r010: 浮盈>20%时止损必须上移至成本价以上",
             ))
+
+        # r037 低吸档到位提醒 (2026-09-04): 现价已回落至低吸带最高档之下 且 未破硬止损
+        # → 提示按档位分批低吸 (触发才执行, 勿手痒抢跑; 单档≤5%总资金 r028)
+        if low_bands:
+            prices = [float(b.get("price") or 0) for b in low_bands if b.get("price")]
+            top = max(prices)
+            if p.current_price <= top and p.current_price > p.hard_stop:
+                # 已越过的最高档 = 最接近现价的高位档 (低吸带内第一触发档)
+                crossed = [x for x in prices if x >= p.current_price]
+                trigger = min(crossed) if crossed else top
+                band = next((b for b in low_bands if abs(float(b.get("price") or 0) - trigger) < 0.01), None)
+                grams = band.get("grams", "?") if band else "?"
+                existing = " · 已有条件单" if (band and band.get("existing")) else ""
+                note = f" · {band.get('note')}" if (band and band.get("note")) else ""
+                alerts.append(SentinelAlert(
+                    level=AlertLevel.P2,
+                    title=f"📉 低吸档到位 (r037): 现价 {p.current_price:.0f} ≤ {trigger:.0f} 档",
+                    detail=f"建议按档分批接 {grams}g{existing}{note}",
+                    suggestion="低吸触发才执行, 勿手痒抢跑; 单档≤5%总资金 (r028), 触发后核对条件单账本",
+                ))
 
         return alerts
 

@@ -338,6 +338,24 @@ RULE_SCENARIO_TRANSMISSION = InvestmentRule(
     check_fn="check_scenario_transmission",
 )
 
+RULE_SAME_WAVE_REDUCE_GUARD = InvestmentRule(
+    id="r036",
+    name="同波二次破位减仓护栏",
+    description="一次波段下跌内已执行 r025/破位减仓（近 10 自然日）后，现价仍在减仓价下方再破次级止损（成本-5%）→ 不再重复机械减半，转观察/低吸档评估（防波段底二次割肉，9/2 教训：8/31 r025 在 957 减半后，9/2 现价 930 破成本-5% 被机械建议再减一半——次日 V 反至 969）；硬止损（成本-30%）无条件不变。实现：decision/position_state.resolve_position_state + portfolio last_reduce_at/last_reduce_price",
+    severity="warn",
+    category="trend",
+    check_fn="check_same_wave_reduce_guard",
+)
+
+RULE_LOW_POSITION_BUILD_PRIORITY = InvestmentRule(
+    id="r037",
+    name="低仓位建仓优先",
+    description="当前黄金敞口 ≤ 阶段目标（V9 ramp）×0.8 且未近上限 → stance=build（建仓优先）：单边 COT 转出不再全禁主动低吸（仅当 COT 转出与综合聪明钱流向强流出/背离才关闸，避免 9/2 型仅 GLD 流出误伤低位吸筹），现价落入低吸参考带即给可执行档位建议而非空泛等待；仍受单档≤5%总资金 + 分批（r028）约束。balance/defend 维持现行严苛闸门。实现：strategy/low_buy_high_sell.LowBuyHighSellAdvisor（_resolve_stance/_smart_money_gate_closed）",
+    severity="warn",
+    category="entry",
+    check_fn="check_low_position_build_priority",
+)
+
 
 # ------------------------------------------------------------------
 # 全部规则集合
@@ -379,6 +397,8 @@ ALL_RULES: list[InvestmentRule] = [
     RULE_DATA_LANDING_TREND,
     RULE_MILD_DATA_OSCILLATION_REDUCE,
     RULE_SCENARIO_TRANSMISSION,
+    RULE_SAME_WAVE_REDUCE_GUARD,
+    RULE_LOW_POSITION_BUILD_PRIORITY,
 ]
 
 

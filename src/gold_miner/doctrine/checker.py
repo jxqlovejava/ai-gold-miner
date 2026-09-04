@@ -586,6 +586,51 @@ class DoctrineChecker:
             details={"atr_active": atr_active, "atr_triggered": atr_triggered},
         )
 
+    def check_same_wave_reduce_guard(self, decision: dict, ctx: dict) -> RuleViolation:
+        """r036: 同波二次破位护栏状态 (实际执行在 decision/position_state.resolve_position_state).
+
+        恒通过 (warn), 仅披露状态; 阻断逻辑由 resolve_position_state 落地.
+        """
+        rule = self._get_rule("check_same_wave_reduce_guard")
+        reduced = ctx.get("same_wave_reduced", None)
+        action = decision.get("action") or decision.get("direction") or "unknown"
+        if reduced:
+            message = (
+                "r036 生效: 同波已减仓后现价再破次级止损, 决策由「减仓」转「观察/低吸档」, "
+                "防波段底二次割肉 (9/2 教训)"
+            )
+        else:
+            message = "r036 未触发: 无同波二次破位场景 (或非减仓决策)"
+        return RuleViolation(
+            rule=rule,
+            passed=True,
+            message=message,
+            details={"same_wave_reduced": reduced, "action": action},
+        )
+
+    def check_low_position_build_priority(self, decision: dict, ctx: dict) -> RuleViolation:
+        """r037: 低仓位建仓优先 stance 状态 (实际执行在 strategy/low_buy_high_sell.Advisor).
+
+        恒通过 (warn), 仅披露状态.
+        """
+        rule = self._get_rule("check_low_position_build_priority")
+        stance = ctx.get("stance", "balance")
+        if stance == "build":
+            message = (
+                "r037 build (建仓优先): 低仓期闸门降级 + 低吸带触发可执行档位 "
+                "(单档≤5%总资金 / 分批 r028)"
+            )
+        elif stance == "defend":
+            message = "r037 defend (防守): 仓位近上限, 保持严苛闸门, 不加仓"
+        else:
+            message = "r037 balance: 常规执行, 现行闸门不变"
+        return RuleViolation(
+            rule=rule,
+            passed=True,
+            message=message,
+            details={"stance": stance},
+        )
+
     def check_ma_trend_filter(self, decision: dict, ctx: dict) -> RuleViolation:
         rule = self._get_rule("check_ma_trend_filter")
         price_above_200ma = ctx.get("price_above_200ma", True)

@@ -1,6 +1,8 @@
 """Tests for decision/position_state.py — 持仓感知动作映射."""
 from __future__ import annotations
 
+from datetime import date, timedelta
+
 from gold_miner.decision.position_state import resolve_position_state
 
 
@@ -163,3 +165,67 @@ class TestResolvePositionState:
             long_only=True,
         )
         assert state["direction"] != "short"
+
+
+class TestR036SameWaveReduceGuard:
+    """r036 同波二次破位护栏 (2026-09-04, 9/2 教训): 减仓后 10 日内现价在减仓价下方再破次级止损
+    → 不重复减半转 hold; 无元数据/超窗口/重新武装 → 恢复 reduce; 硬止损不受影响."""
+
+    @staticmethod
+    def _recent(days_ago: int) -> str:
+        return (date.today() - timedelta(days=days_ago)).isoformat()
+
+    def _pf(self, **over) -> dict:
+        pf = _portfolio(grams=27.6, avg_cost=900.0, hard_stop=630.0, secondary_stop=810.0)
+        pf["positions"]["gold_jd"].update(over)
+        return pf
+
+    def test_same_wave_guard_converts_reduce_to_hold(self) -> None:
+        """9/2 型: 3 天前在 880 减仓, 现价 850 再破次级止损 810? 否——构造现价 800≤810."""
+        state = resolve_position_state(
+            self._pf(last_reduce_at=self._recent(3), last_reduce_price=880.0),
+            current_price=800.0,  # ≤ secondary_stop 810
+            raw_decision=_decision(direction="long", composite_score=0.5),
+        )
+        assert state["action"] == "hold"
+        assert state["position_pct"] == 0.0
+        assert "r036" in state["reason"]
+
+    def test_no_metadata_falls_back_to_reduce(self) -> None:
+        """无 last_reduce 元数据 → 与旧版一致, 仍减仓."""
+        state = resolve_position_state(
+            _portfolio(grams=27.6, hard_stop=630.0, secondary_stop=810.0),
+            current_price=800.0,
+            raw_decision=_decision(direction="long", composite_score=0.5),
+        )
+        assert state["action"] == "reduce"
+        assert "r036" not in state["reason"]
+
+    def test_rearm_above_last_reduce_price_lifts_guard(self) -> None:
+        """现价已反弹回减仓价上方(重新武装=新波) → 护栏解除, 恢复 reduce."""
+        state = resolve_position_state(
+            self._pf(last_reduce_at=self._recent(3), last_reduce_price=790.0),
+            current_price=800.0,  # > 790 → 新波
+            raw_decision=_decision(direction="long", composite_score=0.5),
+        )
+        assert state["action"] == "reduce"
+
+    def test_window_expired_lifts_guard(self) -> None:
+        """超过 10 自然日 → 不再视为同波, 恢复 reduce."""
+        state = resolve_position_state(
+            self._pf(last_reduce_at=self._recent(20), last_reduce_price=880.0),
+            current_price=800.0,
+            raw_decision=_decision(direction="long", composite_score=0.5),
+        )
+        assert state["action"] == "reduce"
+
+    def test_hard_stop_always_stops_even_in_same_wave(self) -> None:
+        """硬止损无条件 stop, 不受 r036 护栏豁免."""
+        state = resolve_position_state(
+            self._pf(hard_stop=810.0, secondary_stop=850.0,
+                     last_reduce_at=self._recent(3), last_reduce_price=900.0),
+            current_price=800.0,  # ≤ hard_stop 810
+            raw_decision=_decision(direction="long", composite_score=0.5),
+        )
+        assert state["action"] == "stop"
+        assert state["position_pct"] == 1.0

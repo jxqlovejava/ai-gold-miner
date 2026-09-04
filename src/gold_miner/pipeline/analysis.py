@@ -1835,6 +1835,8 @@ class AnalysisPipeline:
 
         # ATR 移动止盈 (r025) — 用积存金实时数据动态计算，覆盖固定百分比止损位
         self._inject_atr_trailing_stop(result)
+        # r037 低吸档位表 — 基于 portfolio.long_term.low_buy_bands 真相源, 仓位感知 stance
+        self._inject_low_buy_ladder(result)
         print()
         print(DashboardFormatter.format(result.trade_decision))
 
@@ -1927,6 +1929,114 @@ class AnalysisPipeline:
                 )
         except Exception as e:
             logger.warning(f"ATR 移动止盈计算失败, 使用固定百分比止损: {e}")
+
+    def _inject_low_buy_ladder(self, result: AnalysisResult) -> None:
+        """r037 低吸档位表 (2026-09-04): 基于 portfolio.long_term.low_buy_bands 真相源,
+        结合当前仓位/阶段目标(V9 ramp)算 stance, 调用 LowBuyHighSellAdvisor 输出可执行档位
+        并追加到决策 action_list + 打印进 scan 日志. 仅提示/披露, 不触发真实下单.
+        失败静默降级 (不阻断 scan, 与 _inject_atr_trailing_stop 同风格).
+        """
+        try:
+            from gold_miner.strategy.low_buy_high_sell import LowBuyHighSellAdvisor
+
+            portfolio = result.portfolio or {}
+            lt = portfolio.get("long_term") or {}
+            bands = lt.get("low_buy_bands") or []
+            if not bands:
+                return
+            pools = {
+                k: float(v)
+                for k, v in (lt.get("pools") or {}).items()
+                if k in ("core", "tactical", "opportunity")
+            }
+            lbhs_cfg = lt.get("low_buy_high_sell") or {}
+            ramp = lt.get("ramp") or []
+            try:
+                target_pct = float(ramp[0].get("target_pct") or 20) if ramp else 20.0
+            except (TypeError, ValueError):
+                target_pct = 20.0
+            limits = portfolio.get("limits") or {}
+            try:
+                max_raw = float(limits.get("max_gold_pct", 80))
+            except (TypeError, ValueError):
+                max_raw = 80.0
+            max_exposure = max_raw if max_raw > 1.0 else max_raw * 100.0
+            fd = result.final_decision or {}
+            try:
+                current_exposure_pct = float(fd.get("current_gold_pct") or 0.0) * 100.0
+            except (TypeError, ValueError):
+                current_exposure_pct = 0.0
+            current_price = float(getattr(result, "current_price", 0) or 0.0)
+            if current_price <= 0:
+                return
+
+            # 现价是否落入低吸带: 未破硬止损 且 ≤ bands 最高档 (含 925 首档)
+            hard_stop: float | None = None
+            for pos in (portfolio.get("positions") or {}).values():
+                if isinstance(pos, dict) and pos.get("hard_stop"):
+                    try:
+                        hard_stop = float(pos.get("hard_stop")) or hard_stop
+                    except (TypeError, ValueError):
+                        pass
+            band_prices = [
+                float(b.get("price") or 0)
+                for b in bands
+                if isinstance(b, dict) and b.get("price")
+            ]
+            price_in_low_band = bool(band_prices) and current_price <= max(band_prices)
+            if hard_stop is not None and current_price <= hard_stop:
+                price_in_low_band = False  # 已破硬止损 → 不谈低吸
+
+            # 综合聪明钱流向: 复用 analysis 已算的 institutional_flow (净流出→outflow)
+            flow = getattr(result, "institutional_flow", None) or {}
+            try:
+                net = flow.get("net_score")
+                smart_money_flow = (
+                    None if net is None else ("outflow" if float(net) < 0 else "inflow")
+                )
+            except (TypeError, ValueError):
+                smart_money_flow = None
+
+            advisor = LowBuyHighSellAdvisor(config=lbhs_cfg or None)
+            sig = advisor.evaluate(
+                current_price=current_price,
+                pools=pools or {"core": 40, "tactical": 20, "opportunity": 20},
+                current_exposure_pct=current_exposure_pct,
+                target_exposure_pct=target_pct,
+                max_exposure_pct=max_exposure,
+                price_in_low_band=price_in_low_band,
+                smart_money_flow=smart_money_flow,
+                low_band_suggestions=[dict(b) for b in bands if isinstance(b, dict)],
+            )
+            stance_cn = {
+                "build": "建仓优先",
+                "balance": "常规",
+                "defend": "防守",
+            }.get(sig.stance, sig.stance)
+            seg_lines = [
+                f"📉 低吸档位表 (r037 · {stance_cn}): {sig.low_buy_suggestion}"
+                f" | 现仓 {current_exposure_pct:.1f}% / 阶段目标 {target_pct:.0f}%"
+                f" | 闸门{'关' if '禁用' in sig.low_buy_suggestion else '开'}"
+            ]
+            if sig.stance_reason:
+                seg_lines.append(f"   · {sig.stance_reason}")
+            for b in sig.low_buy_bands:
+                tag = "已有条件单" if b.get("existing") else "建议档"
+                note = f" — {b.get('note')}" if b.get("note") else ""
+                seg_lines.append(
+                    f"   · {float(b.get('price') or 0):.0f} 元 @ {b.get('grams', '?')}g [{tag}]{note}"
+                )
+            if sig.low_buy_bands:
+                seg_lines.append("   ⚠ 触发才执行, 勿手痒抢跑 (纪律): 触档按条件单/手动分批, 单档≤5%总资金 (r028)")
+            # 军规命中与状态
+            if sig.rule_ids:
+                seg_lines.append(f"   · 军规: {','.join(sorted(set(sig.rule_ids)))}")
+            action_list = getattr(result.trade_decision, "action_list", None)
+            if isinstance(action_list, list):
+                action_list.extend(seg_lines)
+            print("\n".join(seg_lines))
+        except Exception as e:
+            logger.warning(f"低吸档位表计算失败, 跳过 (不阻断): {e}")
 
     def _print_agent_debate(self, result: AnalysisResult) -> None:
         bull = result.bull_opinion

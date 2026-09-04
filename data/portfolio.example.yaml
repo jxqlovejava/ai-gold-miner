@@ -11,6 +11,8 @@ positions:
     hard_stop: 350
     warn_line: 360
     secondary_stop: 450
+    last_reduce_at: ""        # 可选(r036): 最近实际减仓日 YYYY-MM-DD, 同波二次破位护栏锚点
+    last_reduce_price: 0      # 可选(r036): 该次减仓价, 现价回到其上→护栏解除
     split:
       core: 70.0
       tactical: 30.0
@@ -22,3 +24,9 @@ limits:
   risk_profile: balanced
   drawdown_tolerance_pct: 15
   investment_horizon: 1-3年
+
+# r037 低吸档位真相源 (long_term.low_buy_bands) 完整结构见 data/private/portfolio.yaml:
+#   long_term:
+#     low_buy_bands:
+#       - {price: 925, grams: 10, existing: false, note: "..."}
+# 每次实际减仓后同步 positions.<id>.last_reduce_at / last_reduce_price (r036)
