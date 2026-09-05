@@ -66,6 +66,36 @@ class TestKeywordFallback:
         )
         assert direction is SignalDirection.BEARISH
 
+    # ── 2026-09-05 系统性修复: '降息紧迫性下降'等"强度名词+下降"反转构式 ──
+    # 事故: 非农 +162K 大超预期, actual 写入 "就业强韧→降息紧迫性下降→利空黄金",
+    # 反转构式因 EXPECTATION_NOUNS 缺"紧迫性"未命中 → 裸'降息'子串先短路判 bullish,
+    # 与 gold_bias=bearish 冲突 → 假阳性「方向冲突待复核」(gold_bias 本身判对)。
+    # 同构于 2026-08-10 '加息/降息概率走低' 词表缺口事故, 现为第三形态 (前两: 走低/降温类动词)。
+
+    def test_cut_urgency_declining_is_bearish(self) -> None:
+        """降息紧迫性/必要性下降 → 宽松预期↓ → 利空 (修复前误判 bullish)."""
+        for actual in [
+            "就业强韧→降息紧迫性下降→利空黄金",
+            "数据强劲使美联储降息必要性减弱",
+            "经济企稳, 市场降息急迫性消退",
+        ]:
+            direction, conflict = _infer_direction_from_event("非农就业", actual, None)
+            assert direction is SignalDirection.BEARISH, actual
+            assert conflict is None
+
+    def test_nfp_blowout_beat_no_conflict_with_bearish_gold_bias(self) -> None:
+        """8月非农 +162K 大超预期全场景: 关键词推断应 bearish, 与 gold_bias 一致, 不产生假阳性冲突."""
+        actual = (
+            "实际 +16.2万 (2026-08, 预期+5.6万) — 5个月最大增幅且大超预期; "
+            "失业率4.1%持平但结构强: 就业+56.9万/参与率61.6%回升; "
+            "就业强韧→降息紧迫性下降→利空黄金(SGE夜盘964→958印证)"
+        )
+        direction, conflict = _infer_direction_from_event(
+            "非农就业", actual, "+5.6万", previous="7月-2.3万", gold_bias="bearish",
+        )
+        assert direction is SignalDirection.BEARISH
+        assert conflict is None
+
     def test_hike_probability_rising_stays_bearish(self) -> None:
         """加息概率回升/升温 → 仍利空 (反转构式不误伤升温情形)."""
         for actual in ["9月加息概率回升至60%", "加息预期升温"]:

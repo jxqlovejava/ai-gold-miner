@@ -26,7 +26,13 @@ HAWK_SUBJECTS = "加息|鹰派|hike|hawkish|tighten"
 DOVE_SUBJECTS = "降息|鸽派|cut|dovish|ease|loosen"
 
 # ── 预期名词 (反转构式的量词) ──
-EXPECTATION_NOUNS = "预期|概率|压力|步伐|周期|押注|定价|odds|pricing|expectation"
+# 2026-09-05 事故补词: '紧迫性/急迫性/迫切性/必要性' 等价于"预期强度"名词。
+# 非农 actual "就业强韧→降息紧迫性下降→利空黄金" 因缺此词未命中反转构式,
+# 裸'降息'子串先短路判 bullish → 假阳性冲突 (gold_bias 已写 bearish)。同构于 2026-08-10。
+EXPECTATION_NOUNS = (
+    "预期|概率|压力|步伐|周期|押注|定价|odds|pricing|expectation"
+    "|紧迫性|急迫性|迫切性|必要性"
+)
 
 # ── 下降动词 (预期/概率走低)
 # 2026-08-10 修复: 补 '走低/下滑/下探/下移/走弱/骤降/滑落/降至', 覆盖 "加息概率走低/下滑" 等。
