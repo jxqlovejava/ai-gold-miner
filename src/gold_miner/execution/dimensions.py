@@ -276,32 +276,14 @@ def print_economic_calendar(bundle: SignalBundle) -> None:
     warnings = [s for s in sigs if s.metadata.get("rule_id")]
 
     results = [s for s in events if s.name.startswith(("事件结果", "近期事件"))]
-    upcoming = [
-        s for s in events
-        if not s.name.startswith(("事件结果", "近期事件", "⚠️"))
-        and s.metadata.get("event_type") not in ("gold_bias_conflict", "pending_result_sync")
-    ]
+    # 未来事件不再在此重复打印 (2026-09-09): 与 §8「未来14天事件前瞻」同源重复,
+    # 统一由 §8 一处展示 (assemble_report._extract_events, analysis.py step9)。事件信号仍进
+    # bundle 参与维度计数, 仅移除本板块的重复渲染。review_warnings/results 保留。
     review_warnings = [
         s for s in events
         if s.metadata.get("event_type") in ("gold_bias_conflict", "pending_result_sync")
         or s.name.startswith("⚠️")
     ]
-
-    if upcoming:
-        print(f"  未来高影响事件 ({len(upcoming)}个):")
-        print("  | 事件 | 影响 | ET时间 | 北京时间 | 距今 |")
-        print("  |---|---|---|---|---|")
-        for sig in upcoming:
-            md = sig.metadata
-            name = _sig_name(sig).removeprefix("未来事件: ").removeprefix("观测: ")
-            impact = _IMPACT_ZH.get(md.get("impact", ""), md.get("impact", "-"))
-            et = _fmt_iso(md.get("scheduled_at"))
-            bj = _fmt_iso(md.get("scheduled_at_beijing"))
-            hours = md.get("hours_until")
-            until = f"{hours:.0f}h" if hours is not None and hours < 48 else (
-                f"{md.get('days_until', '-')}天" if md.get("days_until") is not None else "-"
-            )
-            print(f"  | {_cell(name, 44)} | {impact} | {et} | {bj} | {until} |")
 
     if review_warnings:
         print(f"  ⚠️ 复核/待查 ({len(review_warnings)}个):")
