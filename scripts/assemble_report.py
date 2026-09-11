@@ -250,6 +250,32 @@ def _extract_event_results(text: str) -> list[str]:
     return results
 
 
+def _extract_event_results_table(text: str) -> list[str]:
+    """提取「近期事件结果 (N个):」管道表格 → 无缩进 markdown 表格行 (2026-09-11 用户要求:
+    §8 近期事件结果回顾以表格输出, 不再用 dashboard 散文版)。
+
+    数据源: dimensions.py print_economic_calendar 打印的同源结构化表格
+    (| 事件 | 方向 | 评分 | 距今 | 实际 vs 预期 |), 比 dashboard.py 散文版
+    (事件名重复 + 无方向/评分/距今分列) 信息更全。提取不到返回 [] (调用方回退散文)。
+    """
+    out: list[str] = []
+    in_block = False
+    for ln in text.splitlines():
+        if "| INFO" in ln or "| DEBUG" in ln:
+            continue
+        s = ln.strip()
+        if not in_block:
+            # 「近期事件结果 (4个):」标题; 区别于 dashboard 散文版「近期事件结果回顾:」(带回顾)
+            if s.startswith("近期事件结果 (") and "回顾" not in s:
+                in_block = True
+            continue
+        if s.startswith("|"):
+            out.append(s)
+        elif out or s:
+            break  # 表格行已开始后遇非表格行, 或标题后首行即非管道(无表格) → 结束
+    return out
+
+
 _PENDING_RE = re.compile(r"待查结果: (.+?): (\d+)个事件已发布")
 
 
@@ -615,7 +641,12 @@ def assemble(scan_text: str, out_path: Path) -> None:
         lines.append("（本期无中高影响未来事件）")
     lines.append("")
     lines.append("### 📋 近期事件结果回顾")
-    if event_results:
+    # 表格优先 (2026-09-11 用户要求): 与 §2.1 同源结构化表格 (事件/方向/评分/距今/实际vs预期);
+    # 旧 scan_report 无表格时回退 dashboard 散文版, 再空态
+    results_table = _extract_event_results_table(scan_text)
+    if results_table:
+        lines.extend(results_table)
+    elif event_results:
         lines.extend(f"- {r}" for r in event_results)
     else:
         lines.append("（本期无事件结果回顾）")
