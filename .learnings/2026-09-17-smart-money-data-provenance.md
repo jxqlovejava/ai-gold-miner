@@ -38,8 +38,37 @@
 - **13F**: `InstitutionalSummary` 加 `is_placeholder`；`_fallback_summary()` 标记并改为 `logger.warning`；新增 `_latest_filed_quarter()`（45 天申报窗规则，边界已测：8/13→Q1、8/14→Q2）；信号层 `_mark_placeholder()` 归零分数 + 文案前缀 `[占位数据·非真实13F]` + metadata `is_real_data: False`；修掉 `QQ` 双字母
 - 测试：`tests/test_signal_freshness.py`（29 项）+ `tests/test_gld_holdings.py::TestFromDbStalenessGuard`（7 项）
 
-## 改进方向（未实施，需用户决策）
+## 13F 根治：接入 SEC EDGAR（2026-09-17 当日完成）
 
-1. **接 SEC EDGAR 13F**（公开免费，`TRACKED_INSTITUTIONS` 里已有 CIK 编号）替换占位数据 —— 这是根治。当前 `_mark_placeholder` 只是止损（停止误导），13F 维度实际已**无有效信号**。
-2. **同类排查**：投行目标价已有 `as_of_price` 时效判断（做对了，可作模板）；**其他「恒定不变」的信号值得全量扫一遍** —— 找连续 N 日完全相同的信号值，即可快速定位剩余常量源。
-3. doctrine 的时效衰减表目前只作用于**事件**信号，日频/周频/季频数据源各有自己的天然滞后基线，建议明确各类数据源的「正常滞后」与「异常滞后」阈值，而不是用一把 24h 的尺子量所有维度。
+`_mark_placeholder` 只是止损（停止误导），13F 维度实际已无有效信号。当日接入 EDGAR 真实 filing。
+
+**SEC 的硬性门槛**：User-Agent 必须**含联系邮箱**，否则一律 403「Your Request Originates from an Undeclared Automated Tool」。实测 `ai-gold-miner/1.0 (research)` 被拒，加上邮箱后 200。联系方式放 `data/private/sec_edgar_contact.txt`（不入库，部署脚本同步）。
+
+**接入时踩到的三个静默出错陷阱**（都写进了测试）：
+
+1. **同一 CUSIP 有多条 `infoTable`**（不同 `otherManager` 子顾问）—— 不按 CUSIP 汇总则持仓虚高。实测 Berkshire Q2 2026：**89 行 → 29 个唯一 CUSIP，虚高 3 倍**。
+2. **`nameOfIssuer` 会误导，不能按名称匹配** —— 该字段常被截断成通用名（`ISHARES TR` / `SPDR SERIES TRUST`），关键词匹配误报严重。实测被 "GOLD"/"SILVER" 命中的假阳性包括：`GOLDMAN SACHS ETF TR`（GOLD 是 GOLDMAN 的子串）、`THE MARYGOLD COMPANIES`、`GOLDEN SUN TECHNOLOGY`（中国科技公司）、`SILVERBOX CORP`（SPAC）、`ST STR SPDR SP 500 ETF`（SPY）。**唯一可靠键是 CUSIP。**
+3. **`value` 字段单位不一致**（整元 vs 千元，取决于 filer/时期）—— 实测同一标的隐含单价相差 1000 倍。**QoQ 比较只能用 shares。**
+
+**CUSIP 是实测定出来的，不是记忆**：用 EDGAR 全文检索（EFTS，注意 `%20` 而非 `+`，否则 500）找到持有各标的的 2026 年 filing，再以「隐含单价 = value/shares」与真实价位交叉核对。例：GLD `78463V107` 在 5 份独立 filing 中隐含单价一致 $368.38（= 6/30 收盘），确证无误。
+
+**结果对比**（同一份报告位）：
+
+| | 修复前 | 修复后 |
+|---|---|---|
+| 依据 | `_fallback_summary()` 字面量 | SEC EDGAR 真实 filing |
+| 样本 | 恒定 4 增 3 减 | 4 家持有黄金的机构，4 增 0 减 |
+| 机构明细 | `Berkshire Hathaway 增持 2,000,000 股 GDX` | `Bridgewater Associates 增持 592,899 股 EQUINOX GOLD` |
+| 分数 | +0.15 / +0.20（永久看多） | +0.15 / +0.20（真实，随季变化） |
+
+**Berkshire 从报告里消失了** —— 真实数据显示它 Q2 2026 持有 29 个 CUSIP，**没有任何黄金标的**。假数据说它增持 200 万股 GDX。
+
+**顺带修正的信号阈值**：`bullish >= 4 and ratio >= 0.6` 原是按占位数据的 `total=7` 定的，真实数据下每季只有 4-6 家追踪机构持有黄金 —— 4/4 全票会让「大举增持」STRONG(0.5) 在极小样本上触发。加了 `MIN_INSTITUTIONS_FOR_STRONG = 5`，样本不足时降级为弱信号「净增持」。
+
+**性能**：串行 112s → 并行 30.4s → 命中 12h 缓存 0.00s。13F 是季频数据，12h 缓存足够。
+
+## 改进方向（未实施）
+
+1. **同类排查**：投行目标价已有 `as_of_price` 时效判断（做对了，可作模板）；**其他「恒定不变」的信号值得全量扫一遍** —— 找连续 N 日完全相同的信号值，即可快速定位剩余常量源。
+2. doctrine 的时效衰减表目前只作用于**事件**信号，日频/周频/季频数据源各有自己的天然滞后基线，建议明确各类数据源的「正常滞后」与「异常滞后」阈值，而不是用一把 24h 的尺子量所有维度。
+3. EDGAR 只覆盖 7 家 `TRACKED_INSTITUTIONS`，且只统计「持有黄金的机构」。样本量偏小（真实数据下每季 4-6 家），信号强度天然受限 —— 若要提升统计力，需扩充追踪名单（EDGAR 可按 13F 持仓反查机构）。

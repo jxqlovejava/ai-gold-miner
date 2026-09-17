@@ -31,6 +31,10 @@ class InstitutionalSignalGenerator:
     整合多个机构资金流向维度，生成统一的聪明钱方向信号。
     """
 
+    #: 「大举增持」所需的最少机构样本数 (2026-09-17)。
+    #: 真实 EDGAR 数据下每季仅 4-6 家追踪机构持有黄金, 4/4 全票不构成「大举」。
+    MIN_INSTITUTIONS_FOR_STRONG = 5
+
     # 权重配置
     WEIGHTS = {
         "cot": 0.25,
@@ -308,7 +312,11 @@ class InstitutionalSignalGenerator:
 
             ratio = bullish / total if total > 0 else 0.5
 
-            if bullish >= 4 and ratio >= 0.6:
+            # 最小样本量 (2026-09-17 接入真实 EDGAR 数据时补): `bullish >= 4`
+            # 原本是照着占位数据的 total=7 定的, 真实数据下每季只有 4-6 家
+            # 追踪机构持有黄金 —— 4/4 全票会让「大举增持」在极小样本上触发。
+            # 样本不足时降级为弱信号「净增持」, 不丢信息也不夸大强度。
+            if bullish >= 4 and ratio >= 0.6 and total >= self.MIN_INSTITUTIONS_FOR_STRONG:
                 signals.append(Signal(
                     name="13F机构大举增持黄金",
                     dimension="smart_money",

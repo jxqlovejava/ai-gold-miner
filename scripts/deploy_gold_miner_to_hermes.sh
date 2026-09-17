@@ -98,6 +98,16 @@ if [[ -f "$ROOT/data/private/conditional_orders.jsonl" ]]; then
 else
   echo "  本地无 data/private/conditional_orders.jsonl，跳过"
 fi
+# SEC EDGAR 联系标识 — SEC 强制要求 User-Agent 带联系方式, 否则一律 403
+# (「Your Request Originates from an Undeclared Automated Tool」)。
+# 13F 真实持仓取数依赖它; 缺失时 13F 信号回退占位数据并归零分数。
+if [[ -f "$ROOT/data/private/sec_edgar_contact.txt" ]]; then
+  "${SSH[@]}" "$HOST" "mkdir -p '$REMOTE_ROOT/data/private'"
+  "${SCP[@]}" "$ROOT/data/private/sec_edgar_contact.txt" "$HOST:$REMOTE_ROOT/data/private/sec_edgar_contact.txt"
+  echo "  ✅ sec_edgar_contact.txt (SEC 13F 取数凭据)"
+else
+  echo "  ⚠️  本地无 data/private/sec_edgar_contact.txt — 服务器 13F 将回退占位数据"
+fi
 # 操作节奏账本 (operation_pace — 近10日操作序列+冷却, analysis 档位表读 data/private/operations.jsonl)
 if [[ -f "$ROOT/data/private/operations.jsonl" ]]; then
   "${SSH[@]}" "$HOST" "mkdir -p '$REMOTE_ROOT/data/private'"

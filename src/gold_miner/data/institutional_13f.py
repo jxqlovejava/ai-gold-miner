@@ -19,11 +19,15 @@
 
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any
 
 from loguru import logger
+
+from gold_miner.data.caching import DiskCache
+from gold_miner.data.edgar_13f import GOLD_CUSIPS, EdgarClient, FilingRef
 
 
 @dataclass
@@ -119,21 +123,200 @@ class Institutional13FFetcher:
     def __init__(self) -> None:
         pass
 
+    # 13F 是季频数据 (每季只新增一期), 12h 磁盘缓存足够, 避免每次 scan
+    # 重复拉 ~35 次 EDGAR 请求 (7 机构 × 最新+上期 × index+infotable)
+    _disk_cache = DiskCache(key="edgar_13f_summary", ttl_seconds=43200)
+
     def fetch_latest_quarter(self) -> InstitutionalSummary | None:
         """获取最新季度机构持仓汇总.
 
-        由于实时13F数据获取复杂，使用已知最近季度数据 + 增量更新策略。
-        """
-        try:
-            # 尝试从聚合站点获取
-            positions = self._fetch_from_aggregators()
-            if positions:
-                return self._summarize(positions)
-        except Exception as e:
-            logger.debug(f"13F聚合站点获取失败: {e}")
+        路径: 磁盘缓存 → SEC EDGAR (真实 filing) → 占位常量 (标记 is_placeholder)。
 
-        # 回退到已知数据
+        EDGAR 未配置 (缺 SEC_EDGAR_CONTACT) 或取数失败时回退占位数据 ——
+        信号层会据此归零分数并显式披露, 不会当作真实机构持仓引用。
+        """
+        cached = self._disk_cache.get()
+        if cached:
+            try:
+                return self._summary_from_dict(cached)
+            except (KeyError, TypeError) as e:
+                logger.debug(f"13F 缓存反序列化失败, 重新取数: {e}")
+
+        edgar = EdgarClient()
+        if edgar.configured:
+            summary = self._fetch_from_edgar(edgar)
+            if summary is not None:
+                self._disk_cache.set(self._summary_to_dict(summary))
+                return summary
+            logger.warning("EDGAR 取数失败, 回退占位数据")
+        else:
+            logger.warning("未配置 SEC_EDGAR_CONTACT, 13F 无真实数据源")
+
         return self._fallback_summary()
+
+    # ------------------------------------------------------------------
+    # SEC EDGAR 真实持仓
+    # ------------------------------------------------------------------
+
+    def _fetch_from_edgar(self, edgar: EdgarClient) -> InstitutionalSummary | None:
+        """从 EDGAR 拉取各机构最近两期 13F, 比较黄金持仓变化.
+
+        Returns:
+            InstitutionalSummary; 一家都没取到时返回 None (由调用方回退)。
+        """
+        from concurrent.futures import ThreadPoolExecutor
+
+        items = list(self.TRACKED_INSTITUTIONS.items())
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            fetched = list(
+                pool.map(lambda kv: self._gold_change_for(kv[0], kv[1], edgar), items)
+            )
+
+        buyers: list[InstitutionPosition] = []
+        sellers: list[InstitutionPosition] = []
+        n_bullish = n_bearish = n_with_gold = 0
+        latest_report = ""
+
+        for inst, cur_gold, prev_gold, report_date in (r for r in fetched if r):
+            if report_date > latest_report:
+                latest_report = report_date
+            if not cur_gold and not prev_gold:
+                continue  # 该机构本季无黄金持仓, 不计入分母
+            n_with_gold += 1
+            quarter = self._quarter_from_date(report_date)
+            net = 0
+
+            for ticker, shares in cur_gold.items():
+                prev_shares = prev_gold.get(ticker, 0)
+                if shares == prev_shares:
+                    continue
+                pct = (
+                    (shares - prev_shares) / prev_shares * 100.0 if prev_shares else 100.0
+                )
+                entry = InstitutionPosition(
+                    institution=inst,
+                    ticker=ticker,
+                    shares=shares,
+                    value_usd=0.0,  # 不用 value: 其单位在不同 filer/时期不一致
+                    quarter=quarter,
+                    position_change_pct=round(pct, 2),
+                    is_new=prev_shares == 0,
+                )
+                if shares > prev_shares:
+                    net += 1
+                    buyers.append(entry)
+                else:
+                    net -= 1
+                    sellers.append(entry)
+            for ticker in prev_gold.keys() - cur_gold.keys():  # 本期清仓
+                net -= 1
+                sellers.append(
+                    InstitutionPosition(
+                        institution=inst, ticker=ticker, shares=0, value_usd=0.0,
+                        quarter=quarter, position_change_pct=-100.0, is_closed=True,
+                    )
+                )
+
+            if net > 0:
+                n_bullish += 1
+            elif net < 0:
+                n_bearish += 1
+
+        if n_with_gold == 0:
+            return None
+
+        buyers.sort(key=lambda p: p.position_change_pct, reverse=True)
+        sellers.sort(key=lambda p: p.position_change_pct)
+        return InstitutionalSummary(
+            quarter=self._quarter_from_date(latest_report) if latest_report else self._latest_filed_quarter(),
+            total_institutions=n_with_gold,
+            net_gold_bullish=n_bullish,
+            net_gold_bearish=n_bearish,
+            top_buyers=buyers[:5],
+            top_sellers=sellers[:5],
+            is_placeholder=False,
+        )
+
+    def _gold_by_ticker(self, edgar: EdgarClient, cik: str, ref: FilingRef) -> dict[str, int]:
+        """取某份 13F 中黄金标的的 ticker → shares 映射 (已按 CUSIP 汇总)."""
+        holdings = edgar.gold_positions(edgar.fetch_holdings(cik, ref.accession))
+        return {GOLD_CUSIPS[h.cusip]: h.shares for h in holdings}
+
+    def _gold_change_for(
+        self,
+        inst: str,
+        meta: dict[str, Any],
+        edgar: EdgarClient,
+    ) -> tuple[str, dict[str, int], dict[str, int], str] | None:
+        """单机构: 取最近两期的黄金持仓 (供并行调用).
+
+        Returns:
+            ``(机构名, 本期 ticker→shares, 上期 ticker→shares, 报告期)``;
+            取数失败或无申报时返回 None。
+        """
+        cik = meta["cik"]
+        try:
+            refs = self._dedupe_by_report_date(edgar.list_13f_filings(cik, limit=3))
+            if not refs:
+                return None
+            cur = refs[0]
+            return (
+                inst,
+                self._gold_by_ticker(edgar, cik, cur),
+                self._gold_by_ticker(edgar, cik, refs[1]) if len(refs) > 1 else {},
+                cur.report_date,
+            )
+        except Exception as e:
+            logger.debug(f"13F EDGAR {inst} 取数异常: {e}")
+            return None
+
+    @staticmethod
+    def _dedupe_by_report_date(refs: list[FilingRef]) -> list[FilingRef]:
+        """按报告期去重, 每期只留最新提交的一份 (修正案 13F-HR/A 覆盖原件).
+
+        `list_13f_filings` 已按申报日倒序, 故首次出现即该报告期的最新版本。
+        """
+        seen: set[str] = set()
+        out: list[FilingRef] = []
+        for r in refs:
+            if r.report_date in seen:
+                continue
+            seen.add(r.report_date)
+            out.append(r)
+        return out
+
+    @staticmethod
+    def _quarter_from_date(date_str: str) -> str:
+        """``"2026-06-30"`` → ``"Q2 2026"``; 解析失败返回原串."""
+        try:
+            d = datetime.strptime(date_str[:10], "%Y-%m-%d")
+        except (ValueError, TypeError):
+            return date_str or "未知"
+        return f"Q{(d.month - 1) // 3 + 1} {d.year}"
+
+    @staticmethod
+    def _summary_to_dict(s: InstitutionalSummary) -> dict[str, Any]:
+        """序列化供 DiskCache (JSON) 使用."""
+        return dataclasses.asdict(s)
+
+    @staticmethod
+    def _summary_from_dict(d: dict[str, Any]) -> InstitutionalSummary:
+        """从缓存字典还原."""
+        return InstitutionalSummary(
+            quarter=d["quarter"],
+            total_institutions=d["total_institutions"],
+            net_gold_bullish=d["net_gold_bullish"],
+            net_gold_bearish=d["net_gold_bearish"],
+            top_buyers=[InstitutionPosition(**p) for p in d.get("top_buyers") or []],
+            top_sellers=[InstitutionPosition(**p) for p in d.get("top_sellers") or []],
+            gold_etf_total_shares=d.get("gold_etf_total_shares", 0),
+            gold_miners_total_shares=d.get("gold_miners_total_shares", 0),
+            is_placeholder=d.get("is_placeholder", False),
+        )
+
+    def _fetch_institution_changes_legacy(self) -> list[InstitutionPosition]:
+        """旧聚合站点路径 — 恒返回空 (whalewisdom 需登录), 保留供参考."""
+        return self._fetch_from_aggregators()
 
     def fetch_institution_changes(
         self,

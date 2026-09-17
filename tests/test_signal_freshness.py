@@ -16,8 +16,19 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import pytest
+
+
+class _NullCache:
+    """空缓存替身 — 让测试绕开磁盘缓存, 强制走真实分支."""
+
+    def get(self) -> None:
+        return None
+
+    def set(self, value: object) -> None:
+        return None
 
 from gold_miner.data.institutional_13f import (
     Institutional13FFetcher,
@@ -178,11 +189,28 @@ class TestFallbackSummaryIsMarked:
         assert s.quarter == Institutional13FFetcher._latest_filed_quarter()
         assert not s.quarter.startswith("QQ")
 
-    def test_fetch_latest_quarter_always_falls_back(self) -> None:
-        """上游 _fetch_whalewisdom 恒返回 [] —— 这个事实本身要被锁定, 防止
-        有人误以为 13F 信号来自真实 filing."""
+    def test_legacy_aggregator_path_is_still_dead(self) -> None:
+        """旧的 whalewisdom 路径恒返回 [] —— 这正是当初占位数据的原因。
+
+        真实数据现在来自 SEC EDGAR (见 tests/test_edgar_13f.py); 本测试只锁定
+        「不要有人误以为这条旧路径能取到数据」。
+        """
         assert Institutional13FFetcher()._fetch_whalewisdom() == []
-        assert Institutional13FFetcher().fetch_latest_quarter().is_placeholder is True
+
+    def test_fallback_used_only_when_edgar_unavailable(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """EDGAR 不可用时才回退占位数据, 且必须带 is_placeholder 标记.
+
+        注: 修复前这里锁的是「永远回退」—— 那是 bug 不是契约。
+        """
+        monkeypatch.setenv("SEC_EDGAR_CONTACT", "no-email-here")
+        monkeypatch.setattr("gold_miner.data.edgar_13f._PROJECT_ROOT", Path("/nonexistent"))
+        monkeypatch.setattr(Institutional13FFetcher, "_disk_cache", _NullCache())
+
+        s = Institutional13FFetcher().fetch_latest_quarter()
+        assert s is not None
+        assert s.is_placeholder is True, "回退时必须标记, 否则会被当成真实机构持仓"
 
 
 class TestMarkPlaceholder:
