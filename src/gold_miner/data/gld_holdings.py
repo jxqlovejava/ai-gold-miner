@@ -50,9 +50,17 @@ class GldHoldingsFetcher(DataFetcher):
     _fetch_cache = TtlCache(ttl_seconds=600)
 
     # 跨进程磁盘缓存: 进程内缓存不跨 scan, 每次 scan 新进程数据库 miss 时
-    # 都重新下载 SPDR Excel (多层降级 ~6s). GLD 持仓日频数据当天不变,
-    # 磁盘缓存 6h 内跨 scan 复用, 避免重复慢速下载.
-    _disk_cache = DiskCache(key="gld_holdings", ttl_seconds=21600)
+    # 都重新下载 SPDR Excel (多层降级 ~6s), 故用磁盘缓存跨 scan 复用.
+    #
+    # ⚠️ TTL 切不可假设「当天不变」——GLD 是每天新增一个数据点的日频序列,
+    # 且发布时间落在盘中。事故 2026-09-17: 原 TTL=6h 下, 09:18 的 scan 缓存了
+    # 截至 09-15 的快照 (彼时 SPDR 尚未发布 09-16), 9/16 数据随后发布, 但
+    # 12:17 的 scan 因缓存未过期 (3h < 6h) 直接复用旧快照 —— 报告连续两轮显示
+    # "+2.86吨 流入", 实为 09/14→09/15 的变化, 而真值已是 09/15→09/16 的
+    # "+1.71吨 (+0.163%)"。陈旧值进入聪明钱维度仍拿满 +0.55 分 (真值应 +0.33),
+    # 且被 BullAgent 引为第一论据。收紧到 20min 后盲区 ≤20min。
+    DISK_CACHE_TTL_SECONDS = 1200
+    _disk_cache = DiskCache(key="gld_holdings", ttl_seconds=DISK_CACHE_TTL_SECONDS)
 
     def __init__(self, recorder: EconomicDataRecorder | None = None) -> None:
         super().__init__(
@@ -175,7 +183,12 @@ class GldHoldingsFetcher(DataFetcher):
     def _from_db(self) -> pd.DataFrame | None:
         """从经济数据库读取最近 GLD 持仓 (前值+最新两行), 用于流向计算.
 
-        仅当观测日期在近 48h 内有效 (GLD 每日更新, 过旧视为不可用, 触发重新下载)。
+        仅当观测日期在近 2h 内有效, 否则视为「可能已被新发布取代」并触发重新下载。
+
+        注: 原为 48h —— 与 doctrine 时效衰减的「24h 权重 1.0」边界差两倍,
+        允许最多漏掉两个发布日的数据点, 事故 2026-09-17 的陈旧值即由此放大。
+        DB 层仅作「避免反复慢下载」的节流: 过期即重下 (~6s); 下载失败时
+        fetch() 仍会回退到 DB, 不会返回空。
         """
         try:
             points = self._recorder.find(indicator="gld_holdings_tonnes")
@@ -185,8 +198,8 @@ class GldHoldingsFetcher(DataFetcher):
             if p.actual is None:
                 return None
             obs = pd.Timestamp(p.observation_date)
-            if obs < pd.Timestamp.now() - pd.Timedelta(hours=48):
-                logger.debug(f"GLD 持仓数据库观测日期过旧 ({obs.date()}), 重新下载")
+            if obs < pd.Timestamp.now() - pd.Timedelta(hours=2):
+                logger.info(f"GLD 持仓库观测超 2h ({obs.date()}), 触发重新下载")
                 return None
             latest_val = float(p.actual)
             prev_val = float(p.previous) if p.previous is not None else latest_val

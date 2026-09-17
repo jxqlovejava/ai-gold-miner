@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from loguru import logger
 
 from gold_miner.data.etf_flow import (
@@ -170,13 +172,30 @@ class EtfFlowSignalGenerator:
             gld_vol_ratio = float(summary.get("gld_volume_ratio", 1.0))
             gld_change = float(summary.get("gld_change_pct", 0.0))
 
+            # 数据日期披露 (2026-09-17): GLD 是日频序列, as_of 天然落后 1-2 天,
+            # 但此前的信号文案只说"现持仓 N 吨", 读起来像实时值。事故 2026-09-17:
+            # 报告连续两轮显示 "+2.86吨 流入"(实为 09/14→09/15), 真值已是
+            # 09/15→09/16 的 "+1.71吨" —— 陈旧值拿满 +0.55 分并被 BullAgent 引为第一论据。
+            # 现强制把数据日期写进文案; 超过 96h (明显漏发布, 非正常滞后) 才额外标注。
+            as_of_raw = summary.get("as_of")
+            as_of_suffix = ""
+            if as_of_raw:
+                try:
+                    as_of_dt = datetime.fromisoformat(str(as_of_raw))
+                    age_h = (datetime.now() - as_of_dt).total_seconds() / 3600
+                    as_of_suffix = f", 数据日期{as_of_dt.strftime('%m-%d')}"
+                    if age_h > 96:
+                        as_of_suffix += f"⚠️滞后{age_h / 24:.1f}天"
+                except ValueError:
+                    logger.debug(f"GLD as_of 解析失败: {as_of_raw!r}")
+
             holdings_meta = {
                 "source": "gld_holdings_tonnes",
                 "source_tier": self.HOLDINGS_SOURCE_TIER,
                 "tonnes_delta": tonnes_delta,
                 "holdings_change_pct": holdings_pct,
                 "holdings_tonnes": holdings_tonnes,
-                "as_of": summary.get("as_of"),
+                "as_of": as_of_raw,
                 "is_real_flow": True,
             }
 
@@ -191,6 +210,7 @@ class EtfFlowSignalGenerator:
                         description=(
                             f"GLD持仓(吨)变化: {tonnes_delta:+.2f}吨 "
                             f"({holdings_pct:+.3f}%), 现持仓{holdings_tonnes:.1f}吨, 大幅增持"
+                            f"{as_of_suffix}"
                         ),
                         metadata=holdings_meta,
                     )
@@ -206,6 +226,7 @@ class EtfFlowSignalGenerator:
                         description=(
                             f"GLD持仓(吨)变化: {tonnes_delta:+.2f}吨 "
                             f"({holdings_pct:+.3f}%), 现持仓{holdings_tonnes:.1f}吨"
+                            f"{as_of_suffix}"
                         ),
                         metadata=holdings_meta,
                     )
@@ -221,6 +242,7 @@ class EtfFlowSignalGenerator:
                         description=(
                             f"GLD持仓(吨)变化: {tonnes_delta:+.2f}吨 "
                             f"({holdings_pct:+.3f}%), 现持仓{holdings_tonnes:.1f}吨, 大幅减持"
+                            f"{as_of_suffix}"
                         ),
                         metadata=holdings_meta,
                     )
@@ -236,6 +258,7 @@ class EtfFlowSignalGenerator:
                         description=(
                             f"GLD持仓(吨)变化: {tonnes_delta:+.2f}吨 "
                             f"({holdings_pct:+.3f}%), 现持仓{holdings_tonnes:.1f}吨"
+                            f"{as_of_suffix}"
                         ),
                         metadata=holdings_meta,
                     )
