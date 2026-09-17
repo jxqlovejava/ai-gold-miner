@@ -287,7 +287,12 @@ class InstitutionalSignalGenerator:
     # ------------------------------------------------------------------
 
     def _institutional_13f_signals(self) -> list[Signal]:
-        """13F机构持仓信号."""
+        """13F机构持仓信号.
+
+        占位数据 (``summary.is_placeholder``) 一律归零分数 + 显式披露:
+        上游 ``_fetch_whalewisdom()`` 恒返回 [], 故数据全部来自
+        ``_fallback_summary()`` 的常量 (2026-09-17 核查, 见该函数注释)。
+        """
         signals: list[Signal] = []
         try:
             summary = self.inst_13f_fetcher.fetch_latest_quarter()
@@ -351,19 +356,42 @@ class InstitutionalSignalGenerator:
                         strength=SignalStrength.MODERATE,
                         score=0.2,
                         description=(
-                            f"{buyer.institution} Q{buyer.quarter} "
+                            f"{buyer.institution} {buyer.quarter} "
                             f"增持{buyer.shares:,}股{buyer.ticker}"
                         ),
                         metadata={
                             "source": "13f_institutional",
                             "institution": buyer.institution,
                             "ticker": buyer.ticker,
+                            "quarter": buyer.quarter,
                         },
                     ))
 
         except Exception as e:
             logger.debug(f"13F信号异常: {e}")
+            return signals
 
+        return self._mark_placeholder(signals, summary.is_placeholder, summary.quarter)
+
+    @staticmethod
+    def _mark_placeholder(
+        signals: list[Signal],
+        is_placeholder: bool,
+        quarter: str,
+    ) -> list[Signal]:
+        """占位数据降权 + 披露 (2026-09-17).
+
+        占位常量不含任何机构持仓信息, 唯一诚实的分数是 0; 但保留信号本身
+        (而非直接删除) 让报告显式暴露「该维度数据源缺失」, 而不是静默消失 ——
+        静默消失会让人误以为机构持仓「无异常」。
+        """
+        for s in signals:
+            s.metadata.setdefault("quarter", quarter)
+            s.metadata["is_real_data"] = not is_placeholder
+            if is_placeholder:
+                s.score = 0.0
+                s.strength = SignalStrength.WEAK
+                s.description = f"[占位数据·非真实13F] {s.description}"
         return signals
 
     # ------------------------------------------------------------------

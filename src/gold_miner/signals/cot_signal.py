@@ -11,6 +11,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from loguru import logger
 
 from gold_miner.data.cot_report import CotReportFetcher
@@ -36,6 +38,49 @@ class CotSignalGenerator:
         signals.extend(self._merge_trend_and_divergence(trend, divergence))
         signals.extend(self._extreme_signals())
         signals.extend(self._structure_signals())
+        return self._stamp_report_date(signals)
+
+    def _stamp_report_date(self, signals: list[Signal]) -> list[Signal]:
+        """给所有 COT 信号盖上报告日期 (2026-09-17).
+
+        背景: COT 是 CFTC 周报 —— 数据 as-of 周二、周五发布, 天然滞后 2~9 天。
+        但文案此前只说「非商业净多仓连续增加: 231,960手」, 读起来像实时机构持仓,
+        与 GLD 那次陈旧值事故同源 (数值真实, 缺时效披露)。统一在出口盖章,
+        避免 12 处 description 各写一遍。
+
+        阈值 14 天: 周报正常滞后 ≤9 天 (周二 as-of + 周五发布 + 周末), 超过即
+        说明漏了发布, 才额外标 ⚠️ —— 避免正常运行下天天误报。
+
+        Args:
+            signals: generate_signals 汇总的信号列表 (原地修改并返回)。
+
+        Returns:
+            同一列表, 每个元素的 description 追加「数据日期MM-DD」。
+        """
+        if not signals:
+            return signals
+        try:
+            summary = self.fetcher.fetch_net_position(weeks=4)
+        except Exception as e:
+            logger.debug(f"COT 报告日期获取失败: {e}")
+            return signals
+        raw = summary.get("report_date") if summary.get("status") == "ok" else None
+        if not raw:
+            return signals
+        try:
+            as_of = datetime.fromisoformat(str(raw))
+        except ValueError:
+            logger.debug(f"COT report_date 解析失败: {raw!r}")
+            return signals
+
+        age_days = (datetime.now() - as_of).total_seconds() / 86400
+        suffix = f", 数据日期{as_of.strftime('%m-%d')}"
+        if age_days > 14:
+            suffix += f"⚠️滞后{age_days:.0f}天"
+
+        for s in signals:
+            s.metadata.setdefault("report_date", raw)
+            s.description = f"{s.description}{suffix}"
         return signals
 
     @staticmethod

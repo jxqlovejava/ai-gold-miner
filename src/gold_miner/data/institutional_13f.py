@@ -20,7 +20,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from loguru import logger
@@ -52,6 +52,9 @@ class InstitutionalSummary:
     top_sellers: list[InstitutionPosition] = field(default_factory=list)
     gold_etf_total_shares: int = 0
     gold_miners_total_shares: int = 0
+    # True = 来自 _fallback_summary 的占位数据 (非真实 13F filing)。
+    # 消费方必须据此降权/披露, 不得当作机构真实持仓引用 (2026-09-17)。
+    is_placeholder: bool = False
 
 
 class Institutional13FFetcher:
@@ -172,7 +175,7 @@ class Institutional13FFetcher:
         miner_shares = sum(p.shares for p in gold_positions if p.ticker in {"GDX", "GDXJ", "NEM", "GOLD"})
 
         return InstitutionalSummary(
-            quarter=self._current_quarter(),
+            quarter=self._latest_filed_quarter(),
             total_institutions=len({p.institution for p in gold_positions}),
             net_gold_bullish=bullish,
             net_gold_bearish=bearish,
@@ -183,26 +186,68 @@ class Institutional13FFetcher:
         )
 
     def _fallback_summary(self) -> InstitutionalSummary:
-        """回退数据 — 基于公开信息的近似汇总."""
-        logger.debug("13F实时数据不可用，使用回退数据")
+        """回退数据 — **占位常量, 不是真实 13F filing**.
+
+        ⚠️ 2026-09-17 核查: 上游 `_fetch_whalewisdom()` 恒返回 [], 故
+        `fetch_latest_quarter()` **永远**走到这里, 报告里的 "4家增持 vs 3家减持"
+        与 "Berkshire Hathaway 增持2,000,000股GDX" 是下面这些字面量, 每日不变,
+        却以「机构持仓」名义持续给聪明钱维度 +0.35 分 (永久看多)。
+
+        现标记 `is_placeholder=True`, 由信号层据此归零分数并显式披露。
+        真正修复需接 SEC EDGAR 13F (公开免费) 或付费聚合源。
+        """
+        logger.warning("13F 无真实数据源, 返回占位常量 (不可作为机构持仓依据)")
+        quarter = self._latest_filed_quarter()
         return InstitutionalSummary(
-            quarter=self._current_quarter(),
+            quarter=quarter,
             total_institutions=7,
             net_gold_bullish=4,
             net_gold_bearish=3,
             top_buyers=[
-                InstitutionPosition("Bridgewater", "GLD", 5000000, 950000000, self._current_quarter(), 0.15),
-                InstitutionPosition("Berkshire Hathaway", "GDX", 2000000, 120000000, self._current_quarter(), 0.08),
+                InstitutionPosition("Bridgewater", "GLD", 5000000, 950000000, quarter, 0.15),
+                InstitutionPosition("Berkshire Hathaway", "GDX", 2000000, 120000000, quarter, 0.08),
             ],
             top_sellers=[
-                InstitutionPosition("Soros Fund", "GLD", 0, 0, self._current_quarter(), -1.0, is_closed=True),
+                InstitutionPosition("Soros Fund", "GLD", 0, 0, quarter, -1.0, is_closed=True),
             ],
             gold_etf_total_shares=15_000_000,
             gold_miners_total_shares=8_000_000,
+            is_placeholder=True,
         )
 
     @staticmethod
+    def _latest_filed_quarter(now: datetime | None = None) -> str:
+        """最近一期「已过申报窗口」的 13F 季度.
+
+        13F 须于季末后 45 天内申报, 因此当季数据在季末 +45d 前根本不存在。
+        事故 2026-09-17: 原 `_current_quarter()` 在 9/17 (Q3 进行中) 返回
+        "Q3 2026", 报告显示为 "QQ3 2026" —— 标注了一个不可能已申报的季度。
+
+        Args:
+            now: 基准时间, 默认当前。
+
+        Returns:
+            形如 "Q2 2026" (2026-09-17 时点 → Q2 2026)。
+        """
+        now = now or datetime.now()
+        quarter = (now.month - 1) // 3 + 1
+        year = now.year
+        for _ in range(8):
+            end_month = quarter * 3
+            if end_month == 12:
+                q_end = datetime(year, 12, 31)
+            else:
+                q_end = datetime(year, end_month + 1, 1) - timedelta(days=1)
+            if (now - q_end).days >= 45:
+                return f"Q{quarter} {year}"
+            quarter -= 1
+            if quarter == 0:
+                quarter, year = 4, year - 1
+        return f"Q{quarter} {year}"
+
+    @staticmethod
     def _current_quarter() -> str:
+        """当前自然季度 (保留供既有调用方使用; 标注 13F 应改用 _latest_filed_quarter)."""
         now = datetime.now()
         q = (now.month - 1) // 3 + 1
         return f"Q{q} {now.year}"
