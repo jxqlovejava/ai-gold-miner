@@ -25,6 +25,7 @@ from .quotes import fetch_quotes
 
 # r036 同波二次破位判定 — 与 decision/position_state 共用同一真相 (2026-09-04)
 from gold_miner.decision.position_state import is_same_wave_reduce
+from gold_miner.decision.risk_lines import apply_derived_risk_lines, check_risk_line_drift
 
 # 交易日/交易时段判断 — 单一真相源 (2026-08-16 迁移至 gold_miner.data.trading_hours)
 # is_cn_trading_day / next_cn_trading_day 在此 re-export 以兼容旧引用
@@ -130,11 +131,16 @@ class SentinelEngine:
             return None
         try:
             data = yaml.safe_load(pf_path.read_text(encoding="utf-8")) or {}
-            self._portfolio_raw = data
         except Exception as e:
             logger.warning(f"持仓解析失败: {e}")
             self._portfolio_raw = None
             return None
+
+        # 派生风控线一律按 avg_cost 重算覆盖（2026-09-17 漂移事故，同 storage/local.py）
+        for drift in check_risk_line_drift(data):
+            logger.warning(f"风控线漂移: {drift}")
+        data = apply_derived_risk_lines(data)
+        self._portfolio_raw = data
 
         positions = data.get("positions", {})
         gold = positions.get("gold_jd", {})

@@ -11,6 +11,7 @@ import yaml
 from loguru import logger
 
 from gold_miner.config import settings
+from gold_miner.decision.risk_lines import apply_derived_risk_lines, check_risk_line_drift
 
 
 class LocalFileStore:
@@ -99,10 +100,16 @@ class LocalFileStore:
         if not text:
             return {}
         try:
-            return yaml.safe_load(text) or {}
+            raw = yaml.safe_load(text) or {}
         except yaml.YAMLError as e:
             logger.warning(f"解析 portfolio.yaml 失败: {e}")
             return {}
+        # 派生风控线一律按 avg_cost 重算覆盖，不信任 YAML 手写值。
+        # 事故 2026-09-17: avg_cost 因新增买入 983.27→959.49 后风控线未重算，
+        # 陈旧的 secondary_stop=934.11 直接制造了假的「减仓」信号。
+        for drift in check_risk_line_drift(raw):
+            logger.warning(f"风控线漂移: {drift}")
+        return apply_derived_risk_lines(raw)
 
     def save_portfolio(self, data: dict[str, Any]) -> None:
         self._write_text("portfolio", yaml.dump(data, allow_unicode=True, sort_keys=False))
