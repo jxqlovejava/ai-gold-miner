@@ -1,13 +1,20 @@
 # Hermes Gold Miner — Mac 本地 Crontab
-# 安装: crontab /tmp/hermes_mac_crontab.txt
+# 安装: crontab scripts/hermes_mac_crontab.txt
 # 查看: crontab -l
+#
+# ⚠️ 2026-10-13 重新定位: 微信投递的唯一真相通道是服务器 Hermes cron
+#   (d822eb5eac19 自适应监控 / 1f008e97147a 盘前扫描 / 31c7bee379fa 晚间预告)。
+#   Mac 本地这两个任务**只做 macOS 桌面通知** (脚本内 _notify_desktop→osascript),
+#   不再推微信 — 因为:
+#     1. 服务器 Hermes cron 已负责微信投递, Mac 再推 = 重复消息 + iLink 限流;
+#     2. Mac 若走 hermes send 会 mirror 进 agent:main:weixin 主会话 → 污染历史,
+#        用户发指令时模型复读金价卡 (2026-10-13 事故, 详见 ~/.claude/.ERROR_PATTERNS.md)。
+#   故脚本里的 _send_hermes 已改名 _notify_desktop, 桌面通知保留、微信推送移除。
+#
+# 自适应金价监控 (adaptive_gold_monitor) 不在本机 crontab 运行 — 由服务器 Hermes cron 独占。
 
-# 自适应频率金价监控 (每分钟触发, 内部自适应节流)
-# 无告警时 stdout 为空 → log 静默 | 有告警时 stdout → 触发微信推送
-* * * * * PYTHONPATH=src /opt/homebrew/bin/python3 /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/scripts/adaptive_gold_monitor.py >> /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/logs/adaptive_monitor.log 2>&1
-
-# 盘前隔夜新闻扫描 (含微信推送)
+# 盘前隔夜新闻扫描 (仅 macOS 桌面通知; 微信由服务器 Hermes cron 投递)
 30 7 * * 1-5 cd /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner && PYTHONPATH=src /opt/homebrew/bin/python3 /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/scripts/overnight_news_scanner.py >> /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/logs/overnight_scanner.log 2>&1
 
-# 晚间事件预告 (18:00 推送今晚美国时段重要事件到微信)
+# 晚间事件预告 (仅 macOS 桌面通知; 微信由服务器 Hermes cron 投递)
 0 18 * * 1-5 cd /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner && PYTHONPATH=src /opt/homebrew/bin/python3 /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/scripts/evening_event_preview.py >> /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner/logs/evening_preview.log 2>&1

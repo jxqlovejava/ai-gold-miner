@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """晚间事件预告 — 北京时间 18:00 运行 → 推送今晚美国时段重要事件到微信.
 
-Hermes 约定:
-  - 有今晚事件: stdout 打印卡片 + hermes send 推送微信
+Hermes 约定 (2026-10-13 修正注释, 以代码为准):
+  - 有今晚事件: stdout 打印卡片 — 微信投递由 Hermes cron --no-agent 完成
+    (cron 任务 31c7bee379fa 捕获 stdout 直投, 默认不镜像进主会话);
+    本脚本不 hermes send — _notify_desktop 是 macOS 桌面通知 (仅 Mac 手动/定时跑时生效)
   - 无今晚事件: stdout 为空, exit 0 (静默)
   - 错误: stderr 打印, exit 1
 
@@ -33,8 +35,8 @@ def _now() -> datetime:
     return datetime.now(BEIJING)
 
 
-def _send_hermes(message: str) -> bool:
-    """发送 macOS 桌面通知."""
+def _notify_desktop(message: str) -> bool:
+    """发送 macOS 桌面通知 (osascript; 非微信通道, 服务器上静默失败)."""
     try:
         lines = message.strip().split("\n")
         title = lines[0][:100] if lines else "晚间事件预告"
@@ -187,8 +189,8 @@ def main() -> int:
     ])
 
     card = "\n".join(lines)
-    print(card, flush=True)
-    _send_hermes(card)
+    print(card, flush=True)  # 微信投递: 由 hermes cron stdout 捕获直投
+    _notify_desktop(card)  # Mac 桌面通知补充; 服务器无 osascript 静默跳过
     return 0
 
 

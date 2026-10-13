@@ -28,10 +28,12 @@
 # * * * * * cd /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner && PYTHONPATH=src python3 scripts/adaptive_gold_monitor.py >> logs/adaptive_monitor.log 2>&1
 
 # ═══════════════════════════════════════════════════════════════
-# 盘前隔夜新闻扫描 (保留)
+# 盘前隔夜新闻扫描
 # ═══════════════════════════════════════════════════════════════
-# Ubuntu
-30 7 * * 1-5 cd /home/ubuntu/ai-gold-miner && PYTHONPATH=src python3 scripts/overnight_news_scanner.py >> logs/overnight_scanner.log 2>&1
+# Ubuntu (2026-10-13 停用: 与 Hermes cron 1f008e97147a 同机同点重复执行 —
+#   本行 stdout 只进 log 且无投递通道, 与 cron 任务各跑一遍 = 重复新闻取数+LLM 消耗;
+#   投递唯一通道 = Hermes cron 捕获 stdout 直投, 默认不镜像主会话)
+# 30 7 * * 1-5 cd /home/ubuntu/ai-gold-miner && PYTHONPATH=src python3 scripts/overnight_news_scanner.py >> logs/overnight_scanner.log 2>&1
 # Mac 本地
 # 30 7 * * 1-5 cd /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner && PYTHONPATH=src python3 scripts/overnight_news_scanner.py >> logs/overnight_scanner.log 2>&1
 

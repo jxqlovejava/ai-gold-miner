@@ -37,10 +37,11 @@ from gold_miner.sentinel.models import symbol_cn
 BEIJING = timezone(timedelta(hours=8))
 
 
-def _send_hermes(message: str) -> bool:
+def _notify_desktop(message: str) -> bool:
     """发送 macOS 桌面通知 (通过 osascript).
 
-    Hermes gateway weixin 需额外配置，当前使用 macOS 原生通知作为可靠 fallback。
+    微信投递走 hermes cron --no-agent stdout 直投 (任务 1f008e97147a);
+    本函数仅为 Mac 本地手动/定时运行时的桌面提醒, 服务器无 osascript 静默跳过.
     """
     try:
         lines = message.strip().split("\n")
@@ -997,8 +998,8 @@ def main() -> int:
     report = _format_report(intl_findings, cn_news, calendar_events, jd_price, xauusd)
     print(report, flush=True)
 
-    # ── 发送到微信 ──
-    _send_hermes(report)
+    # ── macOS 桌面通知 (微信投递由 hermes cron stdout 捕获直投, 见 gold_overnight_news.py) ──
+    _notify_desktop(report)
 
     return 0
 
