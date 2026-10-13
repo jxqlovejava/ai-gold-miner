@@ -154,6 +154,9 @@ OPP_DEFAULTS: dict = {
     "atr_sl_recovery_pct": 0.01,  # 破位后回升超1%再跌破才重提醒 (防跌穿后反复)
     "order_near_pct": 1.5,  # 条件单接近阈值: 距触发价≤1.5%提醒 (与盘前哨兵同款)
     "cooldown_order_prox_min": 60,  # 条件单接近提醒冷却 (防价位居阈值带内反复横跳刷屏)
+    # 跌破净保本持续态推送冷却 (2026-10-13 系统性修复): 价格在保本线下方是"状态"不是"事件",
+    # 无冷却则每次完整检查恒真 → 每6分钟推一张🟢卡片 → iLink限流 + 主会话镜像污染.
+    "cooldown_cost_below_hours": 24,
 }
 OPP_CONFIG_PATH = PROJECT_ROOT / "data/private/opportunity_config.yaml"
 SIGNAL_SNAPSHOT_PATH = PROJECT_ROOT / "data/signal_snapshot.json"
@@ -598,6 +601,25 @@ def _check_cost_proximity(current: float, cost: float) -> dict | None:
                 "severity": "HIGH" if threshold <= 0.02 else "MEDIUM",
             }
     return None
+
+
+def _cost_below_cooldown_ok(state: dict, cfg: dict) -> bool:
+    """跌破净保本线持续态推送是否放行 (2026-10-13 系统性修复).
+
+    背景: 价格在净保本线下方是"状态"不是"事件" — 破线期间 cost_below 每次检查恒真,
+    导致每6分钟推一张🟢卡片到微信: ① iLink 持续限流, 正常推送也排队延误;
+    ② hermes send 成功即 mirror 进主会话历史 (assistant 角色), 模型把你的新指令
+    回复与卡片复读混合 (实测 14:22 "今天新增" 回复尾部带出金价监控卡).
+    规则: 新跌破 (无标记) / 冷却到期 (默认24h) 放行; 价格回线上方由调用方清除标记.
+    """
+    last_at = state.get("cost_below_alert_at")
+    if not last_at:
+        return True
+    try:
+        elapsed_h = (_now() - datetime.fromisoformat(last_at)).total_seconds() / 3600
+    except (ValueError, TypeError):
+        return True
+    return elapsed_h >= cfg.get("cooldown_cost_below_hours", 24)
 
 
 def _check_atr_stop_break(
@@ -1862,6 +1884,8 @@ def main() -> int:
     # 4. 完整检查 (在当前状态下)
     cost_basis = _get_cost_basis()
     historical = _get_historical(days=90)
+    # opp_cfg 提前加载 (2026-10-13: 4b cost_below 冷却判定需要; 原在 4f 加载)
+    opp_cfg = _load_opp_config()
     alerts: list[dict] = []
 
     # 4a. 价格急变 (所有级别都检测, 这是快速通道)
@@ -1875,7 +1899,15 @@ def main() -> int:
         net_breakeven = _net_breakeven(cost_basis, _get_sell_fee_pct())
         cost_alert = _check_cost_proximity(current, net_breakeven)
         if cost_alert and cost_alert["severity"] in ("CRITICAL", "HIGH"):
+            if cost_alert["type"] == "cost_below" and not _cost_below_cooldown_ok(
+                state, opp_cfg
+            ):
+                # 持续态冷却: 卡片照常组装(展示层已去重), 但不再触发推送
+                cost_alert["cooldown_suppressed"] = True
             alerts.append(cost_alert)
+        elif cost_alert is None or cost_alert["type"] != "cost_below":
+            # 价格回到保本线上方 → 重置标记, 下次跌破算"新事件"立即推
+            state.pop("cost_below_alert_at", None)
 
     # 4c. 高点回撤
     peak = _check_peak_drawdown(current, historical)
@@ -1895,7 +1927,6 @@ def main() -> int:
         alerts.append(reversal)
 
     # 4f. 反弹检测 (下跌趋势中的回升) — 冷却期内不重复推送
-    opp_cfg = _load_opp_config()
     rebound = _check_rebound(current, state, cost_basis, opp_cfg)
     if rebound:
         alerts.append(rebound)
@@ -1971,8 +2002,12 @@ def main() -> int:
             )
 
     # 6. 通知 — 仅在有实质内容时输出
-    # 已去重: 单独的成本对比不再触发通知 (趋势摘要替代)
-    has_real_alerts = any(a["type"] not in ("cost_proximity",) for a in alerts)
+    # 已去重: 单独的成本对比不再触发通知 (趋势摘要替代);
+    # cooldown_suppressed 的持续态告警 (cost_below, 2026-10-13) 同样不再触发推送
+    has_real_alerts = any(
+        a["type"] not in ("cost_proximity",) and not a.get("cooldown_suppressed")
+        for a in alerts
+    )
     should_output = (
         has_real_alerts
         or level_changed
@@ -2013,6 +2048,12 @@ def main() -> int:
         if rebound is not None:
             state["rebound_alert_at"] = _now().isoformat()
             state["rebound_alert_price"] = current
+        # 记录 cost_below 推送时间戳 (仅未抑制的推送才落标记, 2026-10-13 持续态冷却)
+        if any(
+            a["type"] == "cost_below" and not a.get("cooldown_suppressed")
+            for a in alerts
+        ):
+            state["cost_below_alert_at"] = _now().isoformat()
 
     # 6. 更新状态
     now_iso = _now().isoformat()

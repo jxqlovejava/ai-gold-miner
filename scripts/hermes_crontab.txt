@@ -13,8 +13,16 @@
 #   CRITICAL (恐慌急跌)  → 每1分钟检查+每次推送
 # ═══════════════════════════════════════════════════════════════
 
-# ── Ubuntu 服务器 ──
-* * * * * cd /home/ubuntu/ai-gold-miner && PYTHONPATH=src python3 scripts/adaptive_gold_monitor.py >> logs/adaptive_monitor.log 2>&1
+# ── Ubuntu 服务器 (2026-10-13 停用系统 crontab, 改由 Hermes cron 投递) ──
+# 根因: 系统 crontab 每1分钟触发, 脚本内部 _send_alert → hermes send → send_message_tool
+#   对成功投递的消息调 mirror_to_session (role=assistant) 写入 agent:main:weixin 主会话.
+#   价格长期在净保本线下方 (cost_below 恒真) → 每5-6分钟推一张🟢卡 → 主会话历史被金价卡淹没,
+#   用户发任意指令时模型从历史复读金价卡拼进回复 (即"发指令就出金价消息"). 同时双通道
+#   (crontab */1 + Hermes cron 每5分钟) 触发 iLink 限流.
+# 修复: 监控改由 Hermes cron 任务 d822eb5eac19 (gold_adaptive_monitor.py, --no-agent) 投递 —
+#   cron 投递默认不 mirror (config cron.mirror_delivery=False), 不进主会话; 单通道不再限流.
+# 详见 ~/.claude/.ERROR_PATTERNS.md (2026-10-13).
+# * * * * * cd /home/ubuntu/ai-gold-miner && PYTHONPATH=src python3 scripts/adaptive_gold_monitor.py >> logs/adaptive_monitor.log 2>&1
 
 # ── Mac 本地 (开发/测试) ──
 # * * * * * cd /Users/jiangxiaoqiang/Documents/workspace/ai-gold-miner && PYTHONPATH=src python3 scripts/adaptive_gold_monitor.py >> logs/adaptive_monitor.log 2>&1
